@@ -164,3 +164,4 @@ The app uses Prisma with PostgreSQL (Supabase). Key models:
 MIT
 
 # smartcouple
+# smartcouple
