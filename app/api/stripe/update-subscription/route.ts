@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     if (isUpgrade) {
       const updateParams: Stripe.SubscriptionUpdateParams = {
         items: [{
-          id: stripeSubscription.items.data[0].id,
+          id: (stripeSubscription as any).items.data[0].id,
           price: priceId,
         }],
         proration_behavior: "always_invoice",
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a subscription schedule that starts at the end of the current period
-    const currentPeriodEnd = stripeSubscription.current_period_end;
+    const currentPeriodEnd = (stripeSubscription as any).current_period_end;
 
     // Create schedule with two phases:
     // 1. Current phase (until period end) - keep current plan
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       phases: [
         {
           // Current phase - keep existing items until period end
-          items: stripeSubscription.items.data.map(item => ({
+          items: (stripeSubscription as any).items.data.map((item: any) => ({
             price: item.price.id,
             quantity: item.quantity,
           })),
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
       subscription.stripeSubscriptionId,
       {
         schedule: schedule.id,
-      }
+      } as any
     );
 
     return NextResponse.json({
