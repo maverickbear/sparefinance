@@ -79,7 +79,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess }: AccountF
       setLoadingHouseholds(true);
       const res = await fetch("/api/households");
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as Household[];
         // Remove duplicates by id to ensure unique households
         const uniqueHouseholds: Household[] = Array.from(
           new Map(data.map((h: Household) => [h.id, h])).values()
