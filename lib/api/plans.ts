@@ -57,10 +57,12 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
     
     // Check if user is an active household member
     const isMember = await isHouseholdMember(userId);
+    console.log("[PLANS] getUserSubscription - userId:", userId, "isMember:", isMember);
     
     if (isMember) {
       // User is a household member, inherit plan from owner
       const ownerId = await getOwnerIdForMember(userId);
+      console.log("[PLANS] getUserSubscription - ownerId:", ownerId);
       
       if (ownerId) {
         // Get owner's subscription
@@ -77,11 +79,16 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
           console.error("[PLANS] Error fetching owner subscription:", ownerError);
         }
 
+        console.log("[PLANS] getUserSubscription - ownerSubscription:", ownerSubscription ? { planId: ownerSubscription.planId, status: ownerSubscription.status } : null);
+
         if (ownerSubscription) {
           // Owner has a subscription, return it as shadow subscription for the member
           // Only inherit if owner has Basic or Premium plan
           const ownerPlanId = ownerSubscription.planId;
+          console.log("[PLANS] getUserSubscription - ownerPlanId:", ownerPlanId);
+          
           if (ownerPlanId === "basic" || ownerPlanId === "premium") {
+            console.log("[PLANS] getUserSubscription - Returning shadow subscription for member:", userId, "with plan:", ownerPlanId);
             return {
               id: ownerSubscription.id,
               userId, // Use member's userId, but owner's subscription data
@@ -95,11 +102,19 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
               createdAt: ownerSubscription.createdAt ? new Date(ownerSubscription.createdAt) : new Date(),
               updatedAt: ownerSubscription.updatedAt ? new Date(ownerSubscription.updatedAt) : new Date(),
             };
+          } else {
+            console.log("[PLANS] getUserSubscription - Owner has Free plan, member will get Free");
           }
           // If owner has Free plan, fall through to return Free for member
+        } else {
+          console.log("[PLANS] getUserSubscription - Owner has no active subscription");
         }
         // If owner has no subscription or has Free, return Free for member
+      } else {
+        console.log("[PLANS] getUserSubscription - Could not find ownerId for member");
       }
+    } else {
+      console.log("[PLANS] getUserSubscription - User is not a household member");
     }
     
     // User is not a member, or owner has Free/no subscription - check user's own subscription

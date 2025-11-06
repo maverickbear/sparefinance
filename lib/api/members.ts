@@ -704,19 +704,21 @@ export async function isHouseholdMember(userId: string): Promise<boolean> {
     
     const { data: member, error } = await supabase
       .from("HouseholdMember")
-      .select("id")
+      .select("id, status, memberId")
       .eq("memberId", userId)
       .eq("status", "active")
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      console.error("Error checking household membership:", error);
+      console.error("[MEMBERS] Error checking household membership:", error);
       return false;
     }
 
-    return member !== null;
+    const isMember = member !== null;
+    console.log("[MEMBERS] isHouseholdMember - userId:", userId, "isMember:", isMember, "member:", member);
+    return isMember;
   } catch (error) {
-    console.error("Error in isHouseholdMember:", error);
+    console.error("[MEMBERS] Error in isHouseholdMember:", error);
     return false;
   }
 }
@@ -728,19 +730,21 @@ export async function getOwnerIdForMember(userId: string): Promise<string | null
     
     const { data: member, error } = await supabase
       .from("HouseholdMember")
-      .select("ownerId")
+      .select("ownerId, status, memberId")
       .eq("memberId", userId)
       .eq("status", "active")
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      console.error("Error getting ownerId for member:", error);
+      console.error("[MEMBERS] Error getting ownerId for member:", error);
       return null;
     }
 
-    return member?.ownerId || null;
+    const ownerId = member?.ownerId || null;
+    console.log("[MEMBERS] getOwnerIdForMember - userId:", userId, "ownerId:", ownerId, "member:", member);
+    return ownerId;
   } catch (error) {
-    console.error("Error in getOwnerIdForMember:", error);
+    console.error("[MEMBERS] Error in getOwnerIdForMember:", error);
     return null;
   }
 }
