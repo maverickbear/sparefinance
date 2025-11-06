@@ -75,7 +75,9 @@ export async function isPasswordCompromised(password: string): Promise<boolean> 
       // Limit cache size to prevent memory issues (keep last 1000 entries)
       if (hibpCache.size > 1000) {
         const firstKey = hibpCache.keys().next().value;
-        hibpCache.delete(firstKey);
+        if (firstKey !== undefined) {
+          hibpCache.delete(firstKey);
+        }
       }
     }
     
