@@ -499,6 +499,13 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
       throw new Error(`Failed to accept invitation: ${updateError.message || JSON.stringify(updateError)}`);
     }
 
+    console.log("[MEMBERS] acceptInvitation - Member accepted invitation:", {
+      memberId: member.memberId,
+      userId,
+      ownerId: member.ownerId,
+      status: member.status,
+    });
+
     // Note: We don't create a Free subscription for members
     // Members inherit the plan from the owner (shadow subscription)
     // This is handled dynamically in getUserSubscription()
@@ -625,6 +632,13 @@ export async function acceptInvitationWithPassword(token: string, password: stri
 
     // Get the updated member (should be exactly one)
     const member = updatedMembers[0];
+
+    console.log("[MEMBERS] acceptInvitationWithPassword - Member accepted invitation:", {
+      memberId: member.memberId,
+      userId,
+      ownerId: member.ownerId,
+      status: member.status,
+    });
 
     return {
       member: mapHouseholdMember(member),
