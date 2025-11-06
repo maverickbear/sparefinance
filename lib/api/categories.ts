@@ -160,7 +160,12 @@ export async function getAllCategories() {
     const { data, error } = await supabase
       .from("Category")
       .select(`
-        *,
+        id,
+        name,
+        macroId,
+        userId,
+        createdAt,
+        updatedAt,
         macro:Macro(*),
         subcategories:Subcategory(*)
       `)
@@ -171,14 +176,24 @@ export async function getAllCategories() {
       return [];
     }
 
-    return data || [];
+    // Remove duplicates by ID (in case query returns duplicates)
+    const uniqueData = Array.from(
+      new Map((data || []).map((cat: any) => [cat.id, cat])).values()
+    );
+
+    return uniqueData;
   }
 
   // Return system defaults (userId IS NULL) OR user's own categories
   const { data, error } = await supabase
     .from("Category")
     .select(`
-      *,
+      id,
+      name,
+      macroId,
+      userId,
+      createdAt,
+      updatedAt,
       macro:Macro(*),
       subcategories:Subcategory(*)
     `)
@@ -186,10 +201,16 @@ export async function getAllCategories() {
     .order("name", { ascending: true });
 
   if (error) {
+    console.error("Error fetching categories:", error);
     return [];
   }
 
-  return data || [];
+  // Remove duplicates by ID (in case query returns duplicates)
+  const uniqueData = Array.from(
+    new Map((data || []).map((cat: any) => [cat.id, cat])).values()
+  );
+
+  return uniqueData;
 }
 
 export async function createCategory(data: { name: string; macroId: string }) {
@@ -351,12 +372,17 @@ export async function createSubcategory(data: { name: string; categoryId: string
   const id = crypto.randomUUID();
   const now = getCurrentTimestamp();
 
+  // Determine userId: if category is system default, user creates subcategory with their userId
+  // If category belongs to user, subcategory also belongs to user
+  const subcategoryUserId = category.userId === null ? authUser.id : category.userId;
+
   const { data: subcategory, error } = await supabase
     .from("Subcategory")
     .insert({
       id,
       name: data.name,
       categoryId: data.categoryId,
+      userId: subcategoryUserId, // Set userId to identify user-created subcategories
       createdAt: now,
       updatedAt: now,
     })
@@ -381,13 +407,10 @@ export async function updateSubcategory(id: string, data: { name?: string }) {
     throw new Error("Unauthorized");
   }
 
-  // Verify subcategory belongs to user's category (can't update system defaults)
+  // Verify subcategory belongs to user (can't update system defaults)
   const { data: existingSubcategory, error: checkError } = await supabase
     .from("Subcategory")
-    .select(`
-      id,
-      category:Category!inner(id, userId)
-    `)
+    .select("id, userId")
     .eq("id", id)
     .single();
 
@@ -395,9 +418,14 @@ export async function updateSubcategory(id: string, data: { name?: string }) {
     throw new Error("Subcategory not found");
   }
 
-  const category = (existingSubcategory.category as unknown) as { id: string; userId: string | null };
-  if (category.userId !== authUser.id) {
-    throw new Error("Cannot update subcategories from system default categories");
+  // If subcategory userId is null, it's a system default - cannot update
+  if (existingSubcategory.userId === null) {
+    throw new Error("Cannot update system default subcategories");
+  }
+
+  // If subcategory userId doesn't match current user, cannot update
+  if (existingSubcategory.userId !== authUser.id) {
+    throw new Error("Cannot update subcategories that don't belong to you");
   }
 
   const updateData: Record<string, unknown> = {
@@ -412,6 +440,7 @@ export async function updateSubcategory(id: string, data: { name?: string }) {
     .from("Subcategory")
     .update(updateData)
     .eq("id", id)
+    .eq("userId", authUser.id) // Only update user's own subcategories
     .select("*")
     .single();
 
@@ -433,13 +462,10 @@ export async function deleteSubcategory(id: string) {
     throw new Error("Unauthorized");
   }
 
-  // Verify subcategory belongs to user's category (can't delete system defaults)
+  // Verify subcategory exists and check userId
   const { data: existingSubcategory, error: checkError } = await supabase
     .from("Subcategory")
-    .select(`
-      id,
-      category:Category!inner(id, userId)
-    `)
+    .select("id, userId")
     .eq("id", id)
     .single();
 
@@ -447,15 +473,22 @@ export async function deleteSubcategory(id: string) {
     throw new Error("Subcategory not found");
   }
 
-  const category = (existingSubcategory.category as unknown) as { id: string; userId: string | null };
-  if (category.userId !== authUser.id) {
-    throw new Error("Cannot delete subcategories from system default categories");
+  // If subcategory userId is null, it's a system default - cannot delete
+  if (existingSubcategory.userId === null) {
+    throw new Error("Cannot delete system default subcategories");
   }
 
+  // If subcategory userId doesn't match current user, cannot delete
+  if (existingSubcategory.userId !== authUser.id) {
+    throw new Error("Cannot delete subcategories that don't belong to you");
+  }
+
+  // User can delete their own subcategories
   const { error } = await supabase
     .from("Subcategory")
     .delete()
-    .eq("id", id);
+    .eq("id", id)
+    .eq("userId", authUser.id); // Only delete user's own subcategories
 
   if (error) {
     console.error("Supabase error deleting subcategory:", error);
@@ -569,4 +602,47 @@ export async function createMacro(data: { name: string }) {
   }
 
   return macro;
+}
+
+/**
+ * Delete a custom macro (only user's own macros)
+ */
+export async function deleteMacro(id: string) {
+  const supabase = await createServerClient();
+
+  // Get current user
+  const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError || !authUser) {
+    throw new Error("Unauthorized");
+  }
+
+  // Verify macro belongs to user (can't delete system defaults)
+  const { data: existingMacro, error: checkError } = await supabase
+    .from("Macro")
+    .select("id, userId")
+    .eq("id", id)
+    .single();
+
+  if (checkError || !existingMacro) {
+    throw new Error("Macro not found");
+  }
+
+  if (existingMacro.userId !== authUser.id) {
+    throw new Error("Cannot delete system default macros");
+  }
+
+  // Delete the macro (categories will be cascade deleted)
+  const { error } = await supabase
+    .from("Macro")
+    .delete()
+    .eq("id", id)
+    .eq("userId", authUser.id); // Only delete user's own macros
+
+  if (error) {
+    console.error("Supabase error deleting macro:", error);
+    throw new Error(`Failed to delete macro: ${error.message || JSON.stringify(error)}`);
+  }
+
+  return true;
 }

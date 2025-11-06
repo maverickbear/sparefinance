@@ -14,6 +14,7 @@ import { Plus, Edit, Trash2 } from "lucide-react";
 import { formatMoney } from "@/components/common/money";
 import { AccountForm } from "@/components/forms/account-form";
 import { TableSkeleton } from "@/components/ui/list-skeleton";
+import { useToast } from "@/components/toast-provider";
 
 interface Account {
   id: string;
@@ -21,9 +22,12 @@ interface Account {
   type: string;
   balance: number;
   creditLimit?: number | null;
+  householdName?: string | null;
+  ownerIds?: string[];
 }
 
 export default function AccountsPage() {
+  const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -49,11 +53,37 @@ export default function AccountsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this account?")) return;
 
+    const accountToDelete = accounts.find(a => a.id === id);
+    
+    // Optimistic update: remove from UI immediately
+    setAccounts(prev => prev.filter(a => a.id !== id));
+
     try {
-      await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to delete account");
+      }
+
+      toast({
+        title: "Account deleted",
+        description: "Your account has been deleted successfully.",
+        variant: "success",
+      });
+      
       loadAccounts();
     } catch (error) {
       console.error("Error deleting account:", error);
+      // Revert optimistic update on error
+      if (accountToDelete) {
+        setAccounts(prev => [...prev, accountToDelete].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete account",
+        variant: "destructive",
+      });
     }
   }
 
@@ -85,6 +115,7 @@ export default function AccountsPage() {
               <TableRow>
                 <TableHead className="text-xs md:text-sm">Name</TableHead>
                 <TableHead className="text-xs md:text-sm">Type</TableHead>
+                <TableHead className="text-xs md:text-sm">Household</TableHead>
                 <TableHead className="text-right text-xs md:text-sm">Balance</TableHead>
                 {accounts.some((acc) => acc.type === "credit" && acc.creditLimit) && (
                   <>
@@ -98,7 +129,7 @@ export default function AccountsPage() {
             <TableBody>
               {accounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     No accounts found. Create one to get started.
                   </TableCell>
                 </TableRow>
@@ -117,8 +148,11 @@ export default function AccountsPage() {
                       {account.type}
                     </span>
                   </TableCell>
+                  <TableCell className="text-xs md:text-sm text-muted-foreground">
+                    {account.householdName || "-"}
+                  </TableCell>
                   <TableCell className={`text-right font-medium text-xs md:text-sm ${
-                    account.balance >= 0 ? "text-green-600" : "text-red-600"
+                    account.balance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                   }`}>
                     {formatMoney(account.balance)}
                   </TableCell>
@@ -130,8 +164,8 @@ export default function AccountsPage() {
                       <TableCell className={`text-right font-medium text-xs md:text-sm hidden md:table-cell ${
                         isCreditCard && available !== null
                           ? available >= 0 
-                            ? "text-green-600" 
-                            : "text-red-600"
+                            ? "text-green-600 dark:text-green-400" 
+                            : "text-red-600 dark:text-red-400"
                           : ""
                       }`}>
                         {isCreditCard && available !== null 

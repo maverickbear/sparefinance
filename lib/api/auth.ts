@@ -2,6 +2,8 @@
 
 import { createServerClient } from "@/lib/supabase-server";
 import { SignUpFormData, SignInFormData } from "@/lib/validations/auth";
+import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
+import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { cookies } from "next/headers";
 
 export interface User {
@@ -9,6 +11,7 @@ export interface User {
   email: string;
   name?: string;
   avatarUrl?: string;
+  phoneNumber?: string;
   role?: "admin" | "member";
   createdAt: Date;
   updatedAt: Date;
@@ -16,6 +19,12 @@ export interface User {
 
 export async function signUp(data: SignUpFormData): Promise<{ user: User | null; error: string | null }> {
   try {
+    // Check password against HIBP before attempting signup
+    const passwordValidation = await validatePasswordAgainstHIBP(data.password);
+    if (!passwordValidation.isValid) {
+      return { user: null, error: passwordValidation.error || "Invalid password" };
+    }
+    
     const supabase = await createServerClient();
     
     // Sign up user with Supabase Auth
@@ -30,7 +39,9 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
     });
 
     if (authError || !authData.user) {
-      return { user: null, error: authError?.message || "Failed to sign up" };
+      // Get user-friendly error message (handles HIBP errors automatically)
+      const errorMessage = getAuthErrorMessage(authError, "Failed to sign up");
+      return { user: null, error: errorMessage };
     }
 
     // Create user profile in User table (owners sign up directly, so they are admin)
@@ -120,7 +131,9 @@ export async function signIn(data: SignInFormData): Promise<{ user: User | null;
     });
 
     if (authError || !authData.user) {
-      return { user: null, error: authError?.message || "Failed to sign in" };
+      // Get user-friendly error message (handles HIBP and other auth errors automatically)
+      const errorMessage = getAuthErrorMessage(authError, "Failed to sign in");
+      return { user: null, error: errorMessage };
     }
 
     // Get or create user profile
@@ -241,7 +254,7 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
-export async function updateProfile(data: { name?: string; avatarUrl?: string }): Promise<{ user: User | null; error: string | null }> {
+export async function updateProfile(data: { name?: string; avatarUrl?: string; phoneNumber?: string }): Promise<{ user: User | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
     
@@ -251,12 +264,14 @@ export async function updateProfile(data: { name?: string; avatarUrl?: string })
       return { user: null, error: "Not authenticated" };
     }
 
+    const updateData: { name?: string; avatarUrl?: string; phoneNumber?: string } = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl || null;
+    if (data.phoneNumber !== undefined) updateData.phoneNumber = data.phoneNumber || null;
+
     const { data: userData, error: userError } = await supabase
       .from("User")
-      .update({
-        name: data.name,
-        avatarUrl: data.avatarUrl,
-      })
+      .update(updateData)
       .eq("id", authUser.id)
       .select()
       .single();
@@ -278,6 +293,7 @@ function mapUser(data: any): User {
     email: data.email,
     name: data.name || undefined,
     avatarUrl: data.avatarUrl || undefined,
+    phoneNumber: data.phoneNumber || undefined,
     role: data.role || "admin", // Default to admin if not set
     createdAt: new Date(data.createdAt),
     updatedAt: new Date(data.updatedAt),

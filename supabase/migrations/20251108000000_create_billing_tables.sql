@@ -51,20 +51,26 @@ CREATE INDEX IF NOT EXISTS "Subscription_stripeCustomerId_idx" ON "Subscription"
 
 -- Create function to update updatedAt timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   NEW."updatedAt" = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Create triggers for updatedAt
+DROP TRIGGER IF EXISTS update_user_updated_at ON "User";
 CREATE TRIGGER update_user_updated_at BEFORE UPDATE ON "User"
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_plan_updated_at ON "Plan";
 CREATE TRIGGER update_plan_updated_at BEFORE UPDATE ON "Plan"
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_subscription_updated_at ON "Subscription";
 CREATE TRIGGER update_subscription_updated_at BEFORE UPDATE ON "Subscription"
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

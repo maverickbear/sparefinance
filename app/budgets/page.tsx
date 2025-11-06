@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { BudgetForm } from "@/components/forms/budget-form";
 import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/toast-provider";
 
 interface Budget {
   id: string;
@@ -55,6 +56,7 @@ interface Category {
 }
 
 export default function BudgetsPage() {
+  const { toast } = useToast();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
@@ -71,7 +73,9 @@ export default function BudgetsPage() {
     try {
       setLoading(true);
       const [budgetsData, categoriesData, macrosData] = await Promise.all([
-        getBudgets(now),
+        fetch(`/api/budgets?period=${now.toISOString()}`, {
+          cache: 'no-store',
+        }).then(res => res.json()),
         getAllCategories(),
         getMacros(),
       ]);
@@ -88,6 +92,11 @@ export default function BudgetsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this budget?")) return;
 
+    const budgetToDelete = budgets.find(b => b.id === id);
+    
+    // Optimistic update: remove from UI immediately
+    setBudgets(prev => prev.filter(b => b.id !== id));
+
     try {
       const res = await fetch(`/api/budgets/${id}`, { method: "DELETE" });
       
@@ -96,10 +105,24 @@ export default function BudgetsPage() {
         throw new Error(errorData.error || "Failed to delete budget");
       }
 
-      loadData();
+      toast({
+        title: "Budget deleted",
+        description: "Your budget has been deleted successfully.",
+        variant: "success",
+      });
+      
+      // Não precisa recarregar - a atualização otimista já removeu da lista
     } catch (error) {
       console.error("Error deleting budget:", error);
-      alert(error instanceof Error ? error.message : "Failed to delete budget");
+      // Revert optimistic update on error
+      if (budgetToDelete) {
+        setBudgets(prev => [...prev, budgetToDelete]);
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete budget",
+        variant: "destructive",
+      });
     }
   }
 
@@ -214,9 +237,11 @@ export default function BudgetsPage() {
             setSelectedBudget(null);
           }
         }}
-        onSuccess={() => {
-          loadData();
+        onSuccess={async () => {
           setSelectedBudget(null);
+          // Small delay to ensure database is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+          loadData();
         }}
       />
     </div>

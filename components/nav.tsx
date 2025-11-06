@@ -5,13 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users } from "lucide-react";
+import { ProfileModal } from "@/components/profile/profile-modal";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -75,6 +75,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
   const { theme, setTheme } = useTheme();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   // Don't render Nav if user doesn't have subscription
   if (!hasSubscription) {
@@ -101,6 +102,16 @@ export function Nav({ hasSubscription = true }: NavProps) {
     }
 
     fetchUserData();
+
+    // Listen for profile updates
+    const handleProfileUpdate = () => {
+      fetchUserData();
+    };
+    window.addEventListener("profile-updated", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("profile-updated", handleProfileUpdate);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -233,39 +244,38 @@ export function Nav({ hasSubscription = true }: NavProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
-                  </Link>
+                <DropdownMenuItem
+                  onClick={() => setProfileModalOpen(true)}
+                  className="cursor-pointer mb-1"
+                >
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="mb-1">
                   <Link href="/members" className="cursor-pointer">
                     <Users className="mr-2 h-4 w-4" />
                     <span>Members</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="mb-1">
                   <Link href="/settings" className="cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="mb-1">
                   <Link href="/billing" className="cursor-pointer">
                     <CreditCard className="mr-2 h-4 w-4" />
                     <span>Billing</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+                <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="mb-1">
                   <div className="relative mr-2 h-4 w-4">
                     <Sun className="absolute h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                     <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                   </div>
-                  <span>Toggle theme</span>
+                  <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
@@ -280,6 +290,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
           )}
         </div>
       </div>
+      <ProfileModal open={profileModalOpen} onOpenChange={setProfileModalOpen} />
     </aside>
   );
 }

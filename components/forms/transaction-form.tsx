@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
+import { useToast } from "@/components/toast-provider";
 
 interface Transaction {
   id: string;
@@ -73,6 +74,7 @@ interface Subcategory {
 }
 
 export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: TransactionFormProps) {
+  const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -240,6 +242,11 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
         date: data.date instanceof Date ? data.date.toISOString() : data.date,
       };
       
+      // Optimistic update: call onSuccess immediately
+      onSuccess?.();
+      onOpenChange(false);
+      form.reset();
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -252,12 +259,20 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
         throw new Error(errorData.error || "Failed to save transaction");
       }
 
-      onSuccess?.();
-      onOpenChange(false);
-      form.reset();
+      toast({
+        title: transaction ? "Transaction updated" : "Transaction created",
+        description: transaction ? "Your transaction has been updated successfully." : "Your transaction has been created successfully.",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error saving transaction:", error);
-      alert(error instanceof Error ? error.message : "Failed to save transaction");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save transaction",
+        variant: "destructive",
+      });
+      // Reload on error to revert optimistic update
+      onSuccess?.();
     }
   }
 

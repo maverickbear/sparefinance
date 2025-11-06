@@ -242,7 +242,7 @@ function AcceptInvitationForm() {
             {status === "success" && (
               <div className="flex flex-col items-center justify-center py-8 space-y-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
-                  <CheckCircle2 className="h-8 w-8 text-green-600" />
+                  <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-sm font-medium">{message}</p>
@@ -260,7 +260,7 @@ function AcceptInvitationForm() {
             {status === "error" && (
               <div className="flex flex-col items-center justify-center py-8 space-y-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
-                  <XCircle className="h-8 w-8 text-red-600" />
+                  <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
                 </div>
                 <div className="text-center space-y-2">
                   <p className="text-sm font-medium text-destructive">

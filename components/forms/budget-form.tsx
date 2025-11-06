@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useToast } from "@/components/toast-provider";
 
 interface Macro {
   id: string;
@@ -83,6 +84,7 @@ export function BudgetForm({
   onOpenChange,
   onSuccess,
 }: BudgetFormProps) {
+  const { toast } = useToast();
   const [selectedMacroId, setSelectedMacroId] = useState<string>("");
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
 
@@ -211,6 +213,24 @@ export function BudgetForm({
           const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
           throw new Error(errorData.error || "Failed to save budget");
         }
+
+        // Close dialog and reset form first
+        onOpenChange(false);
+        form.reset();
+        setSelectedMacroId("");
+        setAvailableCategories([]);
+
+        // Call onSuccess after API response to reload data with updated budget
+        if (onSuccess) {
+          onSuccess();
+        }
+
+        toast({
+          title: "Budget updated",
+          description: "Your budget has been updated successfully.",
+          variant: "success",
+        });
+        return; // Exit early for update case
       } else {
         // Creating: create a single budget (grouped if multiple categories selected)
         // Use categoryIds from form data first, then fallback to local state, then single categoryId
@@ -261,14 +281,33 @@ export function BudgetForm({
         }
       }
 
+      // Close dialog and reset form first
       onOpenChange(false);
       form.reset();
       setSelectedMacroId("");
       setAvailableCategories([]);
-      onSuccess?.(); // Refresh to show new budget
+
+      toast({
+        title: "Budget created",
+        description: "Your budget has been created successfully.",
+        variant: "success",
+      });
+
+      // Call onSuccess after API response to reload data with the new budget
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       console.error("Error saving budget:", error);
-      alert(error instanceof Error ? error.message : "Failed to save budget");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save budget",
+        variant: "destructive",
+      });
+      // Reload on error to revert optimistic update
+      if (onSuccess) {
+        onSuccess();
+      }
     }
   }
 
@@ -416,7 +455,7 @@ export function BudgetForm({
                     </p>
                   )}
                   {form.formState.errors.categoryIds && (
-                    <p className="text-xs text-red-500">
+                    <p className="text-xs text-destructive">
                       {form.formState.errors.categoryIds.message}
                     </p>
                   )}
@@ -434,7 +473,7 @@ export function BudgetForm({
               {...form.register("amount", { valueAsNumber: true })}
             />
             {form.formState.errors.amount && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.amount.message}
               </p>
             )}

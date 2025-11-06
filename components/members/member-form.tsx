@@ -124,7 +124,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
               </p>
             )}
             {form.formState.errors.email && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 {form.formState.errors.email.message}
               </p>
             )}
@@ -134,7 +134,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
             <label className="text-sm font-medium">Name</label>
             <Input {...form.register("name")} placeholder="Member name" />
             {form.formState.errors.name && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 {form.formState.errors.name?.message}
               </p>
             )}
@@ -158,7 +158,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
               Admin has full access based on the plan. Member cannot remove household members or invite others.
             </p>
             {form.formState.errors.role && (
-              <p className="text-sm text-red-500">
+              <p className="text-sm text-destructive">
                 {form.formState.errors.role?.message}
               </p>
             )}

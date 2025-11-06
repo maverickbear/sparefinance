@@ -185,11 +185,11 @@ export function FinancialHealthModal({
                     <div
                       className={cn(
                         "h-full transition-all",
-                        data.savingsRate >= 50 ? "bg-green-500" :
-                        data.savingsRate >= 30 ? "bg-blue-500" :
-                        data.savingsRate >= 20 ? "bg-yellow-500" :
-                        data.savingsRate >= 10 ? "bg-orange-500" :
-                        data.savingsRate >= 0 ? "bg-orange-300" : "bg-red-500"
+                        data.savingsRate >= 50 ? "bg-green-500 dark:bg-green-600" :
+                        data.savingsRate >= 30 ? "bg-blue-500 dark:bg-blue-600" :
+                        data.savingsRate >= 20 ? "bg-yellow-500 dark:bg-yellow-600" :
+                        data.savingsRate >= 10 ? "bg-orange-500 dark:bg-orange-600" :
+                        data.savingsRate >= 0 ? "bg-orange-300 dark:bg-orange-500" : "bg-red-500 dark:bg-red-600"
                       )}
                       style={{ width: `${Math.min(Math.max(data.savingsRate, -100), 100) + 100}%` }}
                     />

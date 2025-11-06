@@ -24,7 +24,10 @@ export async function DELETE(
     await deleteCategory(id);
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to delete category" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Failed to delete category";
+    const statusCode = errorMessage.includes("Unauthorized") ? 401 : 
+                      errorMessage.includes("Cannot delete system") ? 403 : 500;
+    return NextResponse.json({ error: errorMessage }, { status: statusCode });
   }
 }
 

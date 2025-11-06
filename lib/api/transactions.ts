@@ -255,11 +255,17 @@ export async function getTransactionsInternal(
   }
 
   if (!data || data.length === 0) {
-    console.log("No transactions found with filters:", filters);
+    // Only log in development to reduce noise in production
+    if (process.env.NODE_ENV === "development") {
+      console.log("No transactions found with filters:", filters);
+    }
     return [];
   }
 
-  console.log(`Found ${data.length} transactions from Supabase`);
+  // Only log in development to reduce noise in production
+  if (process.env.NODE_ENV === "development") {
+    console.log(`Found ${data.length} transactions from Supabase`);
+  }
 
   // Supabase returns relations differently depending on the relationship type
   // For one-to-many or many-to-one, it can return as object or array

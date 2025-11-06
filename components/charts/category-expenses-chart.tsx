@@ -95,9 +95,9 @@ export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpense
                 <div className="text-sm font-semibold">{formatMoney(item.value)}</div>
                 <div className="text-xs text-muted-foreground cursor-help relative group/tooltip inline-block">
                   {item.percentage.toFixed(1)}%
-                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 text-xs text-white bg-gray-900 dark:bg-gray-100 dark:text-gray-900 rounded-[12px] opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50">
+                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 text-xs bg-popover text-popover-foreground border border-border rounded-[12px] opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50 shadow-md">
                     % of total monthly income
-                    <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-100"></span>
+                    <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-popover"></span>
                   </span>
                 </div>
               </div>

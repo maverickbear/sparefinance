@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import { signInSchema } from "@/lib/validations/auth";
+import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,13 +20,8 @@ export async function POST(request: NextRequest) {
     });
 
     if (authError) {
-      // Check for specific error messages
-      let errorMessage = authError.message;
-      if (authError.message.includes("Email not confirmed") || authError.message.includes("email_not_confirmed")) {
-        errorMessage = "Please confirm your email before signing in. Check your inbox for the confirmation link.";
-      } else if (authError.message.includes("Invalid login credentials")) {
-        errorMessage = "Invalid email or password.";
-      }
+      // Get user-friendly error message (handles HIBP and other auth errors automatically)
+      const errorMessage = getAuthErrorMessage(authError, "Failed to sign in");
       
       return NextResponse.json(
         { error: errorMessage },

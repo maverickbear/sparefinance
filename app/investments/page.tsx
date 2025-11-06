@@ -291,7 +291,7 @@ export default function InvestmentsPage() {
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">Dividends/Juros</div>
-                      <div className="font-medium text-green-600">
+                      <div className="font-medium text-green-600 dark:text-green-400">
                         {formatMoney(totalDividends)}
                       </div>
                     </div>
@@ -368,7 +368,7 @@ export default function InvestmentsPage() {
                   ))}
                 </select>
                 {entryForm.formState.errors.accountId && (
-                  <p className="text-xs text-red-500 mt-1">
+                  <p className="text-xs text-destructive mt-1">
                     {entryForm.formState.errors.accountId.message}
                   </p>
                 )}
@@ -394,7 +394,7 @@ export default function InvestmentsPage() {
                   }}
                 />
                 {entryForm.formState.errors.date && (
-                  <p className="text-xs text-red-500 mt-1">
+                  <p className="text-xs text-destructive mt-1">
                     {entryForm.formState.errors.date.message}
                   </p>
                 )}
@@ -422,7 +422,7 @@ export default function InvestmentsPage() {
                   {...entryForm.register("amount", { valueAsNumber: true })}
                 />
                 {entryForm.formState.errors.amount && (
-                  <p className="text-xs text-red-500 mt-1">
+                  <p className="text-xs text-destructive mt-1">
                     {entryForm.formState.errors.amount.message}
                   </p>
                 )}
@@ -479,7 +479,7 @@ export default function InvestmentsPage() {
                 {...valueForm.register("totalValue", { valueAsNumber: true })}
               />
               {valueForm.formState.errors.totalValue && (
-                <p className="text-xs text-red-500 mt-1">
+                <p className="text-xs text-destructive mt-1">
                   {valueForm.formState.errors.totalValue.message}
                 </p>
               )}

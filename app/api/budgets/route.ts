@@ -8,7 +8,13 @@ export async function GET(request: Request) {
     const period = searchParams.get("period");
     const date = period ? new Date(period) : new Date();
     const budgets = await getBudgets(date);
-    return NextResponse.json(budgets);
+    return NextResponse.json(budgets, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch budgets" }, { status: 500 });
   }

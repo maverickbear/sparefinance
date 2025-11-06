@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import { signUpSchema } from "@/lib/validations/auth";
+import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
+import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +13,18 @@ export async function POST(request: NextRequest) {
     // Validate data
     const validatedData = signUpSchema.parse(body);
     console.log("[SIGNUP] Data validated successfully");
+    
+    // Check password against HIBP before attempting signup
+    console.log("[SIGNUP] Checking password against HIBP");
+    const passwordValidation = await validatePasswordAgainstHIBP(validatedData.password);
+    if (!passwordValidation.isValid) {
+      console.log("[SIGNUP] Password failed HIBP check:", passwordValidation.error);
+      return NextResponse.json(
+        { error: passwordValidation.error || "Invalid password" },
+        { status: 400 }
+      );
+    }
+    console.log("[SIGNUP] Password passed HIBP check");
     
     // Create Supabase client with cookie management
     const supabase = await createServerClient();
@@ -31,8 +45,12 @@ export async function POST(request: NextRequest) {
 
     if (authError) {
       console.error("[SIGNUP] Auth error during signup:", authError);
+      
+      // Get user-friendly error message (handles HIBP errors automatically)
+      const errorMessage = getAuthErrorMessage(authError, "Failed to sign up");
+      
       return NextResponse.json(
-        { error: authError.message },
+        { error: errorMessage },
         { status: 400 }
       );
     }

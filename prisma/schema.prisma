@@ -63,6 +63,7 @@ model Subcategory {
   name       String
   categoryId String
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  userId     String?  // NULL for system defaults, user ID for custom subcategories
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -70,6 +71,7 @@ model Subcategory {
 
   @@index([categoryId])
   @@index([name])
+  @@index([userId])
 }
 
 model Transaction {

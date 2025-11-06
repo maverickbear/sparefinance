@@ -73,9 +73,9 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
     .slice(0, 3);
 
   const priorityColors = {
-    High: "bg-red-500",
-    Medium: "bg-yellow-500",
-    Low: "bg-blue-500",
+    High: "bg-red-500 dark:bg-red-600",
+    Medium: "bg-yellow-500 dark:bg-yellow-600",
+    Low: "bg-blue-500 dark:bg-blue-600",
   };
 
   return (
@@ -132,10 +132,10 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CheckCircle2 className="h-3 w-3 text-green-600" />
+              <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
               <span>Completed</span>
             </div>
-            <p className="text-lg font-semibold text-green-600">{completedGoals.length}</p>
+            <p className="text-lg font-semibold text-green-600 dark:text-green-400">{completedGoals.length}</p>
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -149,7 +149,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
               <Clock className="h-3 w-3" />
               <span>Paused</span>
             </div>
-            <p className="text-lg font-semibold text-yellow-600">{pausedGoals.length}</p>
+            <p className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">{pausedGoals.length}</p>
           </div>
         </div>
 

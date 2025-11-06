@@ -25,6 +25,7 @@ import {
 import { formatMoney } from "@/components/common/money";
 import { type Goal as GoalType } from "@/lib/api/goals";
 import { calculateProgress, calculateIncomePercentageFromTargetMonths } from "@/lib/utils/goals";
+import { useToast } from "@/components/toast-provider";
 
 interface Goal {
   id: string;
@@ -53,6 +54,7 @@ export function GoalForm({
   onOpenChange,
   onSuccess,
 }: GoalFormProps) {
+  const { toast } = useToast();
   const [forecast, setForecast] = useState<{
     monthlyContribution: number;
     monthsToGoal: number | null;
@@ -220,9 +222,20 @@ export function GoalForm({
   async function onSubmit(data: GoalFormData) {
     try {
       if (forecast?.allocationError) {
-        alert(forecast.allocationError);
+        toast({
+          title: "Validation Error",
+          description: forecast.allocationError,
+          variant: "destructive",
+        });
         return;
       }
+
+      // Optimistic update: call onSuccess immediately
+      if (onSuccess) {
+        onSuccess();
+      }
+      onOpenChange(false);
+      form.reset();
 
       if (goal) {
         // Update existing goal
@@ -270,12 +283,22 @@ export function GoalForm({
         }
       }
 
-      onOpenChange(false);
-      form.reset();
-      onSuccess?.();
+      toast({
+        title: goal ? "Goal updated" : "Goal created",
+        description: goal ? "Your goal has been updated successfully." : "Your goal has been created successfully.",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error saving goal:", error);
-      alert(error instanceof Error ? error.message : "Failed to save goal");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save goal",
+        variant: "destructive",
+      });
+      // Reload on error to revert optimistic update
+      if (onSuccess) {
+        onSuccess();
+      }
     }
   }
 
@@ -302,7 +325,7 @@ export function GoalForm({
               placeholder="e.g., Emergency Fund, Down Payment"
             />
             {form.formState.errors.name && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.name.message}
               </p>
             )}
@@ -318,7 +341,7 @@ export function GoalForm({
                 {...form.register("targetAmount", { valueAsNumber: true })}
               />
               {form.formState.errors.targetAmount && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.targetAmount.message}
                 </p>
               )}
@@ -335,7 +358,7 @@ export function GoalForm({
                 {...form.register("currentBalance", { valueAsNumber: true })}
               />
               {form.formState.errors.currentBalance && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.currentBalance.message}
                 </p>
               )}
@@ -365,12 +388,12 @@ export function GoalForm({
               </SelectContent>
             </Select>
             {form.formState.errors.targetMonths && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.targetMonths.message}
               </p>
             )}
             {forecast?.allocationError && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {forecast.allocationError}
               </p>
             )}
@@ -394,7 +417,7 @@ export function GoalForm({
               </SelectContent>
             </Select>
             {form.formState.errors.priority && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.priority.message}
               </p>
             )}

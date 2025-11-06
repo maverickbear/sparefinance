@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/components/common/money";
 import { calculateDebtMetrics, convertToMonthlyPayment, type DebtForCalculation } from "@/lib/utils/debts";
+import { useToast } from "@/components/toast-provider";
 
 interface Debt {
   id: string;
@@ -60,6 +61,7 @@ export function DebtForm({
   onOpenChange,
   onSuccess,
 }: DebtFormProps) {
+  const { toast } = useToast();
   const [forecast, setForecast] = useState<{
     monthsRemaining: number | null;
     totalInterestRemaining: number;
@@ -394,14 +396,25 @@ export function DebtForm({
         }
       }
 
-      // Wait a bit for the database to update, then reload
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Optimistic update: call onSuccess immediately
       onOpenChange(false);
       form.reset();
       onSuccess?.();
+
+      toast({
+        title: debt ? "Debt updated" : "Debt created",
+        description: debt ? "Your debt has been updated successfully." : "Your debt has been created successfully.",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error saving debt:", error);
-      alert(error instanceof Error ? error.message : "Failed to save debt");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save debt",
+        variant: "destructive",
+      });
+      // Reload on error to revert optimistic update
+      onSuccess?.();
     }
   }
 
@@ -428,7 +441,7 @@ export function DebtForm({
               placeholder="e.g., Car Loan, Mortgage"
             />
             {form.formState.errors.name && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.name.message}
               </p>
             )}
@@ -456,7 +469,7 @@ export function DebtForm({
               </SelectContent>
             </Select>
             {form.formState.errors.loanType && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.loanType.message}
               </p>
             )}
@@ -480,7 +493,7 @@ export function DebtForm({
               </SelectContent>
             </Select>
             {form.formState.errors.accountId && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.accountId.message}
               </p>
             )}
@@ -496,7 +509,7 @@ export function DebtForm({
                 placeholder="0.00"
               />
               {form.formState.errors.initialAmount && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.initialAmount.message}
                 </p>
               )}
@@ -511,7 +524,7 @@ export function DebtForm({
                 placeholder="0.00"
               />
               {form.formState.errors.downPayment && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.downPayment.message}
                 </p>
               )}
@@ -528,7 +541,7 @@ export function DebtForm({
                 placeholder="12.5"
               />
               {form.formState.errors.interestRate && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.interestRate.message}
                 </p>
               )}
@@ -542,7 +555,7 @@ export function DebtForm({
                 placeholder="60"
               />
               {form.formState.errors.totalMonths && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.totalMonths.message}
                 </p>
               )}
@@ -570,7 +583,7 @@ export function DebtForm({
                 </SelectContent>
               </Select>
               {form.formState.errors.paymentFrequency && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.paymentFrequency.message}
                 </p>
               )}
@@ -585,7 +598,7 @@ export function DebtForm({
                 placeholder="0.00"
               />
               {form.formState.errors.paymentAmount && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-destructive">
                   {form.formState.errors.paymentAmount.message}
                 </p>
               )}
@@ -615,7 +628,7 @@ export function DebtForm({
               }}
             />
             {form.formState.errors.firstPaymentDate && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-destructive">
                 {form.formState.errors.firstPaymentDate.message}
               </p>
             )}
@@ -632,7 +645,7 @@ export function DebtForm({
                   placeholder="0.00"
                 />
                 {form.formState.errors.principalPaid && (
-                  <p className="text-xs text-red-500">
+                  <p className="text-xs text-destructive">
                     {form.formState.errors.principalPaid.message}
                   </p>
                 )}
@@ -647,7 +660,7 @@ export function DebtForm({
                   placeholder="0.00"
                 />
                 {form.formState.errors.interestPaid && (
-                  <p className="text-xs text-red-500">
+                  <p className="text-xs text-destructive">
                     {form.formState.errors.interestPaid.message}
                   </p>
                 )}

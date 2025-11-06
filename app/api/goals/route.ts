@@ -5,7 +5,13 @@ import { getGoals, createGoal } from "@/lib/api/goals";
 export async function GET() {
   try {
     const goals = await getGoals();
-    return NextResponse.json(goals);
+    return NextResponse.json(goals, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    });
   } catch (error) {
     console.error("Error fetching goals:", error);
     return NextResponse.json(

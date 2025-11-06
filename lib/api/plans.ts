@@ -118,9 +118,14 @@ export async function getCurrentUserSubscription(): Promise<Subscription | null>
       return null;
     }
 
-    return getUserSubscription(authUser.id);
+    // getUserSubscription always returns a subscription (at least "free" as default)
+    // So this should never be null if user is authenticated
+    const subscription = await getUserSubscription(authUser.id);
+    return subscription;
   } catch (error) {
     console.error("Error in getCurrentUserSubscription:", error);
+    // Even on error, if we have a user, we should return a free subscription
+    // But we can't access the user here, so return null
     return null;
   }
 }

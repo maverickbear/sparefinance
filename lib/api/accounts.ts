@@ -43,17 +43,77 @@ export async function getAccounts() {
         // Outgoing transfer - reduce balance
         balances.set(tx.accountId, currentBalance - tx.amount);
       } else {
-        // Incoming transfer - increase balance
+        // Ingoing transfer - increase balance
         balances.set(tx.accountId, currentBalance + tx.amount);
       }
     }
   }
 
-  // Combine accounts with their balances
-  const accountsWithBalances = accounts.map((account) => ({
-    ...account,
-    balance: balances.get(account.id) || 0,
-  }));
+  // Fetch AccountOwner relationships for all accounts
+  const { data: accountOwners } = await supabase
+    .from("AccountOwner")
+    .select("accountId, ownerId");
+
+  // Create a map: accountId -> ownerIds[]
+  const accountOwnersMap = new Map<string, string[]>();
+  accountOwners?.forEach((ao) => {
+    if (!accountOwnersMap.has(ao.accountId)) {
+      accountOwnersMap.set(ao.accountId, []);
+    }
+    accountOwnersMap.get(ao.accountId)!.push(ao.ownerId);
+  });
+
+  // Get all unique owner IDs
+  const allOwnerIds = new Set<string>();
+  accountOwners?.forEach((ao) => {
+    allOwnerIds.add(ao.ownerId);
+  });
+
+  // Also include userIds from accounts for backward compatibility
+  accounts.forEach((acc) => {
+    if (acc.userId) {
+      allOwnerIds.add(acc.userId);
+    }
+  });
+
+  // Fetch owner names
+  const { data: owners } = await supabase
+    .from("User")
+    .select("id, name")
+    .in("id", Array.from(allOwnerIds));
+
+  // Create a map: ownerId -> ownerName (first name only)
+  const ownerNameMap = new Map<string, string>();
+  owners?.forEach((owner) => {
+    if (owner.id && owner.name) {
+      // Extract only the first name
+      const firstName = owner.name.split(' ')[0];
+      ownerNameMap.set(owner.id, firstName);
+    }
+  });
+
+  // Combine accounts with their balances and household names
+  const accountsWithBalances = accounts.map((account) => {
+    const ownerIds = accountOwnersMap.get(account.id) || 
+      (account.userId ? [account.userId] : []);
+    
+    // Get household names for all owners
+    const householdNames = ownerIds
+      .map(ownerId => ownerNameMap.get(ownerId))
+      .filter(Boolean) as string[];
+    
+    // Join multiple household names with comma
+    const householdName = householdNames.length > 0 
+      ? householdNames.join(", ") 
+      : null;
+
+    return {
+      ...account,
+      balance: balances.get(account.id) || 0,
+      householdName,
+      ownerIds, // Include ownerIds in response
+    };
+  });
 
   return accountsWithBalances;
 }
@@ -71,6 +131,11 @@ export async function createAccount(data: AccountFormData) {
   const id = crypto.randomUUID();
   const now = formatTimestamp(new Date());
 
+  // Determine owner IDs: use provided ownerIds or default to current user
+  const ownerIds = data.ownerIds && data.ownerIds.length > 0 
+    ? data.ownerIds 
+    : [user.id];
+
   const { data: account, error } = await supabase
     .from("Account")
     .insert({
@@ -78,7 +143,7 @@ export async function createAccount(data: AccountFormData) {
       name: data.name,
       type: data.type,
       creditLimit: data.type === "credit" ? data.creditLimit : null,
-      userId: user.id,
+      userId: user.id, // Keep userId for backward compatibility and RLS
       createdAt: now,
       updatedAt: now,
     })
@@ -95,6 +160,25 @@ export async function createAccount(data: AccountFormData) {
     throw new Error(`Failed to create account: ${error.message || JSON.stringify(error)}`);
   }
 
+  // Create AccountOwner entries for each owner
+  if (ownerIds.length > 0) {
+    const accountOwners = ownerIds.map(ownerId => ({
+      accountId: id,
+      ownerId,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    const { error: ownersError } = await supabase
+      .from("AccountOwner")
+      .insert(accountOwners);
+
+    if (ownersError) {
+      console.error("Supabase error creating account owners:", ownersError);
+      // Don't fail the account creation, but log the error
+    }
+  }
+
   return account;
 }
 
@@ -102,6 +186,10 @@ export async function updateAccount(id: string, data: Partial<AccountFormData>) 
     const supabase = await createServerClient();
 
   const updateData: Record<string, unknown> = { ...data };
+  
+  // Remove ownerIds from updateData as it's handled separately
+  const ownerIds = updateData.ownerIds as string[] | undefined;
+  delete updateData.ownerIds;
   
   // Handle creditLimit: set to null if not credit type, otherwise use provided value
   if (data.type !== undefined) {
@@ -127,6 +215,40 @@ export async function updateAccount(id: string, data: Partial<AccountFormData>) 
   if (error) {
     console.error("Supabase error updating account:", error);
     throw new Error(`Failed to update account: ${error.message || JSON.stringify(error)}`);
+  }
+
+  // Update AccountOwner entries if ownerIds are provided
+  if (ownerIds !== undefined) {
+    const now = formatTimestamp(new Date());
+    
+    // Delete existing owners
+    const { error: deleteError } = await supabase
+      .from("AccountOwner")
+      .delete()
+      .eq("accountId", id);
+
+    if (deleteError) {
+      console.error("Supabase error deleting account owners:", deleteError);
+    }
+
+    // Insert new owners
+    if (ownerIds.length > 0) {
+      const accountOwners = ownerIds.map(ownerId => ({
+        accountId: id,
+        ownerId,
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      const { error: ownersError } = await supabase
+        .from("AccountOwner")
+        .insert(accountOwners);
+
+      if (ownersError) {
+        console.error("Supabase error updating account owners:", ownersError);
+        // Don't fail the account update, but log the error
+      }
+    }
   }
 
   return account;

@@ -1,33 +1,52 @@
 "use server";
 
 import { ProfileFormData } from "@/lib/validations/profile";
+import { getCurrentUser, updateProfile as updateUserProfile } from "@/lib/api/auth";
 
 export interface Profile {
   name: string;
   email: string;
   avatarUrl?: string;
+  phoneNumber?: string;
 }
 
-// TODO: Migrate to database when authentication is implemented
-// For now, this structure is prepared for future database integration
+// Fetch profile from Supabase
 export async function getProfile(): Promise<Profile | null> {
-  // TODO: Replace with database query when authentication is implemented
-  // Example: const supabase = createServerClient();
-  // const { data } = await supabase.from("profiles").select("*").single();
-  return null; // Temporary: return null to indicate no profile yet
+  try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return null;
+    }
+
+    return {
+      name: user.name || "",
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      phoneNumber: user.phoneNumber,
+    };
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    return null;
+  }
 }
 
 export async function updateProfile(data: ProfileFormData): Promise<Profile> {
-  // TODO: Replace with database update when authentication is implemented
-  // Example: const supabase = createServerClient();
-  // const { data: profile } = await supabase.from("profiles").update(data).single();
-  
-  const profile: Profile = {
+  const { user, error } = await updateUserProfile({
     name: data.name,
-    email: data.email,
     avatarUrl: data.avatarUrl || undefined,
+    phoneNumber: data.phoneNumber || undefined,
+  });
+
+  if (error || !user) {
+    throw new Error(error || "Failed to update profile");
+  }
+
+  return {
+    name: user.name || "",
+    email: user.email,
+    avatarUrl: user.avatarUrl,
+    phoneNumber: user.phoneNumber,
   };
-  
-  return profile;
 }
 

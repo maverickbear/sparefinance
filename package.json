@@ -9,7 +9,12 @@
     "lint": "next lint",
     "db:seed": "tsx scripts/seed.ts",
     "check:supabase": "tsx scripts/check-supabase.ts",
-    "check:stripe": "tsx scripts/check-stripe.ts"
+    "check:stripe": "tsx scripts/check-stripe.ts",
+    "test:hibp": "tsx scripts/test-hibp.ts",
+    "check:duplicates": "tsx scripts/check-duplicate-categories.ts",
+    "cleanup:duplicates": "tsx scripts/cleanup-duplicate-categories.ts",
+    "check:duplicate-subcategories": "tsx scripts/check-duplicate-subcategories.ts",
+    "cleanup:duplicate-subcategories": "tsx scripts/cleanup-duplicate-subcategories.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

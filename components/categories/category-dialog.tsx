@@ -21,7 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, X, Check } from "lucide-react";
+import { Plus, Edit, X, Check } from "lucide-react";
+import { useToast } from "@/components/toast-provider";
 
 interface Macro {
   id: string;
@@ -32,6 +33,7 @@ interface Subcategory {
   id: string;
   name: string;
   categoryId: string;
+  userId?: string | null;
 }
 
 interface PendingSubcategory {
@@ -43,6 +45,7 @@ interface Category {
   id: string;
   name: string;
   macroId: string;
+  userId?: string | null;
   subcategories?: Subcategory[];
 }
 
@@ -61,6 +64,7 @@ export function CategoryDialog({
   macros,
   onSuccess,
 }: CategoryDialogProps) {
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [subcategories, setSubcategories] = useState<Subcategory[]>(category?.subcategories || []);
   const [pendingSubcategories, setPendingSubcategories] = useState<PendingSubcategory[]>([]);
@@ -71,6 +75,9 @@ export function CategoryDialog({
   const [isAddingSubcategory, setIsAddingSubcategory] = useState(false);
   const [isSubmittingSubcategory, setIsSubmittingSubcategory] = useState(false);
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(category?.id || null);
+  
+  // Check if this is a system category (userId === null)
+  const isSystemCategory = category?.userId === null || category?.userId === undefined;
 
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(categorySchema),
@@ -113,6 +120,24 @@ export function CategoryDialog({
   async function onSubmit(data: CategoryFormData) {
     try {
       setIsSubmitting(true);
+      
+      // For system categories, skip the category update and just refresh subcategories
+      if (isSystemCategory && category) {
+        // Refresh the subcategories list and close dialog
+        const res = await fetch(`/api/categories/all`);
+        if (res.ok) {
+          const allCategories = await res.json();
+          const updatedCategory = allCategories.find((cat: any) => cat.id === category.id);
+          if (updatedCategory) {
+            setSubcategories(updatedCategory.subcategories || []);
+          }
+        }
+        // Close dialog and reload data
+        onSuccess?.();
+        onOpenChange(false);
+        return;
+      }
+      
       const url = category ? `/api/categories/${category.id}` : "/api/categories";
       const method = category ? "PATCH" : "POST";
 
@@ -151,7 +176,11 @@ export function CategoryDialog({
           setPendingSubcategories([]);
         } catch (error) {
           console.error("Error creating subcategories:", error);
-          alert("Category created but some subcategories failed to create. Please add them manually.");
+          toast({
+            title: "Partial Success",
+            description: "Category created but some subcategories failed to create. Please add them manually.",
+            variant: "destructive",
+          });
         }
       } else {
         setSubcategories(savedCategory.subcategories || []);
@@ -164,9 +193,18 @@ export function CategoryDialog({
         form.reset();
       }
       // For new categories, keep dialog open to allow adding more subcategories
+      toast({
+        title: category ? "Category updated" : "Category created",
+        description: category ? "Your category has been updated successfully." : "Your category has been created successfully.",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error saving category:", error);
-      alert(error instanceof Error ? error.message : "Failed to save category");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save category",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +214,11 @@ export function CategoryDialog({
     const name = newSubcategoryName.trim();
     
     if (!name) {
-      alert("Subcategory name is required");
+      toast({
+        title: "Validation Error",
+        description: "Subcategory name is required",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -199,9 +241,23 @@ export function CategoryDialog({
         setSubcategories([...subcategories, newSubcategory]);
         setNewSubcategoryName("");
         setIsAddingSubcategory(false);
+        // Refresh data for system categories
+        if (isSystemCategory) {
+          onSuccess?.();
+        }
+        
+        toast({
+          title: "Subcategory created",
+          description: "Your subcategory has been created successfully.",
+          variant: "success",
+        });
       } catch (error) {
         console.error("Error creating subcategory:", error);
-        alert(error instanceof Error ? error.message : "Failed to create subcategory");
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to create subcategory",
+          variant: "destructive",
+        });
       } finally {
         setIsSubmittingSubcategory(false);
       }
@@ -241,9 +297,19 @@ export function CategoryDialog({
       );
       setEditingSubcategoryId(null);
       setEditingSubcategoryName("");
+      
+      toast({
+        title: "Subcategory updated",
+        description: "Your subcategory has been updated successfully.",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error updating subcategory:", error);
-      alert(error instanceof Error ? error.message : "Failed to update subcategory");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update subcategory",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmittingSubcategory(false);
     }
@@ -285,9 +351,19 @@ export function CategoryDialog({
       }
 
       setSubcategories(subcategories.filter((s) => s.id !== subcategoryId));
+      
+      toast({
+        title: "Subcategory deleted",
+        description: "Your subcategory has been deleted successfully.",
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error deleting subcategory:", error);
-      alert(error instanceof Error ? error.message : "Failed to delete subcategory");
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete subcategory",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmittingSubcategory(false);
     }
@@ -324,238 +400,272 @@ export function CategoryDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Group</label>
-            <Select
-              value={form.watch("macroId")}
-              onValueChange={(value) => form.setValue("macroId", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select group" />
-              </SelectTrigger>
-              <SelectContent>
-                {macros.map((macro) => (
-                  <SelectItem key={macro.id} value={macro.id}>
-                    {macro.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.formState.errors.macroId && (
-              <p className="text-sm text-red-500">
-                {form.formState.errors.macroId.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Category Name</label>
-            <Input
-              {...form.register("name")}
-              placeholder="Enter category name"
-            />
-            {form.formState.errors.name && (
-              <p className="text-sm text-red-500">
-                {form.formState.errors.name.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Subcategories</label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAddingSubcategory(true)}
-                disabled={isAddingSubcategory || isSubmittingSubcategory}
-              >
-                <Plus className="mr-1 h-3 w-3" />
-                Add
-              </Button>
-            </div>
-            
-            {isAddingSubcategory && (
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Enter subcategory name"
-                  value={newSubcategoryName}
-                  onChange={(e) => setNewSubcategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddSubcategory();
-                    } else if (e.key === "Escape") {
-                      setIsAddingSubcategory(false);
-                      setNewSubcategoryName("");
-                    }
-                  }}
-                  autoFocus
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleAddSubcategory}
-                  disabled={isSubmittingSubcategory || !newSubcategoryName.trim()}
+          {!isSystemCategory && (
+            <>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Group</label>
+                <Select
+                  value={form.watch("macroId")}
+                  onValueChange={(value) => form.setValue("macroId", value)}
+                  disabled={!!category}
                 >
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    setIsAddingSubcategory(false);
-                    setNewSubcategoryName("");
-                  }}
-                  disabled={isSubmittingSubcategory}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {macros.map((macro) => (
+                      <SelectItem key={macro.id} value={macro.id}>
+                        {macro.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.macroId && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.macroId.message}
+                  </p>
+                )}
               </div>
-            )}
 
-            <div className="space-y-1 max-h-48 overflow-y-auto rounded-[12px] border p-2">
-              {subcategories.length === 0 && pendingSubcategories.length === 0 && !isAddingSubcategory ? (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  No subcategories yet
-                </p>
-              ) : (
-                <>
-                  {/* Show pending subcategories (before category is created) */}
-                  {pendingSubcategories.map((pending) => (
-                    <div
-                      key={pending.tempId}
-                      className="flex items-center gap-2 p-2 hover:bg-muted rounded-[12px]"
-                    >
-                      {editingPendingSubcategoryTempId === pending.tempId ? (
-                        <>
-                          <Input
-                            value={editingSubcategoryName}
-                            onChange={(e) => setEditingSubcategoryName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleUpdatePendingSubcategory(pending.tempId);
-                              } else if (e.key === "Escape") {
-                                cancelEditingSubcategory();
-                              }
-                            }}
-                            className="flex-1"
-                            autoFocus
-                          />
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleUpdatePendingSubcategory(pending.tempId)}
-                            disabled={!editingSubcategoryName.trim()}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={cancelEditingSubcategory}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-sm">{pending.name}</span>
-                          <span className="text-xs text-muted-foreground px-2">Pending</span>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => startEditingPendingSubcategory(pending)}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleDeletePendingSubcategory(pending.tempId)}
-                          >
-                            <Trash2 className="h-3 w-3 text-destructive" />
-                          </Button>
-                        </>
-                      )}
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Category Name</label>
+                <Input
+                  {...form.register("name")}
+                  placeholder="Enter category name"
+                  disabled={!!category}
+                />
+                {form.formState.errors.name && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.name.message}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+          
+          {isSystemCategory && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Category Name</label>
+              <Input
+                value={category?.name || ""}
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">
+                System categories cannot be renamed. You can only add subcategories.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Subcategories</label>
+            
+            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto rounded-[12px] border p-2">
+              {/* Show pending subcategories (before category is created) */}
+              {pendingSubcategories.map((pending) => (
+                <div
+                  key={pending.tempId}
+                  className="group relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/50 hover:bg-muted border border-transparent hover:border-border transition-colors"
+                >
+                  {editingPendingSubcategoryTempId === pending.tempId ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={editingSubcategoryName}
+                        onChange={(e) => setEditingSubcategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleUpdatePendingSubcategory(pending.tempId);
+                          } else if (e.key === "Escape") {
+                            cancelEditingSubcategory();
+                          }
+                        }}
+                        className="h-7 w-24 text-xs"
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => handleUpdatePendingSubcategory(pending.tempId)}
+                        disabled={!editingSubcategoryName.trim()}
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={cancelEditingSubcategory}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
-                  ))}
-                  
-                  {/* Show created subcategories */}
-                  {subcategories.map((subcategory) => (
-                    <div
-                      key={subcategory.id}
-                      className="flex items-center gap-2 p-2 hover:bg-muted rounded-[12px]"
-                    >
-                      {editingSubcategoryId === subcategory.id ? (
-                        <>
-                          <Input
-                            value={editingSubcategoryName}
-                            onChange={(e) => setEditingSubcategoryName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                handleUpdateSubcategory(subcategory.id);
-                              } else if (e.key === "Escape") {
-                                cancelEditingSubcategory();
-                              }
-                            }}
-                            className="flex-1"
-                            autoFocus
-                          />
+                  ) : (
+                    <>
+                      <span className="text-xs font-medium text-foreground">{pending.name}</span>
+                      <span className="text-xs text-muted-foreground px-1">Pending</span>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => startEditingPendingSubcategory(pending)}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-5 w-5"
+                          onClick={() => handleDeletePendingSubcategory(pending.tempId)}
+                        >
+                          <X className="h-3 w-3 text-black" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              
+              {/* Show created subcategories */}
+              {subcategories.map((subcategory) => (
+                <div
+                  key={subcategory.id}
+                  className="group relative inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-muted/50 hover:bg-muted border border-transparent hover:border-border transition-colors"
+                >
+                  {editingSubcategoryId === subcategory.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={editingSubcategoryName}
+                        onChange={(e) => setEditingSubcategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleUpdateSubcategory(subcategory.id);
+                          } else if (e.key === "Escape") {
+                            cancelEditingSubcategory();
+                          }
+                        }}
+                        className="h-7 w-24 text-xs"
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => handleUpdateSubcategory(subcategory.id)}
+                        disabled={isSubmittingSubcategory || !editingSubcategoryName.trim()}
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={cancelEditingSubcategory}
+                        disabled={isSubmittingSubcategory}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-xs font-medium text-foreground">{subcategory.name}</span>
+                      {/* Only show edit/delete buttons for user-created subcategories */}
+                      {subcategory.userId !== null && subcategory.userId !== undefined && (
+                        <div className="flex items-center gap-0.5">
+                          {!isSystemCategory && (
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => startEditingSubcategory(subcategory)}
+                              disabled={isSubmittingSubcategory}
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             size="icon"
                             variant="ghost"
-                            onClick={() => handleUpdateSubcategory(subcategory.id)}
-                            disabled={isSubmittingSubcategory || !editingSubcategoryName.trim()}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={cancelEditingSubcategory}
-                            disabled={isSubmittingSubcategory}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-sm">{subcategory.name}</span>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => startEditingSubcategory(subcategory)}
-                            disabled={isSubmittingSubcategory}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
+                            className="h-5 w-5"
                             onClick={() => handleDeleteSubcategory(subcategory.id)}
                             disabled={isSubmittingSubcategory}
                           >
-                            <Trash2 className="h-3 w-3 text-destructive" />
+                            <X className="h-3 w-3 text-black" />
                           </Button>
-                        </>
+                        </div>
                       )}
-                    </div>
-                  ))}
-                </>
+                    </>
+                  )}
+                </div>
+              ))}
+              
+              {/* Add new subcategory button/input - always at the end */}
+              {isAddingSubcategory ? (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-border bg-background">
+                  <Input
+                    placeholder="Enter name"
+                    value={newSubcategoryName}
+                    onChange={(e) => setNewSubcategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddSubcategory();
+                      } else if (e.key === "Escape") {
+                        setIsAddingSubcategory(false);
+                        setNewSubcategoryName("");
+                      }
+                    }}
+                    className="h-7 w-24 text-xs border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={handleAddSubcategory}
+                    disabled={isSubmittingSubcategory || !newSubcategoryName.trim()}
+                  >
+                    <Check className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      setIsAddingSubcategory(false);
+                      setNewSubcategoryName("");
+                    }}
+                    disabled={isSubmittingSubcategory}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingSubcategory(true);
+                    setNewSubcategoryName("");
+                  }}
+                  disabled={isSubmittingSubcategory}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-muted-foreground/50 hover:border-muted-foreground text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add
+                </button>
               )}
             </div>
           </div>
@@ -571,16 +681,21 @@ export function CategoryDialog({
               }}
               disabled={isSubmitting || isSubmittingSubcategory}
             >
-              {currentCategoryId && !category ? "Done" : "Cancel"}
+              Cancel
             </Button>
-            {!currentCategoryId && (
+            {!currentCategoryId && !isSystemCategory && (
               <Button type="submit" disabled={isSubmitting || !form.watch("name") || !form.watch("macroId")}>
                 {isSubmitting ? "Saving..." : "Create"}
               </Button>
             )}
-            {currentCategoryId && category && (
+            {currentCategoryId && category && !isSystemCategory && (
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Saving..." : "Update"}
+              </Button>
+            )}
+            {isSystemCategory && category && (
+              <Button type="submit" disabled={isSubmitting || isSubmittingSubcategory}>
+                {isSubmitting ? "Saving..." : "Save"}
               </Button>
             )}
           </DialogFooter>

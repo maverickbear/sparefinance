@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/components/toast-provider";
 
 interface Goal {
   id: string;
@@ -45,6 +46,7 @@ interface Goal {
 }
 
 export default function GoalsPage() {
+  const { toast } = useToast();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
@@ -63,7 +65,9 @@ export default function GoalsPage() {
   async function loadGoals() {
     try {
       setLoading(true);
-      const res = await fetch("/api/goals");
+      const res = await fetch("/api/goals", {
+        cache: 'no-store',
+      });
       if (!res.ok) {
         throw new Error("Failed to fetch goals");
       }
@@ -79,6 +83,11 @@ export default function GoalsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this goal?")) return;
 
+    const goalToDelete = goals.find(g => g.id === id);
+    
+    // Optimistic update: remove from UI immediately
+    setGoals(prev => prev.filter(g => g.id !== id));
+
     try {
       const res = await fetch(`/api/goals/${id}`, { method: "DELETE" });
 
@@ -87,14 +96,33 @@ export default function GoalsPage() {
         throw new Error(errorData.error || "Failed to delete goal");
       }
 
+      toast({
+        title: "Goal deleted",
+        description: "Your goal has been deleted successfully.",
+        variant: "success",
+      });
+      
       loadGoals();
     } catch (error) {
       console.error("Error deleting goal:", error);
-      alert(error instanceof Error ? error.message : "Failed to delete goal");
+      // Revert optimistic update on error
+      if (goalToDelete) {
+        setGoals(prev => [...prev, goalToDelete]);
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete goal",
+        variant: "destructive",
+      });
     }
   }
 
   async function handlePause(id: string, isPaused: boolean) {
+    const goal = goals.find(g => g.id === id);
+    
+    // Optimistic update: update UI immediately
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, isPaused: !isPaused } : g));
+
     try {
       const res = await fetch(`/api/goals/${id}`, {
         method: "PATCH",
@@ -107,10 +135,24 @@ export default function GoalsPage() {
         throw new Error(errorData.error || "Failed to update goal");
       }
 
+      toast({
+        title: !isPaused ? "Goal paused" : "Goal resumed",
+        description: !isPaused ? "Your goal has been paused." : "Your goal has been resumed.",
+        variant: "success",
+      });
+      
       loadGoals();
     } catch (error) {
       console.error("Error pausing/resuming goal:", error);
-      alert(error instanceof Error ? error.message : "Failed to update goal");
+      // Revert optimistic update on error
+      if (goal) {
+        setGoals(prev => prev.map(g => g.id === id ? goal : g));
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update goal",
+        variant: "destructive",
+      });
     }
   }
 
@@ -129,12 +171,22 @@ export default function GoalsPage() {
 
     const amount = parseFloat(topUpAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount");
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
       return;
     }
 
+    const goalId = selectedGoal.id;
+    const oldBalance = selectedGoal.currentBalance;
+    
+    // Optimistic update: update UI immediately
+    setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: g.currentBalance + amount } : g));
+
     try {
-      const res = await fetch(`/api/goals/${selectedGoal.id}/top-up`, {
+      const res = await fetch(`/api/goals/${goalId}/top-up`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
@@ -145,13 +197,25 @@ export default function GoalsPage() {
         throw new Error(errorData.error || "Failed to add top-up");
       }
 
+      toast({
+        title: "Top-up added",
+        description: `Successfully added ${formatMoney(amount)} to your goal.`,
+        variant: "success",
+      });
+
       setIsTopUpOpen(false);
       setTopUpAmount("");
       setSelectedGoal(null);
       loadGoals();
     } catch (error) {
       console.error("Error adding top-up:", error);
-      alert(error instanceof Error ? error.message : "Failed to add top-up");
+      // Revert optimistic update on error
+      setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: oldBalance } : g));
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add top-up",
+        variant: "destructive",
+      });
     }
   }
 
@@ -160,17 +224,31 @@ export default function GoalsPage() {
 
     const amount = parseFloat(withdrawAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount");
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
       return;
     }
 
     if (amount > selectedGoal.currentBalance) {
-      alert("Withdrawal amount cannot exceed current balance");
+      toast({
+        title: "Validation Error",
+        description: "Withdrawal amount cannot exceed current balance",
+        variant: "destructive",
+      });
       return;
     }
 
+    const goalId = selectedGoal.id;
+    const oldBalance = selectedGoal.currentBalance;
+    
+    // Optimistic update: update UI immediately
+    setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: g.currentBalance - amount } : g));
+
     try {
-      const res = await fetch(`/api/goals/${selectedGoal.id}/withdraw`, {
+      const res = await fetch(`/api/goals/${goalId}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount }),
@@ -181,13 +259,25 @@ export default function GoalsPage() {
         throw new Error(errorData.error || "Failed to withdraw");
       }
 
+      toast({
+        title: "Withdrawal successful",
+        description: `Successfully withdrew ${formatMoney(amount)} from your goal.`,
+        variant: "success",
+      });
+
       setIsWithdrawOpen(false);
       setWithdrawAmount("");
       setSelectedGoal(null);
       loadGoals();
     } catch (error) {
       console.error("Error withdrawing:", error);
-      alert(error instanceof Error ? error.message : "Failed to withdraw");
+      // Revert optimistic update on error
+      setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: oldBalance } : g));
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to withdraw",
+        variant: "destructive",
+      });
     }
   }
 
@@ -274,7 +364,7 @@ export default function GoalsPage() {
 
         <div className="text-sm">
           <span className="text-muted-foreground">Total Allocation: </span>
-          <span className={`font-semibold ${totalAllocation > 100 ? "text-red-600" : "text-green-600"}`}>
+          <span className={`font-semibold ${totalAllocation > 100 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
             {totalAllocation.toFixed(1)}%
           </span>
         </div>

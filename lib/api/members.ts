@@ -3,6 +3,8 @@
 import { createServerClient } from "@/lib/supabase-server";
 import { MemberInviteFormData, MemberUpdateFormData } from "@/lib/validations/member";
 import { formatTimestamp } from "@/lib/utils/timestamp";
+import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
+import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { checkPlanLimits } from "./plans";
 import { sendInvitationEmail } from "@/lib/utils/email";
 
@@ -242,17 +244,26 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
       updateData.invitedAt = now;
 
       // Update member
-      const { data: member, error } = await supabase
+      // First, perform the update and check if any rows were affected
+      const { data: updatedMembers, error: updateError } = await supabase
         .from("HouseholdMember")
         .update(updateData)
         .eq("id", memberId)
-        .select()
-        .single();
+        .select();
 
-      if (error) {
-        console.error("Error updating member:", error);
-        throw new Error(`Failed to update member: ${error.message || JSON.stringify(error)}`);
+      if (updateError) {
+        console.error("Error updating member:", updateError);
+        throw new Error(`Failed to update member: ${updateError.message || JSON.stringify(updateError)}`);
       }
+
+      // Check if the update affected any rows
+      if (!updatedMembers || updatedMembers.length === 0) {
+        // This can happen if RLS policies prevent the update
+        throw new Error("Member not found or you don't have permission to update this member");
+      }
+
+      // Get the updated member (should be exactly one)
+      const member = updatedMembers[0];
 
       // Resend invitation email with new token
       try {
@@ -308,18 +319,26 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
     }
 
     // Update member
-    const { data: member, error } = await supabase
+    // First, perform the update and check if any rows were affected
+    const { data: updatedMembers, error: updateError } = await supabase
       .from("HouseholdMember")
       .update(updateData)
       .eq("id", memberId)
-      .select()
-      .single();
+      .select();
 
-    if (error) {
-      console.error("Error updating member:", error);
-      throw new Error(`Failed to update member: ${error.message || JSON.stringify(error)}`);
+    if (updateError) {
+      console.error("Error updating member:", updateError);
+      throw new Error(`Failed to update member: ${updateError.message || JSON.stringify(updateError)}`);
     }
 
+    // Check if the update affected any rows
+    if (!updatedMembers || updatedMembers.length === 0) {
+      // This can happen if RLS policies prevent the update
+      throw new Error("Member not found or you don't have permission to update this member");
+    }
+
+    // Get the updated member (should be exactly one)
+    const member = updatedMembers[0];
     return mapHouseholdMember(member);
   } catch (error) {
     console.error("Error in updateMember:", error);
@@ -503,6 +522,12 @@ export async function acceptInvitationWithPassword(token: string, password: stri
       throw new Error("Invalid or expired invitation token");
     }
 
+    // Check password against HIBP before attempting signup
+    const passwordValidation = await validatePasswordAgainstHIBP(password);
+    if (!passwordValidation.isValid) {
+      throw new Error(passwordValidation.error || "Invalid password");
+    }
+
     // Create user in Supabase Auth
     // Note: signUp will fail if email already exists, which is what we want
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -517,12 +542,11 @@ export async function acceptInvitationWithPassword(token: string, password: stri
     });
 
     if (authError) {
-      // Check if error is because user already exists
-      if (authError.message?.includes("already registered") || authError.message?.includes("already exists")) {
-        throw new Error("User with this email already exists. Please sign in instead.");
-      }
       console.error("Error creating auth user:", authError);
-      throw new Error(`Failed to create account: ${authError.message || "Unknown error"}`);
+      
+      // Get user-friendly error message (handles HIBP errors automatically)
+      const errorMessage = getAuthErrorMessage(authError, "Failed to create account");
+      throw new Error(errorMessage);
     }
 
     if (!authData.user) {
@@ -583,7 +607,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
 
     // Update the invitation to active status and link the member
     // Now using the authenticated client so RLS policies allow the update
-    const { data: member, error: updateError } = await supabaseWithSession
+    const { data: updatedMembers, error: updateError } = await supabaseWithSession
       .from("HouseholdMember")
       .update({
         memberId: userId,
@@ -592,13 +616,22 @@ export async function acceptInvitationWithPassword(token: string, password: stri
         updatedAt: now,
       })
       .eq("id", invitation.id)
-      .select()
-      .single();
+      .eq("email", invitation.email) // Ensure email matches for security
+      .select();
 
     if (updateError) {
       console.error("Error accepting invitation:", updateError);
       throw new Error(`Failed to accept invitation: ${updateError.message || JSON.stringify(updateError)}`);
     }
+
+    // Check if the update affected any rows
+    if (!updatedMembers || updatedMembers.length === 0) {
+      // This can happen if RLS policies prevent the update
+      throw new Error("Failed to accept invitation: Unable to update invitation. This may be due to permissions or the invitation may have already been accepted.");
+    }
+
+    // Get the updated member (should be exactly one)
+    const member = updatedMembers[0];
 
     return {
       member: mapHouseholdMember(member),

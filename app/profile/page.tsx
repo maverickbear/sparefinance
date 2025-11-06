@@ -19,9 +19,9 @@ interface Profile {
   name: string;
   email: string;
   avatarUrl?: string;
+  phoneNumber?: string;
 }
 
-const PROFILE_STORAGE_KEY = "spare_finance_profile";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -35,6 +35,7 @@ export default function ProfilePage() {
       name: "",
       email: "",
       avatarUrl: "",
+      phoneNumber: "",
     },
   });
 
@@ -42,31 +43,54 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  function loadProfile() {
+  async function loadProfile() {
     try {
       setLoading(true);
-      // Load from localStorage (temporary until authentication is implemented)
-      const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
-      if (stored) {
-        const profileData = JSON.parse(stored);
-        setProfile(profileData);
-        form.reset({
-          name: profileData.name || "",
-          email: profileData.email || "",
-          avatarUrl: profileData.avatarUrl || "",
-        });
+      // Fetch from Supabase
+      const res = await fetch("/api/profile");
+      if (res.ok) {
+        const profileData = await res.json();
+        if (profileData) {
+          setProfile(profileData);
+          form.reset({
+            name: profileData.name || "",
+            email: profileData.email || "",
+            avatarUrl: profileData.avatarUrl || "",
+            phoneNumber: profileData.phoneNumber || "",
+          });
+        } else {
+          // Default profile if no data
+          const defaultProfile: Profile = {
+            name: "",
+            email: "",
+            avatarUrl: "",
+            phoneNumber: "",
+          };
+          setProfile(defaultProfile);
+          form.reset(defaultProfile);
+        }
       } else {
-        // Default profile
+        // Default profile on error
         const defaultProfile: Profile = {
           name: "",
           email: "",
           avatarUrl: "",
+          phoneNumber: "",
         };
         setProfile(defaultProfile);
         form.reset(defaultProfile);
       }
     } catch (error) {
       console.error("Error loading profile:", error);
+      // Default profile on error
+      const defaultProfile: Profile = {
+        name: "",
+        email: "",
+        avatarUrl: "",
+        phoneNumber: "",
+      };
+      setProfile(defaultProfile);
+      form.reset(defaultProfile);
     } finally {
       setLoading(false);
     }
@@ -89,9 +113,6 @@ export default function ProfilePage() {
       }
 
       const updatedProfile = await res.json();
-
-      // Save to localStorage (temporary until authentication is implemented)
-      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(updatedProfile));
       
       setProfile(updatedProfile);
       setIsEditing(false);
@@ -113,6 +134,7 @@ export default function ProfilePage() {
         name: profile.name || "",
         email: profile.email || "",
         avatarUrl: profile.avatarUrl || "",
+        phoneNumber: profile.phoneNumber || "",
       });
     }
     setIsEditing(false);
@@ -177,7 +199,7 @@ export default function ProfilePage() {
         <CardHeader>
           <CardTitle>Personal Information</CardTitle>
           <CardDescription>
-            Your profile information will be saved locally until authentication is implemented.
+            Your profile information is stored securely in your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -218,7 +240,7 @@ export default function ProfilePage() {
                     type="url"
                   />
                   {form.formState.errors.avatarUrl && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-sm text-destructive">
                       {form.formState.errors.avatarUrl.message}
                     </p>
                   )}
@@ -236,7 +258,7 @@ export default function ProfilePage() {
                 <>
                   <Input {...form.register("name")} />
                   {form.formState.errors.name && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-sm text-destructive">
                       {form.formState.errors.name.message}
                     </p>
                   )}
@@ -259,7 +281,7 @@ export default function ProfilePage() {
                     placeholder="user@example.com"
                   />
                   {form.formState.errors.email && (
-                    <p className="text-sm text-red-500">
+                    <p className="text-sm text-destructive">
                       {form.formState.errors.email.message}
                     </p>
                   )}
@@ -267,6 +289,29 @@ export default function ProfilePage() {
               ) : (
                 <p className="text-sm text-muted-foreground py-2">
                   {profile?.email || "Not set"}
+                </p>
+              )}
+            </div>
+
+            {/* Phone Number Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone Number</label>
+              {isEditing ? (
+                <>
+                  <Input
+                    {...form.register("phoneNumber")}
+                    type="tel"
+                    placeholder="+1 (555) 123-4567"
+                  />
+                  {form.formState.errors.phoneNumber && (
+                    <p className="text-sm text-destructive">
+                      {form.formState.errors.phoneNumber.message}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground py-2">
+                  {profile?.phoneNumber || "Not set"}
                 </p>
               )}
             </div>

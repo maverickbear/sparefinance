@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
+import { ToastProvider } from "@/components/toast-provider";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -25,15 +26,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-slate-50 dark:bg-gray-900`}>
+      <body className={`${inter.className} bg-background`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
-          <LayoutWrapper>{children}</LayoutWrapper>
-          <KBarWrapper />
+          <ToastProvider>
+            <LayoutWrapper>{children}</LayoutWrapper>
+            <KBarWrapper />
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

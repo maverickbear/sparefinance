@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { getAccounts } from "@/lib/api/accounts";
 import { getAllCategories } from "@/lib/api/categories";
 import { exportTransactionsToCSV, downloadCSV } from "@/lib/csv/export";
+import { useToast } from "@/components/toast-provider";
 
 interface Transaction {
   id: string;
@@ -59,6 +60,7 @@ interface Category {
 }
 
 export default function TransactionsPage() {
+  const { toast } = useToast();
   const searchParams = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -241,11 +243,38 @@ export default function TransactionsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this transaction?")) return;
 
+    const transactionToDelete = transactions.find(t => t.id === id);
+    
+    // Optimistic update: remove from UI immediately
+    setTransactions(prev => prev.filter(t => t.id !== id));
+
     try {
-      await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-      loadTransactions();
+      const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || "Failed to delete transaction");
+      }
+
+      toast({
+        title: "Transaction deleted",
+        description: "Your transaction has been deleted successfully.",
+        variant: "success",
+      });
+      
+      // Não precisa recarregar - a atualização otimista já removeu da lista
+      // O useEffect que monitora os filters vai manter a lista atualizada
     } catch (error) {
       console.error("Error deleting transaction:", error);
+      // Revert optimistic update on error
+      if (transactionToDelete) {
+        setTransactions(prev => [...prev, transactionToDelete].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete transaction",
+        variant: "destructive",
+      });
     }
   }
 
@@ -488,8 +517,8 @@ export default function TransactionsPage() {
                 </TableCell>
                 <TableCell className="text-xs md:text-sm hidden lg:table-cell max-w-[150px] truncate">{tx.description || "-"}</TableCell>
                 <TableCell className={`text-right font-medium text-xs md:text-sm ${
-                  tx.type === "income" ? "text-green-600" :
-                  tx.type === "expense" ? "text-red-600" : ""
+                  tx.type === "income" ? "text-green-600 dark:text-green-400" :
+                  tx.type === "expense" ? "text-red-600 dark:text-red-400" : ""
                 }`}>
                   {tx.type === "expense" ? "-" : ""}{formatMoney(tx.amount)}
                 </TableCell>

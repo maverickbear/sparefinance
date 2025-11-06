@@ -25,6 +25,18 @@ export default function SelectPlanPage() {
       if (plansResponse.ok) {
         const plansData = await plansResponse.json();
         setPlans(plansData.plans);
+        
+        // If user already has an active plan, redirect to dashboard
+        if (plansData.currentPlanId) {
+          console.log("[SELECT-PLAN] User already has active plan:", plansData.currentPlanId);
+          router.push("/");
+          return;
+        }
+      } else if (plansResponse.status === 401) {
+        // User is not authenticated, redirect to login
+        console.log("[SELECT-PLAN] User not authenticated, redirecting to login");
+        router.push("/auth/login?redirect=/select-plan");
+        return;
       }
     } catch (error) {
       console.error("Error loading plans:", error);

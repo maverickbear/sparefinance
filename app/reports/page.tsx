@@ -89,13 +89,13 @@ export default async function ReportsPage() {
                       <TableCell className="text-right text-xs md:text-sm">{formatMoney(item.budget)}</TableCell>
                       <TableCell className="text-right text-xs md:text-sm">{formatMoney(item.actual)}</TableCell>
                       <TableCell className={`text-right font-medium text-xs md:text-sm hidden md:table-cell ${
-                        difference >= 0 ? "text-red-600" : "text-green-600"
+                        difference >= 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                       }`}>
                         {difference >= 0 ? "+" : ""}{formatMoney(difference)}
                       </TableCell>
                       <TableCell className={`text-right font-medium text-xs md:text-sm ${
-                        percentage > 100 ? "text-red-600" :
-                        percentage > 90 ? "text-yellow-600" : "text-green-600"
+                        percentage > 100 ? "text-red-600 dark:text-red-400" :
+                        percentage > 90 ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"
                       }`}>
                         {percentage.toFixed(1)}%
                       </TableCell>
@@ -135,7 +135,7 @@ export default async function ReportsPage() {
                       {tx.subcategory && ` / ${tx.subcategory.name}`}
                     </TableCell>
                     <TableCell className="text-xs md:text-sm hidden sm:table-cell">{tx.account?.name}</TableCell>
-                    <TableCell className="text-right font-medium text-red-600 text-xs md:text-sm">
+                    <TableCell className="text-right font-medium text-red-600 dark:text-red-400 text-xs md:text-sm">
                       {formatMoney(tx.amount)}
                     </TableCell>
                   </TableRow>

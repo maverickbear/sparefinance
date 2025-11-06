@@ -100,12 +100,12 @@ export function DebtCard({
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <CardTitle className="text-xl font-semibold">{debt.name}</CardTitle>
                   {debt.isPaidOff && (
-                    <Badge variant="default" className="bg-green-600 text-white">
+                    <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white">
                       Paid Off
                     </Badge>
                   )}
                   {debt.isPaused && (
-                    <Badge variant="outline" className="border-yellow-500 text-yellow-600">
+                    <Badge variant="outline" className="border-yellow-500 dark:border-yellow-400 text-yellow-600 dark:text-yellow-400">
                       Paused
                     </Badge>
                   )}
