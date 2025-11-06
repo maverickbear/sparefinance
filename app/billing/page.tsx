@@ -194,7 +194,11 @@ export default function BillingPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SubscriptionCard subscription={subscription} plan={plan} />
+          <SubscriptionCard 
+            subscription={subscription} 
+            plan={plan} 
+            onSubscriptionUpdated={loadBillingData}
+          />
           {limits && transactionLimit && accountLimit && (
             <UsageLimits
               limits={limits}
