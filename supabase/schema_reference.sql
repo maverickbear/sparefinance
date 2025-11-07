@@ -23,6 +23,77 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 
 
+CREATE OR REPLACE FUNCTION "public"."check_invitation_email_match"("invitation_email" "text") RETURNS boolean
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    AS $$
+DECLARE
+  user_email TEXT;
+BEGIN
+  -- Get the authenticated user's email from auth.users
+  SELECT email INTO user_email
+  FROM auth.users
+  WHERE id = auth.uid();
+  
+  -- Return true if emails match
+  RETURN user_email = invitation_email;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."check_invitation_email_match"("invitation_email" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."is_account_owner_by_userid"("account_id" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM "Account"
+    WHERE "Account"."id" = account_id
+    AND "Account"."userId" = auth.uid()
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."is_account_owner_by_userid"("account_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."is_account_owner_via_accountowner"("account_id" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM "AccountOwner"
+    WHERE "AccountOwner"."accountId" = account_id
+    AND "AccountOwner"."ownerId" = auth.uid()
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."is_account_owner_via_accountowner"("account_id" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."is_current_user_admin"() RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM "User"
+    WHERE id = auth.uid()
+    AND role = 'admin'
+  );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."is_current_user_admin"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO 'public', 'pg_temp'
@@ -48,11 +119,16 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
     "creditLimit" double precision,
-    "userId" "uuid"
+    "userId" "uuid",
+    "initialBalance" double precision
 );
 
 
 ALTER TABLE "public"."Account" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Account"."initialBalance" IS 'Initial balance for checking and savings accounts. Used as starting point for balance calculations.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."AccountInvestmentValue" (
@@ -65,6 +141,18 @@ CREATE TABLE IF NOT EXISTS "public"."AccountInvestmentValue" (
 
 
 ALTER TABLE "public"."AccountInvestmentValue" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."AccountOwner" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "accountId" "text" NOT NULL,
+    "ownerId" "uuid" NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."AccountOwner" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."Budget" (
@@ -304,7 +392,8 @@ CREATE TABLE IF NOT EXISTS "public"."Subcategory" (
     "name" "text" NOT NULL,
     "categoryId" "text" NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "userId" "uuid"
 );
 
 
@@ -372,6 +461,16 @@ ALTER TABLE ONLY "public"."AccountInvestmentValue"
 
 ALTER TABLE ONLY "public"."AccountInvestmentValue"
     ADD CONSTRAINT "AccountInvestmentValue_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."AccountOwner"
+    ADD CONSTRAINT "AccountOwner_accountId_ownerId_key" UNIQUE ("accountId", "ownerId");
+
+
+
+ALTER TABLE ONLY "public"."AccountOwner"
+    ADD CONSTRAINT "AccountOwner_pkey" PRIMARY KEY ("id");
 
 
 
@@ -481,6 +580,14 @@ ALTER TABLE ONLY "public"."User"
 
 
 CREATE INDEX "AccountInvestmentValue_accountId_idx" ON "public"."AccountInvestmentValue" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "AccountOwner_accountId_idx" ON "public"."AccountOwner" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "AccountOwner_ownerId_idx" ON "public"."AccountOwner" USING "btree" ("ownerId");
 
 
 
@@ -696,6 +803,10 @@ CREATE INDEX "Subcategory_name_idx" ON "public"."Subcategory" USING "btree" ("na
 
 
 
+CREATE INDEX "Subcategory_userId_idx" ON "public"."Subcategory" USING "btree" ("userId");
+
+
+
 CREATE INDEX "Subscription_planId_idx" ON "public"."Subscription" USING "btree" ("planId");
 
 
@@ -766,6 +877,16 @@ CREATE OR REPLACE TRIGGER "update_user_updated_at" BEFORE UPDATE ON "public"."Us
 
 ALTER TABLE ONLY "public"."AccountInvestmentValue"
     ADD CONSTRAINT "AccountInvestmentValue_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."AccountOwner"
+    ADD CONSTRAINT "AccountOwner_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."AccountOwner"
+    ADD CONSTRAINT "AccountOwner_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
 
 
 
@@ -874,6 +995,11 @@ ALTER TABLE ONLY "public"."Subcategory"
 
 
 
+ALTER TABLE ONLY "public"."Subcategory"
+    ADD CONSTRAINT "Subcategory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."Subscription"
     ADD CONSTRAINT "Subscription_planId_fkey" FOREIGN KEY ("planId") REFERENCES "public"."Plan"("id") ON DELETE RESTRICT;
 
@@ -908,6 +1034,15 @@ ALTER TABLE "public"."Account" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."AccountInvestmentValue" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."AccountOwner" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "Admins can read all users" ON "public"."User" FOR SELECT USING ((("auth"."uid"() = "id") OR (EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "User"."id") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text")))) OR "public"."is_current_user_admin"()));
+
 
 
 CREATE POLICY "Anyone can view by invitation token" ON "public"."HouseholdMember" FOR SELECT USING (true);
@@ -973,7 +1108,19 @@ ALTER TABLE "public"."InvestmentTransaction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."Macro" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "Members can accept invitations" ON "public"."HouseholdMember" FOR UPDATE USING ((("auth"."uid"() = "memberId") OR ("auth"."uid"() = "ownerId"))) WITH CHECK ((("auth"."uid"() = "memberId") OR ("auth"."uid"() = "ownerId")));
+CREATE POLICY "Members can accept invitations" ON "public"."HouseholdMember" FOR UPDATE USING ((("auth"."uid"() = "memberId") OR ("auth"."uid"() = "ownerId") OR (("status" = 'pending'::"text") AND "public"."check_invitation_email_match"("email")))) WITH CHECK ((("auth"."uid"() = "memberId") OR ("auth"."uid"() = "ownerId") OR (("status" = 'pending'::"text") AND "public"."check_invitation_email_match"("email"))));
+
+
+
+CREATE POLICY "Members can read owner basic info" ON "public"."User" FOR SELECT USING ((("auth"."uid"() = "id") OR (EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "User"."id") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text"))))));
+
+
+
+CREATE POLICY "Members can read owner subscriptions" ON "public"."Subscription" FOR SELECT USING ((("auth"."uid"() = "userId") OR (EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "Subscription"."userId") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text"))))));
 
 
 
@@ -1049,13 +1196,21 @@ ALTER TABLE "public"."Transaction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."User" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "Users can delete account owners" ON "public"."AccountOwner" FOR DELETE USING (("public"."is_account_owner_by_userid"("accountId") OR "public"."is_current_user_admin"()));
+
+
+
 CREATE POLICY "Users can delete own account investment values" ON "public"."AccountInvestmentValue" FOR DELETE USING ((EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "AccountInvestmentValue"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "Users can delete own accounts" ON "public"."Account" FOR DELETE USING (("auth"."uid"() = "userId"));
+CREATE POLICY "Users can delete own accounts" ON "public"."Account" FOR DELETE USING ((("auth"."uid"() = "userId") OR (EXISTS ( SELECT 1
+   FROM "public"."AccountOwner"
+  WHERE (("AccountOwner"."accountId" = "Account"."id") AND ("AccountOwner"."ownerId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'admin'::"text"))))));
 
 
 
@@ -1110,6 +1265,18 @@ CREATE POLICY "Users can delete own subcategories" ON "public"."Subcategory" FOR
 CREATE POLICY "Users can delete own transactions" ON "public"."Transaction" FOR DELETE USING ((EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "Transaction"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can insert account owners" ON "public"."AccountOwner" FOR INSERT WITH CHECK ((("public"."is_account_owner_by_userid"("accountId") OR "public"."is_account_owner_via_accountowner"("accountId") OR "public"."is_current_user_admin"()) AND (("auth"."uid"() = "ownerId") OR ("public"."is_account_owner_by_userid"("accountId") AND (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE ("User"."id" = "AccountOwner"."ownerId")))) OR (("public"."is_account_owner_via_accountowner"("accountId") AND ((EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "auth"."uid"()) AND ("HouseholdMember"."memberId" = "AccountOwner"."ownerId") AND ("HouseholdMember"."status" = 'active'::"text")))) OR (EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "AccountOwner"."ownerId") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text")))))) OR ("public"."is_current_user_admin"() AND (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE ("User"."id" = "AccountOwner"."ownerId"))))))));
 
 
 
@@ -1193,13 +1360,21 @@ CREATE POLICY "Users can read own subscriptions" ON "public"."Subscription" FOR 
 
 
 
+CREATE POLICY "Users can update account owners" ON "public"."AccountOwner" FOR UPDATE USING (("public"."is_account_owner_by_userid"("accountId") OR "public"."is_current_user_admin"()));
+
+
+
 CREATE POLICY "Users can update own account investment values" ON "public"."AccountInvestmentValue" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "AccountInvestmentValue"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "Users can update own accounts" ON "public"."Account" FOR UPDATE USING (("auth"."uid"() = "userId"));
+CREATE POLICY "Users can update own accounts" ON "public"."Account" FOR UPDATE USING ((("auth"."uid"() = "userId") OR (EXISTS ( SELECT 1
+   FROM "public"."AccountOwner"
+  WHERE (("AccountOwner"."accountId" = "Account"."id") AND ("AccountOwner"."ownerId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'admin'::"text"))))));
 
 
 
@@ -1255,13 +1430,24 @@ CREATE POLICY "Users can update own transactions" ON "public"."Transaction" FOR 
 
 
 
+CREATE POLICY "Users can view account owners" ON "public"."AccountOwner" FOR SELECT USING ((("auth"."uid"() = "ownerId") OR (EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "AccountOwner"."ownerId") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text"))))));
+
+
+
 CREATE POLICY "Users can view own account investment values" ON "public"."AccountInvestmentValue" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "AccountInvestmentValue"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
 
 
 
-CREATE POLICY "Users can view own accounts" ON "public"."Account" FOR SELECT USING (("auth"."uid"() = "userId"));
+CREATE POLICY "Users can view own accounts" ON "public"."Account" FOR SELECT USING ((("auth"."uid"() = "userId") OR (EXISTS ( SELECT 1
+   FROM "public"."AccountOwner"
+  WHERE (("AccountOwner"."accountId" = "Account"."id") AND ("AccountOwner"."ownerId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM ("public"."AccountOwner"
+     JOIN "public"."HouseholdMember" ON (("HouseholdMember"."ownerId" = "AccountOwner"."ownerId")))
+  WHERE (("AccountOwner"."accountId" = "Account"."id") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text"))))));
 
 
 
@@ -1334,6 +1520,30 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."check_invitation_email_match"("invitation_email" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."check_invitation_email_match"("invitation_email" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."check_invitation_email_match"("invitation_email" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."is_account_owner_by_userid"("account_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."is_account_owner_by_userid"("account_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_account_owner_by_userid"("account_id" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."is_account_owner_via_accountowner"("account_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."is_account_owner_via_accountowner"("account_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_account_owner_via_accountowner"("account_id" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."is_current_user_admin"() TO "anon";
+GRANT ALL ON FUNCTION "public"."is_current_user_admin"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_current_user_admin"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "anon";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_updated_at_column"() TO "service_role";
@@ -1349,6 +1559,12 @@ GRANT ALL ON TABLE "public"."Account" TO "service_role";
 GRANT ALL ON TABLE "public"."AccountInvestmentValue" TO "anon";
 GRANT ALL ON TABLE "public"."AccountInvestmentValue" TO "authenticated";
 GRANT ALL ON TABLE "public"."AccountInvestmentValue" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."AccountOwner" TO "anon";
+GRANT ALL ON TABLE "public"."AccountOwner" TO "authenticated";
+GRANT ALL ON TABLE "public"."AccountOwner" TO "service_role";
 
 
 

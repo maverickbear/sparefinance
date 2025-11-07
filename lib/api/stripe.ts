@@ -173,10 +173,61 @@ export async function createPortalSession(userId: string): Promise<{ url: string
       return { url: null, error: "No active subscription found" };
     }
 
+    // Create portal configuration inline if needed
+    let configuration: Stripe.BillingPortal.Configuration | null = null;
+    
+    try {
+      // Try to get or create a default configuration
+      const configurations = await stripe.billingPortal.configurations.list({ limit: 1 });
+      
+      if (configurations.data.length > 0) {
+        configuration = configurations.data[0];
+      } else {
+        // Create a new configuration (simplified - without subscription_update to avoid product requirement)
+        configuration = await stripe.billingPortal.configurations.create({
+          features: {
+            customer_update: {
+              enabled: true,
+              allowed_updates: ["email", "address", "phone", "tax_id"],
+            },
+            payment_method_update: {
+              enabled: true,
+            },
+            subscription_cancel: {
+              enabled: true,
+              mode: "at_period_end",
+              cancellation_reason: {
+                enabled: true,
+                options: [
+                  "too_expensive",
+                  "missing_features",
+                  "switched_service",
+                  "unused",
+                  "customer_service",
+                  "too_complex",
+                  "low_quality",
+                  "other",
+                ],
+              },
+            },
+            // Removed subscription_pause and subscription_update to avoid requiring products parameter
+            // Users can cancel and create a new subscription if needed
+          },
+          business_profile: {
+            headline: "Manage your Spare Finance subscription",
+          },
+        });
+      }
+    } catch (configError) {
+      console.error("Error handling portal configuration:", configError);
+      // Continue without configuration - Stripe will use default if available
+    }
+
     // Create portal session
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.vercel.app/"}/billing`,
+      ...(configuration && { configuration: configuration.id }),
     });
 
     return { url: session.url, error: null };

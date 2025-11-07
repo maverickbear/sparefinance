@@ -211,7 +211,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                           disabled={isCurrent || loading}
                           onClick={() => onSelectPlan(plan.id, interval)}
                         >
-                          {isCurrent ? "Current Plan" : price === 0 ? "Get Started" : "Subscribe"}
+                          {isCurrent ? "Current Plan" : price === 0 ? "Get Started" : "Upgrade"}
                         </Button>
                       </td>
                     );
@@ -223,7 +223,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
         </div>
       ) : (
         // Card view
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {sortedPlans.map((plan) => {
             const monthlyPrice = plan.priceMonthly;
             const yearlyPrice = plan.priceYearly;
@@ -232,16 +232,22 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
             const price = interval === "month" ? monthlyPrice : discountedPrice;
             const originalYearlyPrice = interval === "year" && yearlyPrice > 0 ? yearlyPrice : null;
             const isCurrent = plan.id === currentPlanId;
-            const features = [
-              `${plan.features.maxTransactions === -1 ? "Unlimited" : plan.features.maxTransactions} transactions/month`,
-              `${plan.features.maxAccounts === -1 ? "Unlimited" : plan.features.maxAccounts} accounts`,
-              plan.features.hasInvestments && "Investments",
-              plan.features.hasAdvancedReports && "Advanced reports",
-              plan.features.hasCsvExport && "CSV export",
-              plan.features.hasDebts && "Debts tracking",
-              plan.features.hasGoals && "Goals tracking",
-              plan.name !== "free" && "Household members",
-            ].filter(Boolean);
+            
+            // Simplified key features only
+            const keyFeatures = [];
+            if (plan.features.maxTransactions === -1) {
+              keyFeatures.push("Unlimited transactions");
+            } else if (plan.features.maxTransactions > 0) {
+              keyFeatures.push(`${plan.features.maxTransactions} transactions`);
+            }
+            if (plan.features.maxAccounts === -1) {
+              keyFeatures.push("Unlimited accounts");
+            } else if (plan.features.maxAccounts > 0) {
+              keyFeatures.push(`${plan.features.maxAccounts} accounts`);
+            }
+            if (plan.name !== "free") {
+              keyFeatures.push("All features");
+            }
 
             const isPopular = plan.name === "basic";
             const isPremium = plan.name === "premium";
@@ -249,78 +255,71 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
             return (
               <Card 
                 key={plan.id} 
-                className={`relative ${isPopular ? "border-primary shadow-lg ring-2 ring-primary ring-offset-2" : ""}`}
+                className={`relative transition-all ${
+                  isCurrent 
+                    ? "border-primary ring-2 ring-primary/20" 
+                    : isPopular 
+                      ? "border-primary/50" 
+                      : ""
+                } ${isCurrent ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
               >
-                {isPopular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary text-primary-foreground px-3 py-1 flex items-center gap-1">
+                {isCurrent && (
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-primary text-primary-foreground text-xs px-2 py-0.5">
+                      Current
+                    </Badge>
+                  </div>
+                )}
+                {isPopular && !isCurrent && (
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-primary/10 text-primary px-2 py-0.5 text-xs flex items-center gap-1">
                       <Star className="h-3 w-3 fill-current" />
                       Popular
                     </Badge>
                   </div>
                 )}
-                <CardHeader className="pt-6">
-                  <CardTitle className="flex items-center justify-between text-2xl">
-                    <span>{plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} {plan.name === "basic" && "Plan"}</span>
-                    {isCurrent && (
-                      <Badge variant="secondary" className="text-xs">Current</Badge>
-                    )}
+                <CardHeader className="pt-6 pb-4">
+                  <CardTitle className="text-xl mb-1">
+                    {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)}
                   </CardTitle>
-                  <CardDescription className="text-base mt-2">
-                    {plan.name === "free" && "Perfect for getting started with your financial management"}
-                    {plan.name === "basic" && "For personal use and small families with essential features"}
-                    {plan.name === "premium" && "For power users and larger families with advanced features"}
-                  </CardDescription>
-                  <div className="mt-6">
+                  <div className="mt-4">
                     {hasDiscount && originalYearlyPrice && (
-                      <div className="mb-2 flex items-center gap-2">
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      <div className="mb-2">
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs mb-1">
                           10% OFF
                         </Badge>
-                        <span className="text-sm text-muted-foreground line-through">
-                          ${originalYearlyPrice.toFixed(2)}
-                        </span>
                       </div>
                     )}
                     <div className="flex items-baseline gap-1">
-                      <span className="text-5xl font-bold">
+                      <span className="text-4xl font-bold">
                         {price === 0 ? "Free" : `$${price.toFixed(2)}`}
                       </span>
                       {price > 0 && (
-                        <span className="text-muted-foreground text-lg">
-                          /{interval === "month" ? "month" : "year"}
+                        <span className="text-muted-foreground text-sm">
+                          /{interval === "month" ? "mo" : "yr"}
                         </span>
                       )}
                     </div>
-                    {price > 0 && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {interval === "month" 
-                          ? "Per month" 
-                          : hasDiscount 
-                            ? `Save $${(originalYearlyPrice! - discountedPrice).toFixed(2)} per year` 
-                            : "Billed annually"}
-                      </p>
-                    )}
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3">
-                    {features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <Check className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                        <span className="text-sm text-foreground">{feature}</span>
+                <CardContent className="pb-4">
+                  <ul className="space-y-2">
+                    {keyFeatures.slice(0, 3).map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="text-muted-foreground">{feature}</span>
                       </li>
                     ))}
                   </ul>
                 </CardContent>
-                <CardFooter className="pt-6">
+                <CardFooter className="pt-4">
                   <Button
-                    className="w-full h-12 text-base font-semibold"
-                    variant={isPopular ? "default" : "outline"}
+                    className="w-full"
+                    variant={isCurrent ? "secondary" : isPopular ? "default" : "outline"}
                     disabled={isCurrent || loading}
                     onClick={() => onSelectPlan(plan.id, interval)}
                   >
-                    {isCurrent ? "Current Plan" : price === 0 ? "Get Started" : "Subscribe"}
+                    {isCurrent ? "Current" : price === 0 ? "Get Started" : "Upgrade"}
                   </Button>
                 </CardFooter>
               </Card>

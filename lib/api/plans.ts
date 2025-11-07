@@ -296,51 +296,62 @@ export async function getUserPlanInfo(userId: string): Promise<UserPlanInfo | nu
   try {
     const supabase = await createServerClient();
     
-    // Check if user is an active household member
-    const isMember = await isHouseholdMember(userId);
+    // Optimize: Check household membership and get ownerId in a single query
+    const { data: member, error: memberError } = await supabase
+      .from("HouseholdMember")
+      .select("ownerId, status")
+      .eq("memberId", userId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (memberError && memberError.code !== "PGRST116") {
+      console.error("[PLANS] Error checking household membership:", memberError);
+    }
+
+    const isMember = member !== null;
+    const ownerId = member?.ownerId || null;
     
-    if (isMember) {
+    if (isMember && ownerId) {
       // User is a household member, inherit plan from owner
-      const ownerId = await getOwnerIdForMember(userId);
-      
-      if (ownerId) {
-        // Get owner's subscription
-        const { data: ownerSubscription, error: ownerError } = await supabase
+      // Fetch owner's subscription and name in parallel
+      const [ownerSubscriptionResult, ownerResult] = await Promise.all([
+        supabase
           .from("Subscription")
           .select("*")
           .eq("userId", ownerId)
           .eq("status", "active")
           .order("createdAt", { ascending: false })
           .limit(1)
-          .maybeSingle();
+          .maybeSingle(),
+        supabase
+          .from("User")
+          .select("name, email")
+          .eq("id", ownerId)
+          .maybeSingle(),
+      ]);
 
-        if (ownerError && ownerError.code !== "PGRST116") {
-          console.error("[PLANS] Error fetching owner subscription:", ownerError);
-        }
+      const { data: ownerSubscription, error: ownerError } = ownerSubscriptionResult;
+      const { data: owner } = ownerResult;
 
-        if (ownerSubscription) {
-          // Owner has a subscription, check if it's Basic or Premium
-          const ownerPlanId = ownerSubscription.planId;
-          
-          if (ownerPlanId === "basic" || ownerPlanId === "premium") {
-            // Get owner's name
-            const { data: owner } = await supabase
-              .from("User")
-              .select("name, email")
-              .eq("id", ownerId)
-              .maybeSingle();
-
-            return {
-              name: ownerPlanId as "basic" | "premium",
-              isShadow: true,
-              ownerId,
-              ownerName: owner?.name || owner?.email || undefined,
-            };
-          }
-          // If owner has Free plan, fall through to return Free
-        }
-        // If owner has no subscription or has Free, return Free for member
+      if (ownerError && ownerError.code !== "PGRST116") {
+        console.error("[PLANS] Error fetching owner subscription:", ownerError);
       }
+
+      if (ownerSubscription) {
+        // Owner has a subscription, check if it's Basic or Premium
+        const ownerPlanId = ownerSubscription.planId;
+        
+        if (ownerPlanId === "basic" || ownerPlanId === "premium") {
+          return {
+            name: ownerPlanId as "basic" | "premium",
+            isShadow: true,
+            ownerId,
+            ownerName: owner?.name || owner?.email || undefined,
+          };
+        }
+        // If owner has Free plan, fall through to return Free
+      }
+      // If owner has no subscription or has Free, return Free for member
     }
     
     // User is not a member, or owner has Free/no subscription - check user's own subscription

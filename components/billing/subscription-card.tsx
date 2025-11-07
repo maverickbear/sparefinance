@@ -6,7 +6,6 @@ import { PlanBadge } from "@/components/common/plan-badge";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { format } from "date-fns";
 import { useState } from "react";
-import { ManageSubscriptionModal } from "@/components/billing/manage-subscription-modal";
 
 interface SubscriptionCardProps {
   subscription: Subscription | null;
@@ -16,10 +15,26 @@ interface SubscriptionCardProps {
 
 export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: SubscriptionCardProps) {
   const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
 
-  function handleManageSubscription() {
-    setModalOpen(true);
+  async function handleManageSubscription() {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/stripe/portal", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error("Failed to create portal session:", data.error);
+      }
+    } catch (error) {
+      console.error("Error opening portal:", error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!subscription || !plan) {
@@ -87,16 +102,6 @@ export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: 
           </Button>
         )}
       </CardContent>
-
-      {!isFree && (
-        <ManageSubscriptionModal
-          open={modalOpen}
-          onOpenChange={setModalOpen}
-          subscription={subscription}
-          plan={plan}
-          onSubscriptionUpdated={onSubscriptionUpdated}
-        />
-      )}
     </Card>
   );
 }

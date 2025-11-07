@@ -1,47 +1,47 @@
-import { NextResponse } from "next/server";
-import { getAccounts, createAccount } from "@/lib/api/accounts";
+import { NextRequest, NextResponse } from "next/server";
+import { createAccount, getAccounts } from "@/lib/api/accounts";
 import { AccountFormData } from "@/lib/validations/account";
+import { ZodError } from "zod";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const accounts = await getAccounts();
-    return NextResponse.json(accounts);
+    return NextResponse.json(accounts, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 });
+    console.error("Error fetching accounts:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch accounts" },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // Check authentication and limits
-    const { createServerClient } = await import("@/lib/supabase-server");
-    const { checkAccountLimit } = await import("@/lib/api/limits");
+    const data: AccountFormData = await request.json();
     
-    const supabase = await createServerClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Check account limit
-    const limitCheck = await checkAccountLimit(authUser.id);
-    if (!limitCheck.allowed) {
-      return NextResponse.json(
-        { error: limitCheck.message || "Account limit reached" },
-        { status: 403 }
-      );
-    }
-
-    const data = await request.json();
-    const account = await createAccount(data as AccountFormData);
-    return NextResponse.json(account);
+    const account = await createAccount(data);
+    
+    return NextResponse.json(account, { status: 201 });
   } catch (error) {
     console.error("Error creating account:", error);
-    return NextResponse.json({ error: "Failed to create account" }, { status: 500 });
+    
+    // Handle validation errors
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ') },
+        { status: 400 }
+      );
+    }
+    
+    // Handle other errors
+    const errorMessage = error instanceof Error ? error.message : "Failed to create account";
+    const statusCode = errorMessage.includes("Unauthorized") ? 401 : 400;
+    
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: statusCode }
+    );
   }
 }
 

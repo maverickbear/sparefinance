@@ -13,36 +13,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Save, X, Upload, Camera, CreditCard, Users } from "lucide-react";
+import { Save, X, Upload, Camera } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { PlanBadge } from "@/components/common/plan-badge";
-import Link from "next/link";
 
 interface Profile {
   name: string;
   email: string;
   avatarUrl?: string;
   phoneNumber?: string;
-  plan?: {
-    name: "free" | "basic" | "premium";
-    isShadow: boolean;
-    ownerId?: string;
-    ownerName?: string;
-  } | null;
-  household?: {
-    isOwner: boolean;
-    isMember: boolean;
-    ownerId?: string;
-    ownerName?: string;
-  } | null;
 }
 
 interface ProfileModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
+export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,17 +57,11 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
     try {
       setLoading(true);
       const res = await fetch("/api/profile");
-      if (res.ok) {
-        const profileData = await res.json();
-        if (profileData) {
-          setProfile(profileData);
-          form.reset({
-            name: profileData.name || "",
-            email: profileData.email || "",
-            avatarUrl: profileData.avatarUrl || "",
-            phoneNumber: profileData.phoneNumber || "",
-          });
-        } else {
+      
+      if (!res.ok) {
+        console.error("Error fetching profile:", res.status, res.statusText);
+        // If 404, user might not have profile yet, use empty profile
+        if (res.status === 404) {
           const defaultProfile: Profile = {
             name: "",
             email: "",
@@ -89,7 +70,48 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
           };
           setProfile(defaultProfile);
           form.reset(defaultProfile);
+          return;
         }
+        // For other errors, try to get error message
+        try {
+          const errorData = await res.json();
+          console.error("Profile error:", errorData);
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+        // Use empty profile on error
+        const defaultProfile: Profile = {
+          name: "",
+          email: "",
+          avatarUrl: "",
+          phoneNumber: "",
+        };
+        setProfile(defaultProfile);
+        form.reset(defaultProfile);
+        return;
+      }
+
+      const profileData = await res.json().catch((error) => {
+        console.error("Error parsing profile JSON:", error);
+        return null;
+      });
+      
+      console.log("Profile data loaded:", profileData);
+      
+      if (profileData) {
+        setProfile(profileData);
+        form.reset({
+          name: profileData.name || "",
+          email: profileData.email || "",
+          avatarUrl: profileData.avatarUrl || "",
+          phoneNumber: profileData.phoneNumber || "",
+        });
+        console.log("Profile form reset with data:", {
+          name: profileData.name || "",
+          email: profileData.email || "",
+          avatarUrl: profileData.avatarUrl || "",
+          phoneNumber: profileData.phoneNumber || "",
+        });
       } else {
         const defaultProfile: Profile = {
           name: "",
@@ -99,6 +121,7 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
         };
         setProfile(defaultProfile);
         form.reset(defaultProfile);
+        console.log("Profile form reset with default (empty) data");
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -145,11 +168,26 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to upload avatar");
+        let errorMessage = "Failed to upload avatar";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If response is not JSON, try to get text
+          try {
+            const text = await res.text();
+            errorMessage = text || errorMessage;
+          } catch (textError) {
+            // If all else fails, use status text
+            errorMessage = res.statusText || errorMessage;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
-      const { url } = await res.json();
+      const { url } = await res.json().catch(() => {
+        throw new Error("Failed to parse response from server");
+      });
 
       // Update form with new avatar URL
       form.setValue("avatarUrl", url);
@@ -182,8 +220,21 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to save profile");
+        let errorMessage = "Failed to save profile";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If response is not JSON, try to get text
+          try {
+            const text = await res.text();
+            errorMessage = text || errorMessage;
+          } catch (textError) {
+            // If all else fails, use status text
+            errorMessage = res.statusText || errorMessage;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const updatedProfile = await res.json();
@@ -195,6 +246,9 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
 
       // Reload user data in nav
       window.dispatchEvent(new CustomEvent("profile-updated"));
+      
+      // Call onSuccess callback if provided
+      onSuccess?.();
       
       // Close modal after successful save
       onOpenChange(false);
@@ -377,70 +431,6 @@ export function ProfileModal({ open, onOpenChange }: ProfileModalProps) {
                   )}
                 </div>
               </div>
-              </div>
-            )}
-
-            {/* Plan & Subscription Section */}
-            {!loading && profile && (
-              <div className="space-y-4 pt-6 border-t">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Plan & Subscription</span>
-                  </div>
-                  
-                  {profile.plan && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Current Plan</span>
-                        <PlanBadge plan={profile.plan.name} />
-                      </div>
-                      
-                      {profile.plan.isShadow && (
-                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 text-sm">
-                          <p className="text-blue-800 dark:text-blue-200">
-                            <strong>Shadow Subscription:</strong> You're inheriting the{" "}
-                            <span className="font-semibold capitalize">{profile.plan.name}</span> plan from{" "}
-                            <span className="font-semibold">{profile.plan.ownerName || "the owner"}</span>.
-                          </p>
-                        </div>
-                      )}
-                      
-                      {!profile.plan.isShadow && profile.plan.name !== "free" && (
-                        <div className="text-sm text-muted-foreground">
-                          You have an active subscription to the {profile.plan.name} plan.
-                        </div>
-                      )}
-                      
-                      {!profile.plan.isShadow && profile.plan.name === "free" && (
-                        <div className="text-sm text-muted-foreground">
-                          You're currently on the free plan.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {profile.household && (profile.household.isOwner || profile.household.isMember) && (
-                    <div className="space-y-2 pt-2">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Household</span>
-                      </div>
-                      
-                      {profile.household.isOwner && (
-                        <div className="text-sm text-muted-foreground">
-                          You are the owner of this household.
-                        </div>
-                      )}
-                      
-                      {profile.household.isMember && profile.household.ownerName && (
-                        <div className="text-sm text-muted-foreground">
-                          You are a member of <span className="font-semibold">{profile.household.ownerName}</span>'s household.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
               </div>
             )}
           </div>

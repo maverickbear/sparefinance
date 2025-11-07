@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
+import { PlanLimitsProvider } from "@/contexts/plan-limits-context";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -34,8 +35,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ToastProvider>
-            <LayoutWrapper>{children}</LayoutWrapper>
-            <KBarWrapper />
+            <PlanLimitsProvider>
+              <LayoutWrapper>{children}</LayoutWrapper>
+              <KBarWrapper />
+            </PlanLimitsProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

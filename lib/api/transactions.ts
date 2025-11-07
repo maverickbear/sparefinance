@@ -8,9 +8,20 @@ import { formatTimestamp, formatDateStart, formatDateEnd, getCurrentTimestamp } 
 import { getDebts } from "@/lib/api/debts";
 import { calculateNextPaymentDates, type DebtForCalculation } from "@/lib/utils/debts";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
+import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/lib/api/feature-guard";
 
 export async function createTransaction(data: TransactionFormData) {
     const supabase = await createServerClient();
+
+  // Get current user and validate transaction limit
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  // Check transaction limit before creating
+  const limitGuard = await guardTransactionLimit(userId, data.date instanceof Date ? data.date : new Date(data.date));
+  await throwIfNotAllowed(limitGuard);
 
   if (data.type === "transfer" && !data.transferToId) {
     throw new Error("Transfer destination is required");
@@ -554,17 +565,42 @@ export async function getUpcomingTransactions(limit: number = 5) {
 export async function getAccountBalance(accountId: string) {
     const supabase = await createServerClient();
 
+  // Get account to retrieve initialBalance
+  const { data: account } = await supabase
+    .from("Account")
+    .select("initialBalance")
+    .eq("id", accountId)
+    .single();
+
+  const initialBalance = (account?.initialBalance as number) ?? 0;
+
+  // Only include transactions with date <= today (exclude future transactions)
+  const today = new Date();
+  today.setHours(23, 59, 59, 999); // End of today
+
   const { data: transactions, error } = await supabase
     .from("Transaction")
-    .select("type, amount, transferToId, transferFromId")
-    .eq("accountId", accountId);
+    .select("type, amount, transferToId, transferFromId, date")
+    .eq("accountId", accountId)
+    .lte("date", today.toISOString());
 
   if (error) {
-    return 0;
+    return initialBalance;
   }
 
-  let balance = 0;
+  // Double-check: only process transactions with date <= today
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+
+  let balance = initialBalance;
   for (const tx of transactions || []) {
+    // Skip future transactions
+    const txDate = new Date(tx.date);
+    txDate.setHours(0, 0, 0, 0);
+    if (txDate > todayDate) {
+      continue;
+    }
+    
     if (tx.type === "income") {
       balance += tx.amount;
     } else if (tx.type === "expense") {

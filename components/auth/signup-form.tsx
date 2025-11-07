@@ -10,11 +10,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, Loader2, AlertCircle } from "lucide-react";
 
-export function SignUpForm() {
+interface SignUpFormProps {
+  planId?: string;
+  interval?: "month" | "year";
+}
+
+export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Get planId from props or search params
+  const finalPlanId = planId || searchParams.get("planId") || undefined;
+  const finalInterval = interval || (searchParams.get("interval") as "month" | "year") || "month";
 
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
@@ -27,50 +36,79 @@ export function SignUpForm() {
 
   async function onSubmit(data: SignUpFormData) {
     try {
-      console.log("[SIGNUP FORM] Starting signup form submission");
       setLoading(true);
       setError(null);
 
-      console.log("[SIGNUP FORM] Sending request to /api/auth/signup");
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+      const { signUpClient } = await import("@/lib/api/auth-client");
+      const result = await signUpClient(data);
 
-      console.log("[SIGNUP FORM] Response received:", { 
-        ok: response.ok, 
-        status: response.status, 
-        statusText: response.statusText 
-      });
-
-      const result = await response.json();
-      console.log("[SIGNUP FORM] Response data:", { 
-        hasUser: !!result.user, 
-        userId: result.user?.id,
-        error: result.error 
-      });
-
-      if (!response.ok) {
-        console.error("[SIGNUP FORM] Response not OK:", result.error);
-        setError(result.error || "Failed to sign up");
+      if (result.error) {
+        setError(result.error);
         return;
       }
 
-      // Redirect to plan selection page
-      // Use window.location.href to ensure a full page reload so cookies are recognized
-      console.log("[SIGNUP FORM] Preparing to redirect to plan selection");
-      console.log("[SIGNUP FORM] Current location:", window.location.href);
-      
-      // Small delay to ensure cookies are set
-      setTimeout(() => {
-        console.log("[SIGNUP FORM] Executing redirect to /select-plan");
-        window.location.href = "/select-plan";
-      }, 100);
+      if (!result.user) {
+        setError("Failed to sign up");
+        return;
+      }
+
+      // If planId is provided, process the plan selection
+      if (finalPlanId) {
+        try {
+          if (finalPlanId === "free") {
+            // Setup free plan directly
+            const response = await fetch("/api/billing/setup-free", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+              // Redirect to dashboard for free plan
+              router.push("/dashboard");
+              return;
+            } else {
+              console.error("Failed to setup free plan:", data.error);
+              setError(data.error || "Failed to setup free plan. Please try again.");
+              return;
+            }
+          } else {
+            // Create checkout session for paid plans
+            const response = await fetch("/api/stripe/checkout", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ planId: finalPlanId, interval: finalInterval }),
+            });
+
+            const data = await response.json();
+
+            if (data.url) {
+              // Redirect to Stripe Checkout
+              window.location.href = data.url;
+              return;
+            } else {
+              console.error("Failed to create checkout session:", data.error);
+              setError("Failed to create checkout session. Please try again.");
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Error processing plan:", error);
+          setError("An error occurred while processing your plan. Please try again.");
+          return;
+        }
+      }
+
+      // No planId provided, redirect to plan selection page
+      // Supabase session is automatically managed
+      router.push("/select-plan");
     } catch (error) {
-      console.error("[SIGNUP FORM] Error during signup:", error);
+      console.error("Error during signup:", error);
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
@@ -145,7 +183,6 @@ export function SignUpForm() {
               id="password"
               type="password"
               {...form.register("password")}
-              placeholder="••••••••"
               disabled={loading}
               className="pl-10 h-11"
             />

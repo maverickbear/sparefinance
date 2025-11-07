@@ -1,93 +1,60 @@
-import { NextResponse } from "next/server";
-import { updateProfile, getProfile } from "@/lib/api/profile";
-import { profileSchema, ProfileFormData } from "@/lib/validations/profile";
-import { createServerClient } from "@/lib/supabase-server";
-import { getUserPlanInfo } from "@/lib/api/plans";
-import { getUserHouseholdInfo } from "@/lib/api/members";
+import { NextRequest, NextResponse } from "next/server";
+import { getProfile, updateProfile } from "@/lib/api/profile";
+import { ProfileFormData } from "@/lib/validations/profile";
+import { ZodError } from "zod";
 
-export interface ProfileWithPlan {
-  name: string;
-  email: string;
-  avatarUrl?: string;
-  phoneNumber?: string;
-  plan: {
-    name: "free" | "basic" | "premium";
-    isShadow: boolean;
-    ownerId?: string;
-    ownerName?: string;
-  } | null;
-  household: {
-    isOwner: boolean;
-    isMember: boolean;
-    ownerId?: string;
-    ownerName?: string;
-  } | null;
-}
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Get profile information
     const profile = await getProfile();
     
+    // Return profile even if it's null (user exists but profile might be incomplete)
+    // This allows the modal to show empty fields for the user to fill in
     if (!profile) {
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
+      // Return empty profile structure instead of 404
+      return NextResponse.json({
+        name: "",
+        email: "",
+        avatarUrl: "",
+        phoneNumber: "",
+      }, { status: 200 });
     }
-
-    // Get plan information
-    const planInfo = await getUserPlanInfo(authUser.id);
     
-    // Get household information
-    const householdInfo = await getUserHouseholdInfo(authUser.id);
-
-    const profileWithPlan: ProfileWithPlan = {
-      ...profile,
-      plan: planInfo,
-      household: householdInfo,
-    };
-
-    return NextResponse.json(profileWithPlan);
+    return NextResponse.json(profile, { status: 200 });
   } catch (error) {
     console.error("Error fetching profile:", error);
-    return NextResponse.json({ error: "Failed to fetch profile" }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch profile" },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   try {
-    const data = await request.json();
+    const data: ProfileFormData = await request.json();
     
-    // Validate the data
-    const validatedData = profileSchema.parse(data);
+    const profile = await updateProfile(data);
     
-    // TODO: When authentication is implemented, save to database
-    // For now, validate and return the profile data
-    const profile = await updateProfile(validatedData);
-    
-    return NextResponse.json(profile);
+    return NextResponse.json(profile, { status: 200 });
   } catch (error) {
     console.error("Error updating profile:", error);
     
-    if (error instanceof Error && error.name === "ZodError") {
+    // Handle validation errors
+    if (error instanceof ZodError) {
       return NextResponse.json(
-        { error: "Invalid profile data", details: error.message },
+        { error: error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ') },
         { status: 400 }
       );
     }
     
-    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
+    // Handle other errors
+    const errorMessage = error instanceof Error ? error.message : "Failed to update profile";
+    const statusCode = errorMessage.includes("Unauthorized") ? 401 : 400;
+    
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: statusCode }
+    );
   }
 }
 

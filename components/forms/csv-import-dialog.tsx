@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { parseCSV, mapCSVToTransactions, ColumnMapping, CSVRow } from "@/lib/csv/import";
+import { usePlanLimits } from "@/hooks/use-plan-limits";
+import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 
 interface Account {
   id: string;
@@ -55,6 +57,7 @@ export function CsvImportDialog({
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const { limits, loading: limitsLoading } = usePlanLimits();
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -108,6 +111,10 @@ export function CsvImportDialog({
     }
   };
 
+  // Check if user has access to CSV import/export
+  // Note: CSV import doesn't require hasCsvExport, but we show a note about transaction limits
+  const hasCsvAccess = limits.hasCsvExport;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -117,6 +124,17 @@ export function CsvImportDialog({
             Upload a CSV file and map columns to transaction fields
           </DialogDescription>
         </DialogHeader>
+
+        {!hasCsvAccess && !limitsLoading && (
+          <div className="mb-4">
+            <UpgradePrompt
+              feature="CSV Import/Export"
+              currentPlan="free"
+              requiredPlan="basic"
+              message="CSV import and export are not available in the Free plan. Upgrade to Basic or Premium to import and export your transactions."
+            />
+          </div>
+        )}
 
         <div className="space-y-4">
           <div>
@@ -257,7 +275,10 @@ export function CsvImportDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleImport} disabled={isImporting || !mapping.date || !mapping.amount}>
+          <Button 
+            onClick={handleImport} 
+            disabled={isImporting || !mapping.date || !mapping.amount || (!hasCsvAccess && !limitsLoading)}
+          >
             {isImporting ? "Importing..." : "Import"}
           </Button>
         </div>

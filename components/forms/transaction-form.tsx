@@ -23,31 +23,15 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/toast-provider";
-
-interface Transaction {
-  id: string;
-  date: string;
-  type: string;
-  amount: number;
-  accountId: string;
-  categoryId?: string;
-  subcategoryId?: string;
-  description?: string;
-  tags?: string;
-  transferToId?: string;
-  recurring?: boolean;
-  category?: {
-    id: string;
-    name: string;
-    macroId?: string;
-  };
-}
+import type { Transaction } from "@/lib/api/transactions-client";
+import { LimitWarning } from "@/components/billing/limit-warning";
 
 interface TransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction | null;
   onSuccess?: () => void;
+  defaultType?: "expense" | "income" | "transfer";
 }
 
 interface Account {
@@ -73,7 +57,7 @@ interface Subcategory {
   categoryId: string;
 }
 
-export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: TransactionFormProps) {
+export function TransactionForm({ open, onOpenChange, transaction, onSuccess, defaultType = "expense" }: TransactionFormProps) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
@@ -81,6 +65,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [selectedMacroId, setSelectedMacroId] = useState<string>("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [transactionLimit, setTransactionLimit] = useState<{ current: number; limit: number } | null>(null);
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -96,23 +81,24 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
   useEffect(() => {
     if (open) {
       loadData();
+      loadTransactionLimit();
       if (transaction) {
         form.reset({
           date: new Date(transaction.date),
           type: transaction.type as "expense" | "income" | "transfer",
           amount: transaction.amount,
           accountId: transaction.accountId,
-          categoryId: transaction.categoryId,
-          subcategoryId: transaction.subcategoryId,
+          categoryId: transaction.categoryId || undefined,
+          subcategoryId: transaction.subcategoryId || undefined,
           description: transaction.description || "",
-          tags: transaction.tags ? JSON.parse(transaction.tags) : [],
-          transferToId: transaction.transferToId,
+          tags: Array.isArray(transaction.tags) ? transaction.tags : (transaction.tags ? JSON.parse(transaction.tags) : []),
+          transferToId: transaction.transferToId || undefined,
           recurring: transaction.recurring ?? false,
         });
       } else {
         form.reset({
           date: new Date(),
-          type: "expense",
+          type: defaultType,
           amount: 0,
           tags: [],
           recurring: false,
@@ -138,14 +124,44 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
         fetch("/api/accounts"),
         fetch("/api/categories"),
       ]);
-      const [accountsData, macrosData] = await Promise.all([
-        accountsRes.json(),
-        macrosRes.json(),
-      ]);
-      setAccounts(accountsData);
-      setMacros(macrosData);
+
+      // Check if responses are ok before parsing JSON
+      if (!accountsRes.ok) {
+        console.error("Error fetching accounts:", accountsRes.status, accountsRes.statusText);
+        setAccounts([]);
+      } else {
+        const accountsData = await accountsRes.json().catch(() => []);
+        setAccounts(accountsData);
+      }
+
+      if (!macrosRes.ok) {
+        console.error("Error fetching categories:", macrosRes.status, macrosRes.statusText);
+        setMacros([]);
+      } else {
+        const macrosData = await macrosRes.json().catch(() => []);
+        setMacros(macrosData);
+      }
     } catch (error) {
       console.error("Error loading data:", error);
+      setAccounts([]);
+      setMacros([]);
+    }
+  }
+
+  async function loadTransactionLimit() {
+    try {
+      const response = await fetch("/api/billing/limits");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.transactionLimit) {
+          setTransactionLimit({
+            current: data.transactionLimit.current,
+            limit: data.transactionLimit.limit,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading transaction limit:", error);
     }
   }
 
@@ -155,13 +171,16 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
     let macroId: string | undefined;
     
     // Try to get macroId from tx.category first
-    if (tx.category && tx.category.macroId) {
-      macroId = tx.category.macroId;
-    } else {
-      // If macro not available, fetch from API
+    // Note: category from Transaction type doesn't have macroId, so we skip this check
+    // We'll need to fetch it from the categories list if needed
+    // If macro not available, fetch from API
       try {
         const categoryRes = await fetch(`/api/categories/all`);
-        const allCategories = await categoryRes.json();
+        if (!categoryRes.ok) {
+          console.error("Error fetching categories:", categoryRes.status, categoryRes.statusText);
+          return;
+        }
+        const allCategories = await categoryRes.json().catch(() => []);
         const category = allCategories.find((c: Category) => c.id === tx.categoryId);
         if (category) {
           if (typeof category.macro === 'object' && category.macro?.id) {
@@ -175,20 +194,23 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
       } catch (error) {
         console.error("Error loading category info:", error);
       }
-    }
     
     if (macroId) {
       const macro = macros.find((m) => m.id === macroId);
       if (macro) {
         setSelectedMacroId(macro.id);
         const res = await fetch(`/api/categories?macroId=${macroId}`);
-        const cats = await res.json();
-        setCategories(cats);
-        setSelectedCategoryId(tx.categoryId || "");
-        if (tx.subcategoryId) {
-          const subcatsRes = await fetch(`/api/categories?categoryId=${tx.categoryId}`);
-          const subcats = await subcatsRes.json();
-          setSubcategories(subcats);
+        if (res.ok) {
+          const cats = await res.json().catch(() => []);
+          setCategories(cats);
+          setSelectedCategoryId(tx.categoryId || "");
+          if (tx.subcategoryId) {
+            const subcatsRes = await fetch(`/api/categories?categoryId=${tx.categoryId}`);
+            if (subcatsRes.ok) {
+              const subcats = await subcatsRes.json().catch(() => []);
+              setSubcategories(subcats);
+            }
+          }
         }
       }
     }
@@ -199,13 +221,18 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
     try {
       if (macroId) {
         const res = await fetch(`/api/categories?macroId=${macroId}`);
-        const cats = await res.json();
-        setCategories(cats);
-        setSubcategories([]);
-        // Only clear category if we're changing macro (not on initial load)
-        if (selectedMacroId && selectedMacroId !== macroId) {
-          form.setValue("categoryId", undefined);
-          form.setValue("subcategoryId", undefined);
+        if (res.ok) {
+          const cats = await res.json().catch(() => []);
+          setCategories(cats);
+          setSubcategories([]);
+          // Only clear category if we're changing macro (not on initial load)
+          if (selectedMacroId && selectedMacroId !== macroId) {
+            form.setValue("categoryId", undefined);
+            form.setValue("subcategoryId", undefined);
+          }
+        } else {
+          console.error("Error fetching categories:", res.status, res.statusText);
+          setCategories([]);
         }
       } else {
         setCategories([]);
@@ -215,6 +242,8 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
       }
     } catch (error) {
       console.error("Error loading categories:", error);
+      setCategories([]);
+      setSubcategories([]);
     }
   }
 
@@ -222,17 +251,35 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
     setSelectedCategoryId(categoryId);
     try {
       const res = await fetch(`/api/categories?categoryId=${categoryId}`);
-      const subcats = await res.json();
-      setSubcategories(subcats);
-      form.setValue("categoryId", categoryId);
-      form.setValue("subcategoryId", undefined);
+      if (res.ok) {
+        const subcats = await res.json().catch(() => []);
+        setSubcategories(subcats);
+        form.setValue("categoryId", categoryId);
+        form.setValue("subcategoryId", undefined);
+      } else {
+        console.error("Error fetching subcategories:", res.status, res.statusText);
+        setSubcategories([]);
+      }
     } catch (error) {
       console.error("Error loading subcategories:", error);
+      setSubcategories([]);
     }
   }
 
   async function onSubmit(data: TransactionFormData) {
     try {
+      // Check limit before creating (only for new transactions)
+      if (!transaction && transactionLimit) {
+        if (transactionLimit.limit !== -1 && transactionLimit.current >= transactionLimit.limit) {
+          toast({
+            title: "Limit Reached",
+            description: `You've reached your monthly transaction limit (${transactionLimit.limit}). Upgrade your plan to continue adding transactions.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       const url = transaction ? `/api/transactions/${transaction.id}` : "/api/transactions";
       const method = transaction ? "PATCH" : "POST";
       
@@ -254,9 +301,22 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
-        console.error("API Error:", errorData);
-        throw new Error(errorData.error || "Failed to save transaction");
+        let errorMessage = "Failed to save transaction";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If response is not JSON, try to get text
+          try {
+            const text = await res.text();
+            errorMessage = text || errorMessage;
+          } catch (textError) {
+            // If all else fails, use status text
+            errorMessage = res.statusText || errorMessage;
+          }
+        }
+        console.error("API Error:", { status: res.status, statusText: res.statusText, message: errorMessage });
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -273,6 +333,8 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
       });
       // Reload on error to revert optimistic update
       onSuccess?.();
+      // Reload limit after error
+      loadTransactionLimit();
     }
   }
 
@@ -289,6 +351,14 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess }: 
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Show limit warning for new transactions */}
+          {!transaction && transactionLimit && transactionLimit.limit !== -1 && (
+            <LimitWarning
+              current={transactionLimit.current}
+              limit={transactionLimit.limit}
+              type="transactions"
+            />
+          )}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1">
               <label className="text-sm font-medium">Date</label>

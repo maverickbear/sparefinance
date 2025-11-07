@@ -1,101 +1,41 @@
-import { Suspense } from "react";
-import { MonthSelector } from "@/components/dashboard/month-selector";
-import { SummaryCardSkeleton } from "@/components/ui/card-skeleton";
-import { ChartSkeleton, BudgetExecutionSkeleton, CategoryExpensesSkeleton } from "@/components/ui/chart-skeleton";
-import { ListSkeleton, GoalsOverviewSkeleton, FinancialHealthSkeleton } from "@/components/ui/list-skeleton";
-import { SummaryCards } from "./dashboard/summary-cards";
-import { CashFlowSection } from "./dashboard/cash-flow-section";
-import { TransactionsBudgetSection } from "./dashboard/transactions-budget-section";
-import { ChartsSection } from "./dashboard/charts-section";
-import { loadDashboardData } from "./dashboard/data-loader";
+import { HeroSection } from "@/components/landing/hero-section";
+import { FeaturesSection } from "@/components/landing/features-section";
+import { ParallaxFeaturesSection } from "@/components/landing/parallax-features-section";
+import { TestimonialsSection } from "@/components/landing/testimonials-section";
+import { PricingSection } from "@/components/landing/pricing-section";
+import { LandingHeader } from "@/components/landing/landing-header";
+import { LandingFooter } from "@/components/landing/landing-footer";
+import { TrustedBySection } from "@/components/landing/trusted-by-section";
 
-interface DashboardProps {
-  searchParams: Promise<{ month?: string }> | { month?: string };
-}
+export const metadata = {
+  title: "Spare Finance - Powerful Tools for Easy Money Management",
+  description: "Simple, modern, and designed to put you in control of your future. Track expenses, manage budgets, and achieve your financial goals.",
+};
 
-async function DashboardContent({ selectedMonthDate }: { selectedMonthDate: Date }) {
-  const data = await loadDashboardData(selectedMonthDate);
-
+/**
+ * Landing Page
+ * 
+ * This page serves as the public landing page accessible to all users,
+ * whether authenticated or not. Users can access this page at any time
+ * by navigating to "/".
+ * 
+ * After login, users are automatically redirected to /dashboard, but they
+ * can always return to this landing page if they want to see the site.
+ */
+export default function LandingPage() {
   return (
-    <>
-      {/* Summary Cards */}
-      <SummaryCards 
-        selectedMonthTransactions={data.selectedMonthTransactions}
-        lastMonthTransactions={data.lastMonthTransactions}
-        savings={data.savings}
-      />
-
-      {/* Cash Flow and Financial Health */}
-      <CashFlowSection 
-        chartTransactions={data.chartTransactions}
-        financialHealth={data.financialHealth}
-        selectedMonthDate={selectedMonthDate}
-      />
-
-      {/* Upcoming Transactions and Budget Execution */}
-      <TransactionsBudgetSection 
-        budgets={data.budgets}
-        upcomingTransactions={data.upcomingTransactions}
-      />
-
-      {/* Charts */}
-      <ChartsSection 
-        selectedMonthTransactions={data.selectedMonthTransactions}
-        goals={data.goals}
-      />
-    </>
-  );
-}
-
-export default async function Dashboard({ searchParams }: DashboardProps) {
-  // Get selected month from URL or use current month
-  const params = await Promise.resolve(searchParams);
-  const selectedMonthParam = params?.month;
-  const selectedMonthDate = selectedMonthParam 
-    ? new Date(selectedMonthParam)
-    : new Date();
-
-  return (
-    <div className="space-y-6 md:space-y-10">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Overview of your finances</p>
-        </div>
-        <MonthSelector />
-      </div>
-
-      <Suspense fallback={
-        <>
-          {/* Summary Cards */}
-          <div className="grid gap-6 md:gap-8 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
-            <SummaryCardSkeleton />
-            <SummaryCardSkeleton />
-            <SummaryCardSkeleton />
-            <SummaryCardSkeleton />
-          </div>
-
-          {/* Cash Flow and Financial Health */}
-          <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
-            <ChartSkeleton height={240} />
-            <FinancialHealthSkeleton />
-          </div>
-
-          {/* Upcoming Transactions and Budget Execution */}
-          <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
-            <ListSkeleton itemCount={5} />
-            <BudgetExecutionSkeleton />
-          </div>
-
-          {/* Charts */}
-          <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
-            <GoalsOverviewSkeleton />
-            <CategoryExpensesSkeleton />
-          </div>
-        </>
-      }>
-        <DashboardContent selectedMonthDate={selectedMonthDate} />
-      </Suspense>
+    <div className="min-h-screen flex flex-col">
+      <LandingHeader />
+      <main className="flex-1">
+        <HeroSection />
+        <FeaturesSection />
+        <ParallaxFeaturesSection />
+        <TrustedBySection />
+        <TestimonialsSection />
+        <PricingSection />
+      </main>
+      <LandingFooter />
     </div>
   );
 }
+

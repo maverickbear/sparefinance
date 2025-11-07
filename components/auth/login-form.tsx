@@ -29,25 +29,24 @@ export function LoginForm() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+      const { signInClient } = await import("@/lib/api/auth-client");
+      const result = await signInClient(data);
 
-      const result = await response.json();
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
 
-      if (!response.ok) {
-        setError(result.error || "Failed to sign in");
+      if (!result.user) {
+        setError("Failed to sign in");
         return;
       }
 
       // Redirect to dashboard or original destination
-      // Use window.location.href to ensure a full page reload so cookies are recognized
-      const redirectTo = searchParams.get("redirect") || "/";
-      window.location.href = redirectTo;
+      // Supabase session is automatically managed, so we can use router
+      const redirectParam = searchParams.get("redirect");
+      const redirectTo = redirectParam || "/dashboard";
+      router.push(redirectTo);
     } catch (error) {
       console.error("Error signing in:", error);
       setError("An unexpected error occurred");
@@ -101,7 +100,6 @@ export function LoginForm() {
               id="password"
               type="password"
               {...form.register("password")}
-              placeholder="••••••••"
               disabled={loading}
               className="pl-10 h-11"
             />

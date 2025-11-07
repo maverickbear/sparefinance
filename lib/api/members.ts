@@ -7,6 +7,7 @@ import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { checkPlanLimits } from "./plans";
 import { sendInvitationEmail } from "@/lib/utils/email";
+import { guardHouseholdMembers, throwIfNotAllowed } from "@/lib/api/feature-guard";
 
 export interface HouseholdMember {
   id: string;
@@ -24,14 +25,11 @@ export interface HouseholdMember {
   isOwner?: boolean; // Flag to indicate if this is the account owner
 }
 
-// TODO: Restrict to paid plans in future
+// Check if user has access to household members feature
 export async function checkMemberAccess(userId: string): Promise<boolean> {
   try {
-    // For now, allow all plans (including Free)
-    // In the future, check if user has a paid plan
-    // const { plan } = await checkPlanLimits(userId);
-    // return plan?.id !== "free";
-    return true;
+    const guard = await guardHouseholdMembers(userId);
+    return guard.allowed;
   } catch (error) {
     console.error("Error checking member access:", error);
     return false;
@@ -111,10 +109,8 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
     const supabase = await createServerClient();
 
     // Check if member access is allowed
-    const hasAccess = await checkMemberAccess(ownerId);
-    if (!hasAccess) {
-      throw new Error("Member invitations are only available on paid plans");
-    }
+    const guard = await guardHouseholdMembers(ownerId);
+    await throwIfNotAllowed(guard);
 
     // Check if member with this email already exists for this owner
     const { data: existing } = await supabase

@@ -4,6 +4,8 @@ import {
   createSimpleInvestmentEntry,
 } from "@/lib/api/simple-investments";
 import { z } from "zod";
+import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { isPlanError } from "@/lib/utils/plan-errors";
 
 const createEntrySchema = z.object({
   accountId: z.string().min(1),
@@ -15,6 +17,24 @@ const createEntrySchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user has access to investments
+    const featureGuard = await guardFeatureAccess(userId, "hasInvestments");
+    if (!featureGuard.allowed) {
+      return NextResponse.json(
+        { 
+          error: featureGuard.error?.message || "Investments are not available in your current plan",
+          code: featureGuard.error?.code,
+          planError: featureGuard.error,
+        },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId") || undefined;
 
@@ -31,6 +51,24 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user has access to investments
+    const featureGuard = await guardFeatureAccess(userId, "hasInvestments");
+    if (!featureGuard.allowed) {
+      return NextResponse.json(
+        { 
+          error: featureGuard.error?.message || "Investments are not available in your current plan",
+          code: featureGuard.error?.code,
+          planError: featureGuard.error,
+        },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const validated = createEntrySchema.parse(body);
     const entry = await createSimpleInvestmentEntry({
@@ -40,6 +78,18 @@ export async function POST(request: Request) {
     return NextResponse.json(entry, { status: 201 });
   } catch (error) {
     console.error("Error creating simple investment entry:", error);
+    
+    if (isPlanError(error)) {
+      return NextResponse.json(
+        { 
+          error: error.message,
+          code: error.code,
+          planError: error,
+        },
+        { status: 403 }
+      );
+    }
+    
     const message =
       error instanceof Error ? error.message : "Failed to create entry";
     return NextResponse.json({ error: message }, { status: 400 });

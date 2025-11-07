@@ -22,10 +22,15 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
   const pathname = usePathname();
   const router = useRouter();
 
+  console.log("[BOTTOM-NAV] Render:", { hasSubscription, pathname });
+
   // Don't render BottomNav if user doesn't have subscription
   if (!hasSubscription) {
+    console.log("[BOTTOM-NAV] Returning null (no subscription)");
     return null;
   }
+
+  console.log("[BOTTOM-NAV] Rendering bottom nav component");
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card md:hidden">

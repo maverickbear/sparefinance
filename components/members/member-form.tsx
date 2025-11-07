@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect } from "react";
-import { HouseholdMember } from "@/lib/api/members";
+import type { HouseholdMember } from "@/lib/api/members-client";
 
 interface MemberFormProps {
   open: boolean;

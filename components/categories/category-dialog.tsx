@@ -23,11 +23,7 @@ import {
 import { useState, useEffect } from "react";
 import { Plus, Edit, X, Check } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-
-interface Macro {
-  id: string;
-  name: string;
-}
+import type { Category, Macro } from "@/lib/api/categories-client";
 
 interface Subcategory {
   id: string;
@@ -39,14 +35,6 @@ interface Subcategory {
 interface PendingSubcategory {
   name: string;
   tempId: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  macroId: string;
-  userId?: string | null;
-  subcategories?: Subcategory[];
 }
 
 interface CategoryDialogProps {
@@ -66,7 +54,13 @@ export function CategoryDialog({
 }: CategoryDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>(category?.subcategories || []);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>(
+    category?.subcategories?.map((subcat) => ({
+      id: subcat.id,
+      name: subcat.name,
+      categoryId: category.id,
+    })) || []
+  );
   const [pendingSubcategories, setPendingSubcategories] = useState<PendingSubcategory[]>([]);
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
   const [editingPendingSubcategoryTempId, setEditingPendingSubcategoryTempId] = useState<string | null>(null);
@@ -75,6 +69,7 @@ export function CategoryDialog({
   const [isAddingSubcategory, setIsAddingSubcategory] = useState(false);
   const [isSubmittingSubcategory, setIsSubmittingSubcategory] = useState(false);
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(category?.id || null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   // Check if this is a system category (userId === null)
   const isSystemCategory = category?.userId === null || category?.userId === undefined;
@@ -84,13 +79,29 @@ export function CategoryDialog({
     defaultValues: category
       ? {
           name: category.name,
-          macroId: category.macroId,
+          macroId: category.macroId || "",
         }
       : {
           name: "",
           macroId: "",
         },
   });
+
+  // Load current user
+  useEffect(() => {
+    async function loadCurrentUser() {
+      try {
+        const response = await fetch("/api/user");
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUserId(data.user?.id || null);
+        }
+      } catch (error) {
+        console.error("Error loading current user:", error);
+      }
+    }
+    loadCurrentUser();
+  }, []);
 
   // Reset form and subcategories when dialog opens/closes or category changes
   useEffect(() => {
@@ -99,14 +110,20 @@ export function CategoryDialog({
         category
           ? {
               name: category.name,
-              macroId: category.macroId,
+              macroId: category.macroId || "",
             }
           : {
               name: "",
               macroId: "",
             }
       );
-      setSubcategories(category?.subcategories || []);
+      setSubcategories(
+        category?.subcategories?.map((subcat) => ({
+          id: subcat.id,
+          name: subcat.name,
+          categoryId: category.id,
+        })) || []
+      );
       setPendingSubcategories([]);
       setCurrentCategoryId(category?.id || null);
       setEditingSubcategoryId(null);
@@ -579,7 +596,7 @@ export function CategoryDialog({
                     <>
                       <span className="text-xs font-medium text-foreground">{subcategory.name}</span>
                       {/* Only show edit/delete buttons for user-created subcategories */}
-                      {subcategory.userId !== null && subcategory.userId !== undefined && (
+                      {subcategory.userId !== null && subcategory.userId !== undefined && currentUserId && subcategory.userId === currentUserId && (
                         <div className="flex items-center gap-0.5">
                           {!isSystemCategory && (
                             <Button

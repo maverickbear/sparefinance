@@ -20,7 +20,7 @@ const COLORS = [
   "#10b981", // green
   "#f59e0b", // amber
   "#ef4444", // red
-  "#8b5cf6", // purple
+  "#4949f2", // primary (roxo)
   "#06b6d4", // cyan
   "#f97316", // orange
   "#ec4899", // pink

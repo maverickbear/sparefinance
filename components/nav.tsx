@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, createContext, useContext } from "react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight } from "lucide-react";
-import { ProfileModal } from "@/components/profile/profile-modal";
+import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import {
@@ -27,7 +26,7 @@ const navSections = [
   {
     title: "Overview",
     items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { href: "/reports", label: "Reports", icon: FileText },
     ],
   },
@@ -92,8 +91,9 @@ export function Nav({ hasSubscription = true }: NavProps) {
   const { theme, setTheme } = useTheme();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  console.log("[NAV] Render:", { hasSubscription, pathname });
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -110,24 +110,25 @@ export function Nav({ hasSubscription = true }: NavProps) {
     window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: { isCollapsed } }));
   }, [isCollapsed]);
 
-  // Don't render Nav if user doesn't have subscription
-  if (!hasSubscription) {
-    return null;
-  }
-
+  // Fetch user data - always run hooks, but only fetch if hasSubscription
   useEffect(() => {
+    console.log("[NAV] useEffect triggered:", { hasSubscription });
+    if (!hasSubscription) {
+      console.log("[NAV] No subscription, skipping user data fetch");
+      setLoading(false);
+      setUserData(null);
+      return;
+    }
+
+    console.log("[NAV] Fetching user data");
     async function fetchUserData() {
       try {
-        const response = await fetch("/api/user");
-        if (response.ok) {
-          const data = await response.json();
-          setUserData(data);
-        } else {
-          // User not authenticated or error - set to null
-          setUserData(null);
-        }
+        const { getUserClient } = await import("@/lib/api/user-client");
+        const data = await getUserClient();
+        console.log("[NAV] User data fetched:", data);
+        setUserData(data);
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error("[NAV] Error fetching user data:", error);
         setUserData(null);
       } finally {
         setLoading(false);
@@ -138,6 +139,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
 
     // Listen for profile updates
     const handleProfileUpdate = () => {
+      console.log("[NAV] Profile update event received");
       fetchUserData();
     };
     window.addEventListener("profile-updated", handleProfileUpdate);
@@ -145,24 +147,28 @@ export function Nav({ hasSubscription = true }: NavProps) {
     return () => {
       window.removeEventListener("profile-updated", handleProfileUpdate);
     };
-  }, []);
+  }, [hasSubscription]);
+
+  // Don't render Nav if user doesn't have subscription
+  // But all hooks must be called before this return
+  if (!hasSubscription) {
+    console.log("[NAV] Returning null (no subscription)");
+    return null;
+  }
+
+  console.log("[NAV] Rendering nav component");
 
   const handleLogout = async () => {
     try {
-      const response = await fetch("/api/auth/signout", {
-        method: "POST",
-      });
-
-      if (response.ok) {
-        // Redirect to login page
-        router.push("/auth/login");
-        // Force a page reload to clear any client-side state
-        window.location.href = "/auth/login";
-      } else {
-        console.error("Failed to sign out");
-        // Still redirect to login even if there's an error
-        router.push("/auth/login");
-        window.location.href = "/auth/login";
+      const { signOutClient } = await import("@/lib/api/auth-client");
+      const result = await signOutClient();
+      
+      // Always redirect to login (even if there's an error)
+      router.push("/auth/login");
+      window.location.href = "/auth/login";
+      
+      if (result.error) {
+        console.error("Failed to sign out:", result.error);
       }
     } catch (error) {
       console.error("Error signing out:", error);
@@ -272,7 +278,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
               ))}
             </nav>
 
-            <div className="border-t p-4">
+            <div className="border-t p-3">
               {loading ? (
                 <div
                   className={cn(
@@ -351,29 +357,29 @@ export function Nav({ hasSubscription = true }: NavProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem
-                      onClick={() => setProfileModalOpen(true)}
-                      className="cursor-pointer mb-1"
-                    >
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Profile</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild className="mb-1">
-                      <Link href="/members" className="cursor-pointer">
-                        <Users className="mr-2 h-4 w-4" />
-                        <span>Members</span>
-                      </Link>
-                    </DropdownMenuItem>
                     <DropdownMenuItem asChild className="mb-1">
                       <Link href="/settings" className="cursor-pointer">
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild className="mb-1">
-                      <Link href="/billing" className="cursor-pointer">
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        <span>Billing</span>
+                      <Link href="/help-support" className="cursor-pointer">
+                        <HelpCircle className="mr-2 h-4 w-4" />
+                        <span>Help & Support</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="mb-1">
+                      <Link href="/privacy-policy" className="cursor-pointer">
+                        <Shield className="mr-2 h-4 w-4" />
+                        <span>Privacy Policy</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild className="mb-1">
+                      <Link href="/terms-of-use" className="cursor-pointer">
+                        <FileTextIcon className="mr-2 h-4 w-4" />
+                        <span>Terms of Use</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -402,10 +408,6 @@ export function Nav({ hasSubscription = true }: NavProps) {
               )}
             </div>
           </div>
-          <ProfileModal
-            open={profileModalOpen}
-            onOpenChange={setProfileModalOpen}
-          />
         </aside>
       </TooltipProvider>
     </SidebarContext.Provider>

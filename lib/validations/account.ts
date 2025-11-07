@@ -4,6 +4,7 @@ export const accountSchema = z.object({
   name: z.string().min(1, "Name is required"),
   type: z.enum(["cash", "checking", "savings", "credit", "investment", "other"]),
   creditLimit: z.number().positive("Credit limit must be positive").optional().nullable(),
+  initialBalance: z.number().optional().nullable(),
   ownerIds: z.array(z.string().uuid()).optional(),
 }).refine((data) => {
   // Credit limit is required for credit cards, optional for others
@@ -14,6 +15,15 @@ export const accountSchema = z.object({
 }, {
   message: "Credit limit is required for credit cards",
   path: ["creditLimit"],
+}).refine((data) => {
+  // Initial balance is required for checking and savings accounts
+  if ((data.type === "checking" || data.type === "savings") && (data.initialBalance === undefined || data.initialBalance === null)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Initial balance is required for checking and savings accounts",
+  path: ["initialBalance"],
 });
 
 export type AccountFormData = z.infer<typeof accountSchema>;
