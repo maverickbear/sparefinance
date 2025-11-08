@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { PlanSelector } from "@/components/billing/plan-selector";
 import { Plan } from "@/lib/validations/plan";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function PricingPage() {
+// Component that uses useSearchParams - must be wrapped in Suspense
+function PricingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -112,6 +113,27 @@ export default function PricingPage() {
         />
       </div>
     </div>
+  );
+}
+
+// Wrapper component that provides Suspense boundary for useSearchParams
+export default function PricingPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-8">
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold">Pricing</h1>
+            <p className="text-muted-foreground">Choose the plan that's right for you</p>
+          </div>
+          <div className="animate-pulse space-y-4">
+            <div className="h-64 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    }>
+      <PricingPageContent />
+    </Suspense>
   );
 }
 
