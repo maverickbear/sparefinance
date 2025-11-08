@@ -36,9 +36,12 @@ interface Debt {
   downPayment: number;
   currentBalance: number;
   interestRate: number;
-  totalMonths: number;
+  totalMonths: number | null;
   firstPaymentDate: string;
+  startDate?: string | null;
   monthlyPayment: number;
+  paymentFrequency?: string;
+  paymentAmount?: number | null;
   principalPaid: number;
   interestPaid: number;
   additionalContributions: boolean;
@@ -48,6 +51,11 @@ interface Debt {
   accountId?: string | null;
   isPaused: boolean;
   isPaidOff: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  monthsRemaining?: number | null;
+  totalInterestRemaining?: number;
+  progressPct?: number;
 }
 
 interface DebtFormProps {
