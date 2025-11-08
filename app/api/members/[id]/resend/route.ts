@@ -4,7 +4,7 @@ import { getCurrentUserId } from "@/lib/api/feature-guard";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get current user ID
@@ -18,7 +18,8 @@ export async function POST(
     }
 
     // Resend invitation email
-    await resendInvitationEmail(params.id);
+    const { id } = await params;
+    await resendInvitationEmail(id);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

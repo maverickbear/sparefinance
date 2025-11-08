@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get current user ID
@@ -24,7 +24,8 @@ export async function PATCH(
     const data: MemberUpdateFormData = memberUpdateSchema.parse(body);
 
     // Update the member
-    const member = await updateMember(params.id, data);
+    const { id } = await params;
+    const member = await updateMember(id, data);
 
     return NextResponse.json(member, { status: 200 });
   } catch (error) {
@@ -51,7 +52,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get current user ID
@@ -65,7 +66,8 @@ export async function DELETE(
     }
 
     // Remove the member
-    await removeMember(params.id);
+    const { id } = await params;
+    await removeMember(id);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
