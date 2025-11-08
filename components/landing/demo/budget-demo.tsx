@@ -14,7 +14,7 @@ export function BudgetDemo() {
     spent: 320,
     remaining: 180,
     percentage: 64, // 64% spent, 36% remaining
-    status: "ok" as const,
+    status: "ok" as "ok" | "over" | "warning",
   };
 
   const getStatusColor = () => {
