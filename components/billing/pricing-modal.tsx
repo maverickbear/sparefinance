@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,8 @@ interface PricingModalProps {
   onSuccess?: () => void;
 }
 
-export function PricingModal({ 
+// Component that uses useSearchParams - must be wrapped in Suspense
+function PricingModalContent({ 
   open, 
   onOpenChange, 
   currentPlanId,
@@ -137,6 +138,15 @@ export function PricingModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Wrapper component that provides Suspense boundary for useSearchParams
+export function PricingModal(props: PricingModalProps) {
+  return (
+    <Suspense fallback={null}>
+      <PricingModalContent {...props} />
+    </Suspense>
   );
 }
 
