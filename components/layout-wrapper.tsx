@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { Nav } from "@/components/nav";
 import { BottomNav } from "@/components/bottom-nav";
+import { MobileHeader } from "@/components/mobile-header";
 import { useEffect, useState, useRef } from "react";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
@@ -309,10 +310,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   console.log("[LAYOUT-WRAPPER] Rendering normal layout with nav", { showNav, hasSubscription, isDashboardRoute, checking });
   return (
     <>
+      <MobileHeader hasSubscription={showNav} />
       <div className="flex min-h-screen">
         <Nav hasSubscription={showNav} />
         <main
-          className={`flex-1 pb-16 md:pb-0 transition-all duration-300 ${
+          className={`flex-1 pb-16 md:pb-0 pt-16 md:pt-0 transition-all duration-300 ${
             isSidebarCollapsed ? "md:ml-16" : "md:ml-64"
           }`}
         >
