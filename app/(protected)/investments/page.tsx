@@ -348,7 +348,7 @@ export default function InvestmentsPage() {
               Add a monthly contribution, dividend, or interest payment
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={entryForm.handleSubmit(handleSubmitEntry)} className="space-y-4">
+          <form onSubmit={entryForm.handleSubmit(handleSubmitEntry)} className="space-y-4 p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Account</label>

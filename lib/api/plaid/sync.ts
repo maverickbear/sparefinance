@@ -138,8 +138,8 @@ export async function syncAccountTransactions(
           accountId,
           description,
           // Don't auto-categorize - always show suggestions for user approval/rejection
-          categoryId: null,
-          subcategoryId: null,
+          categoryId: undefined,
+          subcategoryId: undefined,
           recurring: false,
         };
 

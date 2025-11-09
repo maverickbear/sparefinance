@@ -85,7 +85,7 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
   }, [linkToken]);
 
   const { open, ready } = usePlaidLink({
-    token: linkToken || undefined,
+    token: linkToken,
     onSuccess: onSuccessCallback,
     onExit: (err: any, metadata: any) => {
       if (err) {
@@ -103,7 +103,7 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
 
   // Store open function in ref
   useEffect(() => {
-    openPlaidRef.current = open;
+    openPlaidRef.current = open as () => void;
     console.log('[ConnectBankButton] Open function updated:', {
       hasOpen: !!open,
       ready,

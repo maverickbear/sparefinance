@@ -98,21 +98,9 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
       }
     }
 
-    // Create free subscription for new user
-    if (userData) {
-      const { error: subscriptionError } = await supabase
-        .from("Subscription")
-        .insert({
-          id: crypto.randomUUID(),
-          userId: userData.id,
-          planId: "free",
-          status: "active",
-        });
-
-      if (subscriptionError) {
-        console.error("Error creating subscription:", subscriptionError);
-      }
-    }
+    // Note: Subscription is NOT created automatically during signup
+    // User must select a plan on /select-plan page
+    // This allows users to choose their plan before being redirected to dashboard
 
     return { user: userData ? mapUser(userData) : null, error: null };
   } catch (error) {

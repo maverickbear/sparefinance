@@ -3,11 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { DashboardPreviewDemo } from "./demo/dashboard-preview-demo";
+import { DashboardDemo } from "./demo/dashboard-demo";
 
 export function HeroSection() {
   return (
-    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#6b21a8] via-[#7c3aed] to-[#5b21b6] pt-24 md:pt-32">
+    <section id="home" className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#6b21a8] via-[#7c3aed] to-[#5b21b6] pt-24 md:pt-32">
       {/* Background patterns */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')]"></div>
@@ -53,7 +53,7 @@ export function HeroSection() {
         {/* Dashboard preview */}
         <div className="mt-16 max-w-7xl mx-auto">
           <div className="relative rounded-t-2xl rounded-bl-none rounded-br-none overflow-hidden shadow-2xl border-t border-l border-r border-white/10 backdrop-blur-sm bg-white/5">
-            <DashboardPreviewDemo />
+            <DashboardDemo />
           </div>
         </div>
       </div>

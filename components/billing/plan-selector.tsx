@@ -13,9 +13,10 @@ interface PlanSelectorProps {
   onSelectPlan: (planId: string, interval: "month" | "year") => void;
   loading?: boolean;
   showComparison?: boolean;
+  isPublic?: boolean; // If true, shows "Get {plantype}" instead of "Get Started" or "Upgrade"
 }
 
-export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, showComparison = false }: PlanSelectorProps) {
+export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, showComparison = false, isPublic = false }: PlanSelectorProps) {
   const [interval, setInterval] = useState<"month" | "year">("month");
   const sortedPlans = [...plans].sort((a, b) => {
     const order = { free: 0, basic: 1, premium: 2 };
@@ -187,6 +188,18 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                   ))}
                 </tr>
                 <tr>
+                  <td className="px-6 py-4 text-sm text-foreground">Bank Integration</td>
+                  {sortedPlans.map((plan) => (
+                    <td key={plan.id} className="px-6 py-4 text-center">
+                      {plan.features.hasBankIntegration ? (
+                        <Check className="h-5 w-5 text-primary mx-auto" />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
                   <td className="px-6 py-4 text-sm text-foreground">Household Members</td>
                   {sortedPlans.map((plan) => (
                     <td key={plan.id} className="px-6 py-4 text-center">
@@ -211,7 +224,13 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                           disabled={isCurrent || loading}
                           onClick={() => onSelectPlan(plan.id, interval)}
                         >
-                          {isCurrent ? "Current Plan" : price === 0 ? "Get Started" : "Upgrade"}
+                          {isCurrent 
+                            ? "Current Plan" 
+                            : isPublic 
+                              ? `Get ${plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan`
+                              : price === 0 
+                                ? "Get Started" 
+                                : "Upgrade"}
                         </Button>
                       </td>
                     );
@@ -280,6 +299,11 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
               allFeatures.push("Household members");
             }
 
+            // Bank Integration
+            if (plan.features.hasBankIntegration) {
+              allFeatures.push("Bank account integration");
+            }
+
             const isPopular = plan.name === "basic";
             const isPremium = plan.name === "premium";
             const isFree = plan.name === "free";
@@ -344,7 +368,13 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                     disabled={isCurrent || loading}
                     onClick={() => onSelectPlan(plan.id, interval)}
                   >
-                    {isCurrent ? "Current" : price === 0 ? "Get Started" : "Upgrade"}
+                    {isCurrent 
+                      ? "Current" 
+                      : isPublic 
+                        ? `Get ${plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan`
+                        : price === 0 
+                          ? "Get Started" 
+                          : "Upgrade"}
                   </Button>
                 </CardFooter>
               </Card>

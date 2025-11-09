@@ -37,7 +37,7 @@ export default function BudgetsAndGoalsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="inline-flex">
           <TabsTrigger value="budgets">
             <Target className="mr-2 h-4 w-4" />
             Budgets

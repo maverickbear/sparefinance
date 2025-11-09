@@ -222,20 +222,10 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
     return await subscriptionPromise;
   } catch (error) {
     console.error("[PLANS] Error in getUserSubscription:", error);
-    // Return free subscription as default
-    return {
-      id: "free-default",
-      userId,
-      planId: "free",
-      status: "active",
-      stripeSubscriptionId: null,
-      stripeCustomerId: null,
-      currentPeriodStart: null,
-      currentPeriodEnd: null,
-      cancelAtPeriodEnd: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // On error, return null to allow user to select a plan
+    // This prevents assuming user has a plan when there's a database error
+    // Note: This is different from when user has no subscription (also returns null)
+    return null;
   }
 }
 
@@ -326,20 +316,10 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
     }
 
     if (!subscription) {
-      // Return free subscription as default
-      return {
-        id: "free-default",
-        userId,
-        planId: "free",
-        status: "active",
-        stripeSubscriptionId: null,
-        stripeCustomerId: null,
-        currentPeriodStart: null,
-        currentPeriodEnd: null,
-        cancelAtPeriodEnd: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      // Return null if no subscription exists
+      // User must select a plan on /select-plan page
+      // This allows users to choose their plan before being redirected to dashboard
+      return null;
     }
 
     return mapSubscription(subscription);
@@ -355,8 +335,8 @@ export async function getCurrentUserSubscription(): Promise<Subscription | null>
       return null;
     }
 
-    // getUserSubscription always returns a subscription (at least "free" as default)
-    // So this should never be null if user is authenticated
+    // getUserSubscription returns null if user has no subscription
+    // User must select a plan on /select-plan page
     const subscription = await getUserSubscription(authUser.id);
     return subscription;
   } catch (error) {

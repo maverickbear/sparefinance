@@ -460,7 +460,6 @@ export async function addPayment(id: string, paymentAmount: number): Promise<Deb
           categoryId: categoryMapping.categoryId,
           subcategoryId: categoryMapping.subcategoryId,
           description: `Payment for ${debt.name}`,
-          tags: [],
           recurring: false,
         });
       } else {

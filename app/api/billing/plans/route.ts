@@ -31,17 +31,16 @@ export async function GET() {
       console.log("[API/BILLING/PLANS] Getting current user subscription");
       const subscription = await getCurrentUserSubscription();
       console.log("[API/BILLING/PLANS] Subscription:", subscription);
-      // getUserSubscription always returns a subscription (at least "free" as default)
-      // So subscription should never be null if user is authenticated
-      // But if it is null due to an error, default to "free"
+      // getUserSubscription returns null if user has no subscription
+      // User must select a plan on /select-plan page
       if (subscription) {
         currentPlanId = subscription.planId;
         console.log("[API/BILLING/PLANS] Current plan ID:", currentPlanId);
       } else {
         // If subscription is null, user is authenticated but no subscription found
-        // Default to free plan
-        currentPlanId = "free";
-        console.log("[API/BILLING/PLANS] No subscription found, defaulting to free");
+        // Return undefined so user can select a plan
+        currentPlanId = undefined;
+        console.log("[API/BILLING/PLANS] No subscription found, user must select a plan");
       }
     } catch (error) {
       // Error occurred, return 401 to force login

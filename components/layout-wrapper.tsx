@@ -144,7 +144,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
         const data = await response.json();
         console.log("[LAYOUT-WRAPPER] checkSubscription: Response data:", data);
         // If user has a current plan, they can access the dashboard
-        // Note: currentPlanId should always be set (at least "free") if user is authenticated
+        // If currentPlanId is undefined, user must select a plan on /select-plan page
         if (data.currentPlanId) {
           console.log("[LAYOUT-WRAPPER] checkSubscription: Subscription found, currentPlanId:", data.currentPlanId);
           setHasSubscription(true);

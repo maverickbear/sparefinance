@@ -67,6 +67,7 @@ export async function syncAccountLiabilities(
             .eq('liabilityType', 'credit_card')
             .single();
 
+          const creditCardAny = creditCard as any;
           const liabilityData: Partial<PlaidLiability> = {
             accountId: account.id,
             liabilityType: 'credit_card',
@@ -76,7 +77,7 @@ export async function syncAccountLiabilities(
             lastPaymentDate: creditCard.last_payment_date || null,
             nextPaymentDueDate: creditCard.next_payment_due_date || null,
             lastStatementBalance: creditCard.last_statement_balance || null,
-            lastStatementDate: creditCard.last_statement_date || null,
+            lastStatementDate: creditCardAny.last_statement_date || null,
             creditLimit: creditLimit,
             currentBalance: currentBalance ? Math.abs(currentBalance) : null,
             availableCredit: availableCredit,

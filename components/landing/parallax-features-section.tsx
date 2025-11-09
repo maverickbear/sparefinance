@@ -1,12 +1,13 @@
 "use client";
 
 import { ParallaxFeature } from "./parallax-feature";
-import { BarChart3, Wallet, TrendingUp, Shield, PieChart, Target } from "lucide-react";
-import { SpendLimitDemo } from "./demo/spend-limit-demo";
-import { BudgetDemo } from "./demo/budget-demo";
-import { DashboardPreviewDemo } from "./demo/dashboard-preview-demo";
+import { BarChart3, Wallet, TrendingUp, CreditCard, PieChart, Target } from "lucide-react";
+import { DashboardWidgetsDemo } from "./demo/dashboard-widgets-demo";
+import { BankAccountsDemo } from "./demo/bank-accounts-demo";
+import { BudgetsDemo } from "./demo/budgets-demo";
+import { InvestmentsDemo } from "./demo/investments-demo";
+import { DebtsDemo } from "./demo/debts-demo";
 import { GoalsDemo } from "./demo/goals-demo";
-import { ChartDemo } from "./demo/chart-demo";
 
 export function ParallaxFeaturesSection() {
   const features = [
@@ -14,34 +15,35 @@ export function ParallaxFeaturesSection() {
       title: "Complete Financial Dashboard",
       description: "See everything in one place: spending, income, budgets, and goals. Get instant insights with beautiful charts and visualizations that make complex data simple to understand.",
       icon: <BarChart3 className="w-16 h-16 text-primary" />,
-      demoComponent: <DashboardPreviewDemo />,
+      demoComponent: <DashboardWidgetsDemo />,
       reverse: false,
     },
     {
       title: "Automatic Bank Account Sync",
       description: "Connect your bank accounts in seconds. Transactions import automatically—no more manual entry. Your financial data stays up-to-date 24/7, so you always know where you stand.",
       icon: <Wallet className="w-16 h-16 text-primary" />,
-      demoComponent: <SpendLimitDemo />,
+      demoComponent: <BankAccountsDemo />,
       reverse: true,
     },
     {
       title: "Smart Budget Management",
       description: "Set budgets by category and watch your progress in real-time. Get visual alerts when you're approaching limits. Our system learns your patterns and helps you stay on track effortlessly.",
       icon: <PieChart className="w-16 h-16 text-primary" />,
-      demoComponent: <BudgetDemo />,
+      demoComponent: <BudgetsDemo />,
       reverse: false,
     },
     {
       title: "Investment Portfolio Tracking",
       description: "Track stocks, ETFs, crypto, and more. Monitor your portfolio value, calculate returns, and see how your investments are performing—all integrated with your overall financial picture.",
       icon: <TrendingUp className="w-16 h-16 text-primary" />,
-      demoComponent: <ChartDemo />,
+      demoComponent: <InvestmentsDemo />,
       reverse: true,
     },
     {
-      title: "Bank-Level Security",
-      description: "Your data is encrypted with industry-leading security. We use the same technology banks trust. Your financial information is private, secure, and never shared—period.",
-      icon: <Shield className="w-16 h-16 text-primary" />,
+      title: "Smart Debt Management",
+      description: "Track and manage all your debts in one place. Monitor interest rates, payment schedules, and progress. Get insights on how to pay off debts faster and save on interest.",
+      icon: <CreditCard className="w-16 h-16 text-primary" />,
+      demoComponent: <DebtsDemo />,
       reverse: false,
     },
     {

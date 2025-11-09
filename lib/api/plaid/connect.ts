@@ -3,6 +3,7 @@
 import { plaidClient } from './index';
 import { createServerClient } from '@/lib/supabase-server';
 import { formatTimestamp } from '@/lib/utils/timestamp';
+import { CountryCode, Products } from 'plaid';
 
 /**
  * Get institution logo from Plaid
@@ -11,7 +12,7 @@ async function getInstitutionLogo(institutionId: string): Promise<string | null>
   try {
     const response = await plaidClient.institutionsGetById({
       institution_id: institutionId,
-      country_codes: ['US'],
+      country_codes: [CountryCode.Us],
       options: {
         include_optional_metadata: true,
       },
@@ -41,8 +42,8 @@ export async function createLinkToken(userId: string): Promise<string> {
         client_user_id: userId,
       },
       client_name: 'Spare Finance',
-      products: ['transactions'],
-      country_codes: ['US'],
+      products: [Products.Transactions],
+      country_codes: [CountryCode.Us],
       language: 'en',
     });
 

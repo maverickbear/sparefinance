@@ -44,7 +44,7 @@ export function TestimonialsSection() {
   ];
 
   return (
-    <section className="py-20 md:py-32 bg-muted/50">
+    <section id="testimonials" className="py-20 md:py-32 bg-muted/50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">

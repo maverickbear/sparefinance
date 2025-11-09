@@ -19,10 +19,13 @@ export function PricingSection() {
   async function loadPlans() {
     try {
       setLoading(true);
-      const response = await fetch("/api/billing/plans");
+      // Use public endpoint that doesn't require authentication
+      const response = await fetch("/api/billing/plans/public");
       if (response.ok) {
         const data = await response.json();
         setPlans(data.plans);
+      } else {
+        console.error("Failed to load plans:", response.statusText);
       }
     } catch (error) {
       console.error("Error loading plans:", error);
@@ -95,16 +98,22 @@ export function PricingSection() {
     return (
       <section id="pricing" className="py-20 md:py-32 bg-background">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-              Our pricing plans
+              Simple, Transparent Pricing
             </h2>
             <p className="text-lg text-muted-foreground">
-              Discover your ultimate finance management solution for individuals, startups, and enterprises
+              Start free forever. Upgrade when you're ready for advanced features like bank integration, unlimited transactions, and family sharing.
             </p>
           </div>
-          <div className="animate-pulse space-y-4">
-            <div className="h-64 bg-muted rounded-[12px]" />
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-96 bg-muted rounded-[12px]" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -125,11 +134,20 @@ export function PricingSection() {
         </div>
 
         {/* Plan Selector */}
-        <PlanSelector
-          plans={plans}
-          onSelectPlan={handleSelectPlan}
-          loading={selecting}
-        />
+        {plans.length > 0 ? (
+          <div className="max-w-7xl mx-auto">
+            <PlanSelector
+              plans={plans}
+              onSelectPlan={handleSelectPlan}
+              loading={selecting}
+              isPublic={true}
+            />
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Unable to load plans. Please try again later.</p>
+          </div>
+        )}
       </div>
     </section>
   );
