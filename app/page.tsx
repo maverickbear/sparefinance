@@ -5,7 +5,6 @@ import { TestimonialsSection } from "@/components/landing/testimonials-section";
 import { PricingSection } from "@/components/landing/pricing-section";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { LandingFooter } from "@/components/landing/landing-footer";
-import { TrustedBySection } from "@/components/landing/trusted-by-section";
 
 export const metadata = {
   title: "Spare Finance - Powerful Tools for Easy Money Management",
@@ -30,7 +29,6 @@ export default function LandingPage() {
         <HeroSection />
         <FeaturesSection />
         <ParallaxFeaturesSection />
-        <TrustedBySection />
         <TestimonialsSection />
         <PricingSection />
       </main>

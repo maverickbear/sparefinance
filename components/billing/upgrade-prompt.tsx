@@ -314,7 +314,7 @@ export function UpgradePrompt({
           </div>
           <p className="text-xs text-muted-foreground/60">
             By continuing, you agree to our{" "}
-            <Link href="/terms-of-use" className="underline hover:text-foreground transition-colors">
+            <Link href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">
               Terms of Service
             </Link>
           </p>

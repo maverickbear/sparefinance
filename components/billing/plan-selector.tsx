@@ -391,11 +391,11 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
             You'll retain access to your plan features until the end of your current billing period. 
             No refunds are provided for partial billing periods. 
             By subscribing, you agree to our{" "}
-            <a href="/terms-of-use" className="text-primary hover:underline">
+            <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
               Terms of Service
             </a>
             {" "}and{" "}
-            <a href="/privacy-policy" className="text-primary hover:underline">
+            <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
               Privacy Policy
             </a>
             .

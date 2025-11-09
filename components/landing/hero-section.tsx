@@ -33,9 +33,9 @@ export function HeroSection() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Button
               asChild
-              className="bg-[#a78bfa] text-white hover:bg-[#a78bfa]/90 text-base font-semibold px-8 py-6 h-auto rounded-[12px] shadow-lg hover:shadow-xl transition-all"
+              className="bg-white text-foreground hover:bg-white/90 text-base font-semibold px-8 py-6 h-auto rounded-[12px] shadow-lg hover:shadow-xl transition-all"
             >
-              <Link href="#pricing">Start Free Forever</Link>
+              <Link href="#pricing">Get Started</Link>
             </Button>
             <Button
               asChild

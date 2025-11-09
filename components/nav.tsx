@@ -162,18 +162,18 @@ export function Nav({ hasSubscription = true }: NavProps) {
       const { signOutClient } = await import("@/lib/api/auth-client");
       const result = await signOutClient();
       
-      // Always redirect to login (even if there's an error)
-      router.push("/auth/login");
-      window.location.href = "/auth/login";
+      // Always redirect to landing page (even if there's an error)
+      router.push("/");
+      window.location.href = "/";
       
       if (result.error) {
         console.error("Failed to sign out:", result.error);
       }
     } catch (error) {
       console.error("Error signing out:", error);
-      // Still redirect to login even if there's an error
-      router.push("/auth/login");
-      window.location.href = "/auth/login";
+      // Still redirect to landing page even if there's an error
+      router.push("/");
+      window.location.href = "/";
     }
   };
 
@@ -356,15 +356,15 @@ export function Nav({ hasSubscription = true }: NavProps) {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="mb-1">
-                      <Link href="/privacy-policy" className="cursor-pointer">
+                      <Link href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="cursor-pointer">
                         <Shield className="mr-2 h-4 w-4" />
                         <span>Privacy Policy</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild className="mb-1">
-                      <Link href="/terms-of-use" className="cursor-pointer">
+                      <Link href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="cursor-pointer">
                         <FileTextIcon className="mr-2 h-4 w-4" />
-                        <span>Terms of Use</span>
+                        <span>Terms of Service</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

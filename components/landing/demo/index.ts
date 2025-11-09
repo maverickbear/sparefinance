@@ -11,4 +11,5 @@ export { BudgetsDemo } from "./budgets-demo";
 export { InvestmentsDemo } from "./investments-demo";
 export { DebtsDemo } from "./debts-demo";
 export { SecurityDemo } from "./security-demo";
+export { CategorizationDemo } from "./categorization-demo";
 

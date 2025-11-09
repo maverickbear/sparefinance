@@ -16,7 +16,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const isWelcomePage = pathname === "/welcome";
   const isLandingPage = pathname === "/";
   const isPricingPage = pathname === "/pricing";
-  const isDashboardRoute = !isAuthPage && !isAcceptPage && !isLandingPage && !isPricingPage && !isApiRoute && !isSelectPlanPage && !isWelcomePage;
+  const isPrivacyPolicyPage = pathname === "/privacy-policy";
+  const isTermsOfServicePage = pathname === "/terms-of-service";
+  const isFAQPage = pathname === "/faq";
+  const isPublicPage = isAuthPage || isAcceptPage || isLandingPage || isPricingPage || isPrivacyPolicyPage || isTermsOfServicePage || isFAQPage;
+  const isDashboardRoute = !isPublicPage && !isApiRoute && !isSelectPlanPage && !isWelcomePage;
   
   // Initialize hasSubscription optimistically for dashboard routes to prevent menu from disappearing on reload
   const [checking, setChecking] = useState(true);
@@ -32,6 +36,12 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     isAcceptPage,
     isSelectPlanPage,
     isWelcomePage,
+    isLandingPage,
+    isPricingPage,
+    isPrivacyPolicyPage,
+    isTermsOfServicePage,
+    isFAQPage,
+    isPublicPage,
     checking,
     hasSubscription,
     subscriptionChecked: subscriptionCheckedRef.current,
@@ -63,12 +73,13 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       isAcceptPage,
       isSelectPlanPage,
       isWelcomePage,
+      isPublicPage,
       subscriptionChecked: subscriptionCheckedRef.current,
       lastCheckedPathname: lastCheckedPathnameRef.current,
     });
 
-    // Skip subscription check for public pages (auth, accept, landing, pricing) and API routes
-    if (isApiRoute || isAuthPage || isAcceptPage || isLandingPage || isPricingPage) {
+    // Skip subscription check for public pages (auth, accept, landing, pricing, privacy-policy, terms-of-service, faq) and API routes
+    if (isApiRoute || isPublicPage) {
       console.log("[LAYOUT-WRAPPER] Skipping subscription check for public page or API route");
       setChecking(false);
       setHasSubscription(false);
@@ -175,7 +186,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
         subscriptionCheckedRef.current = true;
         // Only redirect to login if we're on a protected page (not public pages)
         // Only redirect if we're still on the same pathname
-        if (!isApiRoute && !isAuthPage && !isAcceptPage && !isSelectPlanPage && !isWelcomePage && !isLandingPage && !isPricingPage && pathname === currentPathname) {
+        if (!isApiRoute && !isPublicPage && !isSelectPlanPage && !isWelcomePage && pathname === currentPathname) {
           const currentPath = pathname || "/";
           console.log("[LAYOUT-WRAPPER] checkSubscription: Redirecting to login, path:", currentPath);
           router.push(`/auth/login?redirect=${encodeURIComponent(currentPath)}`);
@@ -233,7 +244,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // Always render Nav and BottomNav to maintain consistent hook order
   // They will return null internally if hasSubscription is false or on auth pages
   // Show nav optimistically if we're on a dashboard route and checking
-  const shouldShowNav = !isApiRoute && !isAuthPage && !isAcceptPage && !isSelectPlanPage && !isWelcomePage && !isLandingPage && !isPricingPage && (hasSubscription || isDashboardRoute);
+  const shouldShowNav = !isApiRoute && !isPublicPage && !isSelectPlanPage && !isWelcomePage && (hasSubscription || isDashboardRoute);
 
   console.log("[LAYOUT-WRAPPER] Render decision:", {
     shouldShowNav,
@@ -247,8 +258,8 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     isDashboardRoute,
   });
 
-  // Render API routes and public pages (landing, pricing, auth, accept) without nav
-  if (isApiRoute || isAuthPage || isAcceptPage || isLandingPage || isPricingPage) {
+  // Render API routes and public pages (landing, pricing, auth, accept, privacy-policy, terms-of-service, faq) without nav
+  if (isApiRoute || isPublicPage) {
     console.log("[LAYOUT-WRAPPER] Rendering public page or API route");
     return <>{children}</>;
   }

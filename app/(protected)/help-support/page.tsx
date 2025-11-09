@@ -216,10 +216,10 @@ export default function HelpSupportPage() {
           <Link href="/settings">Account Settings</Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link href="/privacy-policy">Privacy Policy</Link>
+          <Link href="/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>
         </Button>
         <Button variant="outline" asChild>
-          <Link href="/terms-of-use">Terms of Use</Link>
+          <Link href="/terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</Link>
         </Button>
       </div>
     </div>

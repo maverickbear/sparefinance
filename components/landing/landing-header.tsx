@@ -117,18 +117,18 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                 <Button
                   asChild
                   variant="ghost"
-                  className={isScrolled ? "text-foreground hover:bg-accent" : "text-white hover:bg-white/10"}
+                  className={isScrolled ? "text-foreground hover:text-white hover:bg-foreground border border-transparent hover:border-white" : "text-white hover:text-white hover:bg-white/10 border border-transparent hover:border-white"}
                 >
-                  <Link href="/auth/login">Login</Link>
+                  <Link href="/auth/login">Sign In</Link>
                 </Button>
                 {isScrolled ? (
-                  <Button asChild className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button asChild className="bg-[#9333ea] text-white hover:bg-[#9333ea]/90 font-semibold">
                     <Link href="/auth/signup">Get Started</Link>
                   </Button>
                 ) : (
                   <Button
                     asChild
-                    className="bg-[#a78bfa] text-white hover:bg-[#a78bfa]/90 font-semibold"
+                    className="bg-white text-foreground hover:bg-white/90 font-semibold"
                   >
                     <Link href="/auth/signup">Get Started</Link>
                   </Button>
@@ -195,22 +195,22 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                   <Button
                     asChild
                     variant="ghost"
-                    className={`w-full ${
+                    className={`w-full border border-transparent ${
                       isScrolled
-                        ? "text-foreground hover:bg-accent"
-                        : "text-white hover:bg-white/10"
+                        ? "text-foreground hover:text-white hover:bg-foreground hover:border-white"
+                        : "text-white hover:text-white hover:bg-white/10 hover:border-white"
                     }`}
                   >
                     <Link href="/auth/login" onClick={() => setIsMobileMenuOpen(false)}>
-                      Login
+                      Sign In
                     </Link>
                   </Button>
                   <Button 
                     asChild 
-                    className={`w-full ${
+                    className={`w-full font-semibold ${
                       isScrolled
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                        : "bg-[#a78bfa] text-white hover:bg-[#a78bfa]/90"
+                        ? "bg-[#9333ea] text-white hover:bg-[#9333ea]/90"
+                        : "bg-white text-foreground hover:bg-white/90"
                     }`}
                   >
                     <Link href="/auth/signup" onClick={() => setIsMobileMenuOpen(false)}>
