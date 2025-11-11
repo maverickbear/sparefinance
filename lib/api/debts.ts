@@ -12,6 +12,7 @@ import {
 import { createTransaction } from "@/lib/api/transactions";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
 import { requireDebtOwnership } from "@/lib/utils/security";
+import { addMonths } from "date-fns";
 
 export interface Debt {
   id: string;
@@ -251,6 +252,16 @@ export async function createDebt(data: {
     throw new Error(`Failed to create debt: ${error.message || JSON.stringify(error)}`);
   }
 
+  // Create all payment transactions for this debt
+  if (debt.accountId && !isPaidOff) {
+    try {
+      await createDebtPaymentTransactions(debt);
+    } catch (transactionError) {
+      // Log error but don't fail debt creation
+      console.error("Error creating debt payment transactions:", transactionError);
+    }
+  }
+
   return debt;
 }
 
@@ -368,6 +379,112 @@ export async function updateDebt(
 /**
  * Delete a debt
  */
+/**
+ * Create all payment transactions for a debt
+ * Creates transactions for all months from first payment date to totalMonths
+ */
+async function createDebtPaymentTransactions(debt: any): Promise<void> {
+  if (!debt.accountId || debt.isPaidOff || debt.isPaused) {
+    return;
+  }
+
+  // Get category mapping for the debt
+  const categoryMapping = await getDebtCategoryMapping(debt.loanType);
+  if (!categoryMapping) {
+    console.warn(`Could not find category mapping for loan type: ${debt.loanType}`);
+    return;
+  }
+
+  const firstPaymentDate = new Date(debt.firstPaymentDate);
+  const paymentAmount = debt.paymentAmount || debt.monthlyPayment;
+  const totalMonths = debt.totalMonths || 0;
+
+  if (totalMonths <= 0 || paymentAmount <= 0) {
+    return;
+  }
+
+  // Calculate payment frequency multiplier
+  const paymentFrequency = debt.paymentFrequency || "monthly";
+  let monthsBetweenPayments = 1;
+  if (paymentFrequency === "biweekly") {
+    monthsBetweenPayments = 14 / 30; // Approximately 0.467 months
+  } else if (paymentFrequency === "weekly") {
+    monthsBetweenPayments = 7 / 30; // Approximately 0.233 months
+  } else if (paymentFrequency === "semimonthly") {
+    monthsBetweenPayments = 0.5; // Twice per month
+  } else if (paymentFrequency === "daily") {
+    monthsBetweenPayments = 1 / 30; // Approximately 0.033 months
+  }
+
+  // Calculate number of payments based on frequency
+  let numberOfPayments = totalMonths;
+  if (paymentFrequency === "biweekly") {
+    numberOfPayments = Math.ceil(totalMonths * (26 / 12)); // 26 payments per year
+  } else if (paymentFrequency === "weekly") {
+    numberOfPayments = Math.ceil(totalMonths * (52 / 12)); // 52 payments per year
+  } else if (paymentFrequency === "semimonthly") {
+    numberOfPayments = totalMonths * 2; // 24 payments per year
+  } else if (paymentFrequency === "daily") {
+    numberOfPayments = Math.ceil(totalMonths * 30); // Approximately 30 payments per month
+  }
+
+  // Limit to reasonable number of transactions (max 500)
+  numberOfPayments = Math.min(numberOfPayments, 500);
+
+  const transactions = [];
+  let currentDate = new Date(firstPaymentDate);
+  currentDate.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < numberOfPayments; i++) {
+    // Calculate next payment date based on frequency
+    if (paymentFrequency === "monthly") {
+      currentDate = addMonths(new Date(firstPaymentDate), i);
+    } else if (paymentFrequency === "biweekly") {
+      currentDate = new Date(firstPaymentDate);
+      currentDate.setDate(currentDate.getDate() + (i * 14));
+    } else if (paymentFrequency === "weekly") {
+      currentDate = new Date(firstPaymentDate);
+      currentDate.setDate(currentDate.getDate() + (i * 7));
+    } else if (paymentFrequency === "semimonthly") {
+      currentDate = addMonths(new Date(firstPaymentDate), Math.floor(i / 2));
+      if (i % 2 === 1) {
+        currentDate.setDate(15); // Second payment of the month
+      } else {
+        currentDate.setDate(1); // First payment of the month
+      }
+    } else if (paymentFrequency === "daily") {
+      currentDate = new Date(firstPaymentDate);
+      currentDate.setDate(currentDate.getDate() + i);
+    }
+
+    transactions.push({
+      date: currentDate,
+      type: "expense" as const,
+      amount: paymentAmount,
+      accountId: debt.accountId,
+      categoryId: categoryMapping.categoryId,
+      subcategoryId: categoryMapping.subcategoryId,
+      description: debt.name, // Use the debt name as provided by the user
+      recurring: true, // Mark as recurring so it appears in upcoming transactions
+    });
+  }
+
+  // Create transactions in batches to avoid overwhelming the database
+  const batchSize = 50;
+  for (let i = 0; i < transactions.length; i += batchSize) {
+    const batch = transactions.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map((tx) =>
+        createTransaction(tx).catch((error) => {
+          console.error(`Error creating transaction for debt ${debt.id} on ${tx.date}:`, error);
+        })
+      )
+    );
+  }
+
+  console.log(`Created ${transactions.length} payment transactions for debt ${debt.id}`);
+}
+
 export async function deleteDebt(id: string): Promise<void> {
     const supabase = await createServerClient();
 

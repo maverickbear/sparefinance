@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, XCircle, Loader2, Lock, Mail, User, AlertCircle, Wallet, TrendingUp, Shield, Zap } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Lock, Mail, User, AlertCircle, Wallet, TrendingUp, Shield, Zap, Eye, EyeOff } from "lucide-react";
 
 const passwordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -41,6 +41,8 @@ function AcceptInvitationForm() {
   const [message, setMessage] = useState<string>("");
   const [invitationData, setInvitationData] = useState<InvitationData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const form = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
@@ -326,12 +328,24 @@ function AcceptInvitationForm() {
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <Input
                       id="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       {...form.register("password")}
                       placeholder="••••••••"
                       disabled={(status as string) === "processing"}
-                      className="pl-10 h-11"
+                      className="pl-10 pr-10 h-11"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
                   </div>
                   {form.formState.errors.password && (
                     <p className="text-sm text-destructive flex items-center gap-1">
@@ -349,12 +363,24 @@ function AcceptInvitationForm() {
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <Input
                       id="confirmPassword"
-                      type="password"
+                      type={showConfirmPassword ? "text" : "password"}
                       {...form.register("confirmPassword")}
                       placeholder="••••••••"
                       disabled={(status as string) === "processing"}
-                      className="pl-10 h-11"
+                      className="pl-10 pr-10 h-11"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
                   </div>
                   {form.formState.errors.confirmPassword && (
                     <p className="text-sm text-destructive flex items-center gap-1">

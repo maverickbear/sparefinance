@@ -7,7 +7,7 @@ export default function BillingPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/settings?tab=billing");
+    router.replace("/settings");
   }, [router]);
 
   return null;

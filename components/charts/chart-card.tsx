@@ -8,14 +8,20 @@ interface ChartCardProps {
   description?: string;
   children: React.ReactNode;
   className?: string;
+  headerActions?: React.ReactNode;
 }
 
-export function ChartCard({ title, description, children, className }: ChartCardProps) {
+export function ChartCard({ title, description, children, className, headerActions }: ChartCardProps) {
   return (
     <Card className={cn("w-full", className)}>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            {description && <CardDescription>{description}</CardDescription>}
+          </div>
+          {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
+        </div>
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>

@@ -291,24 +291,54 @@ export async function updateTransactionClient(id: string, data: Partial<Transact
 
 /**
  * Delete a transaction
+ * Uses API route to ensure cache invalidation
  */
 export async function deleteTransactionClient(id: string): Promise<void> {
-  // Get transaction first
-  const { data: transaction, error: fetchError } = await supabase
-    .from("Transaction")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const response = await fetch(`/api/transactions/${id}`, {
+    method: 'DELETE',
+  });
 
-  if (fetchError || !transaction) {
-    console.error("Supabase error fetching transaction:", fetchError);
-    throw new Error("Transaction not found");
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to delete transaction' }));
+    throw new Error(error.error || 'Failed to delete transaction');
+  }
+}
+
+/**
+ * Delete multiple transactions
+ * Uses API route to ensure cache invalidation
+ */
+export async function deleteMultipleTransactionsClient(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    return;
   }
 
-  const { error } = await supabase.from("Transaction").delete().eq("id", id);
-  if (error) {
-    console.error("Supabase error deleting transaction:", error);
-    throw new Error(`Failed to delete transaction: ${error.message || JSON.stringify(error)}`);
+  // Delete transactions one by one via API route to ensure proper cache invalidation
+  // This is more reliable than batch deletion for cache management
+  const results = await Promise.allSettled(
+    ids.map(id => 
+      fetch(`/api/transactions/${id}`, {
+        method: 'DELETE',
+      })
+    )
+  );
+
+  // Check if any deletions failed
+  const failures = results.filter(result => result.status === 'rejected' || (result.status === 'fulfilled' && !result.value.ok));
+  
+  if (failures.length > 0) {
+    // Try to get error messages from failed requests
+    const errorMessages = await Promise.all(
+      failures.map(async (failure) => {
+        if (failure.status === 'fulfilled') {
+          const error = await failure.value.json().catch(() => ({ error: 'Failed to delete transaction' }));
+          return error.error || 'Failed to delete transaction';
+        }
+        return failure.reason?.message || 'Failed to delete transaction';
+      })
+    );
+    
+    throw new Error(`Failed to delete ${failures.length} transaction(s): ${errorMessages.join(', ')}`);
   }
 }
 

@@ -100,7 +100,7 @@ export function FinancialHealthModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-4xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle className="text-2xl">Financial Health Analysis</DialogTitle>
           <DialogDescription>

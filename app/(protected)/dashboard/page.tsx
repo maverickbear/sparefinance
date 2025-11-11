@@ -8,7 +8,11 @@ import { CashFlowSection } from "./cash-flow-section";
 import { TransactionsBudgetSection } from "./transactions-budget-section";
 import { ChartsSection } from "./charts-section";
 import { OnboardingWidget } from "@/components/dashboard/onboarding-widget";
+import { SavingsDistributionWidget } from "@/components/dashboard/savings-distribution-widget";
+import { ExpensesPieChartWidget } from "@/components/dashboard/expenses-pie-chart-widget";
 import { loadDashboardData } from "./data-loader";
+import { PageHeader } from "@/components/common/page-header";
+import { getProfile } from "@/lib/api/profile";
 
 interface DashboardProps {
   searchParams: Promise<{ month?: string }> | { month?: string };
@@ -33,6 +37,18 @@ async function DashboardContent({ selectedMonthDate }: { selectedMonthDate: Date
         lastMonthTotalBalance={data.lastMonthTotalBalance}
         accounts={data.accounts}
       />
+
+      {/* Expenses Pie Chart and Savings Distribution Widget */}
+      <div className="grid gap-4 sm:gap-5 grid-cols-1 md:grid-cols-2">
+        <ExpensesPieChartWidget
+          selectedMonthTransactions={data.selectedMonthTransactions}
+        />
+        <SavingsDistributionWidget
+          selectedMonthTransactions={data.selectedMonthTransactions}
+          lastMonthTransactions={data.lastMonthTransactions}
+          goals={data.goals}
+        />
+      </div>
 
       {/* Cash Flow and Financial Health */}
       <CashFlowSection 
@@ -71,6 +87,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Ensure we're using the start of the month for consistency
   const selectedMonth = new Date(selectedMonthDate.getFullYear(), selectedMonthDate.getMonth(), 1);
   
+  // Get user profile to personalize the header
+  const profile = await getProfile();
+  const firstName = profile?.name?.split(' ')[0] || 'there';
+  
   console.log("🔍 [dashboard] Selected month from URL:", {
     monthParam: selectedMonthParam,
     selectedMonthDate: selectedMonthDate.toISOString(),
@@ -79,39 +99,44 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   });
 
   return (
-    <div className="space-y-6 md:space-y-10">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Dashboard</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Overview of your finances</p>
-        </div>
+    <div className="space-y-4 sm:space-y-5 md:space-y-6">
+      <PageHeader
+        title={`Hi, ${firstName}`}
+        description="See your money move — and make it work for you."
+      >
         <MonthSelector />
-      </div>
+      </PageHeader>
 
       <Suspense fallback={
         <>
           {/* Summary Cards */}
-          <div className="grid gap-6 md:gap-8 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 md:gap-5 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
             <SummaryCardSkeleton />
             <SummaryCardSkeleton />
             <SummaryCardSkeleton />
             <SummaryCardSkeleton />
           </div>
 
+          {/* Expenses Pie Chart and Savings Distribution Widget */}
+          <div className="grid gap-4 sm:gap-5 grid-cols-1 md:grid-cols-2">
+            <ChartSkeleton height={400} />
+            <ChartSkeleton height={400} />
+          </div>
+
           {/* Cash Flow and Financial Health */}
-          <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-5 grid-cols-1 md:grid-cols-2">
             <ChartSkeleton height={240} />
             <FinancialHealthSkeleton />
           </div>
 
           {/* Upcoming Transactions and Budget Execution */}
-          <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-5 grid-cols-1 md:grid-cols-2">
             <ListSkeleton itemCount={5} />
             <BudgetExecutionSkeleton />
           </div>
 
           {/* Charts */}
-          <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-4 sm:gap-5 grid-cols-1 md:grid-cols-2">
             <GoalsOverviewSkeleton />
             <CategoryExpensesSkeleton />
           </div>

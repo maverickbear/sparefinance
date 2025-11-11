@@ -663,7 +663,7 @@ function mapHouseholdMember(data: any): HouseholdMember {
   };
 }
 
-// Check if user has admin role (either owner or admin member)
+// Check if user has admin role (either owner or admin/super_admin member)
 export async function isAdmin(userId: string, ownerId: string): Promise<boolean> {
   try {
     const supabase = await createServerClient();
@@ -675,8 +675,8 @@ export async function isAdmin(userId: string, ownerId: string): Promise<boolean>
       .eq("id", userId)
       .single();
 
-    // Owner is always admin, or check role from User table
-    return userId === ownerId || user?.role === "admin";
+    // Owner is always admin, or check role from User table (admin or super_admin)
+    return userId === ownerId || user?.role === "admin" || user?.role === "super_admin";
   } catch (error) {
     console.error("Error checking admin status:", error);
     return false;
@@ -684,7 +684,7 @@ export async function isAdmin(userId: string, ownerId: string): Promise<boolean>
 }
 
 // Get current user's role in household
-export async function getUserRole(userId: string, ownerId: string): Promise<"admin" | "member" | null> {
+export async function getUserRole(userId: string, ownerId: string): Promise<"admin" | "member" | "super_admin" | null> {
   try {
     const supabase = await createServerClient();
     
@@ -700,7 +700,7 @@ export async function getUserRole(userId: string, ownerId: string): Promise<"adm
       return "admin";
     }
 
-    return (user?.role as "admin" | "member") || null;
+    return (user?.role as "admin" | "member" | "super_admin") || null;
   } catch (error) {
     console.error("Error getting user role:", error);
     return null;

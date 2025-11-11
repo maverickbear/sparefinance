@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/components/toast-provider';
 import { format } from 'date-fns';
 import { RefreshCw, Unlink, Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 interface BankConnectionStatusProps {
   accountId: string;
@@ -30,6 +31,7 @@ export function BankConnectionStatus({
   embedded = false,
 }: BankConnectionStatusProps) {
   const { toast } = useToast();
+  const { openDialog, ConfirmDialog } = useConfirmDialog();
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -98,45 +100,51 @@ export function BankConnectionStatus({
     }
   }
 
-  async function handleDisconnect() {
-    if (!confirm('Are you sure you want to disconnect this bank account?')) {
-      return;
-    }
+  function handleDisconnect() {
+    openDialog(
+      {
+        title: "Disconnect Bank Account",
+        description: "Are you sure you want to disconnect this bank account?",
+        variant: "destructive",
+        confirmLabel: "Disconnect",
+      },
+      async () => {
+        try {
+          setDisconnecting(true);
+          const response = await fetch('/api/plaid/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId }),
+          });
 
-    try {
-      setDisconnecting(true);
-      const response = await fetch('/api/plaid/disconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      });
+          const data = await response.json();
 
-      const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to disconnect account');
+          }
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to disconnect account');
+          toast({
+            title: 'Account disconnected',
+            description: 'The bank account has been disconnected successfully.',
+            variant: 'success',
+          });
+
+          await loadStatus();
+          if (onDisconnect) {
+            onDisconnect();
+          }
+        } catch (error: any) {
+          console.error('Error disconnecting account:', error);
+          toast({
+            title: 'Error',
+            description: error.message || 'Failed to disconnect account',
+            variant: 'destructive',
+          });
+        } finally {
+          setDisconnecting(false);
+        }
       }
-
-      toast({
-        title: 'Account disconnected',
-        description: 'The bank account has been disconnected successfully.',
-        variant: 'success',
-      });
-
-      await loadStatus();
-      if (onDisconnect) {
-        onDisconnect();
-      }
-    } catch (error: any) {
-      console.error('Error disconnecting account:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to disconnect account',
-        variant: 'destructive',
-      });
-    } finally {
-      setDisconnecting(false);
-    }
+    );
   }
 
   if (loading) {
@@ -247,19 +255,23 @@ export function BankConnectionStatus({
     return (
       <div className="space-y-3">
         {mainContent}
+        {ConfirmDialog}
       </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        {headerContent}
-      </CardHeader>
-      <CardContent>
-        {mainContent}
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          {headerContent}
+        </CardHeader>
+        <CardContent>
+          {mainContent}
+        </CardContent>
+      </Card>
+      {ConfirmDialog}
+    </>
   );
 }
 

@@ -66,9 +66,87 @@ export async function createTransaction(data: TransactionFormData) {
 
   // Use provided category if available, otherwise null (don't auto-categorize even with high confidence)
   // We'll always show suggestions for user approval/rejection
-  const finalCategoryId = data.categoryId || null;
-  const finalSubcategoryId = data.subcategoryId || null;
+  // For transfers, don't use categories
+  const finalCategoryId = data.type === "transfer" ? null : (data.categoryId || null);
+  const finalSubcategoryId = data.type === "transfer" ? null : (data.subcategoryId || null);
 
+  // For transfers, create two linked transactions: one outgoing and one incoming
+  if (data.type === "transfer" && data.toAccountId) {
+    const outgoingId = id;
+    const incomingId = crypto.randomUUID();
+
+    // Create outgoing transaction (from source account)
+    const { data: outgoingTransaction, error: outgoingError } = await supabase
+      .from("Transaction")
+      .insert({
+        id: outgoingId,
+        date: transactionDate,
+        type: "expense", // Outgoing is an expense from source account
+        amount: data.amount,
+        accountId: data.accountId,
+        userId: user.id,
+        categoryId: null,
+        subcategoryId: null,
+        description: data.description || `Transfer to account`,
+        recurring: data.recurring ?? false,
+        transferToId: incomingId, // Link to incoming transaction
+        createdAt: now,
+        updatedAt: now,
+      })
+      .select()
+      .single();
+
+    if (outgoingError) {
+      console.error("Supabase error creating outgoing transfer transaction:", {
+        message: outgoingError.message,
+        details: outgoingError.details,
+        hint: outgoingError.hint,
+        code: outgoingError.code,
+      });
+      throw new Error(`Failed to create transfer transaction: ${outgoingError.message || JSON.stringify(outgoingError)}`);
+    }
+
+    // Create incoming transaction (to destination account)
+    const { data: incomingTransaction, error: incomingError } = await supabase
+      .from("Transaction")
+      .insert({
+        id: incomingId,
+        date: transactionDate,
+        type: "income", // Incoming is an income to destination account
+        amount: data.amount,
+        accountId: data.toAccountId,
+        userId: user.id,
+        categoryId: null,
+        subcategoryId: null,
+        description: data.description || `Transfer from account`,
+        recurring: data.recurring ?? false,
+        transferFromId: outgoingId, // Link to outgoing transaction
+        createdAt: now,
+        updatedAt: now,
+      })
+      .select()
+      .single();
+
+    if (incomingError) {
+      // If incoming transaction fails, try to delete the outgoing one
+      await supabase.from("Transaction").delete().eq("id", outgoingId);
+      console.error("Supabase error creating incoming transfer transaction:", {
+        message: incomingError.message,
+        details: incomingError.details,
+        hint: incomingError.hint,
+        code: incomingError.code,
+      });
+      throw new Error(`Failed to create transfer transaction: ${incomingError.message || JSON.stringify(incomingError)}`);
+    }
+
+    // Invalidate cache to ensure dashboard shows updated data
+    revalidateTag('transactions');
+
+    // Return the outgoing transaction as the main one
+    return outgoingTransaction;
+  }
+
+  // Regular transaction (expense or income)
   const { data: transaction, error } = await supabase
     .from("Transaction")
       .insert({
@@ -122,7 +200,7 @@ export async function createTransaction(data: TransactionFormData) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions', 'page');
+  revalidateTag('transactions');
 
   return transaction;
 }
@@ -190,7 +268,44 @@ export async function deleteTransaction(id: string) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions', 'page');
+  revalidateTag('transactions');
+}
+
+export async function deleteMultipleTransactions(ids: string[]) {
+  const supabase = await createServerClient();
+
+  if (ids.length === 0) {
+    return;
+  }
+
+  // Verify ownership for all transactions before deleting
+  for (const id of ids) {
+    await requireTransactionOwnership(id);
+  }
+
+  // Verify all transactions exist first
+  const { data: transactions, error: fetchError } = await supabase
+    .from("Transaction")
+    .select("id")
+    .in("id", ids);
+
+  if (fetchError) {
+    console.error("Supabase error fetching transactions:", fetchError);
+    throw new Error("Failed to verify transactions");
+  }
+
+  if (!transactions || transactions.length !== ids.length) {
+    throw new Error("Some transactions were not found");
+  }
+
+  const { error } = await supabase.from("Transaction").delete().in("id", ids);
+  if (error) {
+    console.error("Supabase error deleting transactions:", error);
+    throw new Error(`Failed to delete transactions: ${error.message || JSON.stringify(error)}`);
+  }
+
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('transactions');
 }
 
 export async function getTransactionsInternal(
@@ -500,10 +615,10 @@ export async function getTransactionsInternal(
   // Combinar transações com relacionamentos
   const transactions = (data || []).map((tx: any) => ({
       ...tx,
-    account: accountsMap.get(tx.accountId) || null,
-    category: categoriesMap.get(tx.categoryId) || null,
-    subcategory: subcategoriesMap.get(tx.subcategoryId) || null,
-  }));
+      account: accountsMap.get(tx.accountId) || null,
+      category: categoriesMap.get(tx.categoryId) || null,
+      subcategory: subcategoriesMap.get(tx.subcategoryId) || null,
+    }));
 
   return transactions;
 }
@@ -572,7 +687,7 @@ export async function getUpcomingTransactions(limit: number = 5) {
       *,
       account:Account(*),
       category:Category!Transaction_categoryId_fkey(*),
-      subcategory:Subcategory!Transaction_subcategoryId_fkey(*)
+      subcategory:Subcategory!Transaction_subcategoryId_fkey(id, name, logo)
     `)
     .eq("recurring", true)
     .order("date", { ascending: true });

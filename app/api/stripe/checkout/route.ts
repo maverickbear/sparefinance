@@ -5,7 +5,7 @@ import { createServerClient } from "@/lib/supabase-server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { planId, interval = "month", returnUrl } = body;
+    const { planId, interval = "month", returnUrl, promoCode } = body;
 
     if (!planId) {
       return NextResponse.json(
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       : undefined;
 
     // Create checkout session
-    const { url, error } = await createCheckoutSession(authUser.id, planId, interval, finalReturnUrl);
+    const { url, error } = await createCheckoutSession(authUser.id, planId, interval, finalReturnUrl, promoCode);
 
     if (error || !url) {
       return NextResponse.json(

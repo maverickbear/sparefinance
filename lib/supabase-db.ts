@@ -193,6 +193,7 @@ export interface Database {
     createdAt: string;
     updatedAt: string;
     userId: string | null;
+    logo: string | null;
   };
   Subscription: {
     id: string;
@@ -203,6 +204,8 @@ export interface Database {
     stripeCustomerId: string | null;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
+    trialStartDate: string | null;
+    trialEndDate: string | null;
     cancelAtPeriodEnd: boolean;
     createdAt: string;
     updatedAt: string;

@@ -22,7 +22,8 @@ export async function createCheckoutSession(
   userId: string,
   planId: string,
   interval: "month" | "year" = "month",
-  returnUrl?: string
+  returnUrl?: string,
+  promoCode?: string
 ): Promise<{ url: string | null; error: string | null }> {
   try {
     console.log("[CHECKOUT] Starting checkout session creation:", { userId, planId, interval });
@@ -113,9 +114,47 @@ export async function createCheckoutSession(
       }
     }
 
+    // Get promo code if provided
+    let stripeCouponId: string | undefined;
+    if (promoCode) {
+      console.log("[CHECKOUT] Looking up promo code:", promoCode);
+      const { data: promoCodeData, error: promoError } = await supabase
+        .from("PromoCode")
+        .select("stripeCouponId, isActive, expiresAt, planIds")
+        .eq("code", promoCode.toUpperCase())
+        .single();
+
+      if (!promoError && promoCodeData) {
+        // Check if promo code is active
+        if (!promoCodeData.isActive) {
+          console.log("[CHECKOUT] Promo code is not active:", promoCode);
+          return { url: null, error: "Promo code is not active" };
+        }
+
+        // Check if expired
+        if (promoCodeData.expiresAt && new Date(promoCodeData.expiresAt) < new Date()) {
+          console.log("[CHECKOUT] Promo code has expired:", promoCode);
+          return { url: null, error: "Promo code has expired" };
+        }
+
+        // Check if plan is allowed (if planIds is specified)
+        const planIds = (promoCodeData.planIds || []) as string[];
+        if (planIds.length > 0 && !planIds.includes(planId)) {
+          console.log("[CHECKOUT] Promo code not valid for this plan:", { promoCode, planId });
+          return { url: null, error: "Promo code not valid for this plan" };
+        }
+
+        stripeCouponId = promoCodeData.stripeCouponId || undefined;
+        console.log("[CHECKOUT] Promo code found:", { promoCode, stripeCouponId });
+      } else {
+        console.log("[CHECKOUT] Promo code not found:", promoCode);
+        return { url: null, error: "Promo code not found" };
+      }
+    }
+
     // Create checkout session
-    console.log("[CHECKOUT] Creating Stripe checkout session:", { customerId, priceId, planId });
-    const session = await stripe.checkout.sessions.create({
+    console.log("[CHECKOUT] Creating Stripe checkout session:", { customerId, priceId, planId, promoCode, stripeCouponId });
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       mode: "subscription",
       payment_method_types: ["card"],
@@ -132,7 +171,14 @@ export async function createCheckoutSession(
         planId: planId,
         interval: interval,
       },
-    });
+    };
+
+    // Add discount if promo code is provided
+    if (stripeCouponId) {
+      sessionParams.discounts = [{ coupon: stripeCouponId }];
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     console.log("[CHECKOUT] Checkout session created successfully:", { 
       sessionId: session.id, 
@@ -161,17 +207,27 @@ export async function createPortalSession(userId: string): Promise<{ url: string
       return { url: null, error: "Unauthorized" };
     }
 
-    // Get subscription
+    // Get subscription with stripeCustomerId
     const { data: subscription, error: subError } = await supabase
       .from("Subscription")
       .select("stripeCustomerId")
       .eq("userId", userId)
+      .not("stripeCustomerId", "is", null)
+      .order("createdAt", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (subError || !subscription?.stripeCustomerId) {
+    if (subError) {
+      console.error("[PORTAL] Error fetching subscription:", subError);
+      return { url: null, error: "Failed to fetch subscription" };
+    }
+
+    if (!subscription?.stripeCustomerId) {
+      console.log("[PORTAL] No subscription with Stripe customer ID found for user:", userId);
       return { url: null, error: "No active subscription found" };
     }
+
+    console.log("[PORTAL] Found subscription with customer ID:", subscription.stripeCustomerId);
 
     // Create portal configuration inline if needed
     let configuration: Stripe.BillingPortal.Configuration | null = null;
@@ -183,7 +239,7 @@ export async function createPortalSession(userId: string): Promise<{ url: string
       if (configurations.data.length > 0) {
         configuration = configurations.data[0];
       } else {
-        // Create a new configuration (simplified - without subscription_update to avoid product requirement)
+        // Create a new configuration with subscription management features
         configuration = await stripe.billingPortal.configurations.create({
           features: {
             customer_update: {
@@ -210,8 +266,11 @@ export async function createPortalSession(userId: string): Promise<{ url: string
                 ],
               },
             },
-            // Removed subscription_pause and subscription_update to avoid requiring products parameter
-            // Users can cancel and create a new subscription if needed
+            subscription_update: {
+              enabled: true,
+              default_allowed_updates: ["price", "quantity", "promotion_code"],
+              proration_behavior: "always_invoice",
+            },
           },
           business_profile: {
             headline: "Manage your Spare Finance subscription",
@@ -226,7 +285,7 @@ export async function createPortalSession(userId: string): Promise<{ url: string
     // Create portal session
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/billing`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/settings`,
       ...(configuration && { configuration: configuration.id }),
     });
 
@@ -443,40 +502,37 @@ async function handleSubscriptionChange(
     priceId,
   });
 
-  // If there are free subscriptions, we should cancel them when creating a paid subscription
-  if (plan.id !== "free") {
-    console.log("[WEBHOOK:SUBSCRIPTION] Looking for free subscriptions to cancel for user:", userId);
-    // Cancel all active free subscriptions for this user
-    const { data: freeSubs, error: freeSubsError } = await supabase
+  // Cancel any other active subscriptions for this user (only one active subscription per user)
+  console.log("[WEBHOOK:SUBSCRIPTION] Looking for other active subscriptions to cancel for user:", userId);
+  const { data: otherSubs, error: otherSubsError } = await supabase
+    .from("Subscription")
+    .select("id")
+    .eq("userId", userId)
+    .in("status", ["active", "trialing"])
+    .neq("id", subscriptionId);
+
+  if (otherSubsError) {
+    console.error("[WEBHOOK:SUBSCRIPTION] Error fetching other subscriptions:", otherSubsError);
+  }
+
+  if (!otherSubsError && otherSubs && otherSubs.length > 0) {
+    const otherSubIds = otherSubs.map(sub => sub.id);
+    console.log("[WEBHOOK:SUBSCRIPTION] Cancelling other active subscriptions:", otherSubIds);
+    const { error: cancelError } = await supabase
       .from("Subscription")
-      .select("id")
-      .eq("userId", userId)
-      .eq("planId", "free")
-      .eq("status", "active");
-
-    if (freeSubsError) {
-      console.error("[WEBHOOK:SUBSCRIPTION] Error fetching free subscriptions:", freeSubsError);
-    }
-
-    if (!freeSubsError && freeSubs && freeSubs.length > 0) {
-      const freeSubIds = freeSubs.map(sub => sub.id);
-      console.log("[WEBHOOK:SUBSCRIPTION] Cancelling free subscriptions:", freeSubIds);
-      const { error: cancelError } = await supabase
-        .from("Subscription")
-        .update({
-          status: "cancelled",
-          updatedAt: new Date(),
-        })
-        .in("id", freeSubIds);
-      
-      if (cancelError) {
-        console.error("[WEBHOOK:SUBSCRIPTION] Error cancelling free subscriptions:", cancelError);
-      } else {
-        console.log("[WEBHOOK:SUBSCRIPTION] Successfully cancelled free subscriptions:", freeSubIds);
-      }
+      .update({
+        status: "cancelled",
+        updatedAt: new Date(),
+      })
+      .in("id", otherSubIds);
+    
+    if (cancelError) {
+      console.error("[WEBHOOK:SUBSCRIPTION] Error cancelling other subscriptions:", cancelError);
     } else {
-      console.log("[WEBHOOK:SUBSCRIPTION] No free subscriptions found to cancel");
+      console.log("[WEBHOOK:SUBSCRIPTION] Successfully cancelled other subscriptions:", otherSubIds);
     }
+  } else {
+    console.log("[WEBHOOK:SUBSCRIPTION] No other active subscriptions found to cancel");
   }
 
   // Upsert the new paid subscription
@@ -534,7 +590,8 @@ async function handleSubscriptionDeletion(
 
   if (existingSub) {
     console.log("[WEBHOOK:DELETION] Found existing subscription, updating to cancelled:", existingSub.userId);
-    // Update to cancelled status
+    // Update to cancelled status - no free plan is created
+    // User will need to sign up for a new plan if they want to continue
     const { error: updateError } = await supabase
       .from("Subscription")
       .update({
@@ -546,25 +603,7 @@ async function handleSubscriptionDeletion(
     if (updateError) {
       console.error("[WEBHOOK:DELETION] Error updating subscription to cancelled:", updateError);
     } else {
-      console.log("[WEBHOOK:DELETION] Subscription updated to cancelled successfully");
-    }
-
-    // Create new free subscription
-    console.log("[WEBHOOK:DELETION] Creating new free subscription for user:", existingSub.userId);
-    const { data: newFreeSub, error: insertError } = await supabase
-      .from("Subscription")
-      .insert({
-        id: existingSub.userId + "-free",
-        userId: existingSub.userId,
-        planId: "free",
-        status: "active",
-      })
-      .select();
-
-    if (insertError) {
-      console.error("[WEBHOOK:DELETION] Error creating free subscription:", insertError);
-    } else {
-      console.log("[WEBHOOK:DELETION] Free subscription created successfully:", newFreeSub);
+      console.log("[WEBHOOK:DELETION] Subscription updated to cancelled successfully. User will need to sign up for a new plan.");
     }
   } else {
     console.log("[WEBHOOK:DELETION] No existing subscription found for customer:", customerId);

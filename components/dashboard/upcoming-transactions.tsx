@@ -1,12 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
-import { format } from "date-fns";
-import { Calendar, ArrowUpRight, ArrowDownRight, CheckCircle2 } from "lucide-react";
+import { differenceInDays, startOfMonth, endOfMonth } from "date-fns";
+import { MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import Link from "next/link";
+import { useToast } from "@/components/toast-provider";
 
 interface UpcomingTransaction {
   id: string;
@@ -16,8 +23,9 @@ interface UpcomingTransaction {
   description?: string;
   account?: { id: string; name: string } | null;
   category?: { id: string; name: string } | null;
-  subcategory?: { id: string; name: string } | null;
+  subcategory?: { id: string; name: string; logo?: string | null } | null;
   originalDate: Date;
+  isDebtPayment?: boolean;
 }
 
 interface UpcomingTransactionsProps {
@@ -33,7 +41,64 @@ const getTransactionKey = (tx: UpcomingTransaction) => {
 const STORAGE_KEY = "upcoming-transactions-paid";
 
 export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps) {
+  const { toast } = useToast();
   const [paidTransactions, setPaidTransactions] = useState<Set<string>>(new Set());
+  const [creatingTransaction, setCreatingTransaction] = useState<Set<string>>(new Set());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Normalize transactions - convert date strings to Date objects
+  const normalizedTransactions = (transactions || []).map((tx) => {
+    let date: Date;
+    let originalDate: Date;
+    
+    try {
+      date = tx.date instanceof Date ? tx.date : new Date(tx.date);
+      if (isNaN(date.getTime())) {
+        console.warn("Invalid date for transaction:", tx.id, tx.date);
+        date = new Date(); // Fallback to today
+      }
+    } catch (e) {
+      console.warn("Error parsing date for transaction:", tx.id, tx.date, e);
+      date = new Date(); // Fallback to today
+    }
+    
+    try {
+      originalDate = tx.originalDate instanceof Date 
+        ? tx.originalDate 
+        : new Date(tx.originalDate || tx.date);
+      if (isNaN(originalDate.getTime())) {
+        originalDate = date; // Fallback to date
+      }
+    } catch (e) {
+      originalDate = date; // Fallback to date
+    }
+    
+    return {
+      ...tx,
+      date,
+      originalDate,
+    };
+  }).filter((tx) => {
+    // Filter out transactions with invalid dates
+    return tx.date instanceof Date && !isNaN(tx.date.getTime());
+  });
+
+  // Debug log
+  useEffect(() => {
+    console.log("🔍 [UpcomingTransactions] Received transactions:", {
+      rawCount: transactions?.length || 0,
+      normalizedCount: normalizedTransactions.length,
+      transactions: normalizedTransactions.slice(0, 3).map((tx) => ({
+        id: tx.id,
+        description: tx.description,
+        category: tx.category?.name,
+        date: tx.date,
+        dateType: typeof tx.date,
+        amount: tx.amount,
+        type: tx.type,
+      })),
+    });
+  }, [transactions, normalizedTransactions.length]);
 
   // Load paid transactions from localStorage on mount
   useEffect(() => {
@@ -61,32 +126,117 @@ export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps
     }
   }, [paidTransactions]);
 
-  const togglePaid = (tx: UpcomingTransaction) => {
+  const togglePaid = async (tx: UpcomingTransaction) => {
     const key = getTransactionKey(tx);
-    setPaidTransactions((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(key)) {
-        newSet.delete(key);
-      } else {
-        newSet.add(key);
+    const isCurrentlyPaid = paidTransactions.has(key);
+    
+    // If marking as paid, create a transaction
+    if (!isCurrentlyPaid) {
+      // Check if this is a debt payment - if so, the transaction might already exist
+      // For recurring transactions, we should create a new one with the specific date
+      if (!tx.account?.id) {
+        toast({
+          title: "Error",
+          description: "Cannot create transaction: account is required",
+          variant: "destructive",
+        });
+        return;
       }
-      return newSet;
-    });
+
+      setCreatingTransaction((prev) => new Set(prev).add(key));
+      
+      try {
+        const payload = {
+          date: tx.date.toISOString(),
+          type: tx.type,
+          amount: tx.amount,
+          accountId: tx.account.id,
+          categoryId: tx.category?.id || null,
+          subcategoryId: tx.subcategory?.id || null,
+          description: tx.description || null,
+          recurring: false, // Mark as non-recurring since this is a one-time payment
+        };
+
+        const res = await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || "Failed to create transaction");
+        }
+
+        // Mark as paid in localStorage
+        setPaidTransactions((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(key);
+          return newSet;
+        });
+
+        toast({
+          title: "Transaction created",
+          description: "Payment has been recorded as a transaction",
+          variant: "success",
+        });
+      } catch (error) {
+        console.error("Error creating transaction:", error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to create transaction",
+          variant: "destructive",
+        });
+      } finally {
+        setCreatingTransaction((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(key);
+          return newSet;
+        });
+      }
+    } else {
+      // If unmarking as paid, just remove from localStorage
+      // Note: We don't delete the transaction that was created
+      setPaidTransactions((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    }
   };
 
   const isPaid = (tx: UpcomingTransaction) => {
     return paidTransactions.has(getTransactionKey(tx));
   };
-  if (transactions.length === 0) {
+
+  // Filter transactions to show only those in the current month
+  const today = new Date();
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
+  monthStart.setHours(0, 0, 0, 0);
+  monthEnd.setHours(23, 59, 59, 999);
+
+  const filteredTransactions = normalizedTransactions.filter((tx) => {
+    const txDate = new Date(tx.date);
+    txDate.setHours(0, 0, 0, 0);
+    return txDate >= monthStart && txDate <= monthEnd;
+  });
+  
+  if (!filteredTransactions || filteredTransactions.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Upcoming Transactions
-          </CardTitle>
-          <CardDescription>Recurring transactions scheduled for the next month</CardDescription>
+      <Card className="border-0 p-0 shadow-none">
+        <CardHeader className="pb-3 px-0 pt-0">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-bold">Upcoming payment</CardTitle>
+            <Link 
+              href="/transactions" 
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              See all
+            </Link>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0">
           <p className="text-sm text-muted-foreground text-center py-4">
             No upcoming transactions found.
           </p>
@@ -95,118 +245,166 @@ export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps
     );
   }
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "income":
-        return <ArrowUpRight className="h-4 w-4 text-green-600" />;
-      case "expense":
-        return <ArrowDownRight className="h-4 w-4 text-red-600" />;
-      default:
-        return null;
-    }
+  const getDaysRemaining = (date: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const txDate = new Date(date);
+    txDate.setHours(0, 0, 0, 0);
+    const days = differenceInDays(txDate, today);
+    return days;
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "income":
-        return "text-green-600";
-      case "expense":
-        return "text-red-600";
-      default:
-        return "";
+  const getCardBackgroundColor = () => {
+    return "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700";
+  };
+
+  const getCardTextColor = () => {
+    return "text-gray-900 dark:text-gray-100";
+  };
+
+  const getServiceInitial = (tx: UpcomingTransaction) => {
+    // Use the same priority as getServiceName for consistency
+    const name = tx.subcategory?.name || tx.category?.name || tx.description || "T";
+    return name.charAt(0).toUpperCase();
+  };
+
+  const getServiceName = (tx: UpcomingTransaction) => {
+    // Priority: subcategory > category > description
+    if (tx.subcategory?.name) {
+      return tx.subcategory.name;
     }
+    if (tx.category?.name) {
+      return tx.category.name;
+    }
+    return tx.description || "Transaction";
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Upcoming Transactions
-        </CardTitle>
-        <CardDescription>Recurring transactions scheduled for the next month</CardDescription>
+    <Card className="border-0 p-0 shadow-none">
+      <CardHeader className="pb-3 px-0 pt-0">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl font-bold">Upcoming payment</CardTitle>
+          <Link 
+            href="/transactions" 
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            See all
+          </Link>
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {transactions.map((tx) => {
-            const paid = isPaid(tx);
-            return (
-              <div
-                key={getTransactionKey(tx)}
-                className={cn(
-                  "flex items-center justify-between p-3 rounded-[12px] bg-card transition-all",
-                  paid
-                    ? "opacity-60"
-                    : "hover:bg-accent/50"
-                )}
-              >
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="flex-shrink-0">
-                    {getTypeIcon(tx.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p
-                        className={cn(
-                          "font-medium text-sm truncate",
-                          paid && "line-through"
-                        )}
-                      >
-                        {tx.description || tx.category?.name || "Transaction"}
-                      </p>
-                      {tx.subcategory && (
-                        <span className="text-xs text-muted-foreground">
-                          ({tx.subcategory.name})
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs text-muted-foreground">
-                        {format(tx.date, "MMM dd, yyyy")}
-                      </p>
-                      {tx.account && (
-                        <>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {tx.account.name}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                  <p
-                    className={cn(
-                      "font-semibold text-sm",
-                      getTypeColor(tx.type),
-                      paid && "line-through"
-                    )}
-                  >
-                    {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
-                    {formatMoney(tx.amount)}
-                  </p>
-                  <Button
-                    variant={paid ? "secondary" : "outline"}
-                    onClick={() => togglePaid(tx)}
-                    className={cn(
-                      "h-8 px-3 text-xs",
-                      paid && "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400"
-                    )}
-                  >
-                    {paid ? (
-                      <>
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                        Paid
-                      </>
+      <CardContent className="px-0">
+        <div className="relative">
+          {/* Carousel container */}
+          <div
+            ref={scrollContainerRef}
+            className="flex gap-5 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory pb-2 -mx-1 px-1"
+          >
+            {filteredTransactions.map((tx, index) => {
+              const paid = isPaid(tx);
+              const daysRemaining = getDaysRemaining(tx.date);
+              const bgColor = getCardBackgroundColor();
+              const textColor = getCardTextColor();
+
+              return (
+                <div
+                  key={getTransactionKey(tx)}
+                  className={cn(
+                    "relative rounded-xl p-3 flex-shrink-0 flex flex-col justify-between transition-all snap-start",
+                    bgColor,
+                    paid && "opacity-60"
+                  )}
+                  style={{
+                    width: "150px",
+                    height: "150px",
+                  }}
+                >
+                  {/* Top section: Logo and menu */}
+                  <div className="flex items-start justify-between">
+                    {tx.subcategory?.logo ? (
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800">
+                        <img 
+                          src={tx.subcategory.logo} 
+                          alt={getServiceName(tx)}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback to initial if image fails to load
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const fallback = target.parentElement?.querySelector('.fallback-initial');
+                            if (fallback) {
+                              (fallback as HTMLElement).style.display = 'flex';
+                            }
+                          }}
+                        />
+                        <div className="fallback-initial hidden w-full h-full items-center justify-center font-bold text-sm text-gray-700 dark:text-gray-300">
+                          {getServiceInitial(tx)}
+                        </div>
+                      </div>
                     ) : (
-                      "Paid"
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                        {getServiceInitial(tx)}
+                      </div>
                     )}
-                  </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className={cn(
+                            "p-0.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors",
+                            textColor
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => togglePaid(tx)}
+                          disabled={creatingTransaction.has(getTransactionKey(tx))}
+                        >
+                          {creatingTransaction.has(getTransactionKey(tx)) 
+                            ? "Creating transaction..." 
+                            : paid 
+                            ? "Mark as unpaid" 
+                            : "Mark as paid"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href="/transactions">View details</Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {/* Bottom section: Service name, amount, and days */}
+                  <div className="space-y-0.5">
+                    <h3 className={cn(
+                      "font-bold text-sm leading-tight line-clamp-2",
+                      textColor,
+                      paid && "line-through"
+                    )}>
+                      {getServiceName(tx)}
+                    </h3>
+                    <p className={cn(
+                      "text-xs font-medium",
+                      textColor,
+                      paid && "line-through"
+                    )}>
+                      {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
+                      {formatMoney(tx.amount)}
+                      {tx.type === "expense" && "/mo"}
+                    </p>
+                    <p className="text-[10px] text-gray-600 dark:text-gray-400">
+                      {daysRemaining === 0
+                        ? "Today"
+                        : daysRemaining === 1
+                        ? "1 day left"
+                        : `${daysRemaining} days left`}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

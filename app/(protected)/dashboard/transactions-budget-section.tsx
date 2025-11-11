@@ -28,7 +28,7 @@ export function TransactionsBudgetSection({
     }));
 
   return (
-    <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
+    <div className="space-y-4 sm:space-y-5">
       <UpcomingTransactions transactions={upcomingTransactions} />
       <BudgetExecutionChart data={budgetExecutionData} />
     </div>

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock, User, Loader2, AlertCircle } from "lucide-react";
+import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 interface SignUpFormProps {
   planId?: string;
@@ -20,6 +20,7 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Get planId from props or search params
   const finalPlanId = planId || searchParams.get("planId") || undefined;
@@ -76,24 +77,24 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
               return;
             }
           } else {
-            // Create checkout session for paid plans
-            const response = await fetch("/api/stripe/checkout", {
+            // Start trial for paid plans (no Stripe checkout needed)
+            const response = await fetch("/api/billing/start-trial", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ planId: finalPlanId, interval: finalInterval }),
+              body: JSON.stringify({ planId: finalPlanId }),
             });
 
             const data = await response.json();
 
-            if (data.url) {
-              // Redirect to Stripe Checkout
-              window.location.href = data.url;
+            if (response.ok && data.success) {
+              // Trial started successfully, redirect to dashboard
+              router.push("/dashboard");
               return;
             } else {
-              console.error("Failed to create checkout session:", data.error);
-              setError("Failed to create checkout session. Please try again.");
+              console.error("Failed to start trial:", data.error);
+              setError(data.error || "Failed to start trial. Please try again.");
               return;
             }
           }
@@ -163,6 +164,7 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
               placeholder="you@example.com"
               disabled={loading}
               className="pl-10 h-11"
+              required
             />
           </div>
           {form.formState.errors.email && (
@@ -181,11 +183,24 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               {...form.register("password")}
               disabled={loading}
-              className="pl-10 h-11"
+              className="pl-10 pr-10 h-11"
+              required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? (
+                <EyeOff className="w-5 h-5" />
+              ) : (
+                <Eye className="w-5 h-5" />
+              )}
+            </button>
           </div>
           {form.formState.errors.password && (
             <p className="text-sm text-destructive flex items-center gap-1">

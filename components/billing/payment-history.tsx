@@ -97,8 +97,10 @@ export function PaymentHistory({ className }: PaymentHistoryProps) {
             <p>{error}</p>
           </div>
         ) : invoices.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No billing history found</p>
+          <div className="flex items-center justify-center min-h-[400px] w-full">
+            <div className="text-center text-muted-foreground">
+              <p>No billing history found</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

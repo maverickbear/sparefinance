@@ -82,97 +82,44 @@ export function UpgradePlanModal({
 
       const hasActiveSubscription = subscriptionData?.subscription?.stripeSubscriptionId;
 
-      if (planId === "free") {
-        // If user has a paid subscription, cancel it
-        if (hasActiveSubscription) {
-          const response = await fetch("/api/stripe/update-subscription", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ planId: "free" }),
-          });
+      // Check if user has an active paid subscription
+      if (hasActiveSubscription) {
+        // User has a paid subscription, redirect to Stripe Portal for plan changes
+        const portalResponse = await fetch("/api/stripe/portal", {
+          method: "POST",
+        });
 
-          const data = await response.json();
+        const portalData = await portalResponse.json();
 
-          if (response.ok && data.success) {
-            onOpenChange(false);
-            if (onSuccess) {
-              onSuccess();
-            } else {
-              window.location.reload();
-            }
-          } else {
-            console.error("Failed to downgrade to free plan:", data.error);
-            alert(data.error || "Failed to downgrade plan. Please try again.");
-          }
+        if (portalData.url) {
+          window.location.href = portalData.url;
         } else {
-          // Setup free plan directly
-          const response = await fetch("/api/billing/setup-free", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-
-          const data = await response.json();
-
-          if (response.ok && data.success) {
-            onOpenChange(false);
-            if (onSuccess) {
-              onSuccess();
-            } else {
-              window.location.reload();
-            }
-          } else {
-            console.error("Failed to setup free plan:", data.error);
-            alert(data.error || "Failed to setup free plan. Please try again.");
-          }
+          console.error("Failed to create portal session:", portalData.error);
+          alert(portalData.error || "Failed to open subscription management. Please try again.");
         }
       } else {
-        // Paid plan
-        if (hasActiveSubscription) {
-          // Update existing subscription
-          const response = await fetch("/api/stripe/update-subscription", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ planId, interval }),
-          });
+        // User doesn't have a paid subscription, start trial
+        const trialResponse = await fetch("/api/billing/start-trial", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ planId }),
+        });
 
-          const data = await response.json();
+        const trialData = await trialResponse.json();
 
-          if (response.ok && data.success) {
-            onOpenChange(false);
-            if (onSuccess) {
-              onSuccess();
-            } else {
-              window.location.reload();
-            }
+        if (trialResponse.ok && trialData.success) {
+          // Trial started successfully
+          onOpenChange(false);
+          if (onSuccess) {
+            onSuccess();
           } else {
-            console.error("Failed to update subscription:", data.error);
-            alert(data.error || "Failed to update subscription. Please try again.");
+            window.location.reload();
           }
         } else {
-          // Create new checkout session
-          const response = await fetch("/api/stripe/checkout", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ planId, interval }),
-          });
-
-          const data = await response.json();
-
-          if (data.url) {
-            // Redirect to Stripe Checkout
-            window.location.href = data.url;
-          } else {
-            console.error("Failed to create checkout session:", data.error);
-            alert("Failed to create checkout session. Please try again.");
-          }
+          console.error("Failed to start trial:", trialData.error);
+          alert(trialData.error || "Failed to start trial. Please try again.");
         }
       }
     } catch (error) {
@@ -185,7 +132,7 @@ export function UpgradePlanModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-6xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle className="text-2xl">Choose Your Plan</DialogTitle>
           <DialogDescription className="text-base">

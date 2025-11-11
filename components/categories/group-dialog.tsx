@@ -304,7 +304,7 @@ export function GroupDialog({
         onOpenChange(open);
       }}
     >
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>Create Group</DialogTitle>
           <DialogDescription>

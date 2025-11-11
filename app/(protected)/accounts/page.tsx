@@ -8,11 +8,14 @@ import { formatMoney } from "@/components/common/money";
 import { AccountForm } from "@/components/forms/account-form";
 import { TableSkeleton } from "@/components/ui/list-skeleton";
 import { useToast } from "@/components/toast-provider";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { ConnectBankButton } from "@/components/banking/connect-bank-button";
 import { FeatureGuard } from "@/components/common/feature-guard";
+import { EmptyState } from "@/components/common/empty-state";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/common/page-header";
 
 interface Account {
   id: string;
@@ -30,6 +33,7 @@ interface Account {
 
 export default function AccountsPage() {
   const { toast } = useToast();
+  const { openDialog, ConfirmDialog } = useConfirmDialog();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -81,42 +85,50 @@ export default function AccountsPage() {
     setIsFormOpen(true);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this account?")) return;
-
-    const accountToDelete = accounts.find(a => a.id === id);
-    
-    // Optimistic update: remove from UI immediately
-    setAccounts(prev => prev.filter(a => a.id !== id));
-    setDeletingId(id);
-
-    try {
-      const { deleteAccountClient } = await import("@/lib/api/accounts-client");
-      await deleteAccountClient(id);
-
-      toast({
-        title: "Account deleted",
-        description: "Your account has been deleted successfully.",
-        variant: "success",
-      });
-      
-      loadAccounts();
-      // Reload limit after deletion
-      loadAccountLimit();
-    } catch (error) {
-      console.error("Error deleting account:", error);
-      // Revert optimistic update on error
-      if (accountToDelete) {
-        setAccounts(prev => [...prev, accountToDelete].sort((a, b) => a.name.localeCompare(b.name)));
-      }
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete account",
+  function handleDelete(id: string) {
+    openDialog(
+      {
+        title: "Delete Account",
+        description: "Are you sure you want to delete this account?",
         variant: "destructive",
-      });
-    } finally {
-      setDeletingId(null);
-    }
+        confirmLabel: "Delete",
+      },
+      async () => {
+        const accountToDelete = accounts.find(a => a.id === id);
+        
+        // Optimistic update: remove from UI immediately
+        setAccounts(prev => prev.filter(a => a.id !== id));
+        setDeletingId(id);
+
+        try {
+          const { deleteAccountClient } = await import("@/lib/api/accounts-client");
+          await deleteAccountClient(id);
+
+          toast({
+            title: "Account deleted",
+            description: "Your account has been deleted successfully.",
+            variant: "success",
+          });
+          
+          loadAccounts();
+          // Reload limit after deletion
+          loadAccountLimit();
+        } catch (error) {
+          console.error("Error deleting account:", error);
+          // Revert optimistic update on error
+          if (accountToDelete) {
+            setAccounts(prev => [...prev, accountToDelete].sort((a, b) => a.name.localeCompare(b.name)));
+          }
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to delete account",
+            variant: "destructive",
+          });
+        } finally {
+          setDeletingId(null);
+        }
+      }
+    );
   }
 
   async function handleSync(accountId: string) {
@@ -194,35 +206,36 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Accounts</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Manage your accounts and view balances</p>
-        </div>
+      <PageHeader
+        title="Accounts"
+        description="Manage your accounts and view balances"
+      >
         <div className="flex gap-2">
           <FeatureGuard feature="hasBankIntegration">
             <ConnectBankButton onSuccess={loadAccounts} />
           </FeatureGuard>
-          <Button
-            onClick={handleAddAccount}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Account
-          </Button>
+          {accounts.length > 0 && (
+            <Button
+              onClick={handleAddAccount}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Account
+            </Button>
+          )}
         </div>
-      </div>
+      </PageHeader>
 
       {loading && accounts.length > 0 ? (
         <TableSkeleton rowCount={5} />
       ) : accounts.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-sm">No accounts yet. Create your first account to get started.</p>
-            </div>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={CreditCard}
+          title="No accounts yet"
+          description="Create your first account to get started tracking your finances."
+          actionLabel="Add Account"
+          onAction={handleAddAccount}
+          actionIcon={Plus}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:gap-6">
           {accounts.map((account) => {
@@ -402,6 +415,7 @@ export default function AccountsPage() {
         }}
         initialAccountLimit={accountLimit}
       />
+      {ConfirmDialog}
     </div>
   );
 }

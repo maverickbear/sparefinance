@@ -165,6 +165,12 @@ This application implements **Row Level Security (RLS)** in Supabase to ensure d
 
 For detailed information about RLS implementation, see [RLS_SECURITY.md](./RLS_SECURITY.md).
 
+### Encryption and Audit
+
+The application supports **encryption of sensitive transaction data** (amounts, descriptions) with a controlled audit system for fiscal and legal compliance.
+
+For detailed information about encryption and audit procedures, see [ENCRYPTION_AND_AUDIT.md](./ENCRYPTION_AND_AUDIT.md).
+
 ## License
 
 MIT

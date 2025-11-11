@@ -30,6 +30,7 @@ interface Subcategory {
   name: string;
   categoryId: string;
   userId?: string | null;
+  logo?: string | null;
 }
 
 interface PendingSubcategory {
@@ -59,13 +60,16 @@ export function CategoryDialog({
       id: subcat.id,
       name: subcat.name,
       categoryId: category.id,
+      logo: subcat.logo || null,
     })) || []
   );
   const [pendingSubcategories, setPendingSubcategories] = useState<PendingSubcategory[]>([]);
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
   const [editingPendingSubcategoryTempId, setEditingPendingSubcategoryTempId] = useState<string | null>(null);
   const [editingSubcategoryName, setEditingSubcategoryName] = useState("");
+  const [editingSubcategoryLogo, setEditingSubcategoryLogo] = useState("");
   const [newSubcategoryName, setNewSubcategoryName] = useState("");
+  const [newSubcategoryLogo, setNewSubcategoryLogo] = useState("");
   const [isAddingSubcategory, setIsAddingSubcategory] = useState(false);
   const [isSubmittingSubcategory, setIsSubmittingSubcategory] = useState(false);
   const [deletingSubcategoryId, setDeletingSubcategoryId] = useState<string | null>(null);
@@ -73,7 +77,9 @@ export function CategoryDialog({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   // Check if this is a system category (userId === null)
-  const isSystemCategory = category?.userId === null || category?.userId === undefined;
+  // Only system categories when category exists AND userId is null
+  // When category is null (new category), isSystemCategory should be false
+  const isSystemCategory = category !== null && category !== undefined && category.userId === null;
 
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(categorySchema),
@@ -123,6 +129,7 @@ export function CategoryDialog({
           id: subcat.id,
           name: subcat.name,
           categoryId: category.id,
+          logo: subcat.logo || null,
         })) || []
       );
       setPendingSubcategories([]);
@@ -130,7 +137,9 @@ export function CategoryDialog({
       setEditingSubcategoryId(null);
       setEditingPendingSubcategoryTempId(null);
       setEditingSubcategoryName("");
+      setEditingSubcategoryLogo("");
       setNewSubcategoryName("");
+      setNewSubcategoryLogo("");
       setIsAddingSubcategory(false);
     }
   }, [open, category, form]);
@@ -247,7 +256,7 @@ export function CategoryDialog({
         const res = await fetch(`/api/categories/${currentCategoryId}/subcategories`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({ name, logo: newSubcategoryLogo.trim() || null }),
         });
 
         if (!res.ok) {
@@ -258,6 +267,7 @@ export function CategoryDialog({
         const newSubcategory = await res.json();
         setSubcategories([...subcategories, newSubcategory]);
         setNewSubcategoryName("");
+        setNewSubcategoryLogo("");
         setIsAddingSubcategory(false);
         // Refresh data for system categories
         if (isSystemCategory) {
@@ -301,7 +311,7 @@ export function CategoryDialog({
       const res = await fetch(`/api/categories/subcategories/${subcategoryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, logo: editingSubcategoryLogo.trim() || null }),
       });
 
       if (!res.ok) {
@@ -315,6 +325,7 @@ export function CategoryDialog({
       );
       setEditingSubcategoryId(null);
       setEditingSubcategoryName("");
+      setEditingSubcategoryLogo("");
       
       toast({
         title: "Subcategory updated",
@@ -393,6 +404,7 @@ export function CategoryDialog({
     setEditingSubcategoryId(subcategory.id);
     setEditingPendingSubcategoryTempId(null);
     setEditingSubcategoryName(subcategory.name);
+    setEditingSubcategoryLogo(subcategory.logo || "");
   }
 
   function startEditingPendingSubcategory(pending: PendingSubcategory) {
@@ -405,11 +417,12 @@ export function CategoryDialog({
     setEditingSubcategoryId(null);
     setEditingPendingSubcategoryTempId(null);
     setEditingSubcategoryName("");
+    setEditingSubcategoryLogo("");
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{category ? "Edit" : "Add"} Category</DialogTitle>
           <DialogDescription>
@@ -421,24 +434,29 @@ export function CategoryDialog({
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-          {!isSystemCategory && (
+          {/* Show group selector and category name when creating new category or editing user category */}
+          {(!category || !isSystemCategory) && (
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Group</label>
                 <Select
                   value={form.watch("macroId")}
                   onValueChange={(value) => form.setValue("macroId", value)}
-                  disabled={!!category}
+                  disabled={!!category && isSystemCategory}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select group" />
                   </SelectTrigger>
                   <SelectContent>
-                    {macros.map((macro) => (
-                      <SelectItem key={macro.id} value={macro.id}>
-                        {macro.name}
-                      </SelectItem>
-                    ))}
+                    {macros && macros.length > 0 ? (
+                      macros.map((macro) => (
+                        <SelectItem key={macro.id} value={macro.id}>
+                          {macro.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>No groups available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 {form.formState.errors.macroId && (
@@ -453,7 +471,7 @@ export function CategoryDialog({
                 <Input
                   {...form.register("name")}
                   placeholder="Enter category name"
-                  disabled={!!category}
+                  disabled={!!category && isSystemCategory}
                 />
                 {form.formState.errors.name && (
                   <p className="text-sm text-destructive">
@@ -464,7 +482,8 @@ export function CategoryDialog({
             </>
           )}
           
-          {isSystemCategory && (
+          {/* Show read-only category name for system categories */}
+          {category && isSystemCategory && (
             <div className="space-y-1">
               <label className="text-sm font-medium">Category Name</label>
               <Input
@@ -573,7 +592,22 @@ export function CategoryDialog({
                           }
                         }}
                         className="h-7 w-24 text-xs"
+                        placeholder="Name"
                         autoFocus
+                      />
+                      <Input
+                        value={editingSubcategoryLogo}
+                        onChange={(e) => setEditingSubcategoryLogo(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleUpdateSubcategory(subcategory.id);
+                          } else if (e.key === "Escape") {
+                            cancelEditingSubcategory();
+                          }
+                        }}
+                        className="h-7 w-32 text-xs"
+                        placeholder="Logo URL"
                       />
                       <Button
                         type="button"
@@ -598,6 +632,16 @@ export function CategoryDialog({
                     </div>
                   ) : (
                     <>
+                      {subcategory.logo && (
+                        <img 
+                          src={subcategory.logo} 
+                          alt={subcategory.name}
+                          className="h-4 w-4 object-contain rounded"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      )}
                       <span className="text-xs font-medium text-foreground">{subcategory.name}</span>
                       {/* Only show edit/delete buttons for user-created subcategories */}
                       {subcategory.userId !== null && subcategory.userId !== undefined && currentUserId && subcategory.userId === currentUserId && (
@@ -639,7 +683,7 @@ export function CategoryDialog({
               {isAddingSubcategory ? (
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-border bg-background">
                   <Input
-                    placeholder="Enter name"
+                    placeholder="Name"
                     value={newSubcategoryName}
                     onChange={(e) => setNewSubcategoryName(e.target.value)}
                     onKeyDown={(e) => {
@@ -649,10 +693,27 @@ export function CategoryDialog({
                       } else if (e.key === "Escape") {
                         setIsAddingSubcategory(false);
                         setNewSubcategoryName("");
+                        setNewSubcategoryLogo("");
                       }
                     }}
                     className="h-7 w-24 text-xs border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                     autoFocus
+                  />
+                  <Input
+                    placeholder="Logo URL (optional)"
+                    value={newSubcategoryLogo}
+                    onChange={(e) => setNewSubcategoryLogo(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddSubcategory();
+                      } else if (e.key === "Escape") {
+                        setIsAddingSubcategory(false);
+                        setNewSubcategoryName("");
+                        setNewSubcategoryLogo("");
+                      }
+                    }}
+                    className="h-7 w-32 text-xs border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                   <Button
                     type="button"
@@ -672,6 +733,7 @@ export function CategoryDialog({
                     onClick={() => {
                       setIsAddingSubcategory(false);
                       setNewSubcategoryName("");
+                      setNewSubcategoryLogo("");
                     }}
                     disabled={isSubmittingSubcategory}
                   >
@@ -679,18 +741,20 @@ export function CategoryDialog({
                   </Button>
                 </div>
               ) : (
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="small"
                   onClick={() => {
                     setIsAddingSubcategory(true);
                     setNewSubcategoryName("");
                   }}
                   disabled={isSubmittingSubcategory}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-muted-foreground/50 hover:border-muted-foreground text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 rounded-full border-dashed"
                 >
                   <Plus className="h-3 w-3" />
                   Add
-                </button>
+                </Button>
               )}
             </div>
           </div>

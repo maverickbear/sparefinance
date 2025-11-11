@@ -49,46 +49,26 @@ function SelectPlanPageContent() {
     try {
       setSelecting(true);
 
-      if (planId === "free") {
-        // Setup free plan directly
-        const response = await fetch("/api/billing/setup-free", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
+      // Start trial without going to Stripe
+      const response = await fetch("/api/billing/start-trial", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ planId }),
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (response.ok && data.success) {
-          // Redirect to welcome page for free plan
-          router.push("/welcome?plan=free");
-        } else {
-          console.error("Failed to setup free plan:", data.error);
-          alert(data.error || "Failed to setup free plan. Please try again.");
-        }
+      if (response.ok && data.success) {
+        // Trial started successfully, redirect to dashboard
+        router.push("/dashboard");
       } else {
-        // Create checkout session for paid plans
-        const response = await fetch("/api/stripe/checkout", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ planId, interval }),
-        });
-
-        const data = await response.json();
-
-        if (data.url) {
-          // Redirect to Stripe Checkout
-          window.location.href = data.url;
-        } else {
-          console.error("Failed to create checkout session:", data.error);
-          alert("Failed to create checkout session. Please try again.");
-        }
+        console.error("Failed to start trial:", data.error);
+        alert(data.error || "Failed to start trial. Please try again.");
       }
     } catch (error) {
-      console.error("Error selecting plan:", error);
+      console.error("Error starting trial:", error);
       alert("An error occurred. Please try again.");
     } finally {
       setSelecting(false);

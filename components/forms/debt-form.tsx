@@ -780,7 +780,7 @@ export function DebtForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{debt ? "Edit" : "Create"} Debt</DialogTitle>
         </DialogHeader>
@@ -799,13 +799,14 @@ export function DebtForm({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  Loan Type {!form.watch("loanType") && <span className="text-gray-400 text-[12px]">required</span>}
+                  Loan Type
                 </label>
                 <Select
                   value={form.watch("loanType") || ""}
                   onValueChange={(value) =>
                     form.setValue("loanType", value)
                   }
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Loan Type" />
@@ -829,10 +830,11 @@ export function DebtForm({
 
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  Debt Name {!form.watch("name") && <span className="text-gray-400 text-[12px]">required</span>}
+                  Debt Name
                 </label>
                 <Input
                   {...form.register("name")}
+                  required
                 />
                 {form.formState.errors.name && (
                   <p className="text-xs text-destructive">
@@ -845,12 +847,13 @@ export function DebtForm({
             <div className={`grid gap-4 ${fieldConfig.showDownPayment ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  {fieldConfig.initialAmountLabel} {(!form.watch("initialAmount") || form.watch("initialAmount") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
+                  {fieldConfig.initialAmountLabel}
                 </label>
                 <DollarAmountInput
                   value={form.watch("initialAmount") || undefined}
                   onChange={(value) => form.setValue("initialAmount", value ?? 0, { shouldValidate: true })}
                   placeholder="$ 0.00"
+                  required
                 />
                 {form.formState.errors.initialAmount && (
                   <p className="text-xs text-destructive">
@@ -862,12 +865,13 @@ export function DebtForm({
               {fieldConfig.showDownPayment && (
                 <div className="space-y-1">
                   <label className="text-sm font-medium">
-                    Down Payment {fieldConfig.downPaymentRequired && (!form.watch("downPayment") || form.watch("downPayment") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
+                    Down Payment
                   </label>
                   <DollarAmountInput
                     value={form.watch("downPayment") || undefined}
                     onChange={(value) => form.setValue("downPayment", value ?? 0, { shouldValidate: true })}
                     placeholder="$ 0.00"
+                    required={fieldConfig.downPaymentRequired}
                   />
                   {form.formState.errors.downPayment && (
                     <p className="text-xs text-destructive">
@@ -879,12 +883,13 @@ export function DebtForm({
 
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  Interest Rate (APR) {(!form.watch("interestRate") || form.watch("interestRate") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
+                  Interest Rate (APR)
                 </label>
                 <PercentageInput
                   value={form.watch("interestRate") || undefined}
                   onChange={(value) => form.setValue("interestRate", value ?? 0, { shouldValidate: true })}
                   placeholder="0.00 %"
+                  required
                 />
                 {form.formState.errors.interestRate && (
                   <p className="text-xs text-destructive">
@@ -905,13 +910,14 @@ export function DebtForm({
               {fieldConfig.showTotalMonths && (
                 <div className="space-y-1">
                   <label className="text-sm font-medium">
-                    Total Months {fieldConfig.totalMonthsRequired && (!form.watch("totalMonths") || form.watch("totalMonths") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
+                    Total Months
                   </label>
                   <Select
                     value={form.watch("totalMonths") ? form.watch("totalMonths")!.toString() : undefined}
                     onValueChange={(value) => {
                       form.setValue("totalMonths", Number(value), { shouldValidate: true });
                     }}
+                    required={fieldConfig.totalMonthsRequired}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select months" />
@@ -944,7 +950,7 @@ export function DebtForm({
 
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  Payment Frequency {!form.watch("paymentFrequency") && <span className="text-gray-400 text-[12px]">required</span>}
+                  Payment Frequency
                 </label>
                 <Select
                   value={form.watch("paymentFrequency")}
@@ -952,6 +958,7 @@ export function DebtForm({
                     form.setValue("paymentFrequency", value as any)
                   }
                   disabled={fieldConfig.paymentFrequencyLocked}
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1023,11 +1030,12 @@ export function DebtForm({
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  Account {(!form.watch("accountId")) && <span className="text-gray-400 text-[12px]">required</span>}
+                  Account
                 </label>
                 <Select
                   value={form.watch("accountId") || ""}
                   onValueChange={(value) => form.setValue("accountId", value)}
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select account" />
@@ -1049,7 +1057,7 @@ export function DebtForm({
 
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  {fieldConfig.startDateLabel} {loanType !== "credit_card" && (!form.watch("startDate")) && <span className="text-gray-400 text-[12px]">required</span>}
+                  {fieldConfig.startDateLabel}
                 </label>
                 <Input
                   type="date"
@@ -1062,6 +1070,7 @@ export function DebtForm({
                     const date = e.target.value ? new Date(e.target.value) : new Date();
                     form.setValue("startDate", date, { shouldValidate: true });
                   }}
+                  required={loanType !== "credit_card"}
                 />
                 {form.formState.errors.startDate && (
                   <p className="text-xs text-destructive">
@@ -1072,7 +1081,7 @@ export function DebtForm({
 
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  {fieldConfig.firstPaymentDateLabel} {(!form.watch("firstPaymentDate")) && <span className="text-gray-400 text-[12px]">required</span>}
+                  {fieldConfig.firstPaymentDateLabel}
                 </label>
                 <Input
                   type="date"
@@ -1085,6 +1094,7 @@ export function DebtForm({
                     const date = e.target.value ? new Date(e.target.value) : new Date();
                     form.setValue("firstPaymentDate", date, { shouldValidate: true });
                   }}
+                  required
                 />
                 {form.formState.errors.firstPaymentDate && (
                   <p className="text-xs text-destructive">

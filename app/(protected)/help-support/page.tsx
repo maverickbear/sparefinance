@@ -14,11 +14,13 @@ import Link from "next/link";
 export default function HelpSupportPage() {
   return (
     <div className="space-y-4 md:space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">Help & Support</h1>
-        <p className="text-sm md:text-base text-muted-foreground">
-          Get help with your account, billing, and using Spare Finance
-        </p>
+      <div className="space-y-2">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Help & Support</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Get help with your account, billing, and using Spare Finance
+          </p>
+        </div>
       </div>
 
       {/* Quick Actions */}

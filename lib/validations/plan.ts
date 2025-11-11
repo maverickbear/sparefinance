@@ -37,6 +37,8 @@ export const subscriptionSchema = z.object({
   stripeCustomerId: z.string().nullable().optional(),
   currentPeriodStart: z.date().nullable().optional(),
   currentPeriodEnd: z.date().nullable().optional(),
+  trialStartDate: z.date().nullable().optional(),
+  trialEndDate: z.date().nullable().optional(),
   cancelAtPeriodEnd: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date(),

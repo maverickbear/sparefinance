@@ -146,5 +146,40 @@
       radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
     background-size: 60px 60px;
   }
+
+  /* Responsive improvements for tablets and mobile */
+  @media (max-width: 1023px) {
+    /* Improve touch targets on mobile/tablet */
+    button:not(.icon-only), 
+    a:not(.icon-only), 
+    [role="button"]:not(.icon-only) {
+      min-height: 44px;
+    }
+  }
+
+  /* iPad specific optimizations */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    /* Tablet portrait optimizations */
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  /* Prevent text size adjustment on iOS */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
 }
 

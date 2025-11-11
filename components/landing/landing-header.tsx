@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Wallet, Menu, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getCurrentUserClient } from "@/lib/api/auth-client";
 
 interface LandingHeaderProps {
   isAuthenticated?: boolean;
@@ -24,9 +25,10 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
   }, []);
 
   useEffect(() => {
-    // Check authentication status
+    // Check authentication status and verify user exists in User table
     async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getCurrentUserClient();
+      // getCurrentUserClient verifies user exists in User table and logs out if not
       setIsAuthenticated(!!user);
     }
     
@@ -35,8 +37,14 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
     }
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setIsAuthenticated(!!session?.user);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        // Verify user exists in User table
+        const user = await getCurrentUserClient();
+        setIsAuthenticated(!!user);
+      } else {
+        setIsAuthenticated(false);
+      }
     });
 
     return () => {

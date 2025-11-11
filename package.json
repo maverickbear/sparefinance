@@ -14,7 +14,8 @@
     "check:duplicates": "tsx scripts/check-duplicate-categories.ts",
     "cleanup:duplicates": "tsx scripts/cleanup-duplicate-categories.ts",
     "check:duplicate-subcategories": "tsx scripts/check-duplicate-subcategories.ts",
-    "cleanup:duplicate-subcategories": "tsx scripts/cleanup-duplicate-subcategories.ts"
+    "cleanup:duplicate-subcategories": "tsx scripts/cleanup-duplicate-subcategories.ts",
+    "import:logos": "tsx scripts/import-subcategory-logos.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

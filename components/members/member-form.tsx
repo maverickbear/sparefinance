@@ -105,7 +105,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit" : "Invite"} Member</DialogTitle>
           <DialogDescription>

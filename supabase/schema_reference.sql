@@ -120,7 +120,15 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
     "updatedAt" timestamp(3) without time zone NOT NULL,
     "creditLimit" double precision,
     "userId" "uuid",
-    "initialBalance" double precision
+    "initialBalance" double precision,
+    "plaidItemId" "text",
+    "plaidAccountId" "text",
+    "isConnected" boolean DEFAULT false,
+    "lastSyncedAt" timestamp(3) without time zone,
+    "syncEnabled" boolean DEFAULT true,
+    "plaidMask" "text",
+    "plaidOfficialName" "text",
+    "plaidVerificationStatus" "text"
 );
 
 
@@ -212,10 +220,10 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     "name" "text" NOT NULL,
     "loanType" "text" NOT NULL,
     "initialAmount" double precision NOT NULL,
-    "downPayment" double precision DEFAULT 0 NOT NULL,
+    "downPayment" double precision DEFAULT 0,
     "currentBalance" double precision NOT NULL,
     "interestRate" double precision NOT NULL,
-    "totalMonths" integer NOT NULL,
+    "totalMonths" integer,
     "firstPaymentDate" timestamp(3) without time zone NOT NULL,
     "monthlyPayment" double precision NOT NULL,
     "principalPaid" double precision DEFAULT 0 NOT NULL,
@@ -233,9 +241,10 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     "paymentAmount" double precision,
     "accountId" "text",
     "userId" "uuid",
+    "startDate" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Debt_additionalContributionAmount_check" CHECK (("additionalContributionAmount" >= (0)::double precision)),
     CONSTRAINT "Debt_currentBalance_check" CHECK (("currentBalance" >= (0)::double precision)),
-    CONSTRAINT "Debt_downPayment_check" CHECK (("downPayment" >= (0)::double precision)),
+    CONSTRAINT "Debt_downPayment_check" CHECK ((("downPayment" IS NULL) OR ("downPayment" >= (0)::double precision))),
     CONSTRAINT "Debt_initialAmount_check" CHECK (("initialAmount" > (0)::double precision)),
     CONSTRAINT "Debt_interestPaid_check" CHECK (("interestPaid" >= (0)::double precision)),
     CONSTRAINT "Debt_interestRate_check" CHECK (("interestRate" >= (0)::double precision)),
@@ -245,7 +254,7 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     CONSTRAINT "Debt_paymentFrequency_check" CHECK (("paymentFrequency" = ANY (ARRAY['monthly'::"text", 'biweekly'::"text", 'weekly'::"text", 'semimonthly'::"text", 'daily'::"text"]))),
     CONSTRAINT "Debt_principalPaid_check" CHECK (("principalPaid" >= (0)::double precision)),
     CONSTRAINT "Debt_priority_check" CHECK (("priority" = ANY (ARRAY['High'::"text", 'Medium'::"text", 'Low'::"text"]))),
-    CONSTRAINT "Debt_totalMonths_check" CHECK (("totalMonths" > 0))
+    CONSTRAINT "Debt_totalMonths_check" CHECK ((("totalMonths" IS NULL) OR ("totalMonths" > 0)))
 );
 
 
@@ -303,11 +312,61 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
     "accountId" "text",
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
-    "userId" "uuid"
+    "userId" "uuid",
+    "questradeAccountNumber" "text",
+    "questradeConnectionId" "text",
+    "isQuestradeConnected" boolean DEFAULT false,
+    "cash" numeric(15,2),
+    "marketValue" numeric(15,2),
+    "totalEquity" numeric(15,2),
+    "buyingPower" numeric(15,2),
+    "maintenanceExcess" numeric(15,2),
+    "currency" "text" DEFAULT 'CAD'::"text",
+    "balanceLastUpdatedAt" timestamp(3) without time zone
 );
 
 
 ALTER TABLE "public"."InvestmentAccount" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."questradeAccountNumber" IS 'Questrade account number for this investment account';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."questradeConnectionId" IS 'Reference to QuestradeConnection for this account';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."isQuestradeConnected" IS 'Whether this account is connected to Questrade';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."cash" IS 'Cash balance in the account';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."marketValue" IS 'Current market value of all positions';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."totalEquity" IS 'Total equity (cash + market value)';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."buyingPower" IS 'Available buying power';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."maintenanceExcess" IS 'Maintenance excess amount';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."currency" IS 'Currency of the account (default: CAD)';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."balanceLastUpdatedAt" IS 'Last time balance information was updated from Questrade';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."InvestmentTransaction" (
@@ -342,6 +401,50 @@ CREATE TABLE IF NOT EXISTS "public"."Macro" (
 ALTER TABLE "public"."Macro" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."PlaidConnection" (
+    "id" "text" NOT NULL,
+    "userId" "uuid" NOT NULL,
+    "itemId" "text" NOT NULL,
+    "accessToken" "text" NOT NULL,
+    "institutionId" "text",
+    "institutionName" "text",
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "errorCode" "text",
+    "errorMessage" "text",
+    "institutionLogo" "text"
+);
+
+
+ALTER TABLE "public"."PlaidConnection" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."PlaidLiability" (
+    "id" "text" NOT NULL,
+    "accountId" "text" NOT NULL,
+    "liabilityType" "text" NOT NULL,
+    "apr" double precision,
+    "interestRate" double precision,
+    "minimumPayment" double precision,
+    "lastPaymentAmount" double precision,
+    "lastPaymentDate" timestamp(3) without time zone,
+    "nextPaymentDueDate" timestamp(3) without time zone,
+    "lastStatementBalance" double precision,
+    "lastStatementDate" timestamp(3) without time zone,
+    "creditLimit" double precision,
+    "currentBalance" double precision,
+    "availableCredit" double precision,
+    "plaidAccountId" "text",
+    "plaidItemId" "text",
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    CONSTRAINT "PlaidLiability_liabilityType_check" CHECK (("liabilityType" = ANY (ARRAY['credit_card'::"text", 'student_loan'::"text", 'mortgage'::"text", 'auto_loan'::"text", 'personal_loan'::"text", 'business_loan'::"text", 'other'::"text"])))
+);
+
+
+ALTER TABLE "public"."PlaidLiability" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."Plan" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
@@ -359,17 +462,69 @@ CREATE TABLE IF NOT EXISTS "public"."Plan" (
 ALTER TABLE "public"."Plan" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."Position" (
+    "id" "text" NOT NULL,
+    "accountId" "text" NOT NULL,
+    "securityId" "text" NOT NULL,
+    "openQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "closedQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "currentMarketValue" numeric(15,2) DEFAULT 0 NOT NULL,
+    "currentPrice" numeric(15,4) DEFAULT 0 NOT NULL,
+    "averageEntryPrice" numeric(15,4) DEFAULT 0 NOT NULL,
+    "closedPnl" numeric(15,2) DEFAULT 0 NOT NULL,
+    "openPnl" numeric(15,2) DEFAULT 0 NOT NULL,
+    "totalCost" numeric(15,2) DEFAULT 0 NOT NULL,
+    "isRealTime" boolean DEFAULT false,
+    "isUnderReorg" boolean DEFAULT false,
+    "lastUpdatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE "public"."Position" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."Position" IS 'Stores current positions (holdings) from Questrade';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."QuestradeConnection" (
+    "id" "text" NOT NULL,
+    "userId" "uuid" NOT NULL,
+    "accessToken" "text" NOT NULL,
+    "refreshToken" "text" NOT NULL,
+    "apiServerUrl" "text" NOT NULL,
+    "tokenExpiresAt" timestamp(3) without time zone NOT NULL,
+    "lastSyncedAt" timestamp(3) without time zone,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE "public"."QuestradeConnection" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."QuestradeConnection" IS 'Stores Questrade API connections with encrypted tokens';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."Security" (
     "id" "text" NOT NULL,
     "symbol" "text" NOT NULL,
     "name" "text" NOT NULL,
     "class" "text" NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "sector" "text"
 );
 
 
 ALTER TABLE "public"."Security" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Security"."sector" IS 'Industry sector for the security (e.g., Technology, Finance, Healthcare, Consumer, Energy, etc.)';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."SecurityPrice" (
@@ -445,11 +600,27 @@ CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
     "recurring" boolean DEFAULT false NOT NULL,
-    "userId" "uuid" NOT NULL
+    "userId" "uuid" NOT NULL,
+    "suggestedCategoryId" "text",
+    "suggestedSubcategoryId" "text",
+    "plaidMetadata" "jsonb"
 );
 
 
 ALTER TABLE "public"."Transaction" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."TransactionSync" (
+    "id" "text" NOT NULL,
+    "accountId" "text" NOT NULL,
+    "plaidTransactionId" "text" NOT NULL,
+    "transactionId" "text",
+    "syncDate" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "status" "text" DEFAULT 'synced'::"text"
+);
+
+
+ALTER TABLE "public"."TransactionSync" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."User" (
@@ -547,6 +718,21 @@ ALTER TABLE ONLY "public"."Macro"
 
 
 
+ALTER TABLE ONLY "public"."PlaidConnection"
+    ADD CONSTRAINT "PlaidConnection_itemId_key" UNIQUE ("itemId");
+
+
+
+ALTER TABLE ONLY "public"."PlaidConnection"
+    ADD CONSTRAINT "PlaidConnection_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."PlaidLiability"
+    ADD CONSTRAINT "PlaidLiability_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."Plan"
     ADD CONSTRAINT "Plan_name_key" UNIQUE ("name");
 
@@ -554,6 +740,21 @@ ALTER TABLE ONLY "public"."Plan"
 
 ALTER TABLE ONLY "public"."Plan"
     ADD CONSTRAINT "Plan_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."Position"
+    ADD CONSTRAINT "Position_accountId_securityId_unique" UNIQUE ("accountId", "securityId");
+
+
+
+ALTER TABLE ONLY "public"."Position"
+    ADD CONSTRAINT "Position_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."QuestradeConnection"
+    ADD CONSTRAINT "QuestradeConnection_pkey" PRIMARY KEY ("id");
 
 
 
@@ -587,6 +788,16 @@ ALTER TABLE ONLY "public"."Subscription"
 
 
 
+ALTER TABLE ONLY "public"."TransactionSync"
+    ADD CONSTRAINT "TransactionSync_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."TransactionSync"
+    ADD CONSTRAINT "TransactionSync_plaidTransactionId_key" UNIQUE ("plaidTransactionId");
+
+
+
 ALTER TABLE ONLY "public"."Transaction"
     ADD CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id");
 
@@ -606,6 +817,22 @@ CREATE INDEX "AccountOwner_accountId_idx" ON "public"."AccountOwner" USING "btre
 
 
 CREATE INDEX "AccountOwner_ownerId_idx" ON "public"."AccountOwner" USING "btree" ("ownerId");
+
+
+
+CREATE INDEX "Account_isConnected_idx" ON "public"."Account" USING "btree" ("isConnected");
+
+
+
+CREATE INDEX "Account_plaidItemId_idx" ON "public"."Account" USING "btree" ("plaidItemId");
+
+
+
+CREATE INDEX "Account_plaidMask_idx" ON "public"."Account" USING "btree" ("plaidMask");
+
+
+
+CREATE INDEX "Account_plaidVerificationStatus_idx" ON "public"."Account" USING "btree" ("plaidVerificationStatus");
 
 
 
@@ -753,6 +980,14 @@ CREATE INDEX "HouseholdMember_status_idx" ON "public"."HouseholdMember" USING "b
 
 
 
+CREATE INDEX "InvestmentAccount_isQuestradeConnected_idx" ON "public"."InvestmentAccount" USING "btree" ("isQuestradeConnected");
+
+
+
+CREATE INDEX "InvestmentAccount_questradeConnectionId_idx" ON "public"."InvestmentAccount" USING "btree" ("questradeConnectionId");
+
+
+
 CREATE INDEX "InvestmentAccount_type_idx" ON "public"."InvestmentAccount" USING "btree" ("type");
 
 
@@ -793,7 +1028,55 @@ CREATE INDEX "Macro_userId_idx" ON "public"."Macro" USING "btree" ("userId");
 
 
 
+CREATE INDEX "PlaidConnection_itemId_idx" ON "public"."PlaidConnection" USING "btree" ("itemId");
+
+
+
+CREATE INDEX "PlaidConnection_userId_idx" ON "public"."PlaidConnection" USING "btree" ("userId");
+
+
+
+CREATE INDEX "PlaidLiability_accountId_idx" ON "public"."PlaidLiability" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "PlaidLiability_liabilityType_idx" ON "public"."PlaidLiability" USING "btree" ("liabilityType");
+
+
+
+CREATE INDEX "PlaidLiability_nextPaymentDueDate_idx" ON "public"."PlaidLiability" USING "btree" ("nextPaymentDueDate");
+
+
+
+CREATE INDEX "PlaidLiability_plaidAccountId_idx" ON "public"."PlaidLiability" USING "btree" ("plaidAccountId");
+
+
+
+CREATE INDEX "PlaidLiability_plaidItemId_idx" ON "public"."PlaidLiability" USING "btree" ("plaidItemId");
+
+
+
 CREATE INDEX "Plan_name_idx" ON "public"."Plan" USING "btree" ("name");
+
+
+
+CREATE INDEX "Position_accountId_idx" ON "public"."Position" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "Position_accountId_securityId_idx" ON "public"."Position" USING "btree" ("accountId", "securityId");
+
+
+
+CREATE INDEX "Position_securityId_idx" ON "public"."Position" USING "btree" ("securityId");
+
+
+
+CREATE INDEX "QuestradeConnection_tokenExpiresAt_idx" ON "public"."QuestradeConnection" USING "btree" ("tokenExpiresAt");
+
+
+
+CREATE INDEX "QuestradeConnection_userId_idx" ON "public"."QuestradeConnection" USING "btree" ("userId");
 
 
 
@@ -806,6 +1089,10 @@ CREATE UNIQUE INDEX "SecurityPrice_securityId_date_key" ON "public"."SecurityPri
 
 
 CREATE INDEX "Security_class_idx" ON "public"."Security" USING "btree" ("class");
+
+
+
+CREATE INDEX "Security_sector_idx" ON "public"."Security" USING "btree" ("sector");
 
 
 
@@ -861,6 +1148,14 @@ CREATE INDEX "Subscription_userId_idx" ON "public"."Subscription" USING "btree" 
 
 
 
+CREATE INDEX "TransactionSync_accountId_idx" ON "public"."TransactionSync" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "TransactionSync_plaidTransactionId_idx" ON "public"."TransactionSync" USING "btree" ("plaidTransactionId");
+
+
+
 CREATE INDEX "Transaction_accountId_idx" ON "public"."Transaction" USING "btree" ("accountId");
 
 
@@ -877,7 +1172,23 @@ CREATE INDEX "Transaction_date_type_idx" ON "public"."Transaction" USING "btree"
 
 
 
+CREATE INDEX "Transaction_plaidMetadata_category_idx" ON "public"."Transaction" USING "gin" ((("plaidMetadata" -> 'category'::"text"))) WHERE (("plaidMetadata" -> 'category'::"text") IS NOT NULL);
+
+
+
+CREATE INDEX "Transaction_plaidMetadata_idx" ON "public"."Transaction" USING "gin" ("plaidMetadata");
+
+
+
+CREATE INDEX "Transaction_plaidMetadata_pending_idx" ON "public"."Transaction" USING "btree" (((("plaidMetadata" ->> 'pending'::"text"))::boolean)) WHERE (("plaidMetadata" ->> 'pending'::"text") IS NOT NULL);
+
+
+
 CREATE INDEX "Transaction_recurring_idx" ON "public"."Transaction" USING "btree" ("recurring");
+
+
+
+CREATE INDEX "Transaction_suggestedCategoryId_idx" ON "public"."Transaction" USING "btree" ("suggestedCategoryId") WHERE ("suggestedCategoryId" IS NOT NULL);
 
 
 
@@ -1014,6 +1325,11 @@ ALTER TABLE ONLY "public"."InvestmentAccount"
 
 
 ALTER TABLE ONLY "public"."InvestmentAccount"
+    ADD CONSTRAINT "InvestmentAccount_questradeConnectionId_fkey" FOREIGN KEY ("questradeConnectionId") REFERENCES "public"."QuestradeConnection"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."InvestmentAccount"
     ADD CONSTRAINT "InvestmentAccount_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
 
 
@@ -1030,6 +1346,31 @@ ALTER TABLE ONLY "public"."InvestmentTransaction"
 
 ALTER TABLE ONLY "public"."Macro"
     ADD CONSTRAINT "Macro_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."PlaidConnection"
+    ADD CONSTRAINT "PlaidConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."PlaidLiability"
+    ADD CONSTRAINT "PlaidLiability_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."Position"
+    ADD CONSTRAINT "Position_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."InvestmentAccount"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."Position"
+    ADD CONSTRAINT "Position_securityId_fkey" FOREIGN KEY ("securityId") REFERENCES "public"."Security"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."QuestradeConnection"
+    ADD CONSTRAINT "QuestradeConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
 
 
 
@@ -1063,6 +1404,16 @@ ALTER TABLE ONLY "public"."Subscription"
 
 
 
+ALTER TABLE ONLY "public"."TransactionSync"
+    ADD CONSTRAINT "TransactionSync_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."TransactionSync"
+    ADD CONSTRAINT "TransactionSync_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "public"."Transaction"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."Transaction"
     ADD CONSTRAINT "Transaction_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
@@ -1075,6 +1426,16 @@ ALTER TABLE ONLY "public"."Transaction"
 
 ALTER TABLE ONLY "public"."Transaction"
     ADD CONSTRAINT "Transaction_subcategoryId_fkey" FOREIGN KEY ("subcategoryId") REFERENCES "public"."Subcategory"("id") ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."Transaction"
+    ADD CONSTRAINT "Transaction_suggestedCategoryId_fkey" FOREIGN KEY ("suggestedCategoryId") REFERENCES "public"."Category"("id") ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."Transaction"
+    ADD CONSTRAINT "Transaction_suggestedSubcategoryId_fkey" FOREIGN KEY ("suggestedSubcategoryId") REFERENCES "public"."Subcategory"("id") ON UPDATE CASCADE ON DELETE SET NULL;
 
 
 
@@ -1156,11 +1517,23 @@ ALTER TABLE "public"."InvestmentTransaction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."Macro" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."PlaidConnection" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."PlaidLiability" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."Plan" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "Plans are publicly readable" ON "public"."Plan" FOR SELECT USING (true);
 
+
+
+ALTER TABLE "public"."Position" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."QuestradeConnection" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."Security" ENABLE ROW LEVEL SECURITY;
@@ -1205,7 +1578,16 @@ ALTER TABLE "public"."Subscription" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."Transaction" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."TransactionSync" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."User" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "Users can delete TransactionSync for their accounts" ON "public"."TransactionSync" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
 
 
 CREATE POLICY "Users can delete account owners" ON "public"."AccountOwner" FOR DELETE USING ((("ownerId" = "auth"."uid"()) OR (EXISTS ( SELECT 1
@@ -1277,6 +1659,32 @@ CREATE POLICY "Users can delete own subcategories" ON "public"."Subcategory" FOR
 
 
 CREATE POLICY "Users can delete own transactions" ON "public"."Transaction" FOR DELETE USING (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can delete positions for own accounts" ON "public"."Position" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can delete their own Plaid connections" ON "public"."PlaidConnection" FOR DELETE USING (("auth"."uid"() = "userId"));
+
+
+
+CREATE POLICY "Users can delete their own Plaid liabilities" ON "public"."PlaidLiability" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "PlaidLiability"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can delete their own Questrade connections" ON "public"."QuestradeConnection" FOR DELETE USING (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can insert TransactionSync for their accounts" ON "public"."TransactionSync" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
 
 
 
@@ -1352,7 +1760,37 @@ CREATE POLICY "Users can insert own subcategories" ON "public"."Subcategory" FOR
 
 
 
+CREATE POLICY "Users can insert own subscriptions" ON "public"."Subscription" FOR INSERT WITH CHECK (("auth"."uid"() = "userId"));
+
+
+
 CREATE POLICY "Users can insert own transactions" ON "public"."Transaction" FOR INSERT WITH CHECK (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can insert positions for own accounts" ON "public"."Position" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can insert their own Plaid connections" ON "public"."PlaidConnection" FOR INSERT WITH CHECK (("auth"."uid"() = "userId"));
+
+
+
+CREATE POLICY "Users can insert their own Plaid liabilities" ON "public"."PlaidLiability" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "PlaidLiability"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can insert their own Questrade connections" ON "public"."QuestradeConnection" FOR INSERT WITH CHECK (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can update TransactionSync for their accounts" ON "public"."TransactionSync" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
 
 
 
@@ -1432,6 +1870,32 @@ CREATE POLICY "Users can update own transactions" ON "public"."Transaction" FOR 
 
 
 
+CREATE POLICY "Users can update positions for own accounts" ON "public"."Position" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can update their own Plaid connections" ON "public"."PlaidConnection" FOR UPDATE USING (("auth"."uid"() = "userId"));
+
+
+
+CREATE POLICY "Users can update their own Plaid liabilities" ON "public"."PlaidLiability" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "PlaidLiability"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can update their own Questrade connections" ON "public"."QuestradeConnection" FOR UPDATE USING (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can view TransactionSync for their accounts" ON "public"."TransactionSync" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can view account owners" ON "public"."AccountOwner" FOR SELECT USING ((("ownerId" = "auth"."uid"()) OR (EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "AccountOwner"."accountId") AND ("Account"."userId" = "auth"."uid"()))))));
@@ -1498,6 +1962,12 @@ CREATE POLICY "Users can view own transactions" ON "public"."Transaction" FOR SE
 
 
 
+CREATE POLICY "Users can view positions for own accounts" ON "public"."Position" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can view system and own categories" ON "public"."Category" FOR SELECT USING ((("userId" IS NULL) OR ("userId" = "auth"."uid"())));
 
 
@@ -1509,6 +1979,20 @@ CREATE POLICY "Users can view system and own macros" ON "public"."Macro" FOR SEL
 CREATE POLICY "Users can view system and own subcategories" ON "public"."Subcategory" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."Category"
   WHERE (("Category"."id" = "Subcategory"."categoryId") AND (("Category"."userId" IS NULL) OR ("Category"."userId" = "auth"."uid"()))))));
+
+
+
+CREATE POLICY "Users can view their own Plaid connections" ON "public"."PlaidConnection" FOR SELECT USING (("auth"."uid"() = "userId"));
+
+
+
+CREATE POLICY "Users can view their own Plaid liabilities" ON "public"."PlaidLiability" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "PlaidLiability"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can view their own Questrade connections" ON "public"."QuestradeConnection" FOR SELECT USING (("userId" = "auth"."uid"()));
 
 
 
@@ -1631,9 +2115,33 @@ GRANT ALL ON TABLE "public"."Macro" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."PlaidConnection" TO "anon";
+GRANT ALL ON TABLE "public"."PlaidConnection" TO "authenticated";
+GRANT ALL ON TABLE "public"."PlaidConnection" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."PlaidLiability" TO "anon";
+GRANT ALL ON TABLE "public"."PlaidLiability" TO "authenticated";
+GRANT ALL ON TABLE "public"."PlaidLiability" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."Plan" TO "anon";
 GRANT ALL ON TABLE "public"."Plan" TO "authenticated";
 GRANT ALL ON TABLE "public"."Plan" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."Position" TO "anon";
+GRANT ALL ON TABLE "public"."Position" TO "authenticated";
+GRANT ALL ON TABLE "public"."Position" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."QuestradeConnection" TO "anon";
+GRANT ALL ON TABLE "public"."QuestradeConnection" TO "authenticated";
+GRANT ALL ON TABLE "public"."QuestradeConnection" TO "service_role";
 
 
 
@@ -1670,6 +2178,12 @@ GRANT ALL ON TABLE "public"."Subscription" TO "service_role";
 GRANT ALL ON TABLE "public"."Transaction" TO "anon";
 GRANT ALL ON TABLE "public"."Transaction" TO "authenticated";
 GRANT ALL ON TABLE "public"."Transaction" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."TransactionSync" TO "anon";
+GRANT ALL ON TABLE "public"."TransactionSync" TO "authenticated";
+GRANT ALL ON TABLE "public"."TransactionSync" TO "service_role";
 
 
 

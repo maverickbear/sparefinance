@@ -42,7 +42,8 @@ const commandGroups = [
   {
     title: "Planning",
     commands: [
-      { id: "goals", label: "Budgets & Goals", icon: PiggyBank, href: "/budgets" },
+      { id: "budgets", label: "Budgets", icon: Target, href: "/planning/budgets" },
+      { id: "goals", label: "Goals", icon: PiggyBank, href: "/planning/goals" },
       { id: "debts", label: "Debts", icon: CreditCard, href: "/debts" },
       { id: "investments", label: "Investments", icon: TrendingUp, href: "/investments" },
     ],

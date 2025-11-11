@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ArrowUpRight,
   ArrowDownRight,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,7 +56,8 @@ const navSections = [
   {
     title: "Planning",
     items: [
-      { href: "/budgets", label: "Budgets & Goals", icon: PiggyBank },
+      { href: "/planning/budgets", label: "Budgets", icon: Target },
+      { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
       { href: "/investments", label: "Investments", icon: TrendingUp },
     ],
@@ -66,7 +68,7 @@ const navSections = [
 const mobileNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: Receipt },
-  { href: "/budgets", label: "Budgets & Goals", icon: PiggyBank },
+  { href: "/planning/budgets", label: "Budgets", icon: Target },
   { href: "/debts", label: "Debts", icon: CreditCard },
 ];
 

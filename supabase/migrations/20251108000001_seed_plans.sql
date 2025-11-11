@@ -1,15 +1,6 @@
--- Insert default plans
+-- Insert default plans (Basic and Premium only - no Free plan)
 INSERT INTO "Plan" ("id", "name", "priceMonthly", "priceYearly", "features", "createdAt", "updatedAt")
 VALUES
-  (
-    'free',
-    'free',
-    0.00,
-    0.00,
-    '{"maxTransactions": 50, "maxAccounts": 2, "hasInvestments": false, "hasAdvancedReports": false, "hasCsvExport": false, "hasDebts": true, "hasGoals": true}'::jsonb,
-    NOW(),
-    NOW()
-  ),
   (
     'basic',
     'basic',

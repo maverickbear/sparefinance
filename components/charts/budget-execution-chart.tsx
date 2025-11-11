@@ -51,7 +51,7 @@ export function BudgetExecutionChart({ data }: BudgetExecutionChartProps) {
 
   return (
     <ChartCard 
-      title="Budget Execution" 
+      title="Budget Used" 
       description="Budget percentage by category"
       className="overflow-hidden"
     >
@@ -88,7 +88,7 @@ export function BudgetExecutionChart({ data }: BudgetExecutionChartProps) {
                   {item.percentage.toFixed(1)}%
                 </div>
               </div>
-              <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="relative h-[5px] w-full overflow-hidden rounded-full bg-muted">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ease-out ${colors.bar}`}
                   style={{ width: `${clampedPercentage}%` }}

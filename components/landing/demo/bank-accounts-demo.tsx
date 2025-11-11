@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,49 +40,8 @@ const mockAccounts = [
 ];
 
 export function BankAccountsDemo() {
-  const [scrollY, setScrollY] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
-        const elementTop = rect.top;
-        const elementBottom = rect.bottom;
-        
-        const isInViewport = elementTop < windowHeight && elementBottom > 0;
-        setIsVisible(isInViewport);
-
-        if (isInViewport) {
-          const scrollProgress = Math.max(
-            0,
-            Math.min(1, (windowHeight - elementTop) / (windowHeight + rect.height))
-          );
-          setScrollY(scrollProgress);
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const parallaxOffset = (scrollY - 0.5) * 150;
-
   return (
-    <div 
-      ref={containerRef}
-      className="space-y-4 pointer-events-none"
-      style={{
-        transform: `translateY(${parallaxOffset * 0.3}px)`,
-        opacity: isVisible ? 1 : 0.3,
-        transition: "transform 0.1s ease-out, opacity 0.3s ease-out",
-      }}
-    >
+    <div className="space-y-4 pointer-events-none">
         {mockAccounts.map((account) => {
           const isCreditCard = account.type === "credit" && account.creditLimit;
           const available = isCreditCard 

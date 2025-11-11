@@ -67,23 +67,23 @@ export function PricingSection() {
           alert(data.error || "Failed to setup free plan. Please try again.");
         }
       } else {
-        // Create checkout session for paid plans
-        const response = await fetch("/api/stripe/checkout", {
+        // Start trial for paid plans (no Stripe checkout needed)
+        const response = await fetch("/api/billing/start-trial", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ planId, interval }),
+          body: JSON.stringify({ planId }),
         });
 
         const data = await response.json();
 
-        if (data.url) {
-          // Redirect to Stripe Checkout
-          window.location.href = data.url;
+        if (response.ok && data.success) {
+          // Trial started successfully, redirect to dashboard
+          router.push("/dashboard");
         } else {
-          console.error("Failed to create checkout session:", data.error);
-          alert("Failed to create checkout session. Please try again.");
+          console.error("Failed to start trial:", data.error);
+          alert(data.error || "Failed to start trial. Please try again.");
         }
       }
     } catch (error) {

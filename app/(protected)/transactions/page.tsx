@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -15,7 +15,9 @@ import { TransactionForm } from "@/components/forms/transaction-form";
 import { CsvImportDialog } from "@/components/forms/csv-import-dialog";
 import { CategorySelectionModal } from "@/components/transactions/category-selection-modal";
 import { formatMoney } from "@/components/common/money";
-import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, Clock } from "lucide-react";
+import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, Clock, Receipt } from "lucide-react";
+import { EmptyState } from "@/components/common/empty-state";
+import { TransactionsMobileCard } from "@/components/transactions/transactions-mobile-card";
 import {
   Select,
   SelectContent,
@@ -43,6 +45,9 @@ import { usePlanLimits } from "@/hooks/use-plan-limits";
 import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { PageHeader } from "@/components/common/page-header";
 
 interface Account {
   id: string;
@@ -53,6 +58,9 @@ interface Account {
 export default function TransactionsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const { openDialog: openDeleteDialog, ConfirmDialog: DeleteConfirmDialog } = useConfirmDialog();
+  const { openDialog: openDeleteMultipleDialog, ConfirmDialog: DeleteMultipleConfirmDialog } = useConfirmDialog();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -63,7 +71,8 @@ export default function TransactionsPage() {
   const [transactionForCategory, setTransactionForCategory] = useState<Transaction | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState("this-month");
+  const [dateRange, setDateRange] = useState<"all-dates" | "today" | "past-7-days" | "past-15-days" | "past-30-days" | "past-90-days" | "last-3-months" | "last-month" | "last-6-months" | "past-6-months" | "this-month" | "this-year" | "year-to-date" | "last-year" | "custom">("all-dates");
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState({
     startDate: "",
     endDate: "",
@@ -79,6 +88,7 @@ export default function TransactionsPage() {
 
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingMultiple, setDeletingMultiple] = useState(false);
   const [processingSuggestionId, setProcessingSuggestionId] = useState<string | null>(null);
   const [suggestionsGenerated, setSuggestionsGenerated] = useState(false);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
@@ -86,22 +96,18 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     loadData();
-    // Set default date range (past 30 days to include Plaid transactions)
-    const today = new Date();
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - 30); // Last 30 days
-    const endDate = new Date(today);
+    // Set default date range to "All Dates" (no date filter)
     
     // Read categoryId from URL if present
     const categoryIdFromUrl = searchParams.get("categoryId");
     
     setFilters(prev => ({
       ...prev,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      startDate: "",
+      endDate: "",
       categoryId: categoryIdFromUrl || "all",
     }));
-    setDateRange("past-30-days");
+    setDateRange("all-dates");
   }, [searchParams]);
 
   // Debounce search filter
@@ -139,7 +145,7 @@ export default function TransactionsPage() {
     return () => clearTimeout(timer);
   }, [filters]);
 
-  function getDateRangeDates(range: string): { startDate: string; endDate: string } {
+  function getDateRangeDates(range: string): { startDate: string; endDate: string } | null {
     const today = new Date();
     const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
@@ -147,6 +153,8 @@ export default function TransactionsPage() {
     let endDate: Date;
 
     switch (range) {
+      case "all-dates":
+        return null; // No date filter
       case "today":
         startDate = new Date(now);
         endDate = new Date(now);
@@ -166,11 +174,44 @@ export default function TransactionsPage() {
         startDate.setDate(now.getDate() - 29);
         endDate = new Date(now);
         break;
+      case "past-90-days":
+        startDate = new Date(now);
+        startDate.setDate(now.getDate() - 89);
+        endDate = new Date(now);
+        break;
+      case "last-3-months":
+        startDate = new Date(today.getFullYear(), today.getMonth() - 3, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
       case "last-month":
         startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         endDate = new Date(today.getFullYear(), today.getMonth(), 0);
         break;
+      case "last-6-months":
+        startDate = new Date(today.getFullYear(), today.getMonth() - 6, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      case "past-6-months":
+        startDate = new Date(now);
+        startDate.setMonth(now.getMonth() - 6);
+        endDate = new Date(now);
+        break;
       case "this-month":
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      case "this-year":
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date(today.getFullYear(), 11, 31);
+        break;
+      case "year-to-date":
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date(now);
+        break;
+      case "last-year":
+        startDate = new Date(today.getFullYear() - 1, 0, 1);
+        endDate = new Date(today.getFullYear() - 1, 11, 31);
+        break;
       default:
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -183,14 +224,44 @@ export default function TransactionsPage() {
     };
   }
 
-  function handleDateRangeChange(range: string) {
-    setDateRange(range);
-    const dates = getDateRangeDates(range);
-    setFilters(prev => ({
-      ...prev,
-      startDate: dates.startDate,
-      endDate: dates.endDate,
-    }));
+  function handleDateRangeChange(
+    preset: "all-dates" | "today" | "past-7-days" | "past-15-days" | "past-30-days" | "past-90-days" | "last-3-months" | "last-month" | "last-6-months" | "past-6-months" | "this-month" | "this-year" | "year-to-date" | "last-year" | "custom",
+    customRange?: DateRange
+  ) {
+    if (preset === "custom" && customRange) {
+      setDateRange("custom");
+      setCustomDateRange(customRange);
+      setFilters(prev => ({
+        ...prev,
+        startDate: customRange.startDate,
+        endDate: customRange.endDate,
+      }));
+    } else if (preset === "all-dates") {
+      setDateRange("all-dates");
+      setCustomDateRange(undefined);
+      setFilters(prev => ({
+        ...prev,
+        startDate: "",
+        endDate: "",
+      }));
+    } else {
+      setDateRange(preset);
+      setCustomDateRange(undefined);
+      const dates = getDateRangeDates(preset);
+      if (dates) {
+        setFilters(prev => ({
+          ...prev,
+          startDate: dates.startDate,
+          endDate: dates.endDate,
+        }));
+      } else {
+        setFilters(prev => ({
+          ...prev,
+          startDate: "",
+          endDate: "",
+        }));
+      }
+    }
   }
 
   async function loadData() {
@@ -289,41 +360,103 @@ export default function TransactionsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this transaction?")) return;
-
-    const transactionToDelete = transactions.find(t => t.id === id);
-    
-    // Optimistic update: remove from UI immediately
-    setTransactions(prev => prev.filter(t => t.id !== id));
-    setDeletingId(id);
-
-    try {
-      const { deleteTransactionClient } = await import("@/lib/api/transactions-client");
-      await deleteTransactionClient(id);
-
-      toast({
-        title: "Transaction deleted",
-        description: "Your transaction has been deleted successfully.",
-        variant: "success",
-      });
-      
-      // Não precisa recarregar - a atualização otimista já removeu da lista
-      // O useEffect que monitora os filters vai manter a lista atualizada
-    } catch (error) {
-      console.error("Error deleting transaction:", error);
-      // Revert optimistic update on error
-      if (transactionToDelete) {
-        setTransactions(prev => [...prev, transactionToDelete].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-      }
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete transaction",
+  function handleDelete(id: string) {
+    openDeleteDialog(
+      {
+        title: "Delete Transaction",
+        description: "Are you sure you want to delete this transaction?",
         variant: "destructive",
-      });
-    } finally {
-      setDeletingId(null);
-    }
+        confirmLabel: "Delete",
+      },
+      async () => {
+        const transactionToDelete = transactions.find(t => t.id === id);
+        
+        // Optimistic update: remove from UI immediately
+        setTransactions(prev => prev.filter(t => t.id !== id));
+        setDeletingId(id);
+
+        try {
+          const { deleteTransactionClient } = await import("@/lib/api/transactions-client");
+          await deleteTransactionClient(id);
+
+          toast({
+            title: "Transaction deleted",
+            description: "Your transaction has been deleted successfully.",
+            variant: "success",
+          });
+          
+          // Refresh router to update dashboard and other pages that depend on transactions
+          router.refresh();
+          
+          // Não precisa recarregar - a atualização otimista já removeu da lista
+          // O useEffect que monitora os filters vai manter a lista atualizada
+        } catch (error) {
+          console.error("Error deleting transaction:", error);
+          // Revert optimistic update on error
+          if (transactionToDelete) {
+            setTransactions(prev => [...prev, transactionToDelete].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          }
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to delete transaction",
+            variant: "destructive",
+          });
+        } finally {
+          setDeletingId(null);
+        }
+      }
+    );
+  }
+
+  function handleDeleteMultiple() {
+    const idsToDelete = Array.from(selectedTransactionIds);
+    if (idsToDelete.length === 0) return;
+
+    const count = idsToDelete.length;
+    openDeleteMultipleDialog(
+      {
+        title: "Delete Transactions",
+        description: `Are you sure you want to delete ${count} transaction${count > 1 ? 's' : ''}?`,
+        variant: "destructive",
+        confirmLabel: "Delete",
+      },
+      async () => {
+        const transactionsToDelete = transactions.filter(t => idsToDelete.includes(t.id));
+        
+        // Optimistic update: remove from UI immediately
+        setTransactions(prev => prev.filter(t => !idsToDelete.includes(t.id)));
+        setDeletingMultiple(true);
+        setSelectedTransactionIds(new Set());
+
+        try {
+          const { deleteMultipleTransactionsClient } = await import("@/lib/api/transactions-client");
+          await deleteMultipleTransactionsClient(idsToDelete);
+
+          toast({
+            title: "Transactions deleted",
+            description: `${count} transaction${count > 1 ? 's' : ''} deleted successfully.`,
+            variant: "success",
+          });
+          
+          // Refresh router to update dashboard and other pages that depend on transactions
+          router.refresh();
+        } catch (error) {
+          console.error("Error deleting transactions:", error);
+          // Revert optimistic update on error
+          setTransactions(prev => {
+            const restored = [...prev, ...transactionsToDelete];
+            return restored.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          });
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to delete transactions",
+            variant: "destructive",
+          });
+        } finally {
+          setDeletingMultiple(false);
+        }
+      }
+    );
   }
 
   async function handleCategoryUpdate(categoryId: string | null, subcategoryId: string | null = null) {
@@ -568,48 +701,63 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Transactions</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Manage your income and expenses</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Transactions"
+        description="Manage your income and expenses"
+      >
+        <div className="flex flex-wrap gap-2 justify-center md:justify-end">
+          {selectedTransactionIds.size > 0 && (
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteMultiple}
+              disabled={deletingMultiple}
+              className="text-xs md:text-sm"
+            >
+              {deletingMultiple ? (
+                <>
+                  <Loader2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2 animate-spin" />
+                  <span className="hidden md:inline">Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+                  <span className="hidden md:inline">Delete ({selectedTransactionIds.size})</span>
+                  <span className="md:hidden">Delete {selectedTransactionIds.size}</span>
+                </>
+              )}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setIsImportOpen(true)} className="text-xs md:text-sm">
             <Upload className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
             <span className="hidden md:inline">Import CSV</span>
           </Button>
+          {transactions.length > 0 && (
           <Button variant="outline" onClick={handleExport} className="text-xs md:text-sm">
             <Download className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
             <span className="hidden md:inline">Export CSV</span>
           </Button>
-          <Button onClick={() => {
-            setSelectedTransaction(null);
-            setIsFormOpen(true);
-          }} className="text-xs md:text-sm">
-            <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-            <span className="hidden md:inline">Add Transaction</span>
-          </Button>
+          )}
+          {transactions.length > 0 && (
+            <Button onClick={() => {
+              setSelectedTransaction(null);
+              setIsFormOpen(true);
+            }} className="text-xs md:text-sm">
+              <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+              <span className="hidden md:inline">Add Transaction</span>
+            </Button>
+          )}
         </div>
-      </div>
+      </PageHeader>
 
-      {/* Filters */}
+      {/* Filters - Only show when there are transactions or loading */}
+      {(loading || transactions.length > 0) && (
+        <>
       <div className="flex flex-wrap gap-2 items-center">
-        <Select
+        <DateRangePicker
           value={dateRange}
+          dateRange={customDateRange}
           onValueChange={handleDateRangeChange}
-        >
-          <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="this-month">This month</SelectItem>
-            <SelectItem value="last-month">Last Month</SelectItem>
-            <SelectItem value="past-30-days">Past 30 days</SelectItem>
-            <SelectItem value="past-15-days">Past 15 days</SelectItem>
-            <SelectItem value="past-7-days">Past 7 days</SelectItem>
-            <SelectItem value="today">Today</SelectItem>
-          </SelectContent>
-        </Select>
+        />
         <Select
           value={filters.accountId}
           onValueChange={(value) => setFilters({ ...filters, accountId: value })}
@@ -645,15 +793,15 @@ export default function TransactionsPage() {
           onChange={(e) => setFilters({ ...filters, search: e.target.value })}
           className="h-9 w-auto min-w-[120px] flex-1 max-w-[200px] text-xs"
         />
-        {(filters.accountId !== "all" || filters.type !== "all" || filters.search || filters.recurring !== "all" || dateRange !== "this-month") && (
+        {(filters.accountId !== "all" || filters.type !== "all" || filters.search || filters.recurring !== "all" || dateRange !== "all-dates" || customDateRange) && (
           <Button 
             variant="ghost" 
             onClick={() => {
-              setDateRange("this-month");
-              const dates = getDateRangeDates("this-month");
+              setDateRange("all-dates");
+              setCustomDateRange(undefined);
               setFilters({
-                startDate: dates.startDate,
-                endDate: dates.endDate,
+                startDate: "",
+                endDate: "",
                 accountId: "all",
                 categoryId: "all",
                 type: "all",
@@ -723,9 +871,59 @@ export default function TransactionsPage() {
           </SelectContent>
         </Select>
       </div>
+        </>
+      )}
 
-      {/* Transactions Table */}
-      <div className="rounded-[12px] border overflow-x-auto">
+      {/* Mobile Card View */}
+      {!loading && transactions.length > 0 && (
+        <div className="lg:hidden space-y-3">
+          {transactions.map((tx) => {
+            const plaidMeta = tx.plaidMetadata as any;
+            return (
+              <TransactionsMobileCard
+                key={tx.id}
+                transaction={tx}
+                isSelected={selectedTransactionIds.has(tx.id)}
+                onSelect={(checked) => handleSelectTransaction(tx.id, checked)}
+                onEdit={() => {
+                  setSelectedTransaction(tx);
+                  setIsFormOpen(true);
+                }}
+                onDelete={() => handleDelete(tx.id)}
+                deleting={deletingId === tx.id}
+                onCategoryClick={() => {
+                  setTransactionForCategory(tx);
+                  setSelectedCategoryId(tx.categoryId || null);
+                  setSelectedSubcategoryId(tx.subcategoryId || null);
+                  setIsCategoryModalOpen(true);
+                }}
+                onApplySuggestion={tx.suggestedCategoryId ? () => handleApplySuggestion(tx.id) : undefined}
+                onRejectSuggestion={tx.suggestedCategoryId ? () => handleRejectSuggestion(tx.id) : undefined}
+                processingSuggestion={processingSuggestionId === tx.id}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Empty State - Show when no transactions and not loading */}
+      {!loading && transactions.length === 0 && (
+          <EmptyState
+            icon={Receipt}
+            title="No transactions yet"
+            description="Start tracking your finances by adding your first transaction or importing from a CSV file."
+            actionLabel="Add Transaction"
+            onAction={() => {
+              setSelectedTransaction(null);
+              setIsFormOpen(true);
+            }}
+            actionIcon={Plus}
+          />
+      )}
+
+      {/* Desktop/Tablet Table View - Only show when there are transactions or loading */}
+      {(loading || transactions.length > 0) && (
+      <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -750,7 +948,7 @@ export default function TransactionsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Loading transactions...
                 </TableCell>
               </TableRow>
@@ -954,6 +1152,7 @@ export default function TransactionsPage() {
           </TableBody>
         </Table>
       </div>
+      )}
 
       <TransactionForm
         open={isFormOpen}
@@ -1019,6 +1218,8 @@ export default function TransactionsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {DeleteConfirmDialog}
+      {DeleteMultipleConfirmDialog}
     </div>
   );
 }

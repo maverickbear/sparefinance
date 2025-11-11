@@ -34,19 +34,22 @@ DATABASE_URL=...
 3. Copy your **Publishable key** and **Secret key** (test mode)
 4. Add them to your `.env.local` file
 
-### 2. Create Products and Prices
+### 2. Create Products and Prices with Trial
 
-For each plan (Basic and Premium), create a product and price in Stripe:
+For each plan (Basic and Premium), create a product and price in Stripe with a 30-day trial:
 
 1. Go to **Products** in Stripe Dashboard
 2. Create a product for "Basic Plan"
    - Name: "Basic Plan"
    - Description: "Basic subscription for Spare Finance"
-3. Create prices:
-   - Monthly: $7.99/month
-   - Yearly: $79.90/year
-4. Repeat for "Premium Plan" ($14.99/month, $149.90/year)
+3. Create prices with 30-day trial:
+   - Monthly: $7.99/month with 30-day trial
+   - Yearly: $79.90/year with 30-day trial
+   - **Important**: When creating prices, enable "Add a trial period" and set it to 30 days
+4. Repeat for "Premium Plan" ($14.99/month, $149.90/year) with 30-day trial
 5. Copy the **Price IDs** and **Product IDs**
+
+**Note**: The trial period is configured at the price level in Stripe. When a customer subscribes, they will automatically get 30 days free before being charged.
 
 ### 3. Update Plan Prices in Database
 
@@ -127,14 +130,16 @@ npm install stripe
 
 ### Plans
 
-- **Free**: 50 transactions/month, 2 accounts, no investments, no advanced reports, no household members
-- **Basic**: 500 transactions/month, 10 accounts, investments, advanced reports, CSV export, household members ($7.99/month or $79.90/year)
-- **Premium**: Unlimited transactions, unlimited accounts, all features, household members ($14.99/month or $149.90/year)
+- **Basic**: 500 transactions/month, 10 accounts, investments, advanced reports, CSV export, household members ($7.99/month or $79.90/year) - **30-day trial**
+- **Premium**: Unlimited transactions, unlimited accounts, all features, household members ($14.99/month or $149.90/year) - **30-day trial**
+
+**Note**: There is no free plan. All users must select Basic or Premium with a 30-day trial period.
 
 ### Authentication
 
 - Users must sign up/login to access the app
-- New users automatically get a Free plan subscription
+- New users must select a plan (Basic or Premium) to continue
+- All plans include a 30-day trial period
 - Authentication is handled via Supabase Auth
 
 ### Limit Enforcement
@@ -158,12 +163,14 @@ Use any future expiry date and any 3-digit CVC.
 ### Test Flow
 
 1. Sign up a new user
-2. Go to `/pricing`
+2. Go to `/select-plan` (user will be redirected here if no subscription)
 3. Select a plan (Basic or Premium)
 4. Use test card `4242 4242 4242 4242`
-5. Complete checkout
-6. Verify subscription in `/billing`
-7. Test webhook by updating subscription in Stripe Dashboard
+5. Complete checkout (trial starts immediately)
+6. Verify subscription status is "trialing" in `/billing`
+7. After 30 days (or use Stripe test clock to advance), subscription becomes "active"
+8. Test webhook by updating subscription in Stripe Dashboard
+9. Test subscription management via Stripe Customer Portal
 
 ## Troubleshooting
 
@@ -188,15 +195,38 @@ Use any future expiry date and any 3-digit CVC.
 - Verify subscription status is "active"
 - Check API route logs for errors
 
+## Subscription Management
+
+All subscription management (cancel, reactivate, upgrade, downgrade) is handled through the **Stripe Customer Portal**. Users are redirected to the Portal for:
+
+- Cancelling subscriptions
+- Reactivating cancelled subscriptions
+- Upgrading or downgrading plans
+- Updating payment methods
+
+The Portal is accessed via the "Manage Subscription" button in the billing settings page.
+
+## Trial Period
+
+- All plans (Basic and Premium) include a 30-day trial period
+- Trial is configured at the Stripe price level
+- During trial, subscription status is "trialing"
+- After 30 days, Stripe automatically charges the customer and status becomes "active"
+- Users can cancel during trial without being charged
+
 ## Production Checklist
 
 - [ ] Switch to Stripe production keys
 - [ ] Update webhook endpoint URL
-- [ ] Test all payment flows
+- [ ] Configure trial periods on all prices (30 days)
+- [ ] Test all payment flows including trial
 - [ ] Verify webhook signature verification
-- [ ] Test subscription cancellation
+- [ ] Test subscription cancellation via Portal
+- [ ] Test subscription reactivation via Portal
+- [ ] Test upgrade/downgrade via Portal
 - [ ] Test payment failure handling
 - [ ] Review RLS policies
 - [ ] Set up monitoring/alerts
 - [ ] Configure Stripe billing portal branding
+- [ ] Test trial expiration and automatic charging
 

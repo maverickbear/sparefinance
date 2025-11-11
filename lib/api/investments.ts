@@ -3,27 +3,87 @@
 import { createServerClient } from "@/lib/supabase-server";
 import { InvestmentTransactionFormData, SecurityPriceFormData, InvestmentAccountFormData } from "@/lib/validations/investment";
 import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
+import { mapClassToSector } from "@/lib/utils/portfolio-utils";
 
 export interface Holding {
   securityId: string;
   symbol: string;
   name: string;
+  assetType: string;
+  sector: string;
   quantity: number;
   avgPrice: number;
   bookValue: number;
   lastPrice: number;
   marketValue: number;
   unrealizedPnL: number;
+  unrealizedPnLPercent: number;
+  accountId: string;
+  accountName: string;
 }
 
 export async function getHoldings(accountId?: string): Promise<Holding[]> {
-    const supabase = await createServerClient();
+  const supabase = await createServerClient();
+
+  // First, try to get holdings from Questrade positions (more accurate)
+  const { data: questradePositions, error: positionsError } = await supabase
+    .from("Position")
+    .select(`
+      *,
+      security:Security(*),
+      account:InvestmentAccount(*)
+    `)
+    .gt("openQuantity", 0)
+    .order("lastUpdatedAt", { ascending: false });
+
+  if (!positionsError && questradePositions && questradePositions.length > 0) {
+    console.log(`Found ${questradePositions.length} Questrade positions`);
+    
+    // Filter by accountId if provided
+    let positions = questradePositions;
+    if (accountId) {
+      positions = positions.filter((p: any) => p.accountId === accountId);
+    }
+
+    // Convert positions to holdings format
+    const holdings: Holding[] = positions.map((position: any) => {
+      const security = position.security || {};
+      const account = position.account || {};
+      const assetType = security.class || "Stock";
+      const sector = security.sector || mapClassToSector(assetType, security.symbol || "");
+
+      return {
+        securityId: position.securityId,
+        symbol: security.symbol || "",
+        name: security.name || security.symbol || "",
+        assetType,
+        sector,
+        quantity: position.openQuantity || 0,
+        avgPrice: position.averageEntryPrice || 0,
+        bookValue: position.totalCost || 0,
+        lastPrice: position.currentPrice || 0,
+        marketValue: position.currentMarketValue || 0,
+        unrealizedPnL: position.openPnl || 0,
+        unrealizedPnLPercent: position.totalCost > 0 
+          ? ((position.openPnl || 0) / position.totalCost) * 100 
+          : 0,
+        accountId: position.accountId,
+        accountName: account.name || "Unknown Account",
+      };
+    });
+
+    return holdings;
+  }
+
+  // Fallback to calculating from transactions if no Questrade positions
+  console.log("No Questrade positions found, calculating from transactions");
 
   let query = supabase
     .from("InvestmentTransaction")
     .select(`
       *,
-      security:Security(*)
+      security:Security(*),
+      account:InvestmentAccount(*)
     `)
     .order("date", { ascending: true });
 
@@ -45,8 +105,8 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
 
   console.log(`Found ${transactions.length} investment transactions`);
 
-  // Group by security
-  const securityMap = new Map<string, Holding>();
+  // Group by security and account (same security in different accounts = different holdings)
+  const holdingKeyMap = new Map<string, Holding>();
 
   for (const tx of transactions || []) {
     if (!tx.securityId || !tx.security) {
@@ -55,24 +115,38 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
     }
 
     const securityId = tx.securityId;
+    const accountIdForTx = tx.accountId;
+    const account = tx.account as any;
+    const accountName = account?.name || "Unknown Account";
+    
+    // Create unique key for security+account combination
+    const holdingKey = `${securityId}_${accountIdForTx}`;
+
     const symbol = tx.security.symbol;
     const name = tx.security.name;
+    const assetType = tx.security.class || "Stock";
+    const sector = tx.security.sector || mapClassToSector(assetType, symbol);
 
-    if (!securityMap.has(securityId)) {
-      securityMap.set(securityId, {
+    if (!holdingKeyMap.has(holdingKey)) {
+      holdingKeyMap.set(holdingKey, {
         securityId,
         symbol,
         name,
+        assetType,
+        sector,
         quantity: 0,
         avgPrice: 0,
         bookValue: 0,
         lastPrice: 0,
         marketValue: 0,
         unrealizedPnL: 0,
+        unrealizedPnLPercent: 0,
+        accountId: accountIdForTx,
+        accountName,
       });
     }
 
-    const holding = securityMap.get(securityId)!;
+    const holding = holdingKeyMap.get(holdingKey)!;
 
     if (tx.type === "buy" && tx.quantity && tx.price) {
       const newCost = tx.quantity * tx.price + (tx.fees || 0);
@@ -95,7 +169,7 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
   }
 
   // Get latest prices for all securities in one query
-  const securityIds = Array.from(securityMap.keys());
+  const securityIds = Array.from(new Set(Array.from(holdingKeyMap.values()).map(h => h.securityId)));
   if (securityIds.length > 0) {
     const { data: prices } = await supabase
       .from("SecurityPrice")
@@ -115,18 +189,21 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
     }
 
     // Apply prices to holdings
-    for (const [securityId, holding] of securityMap) {
-      const latestPrice = priceMap.get(securityId);
+    for (const [holdingKey, holding] of holdingKeyMap) {
+      const latestPrice = priceMap.get(holding.securityId);
       if (latestPrice) {
         holding.lastPrice = latestPrice;
         holding.marketValue = holding.quantity * latestPrice;
         holding.unrealizedPnL = holding.marketValue - holding.bookValue;
+        holding.unrealizedPnLPercent = holding.bookValue > 0 
+          ? (holding.unrealizedPnL / holding.bookValue) * 100 
+          : 0;
       }
     }
   }
 
   // Filter out zero quantity holdings
-  const holdings = Array.from(securityMap.values()).filter((h) => h.quantity > 0);
+  const holdings = Array.from(holdingKeyMap.values()).filter((h) => h.quantity > 0);
   console.log(`Calculated ${holdings.length} holdings with quantity > 0`);
   return holdings;
 }

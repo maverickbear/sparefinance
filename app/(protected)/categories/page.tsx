@@ -20,13 +20,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/toast-provider";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import type { Category, Macro } from "@/lib/api/categories-client";
+import { PageHeader } from "@/components/common/page-header";
 
 interface Subcategory {
   id: string;
   name: string;
   categoryId: string;
   userId?: string | null;
+  logo?: string | null;
 }
 
 interface GroupedData {
@@ -36,6 +39,9 @@ interface GroupedData {
 
 export default function CategoriesPage() {
   const { toast } = useToast();
+  const { openDialog: openDeleteCategoryDialog, ConfirmDialog: DeleteCategoryConfirmDialog } = useConfirmDialog();
+  const { openDialog: openDeleteSubcategoryDialog, ConfirmDialog: DeleteSubcategoryConfirmDialog } = useConfirmDialog();
+  const { openDialog: openDeleteGroupDialog, ConfirmDialog: DeleteGroupConfirmDialog } = useConfirmDialog();
   const [categories, setCategories] = useState<Category[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -212,115 +218,138 @@ export default function CategoriesPage() {
     });
   }
 
-  async function handleDeleteCategory(id: string) {
-    if (!confirm("Are you sure you want to delete this category? This will also delete all associated subcategories.")) return;
-
-    const categoryToDelete = categories.find(c => c.id === id);
-    
-    // Optimistic update: remove from UI immediately
-    setCategories(prev => prev.filter(c => c.id !== id));
-    setDeletingCategoryId(id);
-
-    try {
-      const { deleteCategoryClient } = await import("@/lib/api/categories-client");
-      await deleteCategoryClient(id);
-      
-      toast({
-        title: "Category deleted",
-        description: "Your category has been deleted successfully.",
-        variant: "success",
-      });
-      
-      loadData();
-    } catch (error) {
-      console.error("Error deleting category:", error);
-      // Revert optimistic update on error
-      if (categoryToDelete) {
-        setCategories(prev => [...prev, categoryToDelete]);
-      }
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete category";
-      toast({
-        title: "Error",
-        description: errorMessage,
+  function handleDeleteCategory(id: string) {
+    openDeleteCategoryDialog(
+      {
+        title: "Delete Category",
+        description: "Are you sure you want to delete this category? This will also delete all associated subcategories.",
         variant: "destructive",
-      });
-    } finally {
-      setDeletingCategoryId(null);
-    }
+        confirmLabel: "Delete",
+      },
+      async () => {
+        const categoryToDelete = categories.find(c => c.id === id);
+        
+        // Optimistic update: remove from UI immediately
+        setCategories(prev => prev.filter(c => c.id !== id));
+        setDeletingCategoryId(id);
+
+        try {
+          const { deleteCategoryClient } = await import("@/lib/api/categories-client");
+          await deleteCategoryClient(id);
+          
+          toast({
+            title: "Category deleted",
+            description: "Your category has been deleted successfully.",
+            variant: "success",
+          });
+          
+          loadData();
+        } catch (error) {
+          console.error("Error deleting category:", error);
+          // Revert optimistic update on error
+          if (categoryToDelete) {
+            setCategories(prev => [...prev, categoryToDelete]);
+          }
+          const errorMessage = error instanceof Error ? error.message : "Failed to delete category";
+          toast({
+            title: "Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        } finally {
+          setDeletingCategoryId(null);
+        }
+      }
+    );
   }
 
-  async function handleDeleteSubcategory(id: string) {
-    if (!confirm("Are you sure you want to delete this subcategory?")) return;
-
-    setDeletingSubcategoryId(id);
-    try {
-      const { deleteSubcategoryClient } = await import("@/lib/api/categories-client");
-      await deleteSubcategoryClient(id);
-      
-      toast({
-        title: "Subcategory deleted",
-        description: "Your subcategory has been deleted successfully.",
-        variant: "success",
-      });
-      
-      loadData();
-    } catch (error) {
-      console.error("Error deleting subcategory:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete subcategory";
-      toast({
-        title: "Error",
-        description: errorMessage,
+  function handleDeleteSubcategory(id: string) {
+    openDeleteSubcategoryDialog(
+      {
+        title: "Delete Subcategory",
+        description: "Are you sure you want to delete this subcategory?",
         variant: "destructive",
-      });
-    } finally {
-      setDeletingSubcategoryId(null);
-    }
+        confirmLabel: "Delete",
+      },
+      async () => {
+        setDeletingSubcategoryId(id);
+        try {
+          const { deleteSubcategoryClient } = await import("@/lib/api/categories-client");
+          await deleteSubcategoryClient(id);
+          
+          toast({
+            title: "Subcategory deleted",
+            description: "Your subcategory has been deleted successfully.",
+            variant: "success",
+          });
+          
+          loadData();
+        } catch (error) {
+          console.error("Error deleting subcategory:", error);
+          const errorMessage = error instanceof Error ? error.message : "Failed to delete subcategory";
+          toast({
+            title: "Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        } finally {
+          setDeletingSubcategoryId(null);
+        }
+      }
+    );
   }
 
-  async function handleDeleteGroup(macroId: string) {
-    if (!confirm("Are you sure you want to delete this group? This will also delete all associated categories and subcategories.")) return;
-
-    const groupToDelete = macros.find(m => m.id === macroId);
-    
-    // Optimistic update: remove from UI immediately
-    setMacros(prev => prev.filter(m => m.id !== macroId));
-    setDeletingGroupId(macroId);
-
-    try {
-      const { deleteMacroClient } = await import("@/lib/api/categories-client");
-      await deleteMacroClient(macroId);
-      
-      toast({
-        title: "Group deleted",
-        description: "Your group has been deleted successfully.",
-        variant: "success",
-      });
-      
-      loadData();
-    } catch (error) {
-      console.error("Error deleting group:", error);
-      // Revert optimistic update on error
-      if (groupToDelete) {
-        setMacros(prev => [...prev, groupToDelete]);
-      }
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete group";
-      toast({
-        title: "Error",
-        description: errorMessage,
+  function handleDeleteGroup(macroId: string) {
+    openDeleteGroupDialog(
+      {
+        title: "Delete Group",
+        description: "Are you sure you want to delete this group? This will also delete all associated categories and subcategories.",
         variant: "destructive",
-      });
-    } finally {
-      setDeletingGroupId(null);
-    }
+        confirmLabel: "Delete",
+      },
+      async () => {
+        const groupToDelete = macros.find(m => m.id === macroId);
+        
+        // Optimistic update: remove from UI immediately
+        setMacros(prev => prev.filter(m => m.id !== macroId));
+        setDeletingGroupId(macroId);
+
+        try {
+          const { deleteMacroClient } = await import("@/lib/api/categories-client");
+          await deleteMacroClient(macroId);
+          
+          toast({
+            title: "Group deleted",
+            description: "Your group has been deleted successfully.",
+            variant: "success",
+          });
+          
+          loadData();
+        } catch (error) {
+          console.error("Error deleting group:", error);
+          // Revert optimistic update on error
+          if (groupToDelete) {
+            setMacros(prev => [...prev, groupToDelete]);
+          }
+          const errorMessage = error instanceof Error ? error.message : "Failed to delete group";
+          toast({
+            title: "Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        } finally {
+          setDeletingGroupId(null);
+        }
+      }
+    );
   }
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Categories</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Manage your categories and subcategories</p>
-        </div>
+      <PageHeader
+        title="Categories"
+        description="Manage your categories and subcategories"
+      >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="cursor-pointer">
@@ -346,7 +375,7 @@ export default function CategoriesPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </PageHeader>
 
       <div className="space-y-6">
         {/* System Categories Section */}
@@ -421,7 +450,17 @@ export default function CategoriesPage() {
                                           key={subcat.id}
                                           className="group relative inline-flex items-center gap-1"
                                         >
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground">
+                                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground">
+                                            {subcat.logo && (
+                                              <img 
+                                                src={subcat.logo} 
+                                                alt={subcat.name}
+                                                className="h-3 w-3 object-contain rounded"
+                                                onError={(e) => {
+                                                  (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                              />
+                                            )}
                                             {subcat.name}
                                           </span>
                                           {/* Only show delete button for user-created subcategories */}
@@ -568,7 +607,17 @@ export default function CategoriesPage() {
                                           key={subcat.id}
                                           className="group relative inline-flex items-center gap-1"
                                         >
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground">
+                                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground">
+                                            {subcat.logo && (
+                                              <img 
+                                                src={subcat.logo} 
+                                                alt={subcat.name}
+                                                className="h-3 w-3 object-contain rounded"
+                                                onError={(e) => {
+                                                  (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                              />
+                                            )}
                                             {subcat.name}
                                           </span>
                                           {/* Only show delete button for user-created subcategories */}
@@ -654,6 +703,9 @@ export default function CategoriesPage() {
         onOpenChange={setIsGroupDialogOpen}
         onSuccess={loadData}
       />
+      {DeleteCategoryConfirmDialog}
+      {DeleteSubcategoryConfirmDialog}
+      {DeleteGroupConfirmDialog}
     </div>
   );
 }

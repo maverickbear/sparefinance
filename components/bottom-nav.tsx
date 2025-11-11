@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   Receipt,
@@ -14,8 +15,8 @@ import {
   FolderTree,
   Users,
   Settings,
-  User,
   MoreHorizontal,
+  Target,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,19 +29,19 @@ import {
 const mainNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: Receipt },
-  { href: "/budgets", label: "Budgets", icon: PiggyBank },
+  { href: "/planning/budgets", label: "Budgets", icon: Target },
   { href: "/accounts", label: "Accounts", icon: Wallet },
   { href: "/reports", label: "Reports", icon: FileText },
 ];
 
 // Additional navigation items (shown in "More" submenu)
 const moreNavItems = [
+  { href: "/planning/goals", label: "Goals", icon: PiggyBank },
   { href: "/debts", label: "Debts", icon: CreditCard },
   { href: "/investments", label: "Investments", icon: TrendingUp },
   { href: "/categories", label: "Categories", icon: FolderTree },
   { href: "/members", label: "Members", icon: Users },
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/settings", label: "My Account", icon: Settings },
 ];
 
 interface BottomNavProps {
@@ -78,7 +79,7 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card lg:hidden">
       <div className="flex h-16 items-center justify-around">
         {mainNavItems.map((item) => {
           const Icon = item.icon;
@@ -106,15 +107,13 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
         })}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                "flex flex-col items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium transition-colors",
-                "text-muted-foreground hover:text-foreground"
-              )}
+            <Button
+              variant="ghost"
+              className="flex flex-col items-center justify-center gap-1 h-auto py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
             >
               <MoreHorizontal className="h-5 w-5" />
               <span className="text-[10px]">More</span>
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
             side="top"

@@ -1,32 +1,40 @@
 import { Button } from "@/components/ui/button";
-import { ReactNode } from "react";
+import { LucideIcon } from "lucide-react";
 
 interface EmptyStateProps {
-  image?: ReactNode;
+  icon: LucideIcon;
   title: string;
   description: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-  };
+  actionLabel?: string;
+  onAction?: () => void;
+  actionIcon?: LucideIcon;
 }
 
-export function EmptyState({ image, title, description, action }: EmptyStateProps) {
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  actionLabel,
+  onAction,
+  actionIcon: ActionIcon,
+}: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] px-4">
-      {image && (
-        <div className="w-[200px] h-[200px] mb-6 flex items-center justify-center aspect-square">
-          {image}
-        </div>
-      )}
-      <h2 className="text-2xl font-bold mb-2 text-center">{title}</h2>
-      <p className="text-muted-foreground mb-6 text-center max-w-md">{description}</p>
-      {action && (
-        <Button onClick={action.onClick}>
-          {action.label}
-        </Button>
-      )}
+    <div className="flex items-center justify-center min-h-[400px] w-full">
+      <div className="w-full max-w-md py-16 text-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Icon className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">{title}</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            {description}
+          </p>
+          {actionLabel && onAction && (
+            <Button onClick={onAction} size="large">
+              {ActionIcon && <ActionIcon className="mr-2 h-4 w-4" />}
+              {actionLabel}
+            </Button>
+          )}
+      </div>
     </div>
   );
 }
-

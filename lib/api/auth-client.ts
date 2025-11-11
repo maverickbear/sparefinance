@@ -97,7 +97,7 @@ export interface User {
   name?: string;
   avatarUrl?: string;
   phoneNumber?: string;
-  role?: "admin" | "member";
+  role?: "admin" | "member" | "super_admin";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -280,53 +280,11 @@ export async function signInClient(data: SignInFormData): Promise<{ user: User |
         }
       }
 
-      // Create free subscription
-      await supabase
-        .from("Subscription")
-        .insert({
-          id: crypto.randomUUID(),
-          userId: userData.id,
-          planId: "free",
-          status: "active",
-        });
+      // Note: Subscription is NOT created automatically during signin
+      // User must select a plan on /select-plan page if they don't have one
     } else {
-      // Ensure user has a free subscription
-      const { data: existingSubscription } = await supabase
-        .from("Subscription")
-        .select("id, planId, status")
-        .eq("userId", userData.id)
-        .eq("status", "active")
-        .single();
-
-      if (!existingSubscription) {
-        // Ensure free plan exists
-        const { data: existingPlan } = await supabase
-          .from("Plan")
-          .select("id")
-          .eq("id", "free")
-          .single();
-
-        if (!existingPlan) {
-          // Create free plan if it doesn't exist
-          await supabase
-            .from("Plan")
-            .insert({
-              id: "free",
-              name: "Free",
-              price: 0,
-            });
-        }
-
-        // Create free subscription
-        await supabase
-          .from("Subscription")
-          .insert({
-            id: crypto.randomUUID(),
-            userId: userData.id,
-            planId: "free",
-            status: "active",
-          });
-      }
+      // User already exists - no need to create subscription
+      // If they don't have one, they'll be redirected to /select-plan
     }
 
     return { user: mapUser(userData), error: null };
@@ -351,6 +309,8 @@ export async function signOutClient(): Promise<{ error: string | null }> {
 
 /**
  * Get current user from Supabase session
+ * Also verifies that the user exists in the User table
+ * If user doesn't exist, logs out and returns null
  */
 export async function getCurrentUserClient(): Promise<User | null> {
   try {
@@ -366,7 +326,17 @@ export async function getCurrentUserClient(): Promise<User | null> {
       .eq("id", authUser.id)
       .single();
 
+    // If user doesn't exist in User table, logout and return null
     if (userError || !userData) {
+      console.warn(`[getCurrentUserClient] User ${authUser.id} authenticated but not found in User table. Logging out.`);
+      
+      // Logout to clear session
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error("[getCurrentUserClient] Error signing out:", signOutError);
+      }
+      
       return null;
     }
 

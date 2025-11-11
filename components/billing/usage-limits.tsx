@@ -147,7 +147,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={openModal} variant="default" className="h-6 px-2 text-xs">
+                  <Button onClick={openModal} variant="default" size="small" className="text-xs">
                       Upgrade
                   </Button>
                 </>
@@ -162,7 +162,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={openModal} variant="default" className="h-6 px-2 text-xs">
+                  <Button onClick={openModal} variant="default" size="small" className="text-xs">
                       Upgrade
                   </Button>
                 </>
@@ -177,7 +177,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={openModal} variant="default" className="h-6 px-2 text-xs">
+                  <Button onClick={openModal} variant="default" size="small" className="text-xs">
                       Upgrade
                   </Button>
                 </>

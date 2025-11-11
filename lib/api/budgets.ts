@@ -130,7 +130,8 @@ async function getBudgetsInternal(period: Date, accessToken?: string, refreshTok
   if (allTransactions) {
     for (const tx of allTransactions) {
       if (tx.categoryId) {
-        const amount = Number(tx.amount) || 0;
+        // Ensure amount is a positive number (expenses should be positive)
+        const amount = Math.abs(Number(tx.amount) || 0);
         
         // Add to category total (all transactions in this category)
         const currentCategoryTotal = categorySpendMap.get(tx.categoryId) || 0;
@@ -172,16 +173,16 @@ async function getBudgetsInternal(period: Date, accessToken?: string, refreshTok
       }
     }
 
-    // Calculate percentage as remaining budget (decreases as money is spent)
-    // If actualSpend >= budget.amount, percentage = 0 (no budget left)
+    // Calculate percentage as budget USED (increases as money is spent)
+    // If actualSpend >= budget.amount, percentage >= 100 (budget exceeded)
     const remaining = Math.max(0, budget.amount - actualSpend);
-    const percentage = budget.amount > 0 ? (remaining / budget.amount) * 100 : 0;
+    const percentage = budget.amount > 0 ? (actualSpend / budget.amount) * 100 : 0;
 
       let status: "ok" | "warning" | "over" = "ok";
       if (actualSpend >= budget.amount) {
         status = "over";
-      } else if (percentage <= 10) {
-        // Less than 10% remaining
+      } else if (percentage >= 90) {
+        // 90% or more used (less than 10% remaining)
         status = "warning";
       }
 

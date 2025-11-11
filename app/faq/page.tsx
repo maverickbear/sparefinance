@@ -44,15 +44,15 @@ export default function FAQPage() {
       questions: [
         {
           question: "What plans are available?",
-          answer: "We offer three plans: FREE (free), BASIC ($7.99/month or $79.90/year) and PREMIUM ($14.99/month or $149.90/year). The FREE plan allows up to 50 transactions per month and 2 accounts. The BASIC plan offers 500 transactions per month and 10 accounts, including all features. The PREMIUM plan offers unlimited resources.",
+          answer: "We offer two plans: BASIC ($7.99/month or $79.90/year) and PREMIUM ($14.99/month or $149.90/year). Both plans include a 30-day free trial. The BASIC plan offers 500 transactions per month and 10 accounts, including all features. The PREMIUM plan offers unlimited resources.",
         },
         {
-          question: "What is included in the FREE plan?",
-          answer: "The FREE plan includes: basic transaction management (up to 50/month), 2 bank accounts, budget creation, debt management, savings goals definition, and access to the basic dashboard. It does not include investments, advanced reports, CSV export, bank integration, or family members.",
+          question: "Do you offer a free trial?",
+          answer: "Yes! Both BASIC and PREMIUM plans include a 30-day free trial. You can try any plan risk-free for 30 days before being charged. You can cancel anytime during the trial period without being charged.",
         },
         {
           question: "What features are available in the BASIC plan?",
-          answer: "The BASIC plan includes all FREE plan features, plus: complete investments, advanced reports, CSV import/export, bank integration via Plaid, family member management (household members), AI-powered intelligent categorization, and up to 500 transactions per month and 10 accounts.",
+          answer: "The BASIC plan includes: complete investments, advanced reports, CSV import/export, bank integration via Plaid, family member management (household members), AI-powered intelligent categorization, and up to 500 transactions per month and 10 accounts.",
         },
         {
           question: "What's the difference between BASIC and PREMIUM?",
@@ -60,7 +60,7 @@ export default function FAQPage() {
         },
         {
           question: "Can I change plans at any time?",
-          answer: "Yes! You can upgrade or downgrade your plan at any time through your account settings. Upgrade changes are applied immediately, while downgrades are applied at the end of your current billing period.",
+          answer: "Yes! You can upgrade or downgrade your plan at any time through the Stripe Customer Portal. You can access it from your account settings. Upgrade changes are applied immediately, while downgrades are applied at the end of your current billing period.",
         },
         {
           question: "Is there a discount for annual payment?",

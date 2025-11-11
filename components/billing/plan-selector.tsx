@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plan } from "@/lib/validations/plan";
-import { Check, Star } from "lucide-react";
+import { Check } from "lucide-react";
 import { useState } from "react";
 
 interface PlanSelectorProps {
@@ -26,36 +26,73 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
   // Only show interval selector for paid plans
   const hasPaidPlans = sortedPlans.some(p => p.priceMonthly > 0);
 
+  // Helper function to get button text based on plan comparison
+  function getButtonText(plan: Plan, isCurrent: boolean, currentPlanId?: string): string {
+    if (isCurrent) {
+      return "Current";
+    }
+    
+    if (isPublic) {
+      // For paid plans, show "Start 1 Month Trial", for free plan show "Get Started"
+      if (plan.priceMonthly > 0) {
+        return "Start 1 Month Trial";
+      }
+      return "Get Started";
+    }
+
+    if (plan.priceMonthly === 0) {
+      return "Get Started";
+    }
+
+    // For paid plans (Basic and Premium), show "Start 30-day Trial"
+    if (plan.priceMonthly > 0) {
+      return "Start 30-day Trial";
+    }
+
+    // If we have a current plan, determine if it's an upgrade or downgrade
+    if (currentPlanId) {
+      const currentPlan = sortedPlans.find(p => p.id === currentPlanId);
+      if (currentPlan) {
+        if (plan.priceMonthly > currentPlan.priceMonthly) {
+          return "Upgrade";
+        } else if (plan.priceMonthly < currentPlan.priceMonthly) {
+          return "Downgrade";
+        } else {
+          return "Change Plan";
+        }
+      }
+    }
+
+    // Default to "Upgrade" if we can't determine
+    return "Upgrade";
+  }
+
   return (
     <div className="space-y-6">
       {hasPaidPlans && (
         <div className="flex justify-center">
           <div className="inline-flex rounded-[12px] border p-1 bg-muted">
-            <button
+            <Button
               type="button"
+              variant={interval === "month" ? "default" : "ghost"}
+              size="small"
               onClick={() => setInterval("month")}
-              className={`px-4 py-2 rounded-[12px] text-sm font-medium transition-colors ${
-                interval === "month"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={interval === "month" ? "shadow-sm" : ""}
             >
               Monthly
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant={interval === "year" ? "default" : "ghost"}
+              size="small"
               onClick={() => setInterval("year")}
-              className={`px-4 py-2 rounded-[12px] text-sm font-medium transition-colors flex items-center gap-2 ${
-                interval === "year"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`flex items-center gap-2 ${interval === "year" ? "shadow-sm" : ""}`}
             >
               Yearly
               <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-[10px] px-1.5 py-0 h-4 font-semibold">
                 10% OFF
               </Badge>
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -224,13 +261,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                           disabled={isCurrent || loading}
                           onClick={() => onSelectPlan(plan.id, interval)}
                         >
-                          {isCurrent 
-                            ? "Current Plan" 
-                            : isPublic 
-                              ? `Get ${plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan`
-                              : price === 0 
-                                ? "Get Started" 
-                                : "Upgrade"}
+                          {getButtonText(plan, isCurrent, currentPlanId)}
                         </Button>
                       </td>
                     );
@@ -242,7 +273,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
         </div>
       ) : (
         // Card view
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[24px] justify-items-center max-w-4xl mx-auto">
           {sortedPlans.map((plan) => {
             const monthlyPrice = plan.priceMonthly;
             const yearlyPrice = plan.priceYearly;
@@ -304,29 +335,18 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
               allFeatures.push("Bank account integration");
             }
 
-            const isPopular = plan.name === "basic";
             const isPremium = plan.name === "premium";
             const isFree = plan.name === "free";
             
             return (
               <Card 
                 key={plan.id} 
-                className={`relative transition-all border flex flex-col h-full ${
+                className={`relative transition-all border flex flex-col h-full w-full max-w-sm ${
                   isFree || isCurrent
                     ? "border-border" 
-                    : isPopular 
-                      ? "border-primary ring-2 ring-primary/30 shadow-lg bg-gradient-to-br from-primary/5 to-primary/10" 
-                      : "border-border"
-                } ${isCurrent || isPopular ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
+                    : "border-border"
+                } ${isCurrent ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
               >
-                {isPopular && !isCurrent && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                    <Badge className="bg-primary text-primary-foreground px-3 py-1 text-xs font-semibold flex items-center gap-1.5 shadow-md">
-                      <Star className="h-3.5 w-3.5 fill-current" />
-                      Popular
-                    </Badge>
-                  </div>
-                )}
                 <CardHeader className="pt-6 pb-4">
                   <CardTitle className="text-xl mb-1">
                     {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)}
@@ -361,21 +381,20 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                     ))}
                   </ul>
                 </CardContent>
-                <CardFooter className="pt-4 mt-auto">
+                <CardFooter className="pt-4 mt-auto flex flex-col gap-2">
                   <Button
                     className="w-full"
-                    variant={isCurrent ? "secondary" : isPopular ? "default" : "outline"}
+                    variant={isCurrent ? "secondary" : "default"}
                     disabled={isCurrent || loading}
                     onClick={() => onSelectPlan(plan.id, interval)}
                   >
-                    {isCurrent 
-                      ? "Current" 
-                      : isPublic 
-                        ? `Get ${plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan`
-                        : price === 0 
-                          ? "Get Started" 
-                          : "Upgrade"}
+                    {getButtonText(plan, isCurrent, currentPlanId)}
                   </Button>
+                  {!isCurrent && plan.priceMonthly > 0 && (
+                    <p className="text-xs text-center text-muted-foreground">
+                      No credit card required for trial
+                    </p>
+                  )}
                 </CardFooter>
               </Card>
             );
@@ -385,7 +404,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
 
       {/* Disclaimer */}
       <div className="mt-8 pt-6 border-t">
-        <div className="max-w-3xl mx-auto text-center space-y-2">
+        <div className="w-full text-center space-y-2">
           <p className="text-sm text-muted-foreground">
             <strong className="text-foreground">Important:</strong> All plans can be canceled at any time with no commitment. 
             You'll retain access to your plan features until the end of your current billing period. 

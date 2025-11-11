@@ -28,19 +28,6 @@ interface FinancialHealthWidgetProps {
 export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses }: FinancialHealthWidgetProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Log data for debugging
-  console.log("🔍 [FinancialHealthWidget] Received data:", {
-    hasData: !!data,
-    score: data?.score,
-    classification: data?.classification,
-    monthlyIncome: data?.monthlyIncome,
-    monthlyExpenses: data?.monthlyExpenses,
-    netAmount: data?.netAmount,
-    savingsRate: data?.savingsRate,
-    alertsCount: data?.alerts?.length || 0,
-    suggestionsCount: data?.suggestions?.length || 0,
-  });
-
   const getClassificationColor = (classification: string) => {
     switch (classification) {
       case "Excellent":

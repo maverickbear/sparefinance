@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -57,49 +56,8 @@ export function GoalsDemo() {
     Low: "bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-500 dark:hover:bg-blue-600",
   };
 
-  const [scrollY, setScrollY] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
-        const elementTop = rect.top;
-        const elementBottom = rect.bottom;
-        
-        const isInViewport = elementTop < windowHeight && elementBottom > 0;
-        setIsVisible(isInViewport);
-
-        if (isInViewport) {
-          const scrollProgress = Math.max(
-            0,
-            Math.min(1, (windowHeight - elementTop) / (windowHeight + rect.height))
-          );
-          setScrollY(scrollProgress);
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const parallaxOffset = (scrollY - 0.5) * 150;
-
   return (
-    <div 
-      ref={containerRef}
-      className="space-y-4 pointer-events-none"
-      style={{
-        transform: `translateY(${-parallaxOffset * 0.4}px)`,
-        opacity: isVisible ? 1 : 0.3,
-        transition: "transform 0.1s ease-out, opacity 0.3s ease-out",
-      }}
-    >
+    <div className="space-y-4 pointer-events-none">
         {mockGoals.map((goal) => (
           <Card key={goal.id} className={goal.isCompleted ? "opacity-75" : ""}>
             <CardHeader>

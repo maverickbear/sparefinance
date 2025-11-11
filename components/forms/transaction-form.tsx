@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -21,19 +22,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import type { Transaction } from "@/lib/api/transactions-client";
 import { LimitWarning } from "@/components/billing/limit-warning";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
+import { cn } from "@/lib/utils";
 
 interface TransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction | null;
   onSuccess?: () => void;
-  defaultType?: "expense" | "income";
+  defaultType?: "expense" | "income" | "transfer";
 }
 
 interface Account {
@@ -42,15 +57,14 @@ interface Account {
   type: string;
 }
 
-interface Macro {
-  id: string;
-  name: string;
-}
-
 interface Category {
   id: string;
   name: string;
-  macroId: string;
+  macroId?: string;
+  macro?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface Subcategory {
@@ -62,11 +76,11 @@ interface Subcategory {
 export function TransactionForm({ open, onOpenChange, transaction, onSuccess, defaultType = "expense" }: TransactionFormProps) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [macros, setMacros] = useState<Macro[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [selectedMacroId, setSelectedMacroId] = useState<string>("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
   const [transactionLimit, setTransactionLimit] = useState<{ current: number; limit: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -87,14 +101,18 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       if (transaction) {
         form.reset({
           date: new Date(transaction.date),
-          type: transaction.type as "expense" | "income",
+          type: transaction.type as "expense" | "income" | "transfer",
           amount: transaction.amount,
           accountId: transaction.accountId,
+          toAccountId: (transaction as any).toAccountId || undefined,
           categoryId: transaction.categoryId || undefined,
           subcategoryId: transaction.subcategoryId || undefined,
           description: transaction.description || "",
           recurring: transaction.recurring ?? false,
         });
+        if (transaction.categoryId) {
+          setSelectedCategoryId(transaction.categoryId);
+        }
       } else {
         form.reset({
           date: new Date(),
@@ -102,26 +120,31 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           amount: 0,
           recurring: false,
         });
-        setSelectedMacroId("");
         setSelectedCategoryId("");
-        setCategories([]);
         setSubcategories([]);
+        setCategorySearch("");
       }
     }
   }, [open, transaction]);
 
-  // Load categories after macros are loaded
+  // Load subcategories when category is selected
   useEffect(() => {
-    if (open && transaction && transaction.categoryId && macros.length > 0) {
-      loadCategoriesForTransaction(transaction);
+    if (open && transaction && transaction.categoryId) {
+      loadSubcategoriesForTransaction(transaction);
     }
-  }, [macros, open, transaction]);
+  }, [open, transaction]);
+
+  // Sync selectedCategoryId with form categoryId when form changes
+  const formCategoryId = form.watch("categoryId");
+  useEffect(() => {
+    setSelectedCategoryId(formCategoryId || "");
+  }, [formCategoryId]);
 
   async function loadData() {
     try {
-      const [accountsRes, macrosRes] = await Promise.all([
+      const [accountsRes, categoriesRes] = await Promise.all([
         fetch("/api/accounts"),
-        fetch("/api/categories"),
+        fetch("/api/categories?all=true"),
       ]);
 
       // Check if responses are ok before parsing JSON
@@ -133,17 +156,27 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         setAccounts(accountsData);
       }
 
-      if (!macrosRes.ok) {
-        console.error("Error fetching categories:", macrosRes.status, macrosRes.statusText);
-        setMacros([]);
+      if (!categoriesRes.ok) {
+        console.error("Error fetching categories:", categoriesRes.status, categoriesRes.statusText);
+        setAllCategories([]);
       } else {
-        const macrosData = await macrosRes.json().catch(() => []);
-        setMacros(macrosData);
+        const categoriesData = await categoriesRes.json().catch(() => []);
+        // Process categories to ensure macro is properly formatted
+        const processedCategories = (categoriesData || []).map((cat: any) => ({
+          ...cat,
+          // Handle macro - it can be an object, array, or null
+          macro: Array.isArray(cat.macro) 
+            ? (cat.macro.length > 0 ? cat.macro[0] : null)
+            : cat.macro || null,
+        }));
+        console.log("Loaded categories:", processedCategories.length, "categories");
+        console.log("Sample category:", processedCategories[0]);
+        setAllCategories(processedCategories);
       }
     } catch (error) {
       console.error("Error loading data:", error);
       setAccounts([]);
-      setMacros([]);
+      setAllCategories([]);
     }
   }
 
@@ -162,97 +195,32 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
     }
   }
 
-  async function loadCategoriesForTransaction(tx: Transaction) {
+  async function loadSubcategoriesForTransaction(tx: Transaction) {
     if (!tx.categoryId) return;
     
-    let macroId: string | undefined;
-    
-    // Try to get macroId from tx.category first
-    // Note: category from Transaction type doesn't have macroId, so we skip this check
-    // We'll need to fetch it from the categories list if needed
-    // If macro not available, fetch from API
-      try {
-        const categoryRes = await fetch(`/api/categories?all=true`);
-        if (!categoryRes.ok) {
-          console.error("Error fetching categories:", categoryRes.status, categoryRes.statusText);
-          return;
-        }
-        const allCategories = await categoryRes.json().catch(() => []);
-        const category = allCategories.find((c: Category) => c.id === tx.categoryId);
-        if (category) {
-          if (typeof category.macro === 'object' && category.macro?.id) {
-            macroId = category.macro.id;
-          } else if (typeof category.macro === 'string') {
-            macroId = category.macro;
-          } else if (category.macroId) {
-            macroId = category.macroId;
-          }
-        }
-      } catch (error) {
-        console.error("Error loading category info:", error);
-      }
-    
-    if (macroId) {
-      const macro = macros.find((m) => m.id === macroId);
-      if (macro) {
-        setSelectedMacroId(macro.id);
-        const res = await fetch(`/api/categories?macroId=${macroId}`);
-        if (res.ok) {
-          const cats = await res.json().catch(() => []);
-          setCategories(cats);
-          setSelectedCategoryId(tx.categoryId || "");
-          if (tx.subcategoryId) {
-            const subcatsRes = await fetch(`/api/categories?categoryId=${tx.categoryId}`);
-            if (subcatsRes.ok) {
-              const subcats = await subcatsRes.json().catch(() => []);
-              setSubcategories(subcats);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  async function handleMacroChange(macroId: string) {
-    setSelectedMacroId(macroId || "");
+    setSelectedCategoryId(tx.categoryId);
     try {
-      if (macroId) {
-        const res = await fetch(`/api/categories?macroId=${macroId}`);
-        if (res.ok) {
-          const cats = await res.json().catch(() => []);
-          setCategories(cats);
-          setSubcategories([]);
-          // Only clear category if we're changing macro (not on initial load)
-          if (selectedMacroId && selectedMacroId !== macroId) {
-            form.setValue("categoryId", undefined);
-            form.setValue("subcategoryId", undefined);
-          }
-        } else {
-          console.error("Error fetching categories:", res.status, res.statusText);
-          setCategories([]);
-        }
-      } else {
-        setCategories([]);
-        setSubcategories([]);
-        form.setValue("categoryId", undefined);
-        form.setValue("subcategoryId", undefined);
+      const subcatsRes = await fetch(`/api/categories?categoryId=${tx.categoryId}`);
+      if (subcatsRes.ok) {
+        const subcats = await subcatsRes.json().catch(() => []);
+        setSubcategories(subcats);
       }
     } catch (error) {
-      console.error("Error loading categories:", error);
-      setCategories([]);
-      setSubcategories([]);
+      console.error("Error loading subcategories:", error);
     }
   }
 
   async function handleCategoryChange(categoryId: string) {
+    console.log("handleCategoryChange called with:", categoryId);
     setSelectedCategoryId(categoryId);
+    form.setValue("categoryId", categoryId);
+    form.setValue("subcategoryId", undefined);
+    setCategoryOpen(false);
     try {
       const res = await fetch(`/api/categories?categoryId=${categoryId}`);
       if (res.ok) {
         const subcats = await res.json().catch(() => []);
         setSubcategories(subcats);
-        form.setValue("categoryId", categoryId);
-        form.setValue("subcategoryId", undefined);
       } else {
         console.error("Error fetching subcategories:", res.status, res.statusText);
         setSubcategories([]);
@@ -341,7 +309,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{transaction ? "Edit" : "Add"} Transaction</DialogTitle>
           <DialogDescription>
@@ -359,131 +327,246 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
               type="transactions"
             />
           )}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Date</label>
-              <Input
-                type="date"
-                {...form.register("date", { valueAsDate: true })}
-                value={
-                  form.watch("date") && form.watch("date") instanceof Date && !isNaN(form.watch("date").getTime())
-                    ? form.watch("date").toISOString().split("T")[0]
-                    : ""
-                }
-                onChange={(e) => {
-                  const date = e.target.value ? new Date(e.target.value) : new Date();
-                  form.setValue("date", date);
-                }}
-              />
+          <div className="space-y-4">
+            {/* Date and Type row */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  Date
+                </label>
+                <Input
+                  type="date"
+                  {...form.register("date", { valueAsDate: true })}
+                  value={
+                    form.watch("date") && form.watch("date") instanceof Date && !isNaN(form.watch("date").getTime())
+                      ? form.watch("date").toISOString().split("T")[0]
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const date = e.target.value ? new Date(e.target.value) : new Date();
+                    form.setValue("date", date);
+                  }}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  Type
+                </label>
+                <Tabs
+                  value={form.watch("type")}
+                  onValueChange={(value) => {
+                    const newType = value as "expense" | "income" | "transfer";
+                    form.setValue("type", newType);
+                  // Clear category/subcategory for transfers
+                  if (newType === "transfer") {
+                    form.setValue("categoryId", undefined);
+                    form.setValue("subcategoryId", undefined);
+                    setSelectedCategoryId("");
+                    setSubcategories([]);
+                  }
+                  }}
+                  className="w-full"
+                  required
+                >
+                  <TabsList className="h-12 w-full grid grid-cols-3">
+                    <TabsTrigger value="expense" className="text-sm">Expense</TabsTrigger>
+                    <TabsTrigger value="income" className="text-sm">Income</TabsTrigger>
+                    <TabsTrigger value="transfer" className="text-sm">Transfer</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Type</label>
-              <Select
-                value={form.watch("type")}
-                onValueChange={(value) => {
-                  const newType = value as "expense" | "income";
-                  form.setValue("type", newType);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expense">Expense</SelectItem>
-                  <SelectItem value="income">Income</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Amount and Account row */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  Amount
+                </label>
+                <DollarAmountInput
+                  value={form.watch("amount") || undefined}
+                  onChange={(value) => form.setValue("amount", value ?? 0, { shouldValidate: true })}
+                  placeholder="$ 0.00"
+                  required
+                />
+                {form.formState.errors.amount && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.amount.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  {form.watch("type") === "transfer" ? "From Account" : "Account"}
+                </label>
+                <Select
+                  value={form.watch("accountId")}
+                  onValueChange={(value) => form.setValue("accountId", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Account</label>
-              <Select
-                value={form.watch("accountId")}
-                onValueChange={(value) => form.setValue("accountId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Group</label>
-                  <Select 
-                    value={selectedMacroId || undefined} 
-                    onValueChange={handleMacroChange}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select group" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {macros.map((macro) => (
-                        <SelectItem key={macro.id} value={macro.id}>
-                          {macro.name}
+            {/* To Account (only for transfers) */}
+            {form.watch("type") === "transfer" && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  To Account
+                </label>
+                <Select
+                  value={form.watch("toAccountId") || ""}
+                  onValueChange={(value) => form.setValue("toAccountId", value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select destination account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts
+                      .filter((account) => account.id !== form.watch("accountId"))
+                      .map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedMacroId && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-6 text-xs"
-                      onClick={() => handleMacroChange("")}
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-
-                {(categories.length > 0 || form.watch("categoryId")) && (
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Category</label>
-                    <Select
-                      value={form.watch("categoryId") || undefined}
-                      onValueChange={(value) => {
-                        if (value) {
-                          handleCategoryChange(value);
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {form.watch("categoryId") && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-6 text-xs"
-                        onClick={() => {
-                          form.setValue("categoryId", undefined);
-                          form.setValue("subcategoryId", undefined);
-                          setSelectedCategoryId("");
-                          setSubcategories([]);
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    )}
-                  </div>
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.toAccountId && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.toAccountId.message}
+                  </p>
                 )}
+              </div>
+            )}
+
+            {/* Category and Subcategory row (only for non-transfers) */}
+            {form.watch("type") !== "transfer" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Category</label>
+                  <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={categoryOpen}
+                        className="w-full justify-between h-12"
+                      >
+                        {(() => {
+                          const categoryId = formCategoryId || selectedCategoryId;
+                          if (categoryId && allCategories.length > 0) {
+                            const category = allCategories.find((c) => c.id === categoryId);
+                            return category?.name || "Select category...";
+                          }
+                          return "Select category...";
+                        })()}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                      <Command shouldFilter={false}>
+                        <CommandInput 
+                          placeholder="Search category..." 
+                          value={categorySearch}
+                          onValueChange={setCategorySearch}
+                        />
+                        <CommandList className="max-h-[300px] overflow-y-auto">
+                          {(() => {
+                            // Group categories by macro
+                            const categoriesByMacro = new Map<string, Category[]>();
+                            
+                            if (allCategories.length === 0) {
+                              return <CommandEmpty>No categories available.</CommandEmpty>;
+                            }
+                            
+                            // Filter categories based on search
+                            const filteredCategories = categorySearch
+                              ? allCategories.filter((cat) =>
+                                  cat.name.toLowerCase().includes(categorySearch.toLowerCase())
+                                )
+                              : allCategories;
+                            
+                            if (filteredCategories.length === 0) {
+                              return <CommandEmpty>No category found.</CommandEmpty>;
+                            }
+                            
+                            filteredCategories.forEach((category) => {
+                              // Get macro name - handle different formats from Supabase
+                              let macroName = 'Uncategorized';
+                              
+                              if (category.macro) {
+                                // Macro can be an object with name property
+                                if (typeof category.macro === 'object' && 'name' in category.macro) {
+                                  macroName = category.macro.name;
+                                } else if (Array.isArray(category.macro) && category.macro.length > 0) {
+                                  macroName = category.macro[0]?.name || 'Uncategorized';
+                                }
+                              } else if (category.macroId) {
+                                // If we only have macroId, we can't get the name without another query
+                                // For now, use macroId as fallback
+                                macroName = category.macroId;
+                              }
+                              
+                              if (!categoriesByMacro.has(macroName)) {
+                                categoriesByMacro.set(macroName, []);
+                              }
+                              categoriesByMacro.get(macroName)!.push(category);
+                            });
+
+                            // Sort macros alphabetically
+                            const sortedMacros = Array.from(categoriesByMacro.entries()).sort((a, b) => 
+                              a[0].localeCompare(b[0])
+                            );
+
+                            return sortedMacros.map(([macroName, categories]) => {
+                              // Sort categories within each macro alphabetically
+                              const sortedCategories = [...categories].sort((a, b) => 
+                                a.name.localeCompare(b.name)
+                              );
+                              
+                              return (
+                                <CommandGroup key={macroName} heading={macroName}>
+                                  {sortedCategories.map((category) => (
+                                  <CommandItem
+                                    key={category.id}
+                                    onSelect={() => {
+                                      console.log("CommandItem onSelect triggered:", category.name, category.id);
+                                      handleCategoryChange(category.id);
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        selectedCategoryId === category.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {category.name}
+                                  </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              );
+                            });
+                          })()}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
                 {(subcategories.length > 0 || form.watch("subcategoryId")) && (
                   <div className="space-y-1">
@@ -507,37 +590,12 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                         ))}
                       </SelectContent>
                     </Select>
-                    {form.watch("subcategoryId") && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-6 text-xs"
-                        onClick={() => {
-                          form.setValue("subcategoryId", undefined);
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    )}
                   </div>
                 )}
-            </>
+              </div>
+            )}
 
             <div className="space-y-1">
-              <label className="text-sm font-medium">Amount</label>
-              <DollarAmountInput
-                value={form.watch("amount") || undefined}
-                onChange={(value) => form.setValue("amount", value ?? 0, { shouldValidate: true })}
-                placeholder="$ 0.00"
-              />
-              {form.formState.errors.amount && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.amount.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1 md:col-span-2">
               <label className="text-sm font-medium">Description</label>
               <Input {...form.register("description")} />
             </div>

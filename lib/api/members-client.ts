@@ -113,13 +113,24 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
 }
 
 /**
- * Get user's role (admin or member)
+ * Get user's role (admin, member, or super_admin)
  */
-export async function getUserRoleClient(): Promise<"admin" | "member" | null> {
+export async function getUserRoleClient(): Promise<"admin" | "member" | "super_admin" | null> {
   const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !authUser) {
     return null;
+  }
+
+  // First check User table for role (includes super_admin)
+  const { data: userData } = await supabase
+    .from("User")
+    .select("role")
+    .eq("id", authUser.id)
+    .single();
+
+  if (userData?.role === "super_admin") {
+    return "super_admin";
   }
 
   // Check if user owns a household
@@ -144,6 +155,11 @@ export async function getUserRoleClient(): Promise<"admin" | "member" | null> {
 
   if (memberHousehold) {
     return memberHousehold.role as "admin" | "member";
+  }
+
+  // Fallback to User table role if no household member record exists
+  if (userData?.role) {
+    return userData.role as "admin" | "member" | "super_admin";
   }
 
   return null;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMacros, getCategoriesByMacro, getSubcategoriesByCategory, getAllCategories } from "@/lib/api/categories";
+import { getMacros, getCategoriesByMacro, getSubcategoriesByCategory, getAllCategories, createCategory } from "@/lib/api/categories";
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +33,29 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching categories:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch categories" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { name, macroId } = body;
+
+    if (!name || !macroId) {
+      return NextResponse.json(
+        { error: "Name and macroId are required" },
+        { status: 400 }
+      );
+    }
+
+    const category = await createCategory({ name, macroId });
+    return NextResponse.json(category, { status: 201 });
+  } catch (error) {
+    console.error("Error creating category:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to create category" },
       { status: 500 }
     );
   }

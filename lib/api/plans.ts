@@ -21,6 +21,9 @@ const subscriptionCache = new Map<string,
 >();
 const SUBSCRIPTION_CACHE_TTL = 30 * 1000; // 30 seconds
 
+// Track invalidation timestamps to force cache bypass
+const invalidationTimestamps = new Map<string, number>();
+
 // Request-level memoization to prevent duplicate calls in the same request
 const requestCache = new Map<string, Promise<Subscription | null>>();
 
@@ -32,6 +35,8 @@ export async function invalidateSubscriptionCache(userId: string): Promise<void>
   subscriptionCache.delete(userId);
   // Also invalidate request cache
   requestCache.delete(`subscription:${userId}`);
+  // Set invalidation timestamp to force cache bypass
+  invalidationTimestamps.set(userId, Date.now());
   // Also invalidate for any members of this user's household
   // (since members inherit the owner's subscription)
   // Note: This is a simple implementation - in production you might want
@@ -46,6 +51,7 @@ async function refreshPlansCache(): Promise<void> {
     const { data: plans, error } = await supabase
       .from("Plan")
       .select("*")
+      .neq("id", "free") // Exclude free plan
       .order("priceMonthly", { ascending: true });
 
     if (error || !plans) {
@@ -56,10 +62,12 @@ async function refreshPlansCache(): Promise<void> {
     // Clear existing cache
     plansCache.clear();
     
-    // Populate cache
+    // Populate cache (excluding free plan)
     plans.forEach(plan => {
-      const mappedPlan = mapPlan(plan);
-      plansCache.set(mappedPlan.id, mappedPlan);
+      if (plan.id !== "free") {
+        const mappedPlan = mapPlan(plan);
+        plansCache.set(mappedPlan.id, mappedPlan);
+      }
     });
     
     cacheTimestamp = Date.now();
@@ -137,12 +145,15 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
     // Check persistent cache (both results and in-flight promises)
     const now = Date.now();
     const cached = subscriptionCache.get(userId);
+    const invalidationTime = invalidationTimestamps.get(userId);
     
     if (cached) {
       // Check if cache entry is still valid
       const isExpired = (now - cached.timestamp) >= SUBSCRIPTION_CACHE_TTL;
+      // Check if cache was invalidated after this entry was created
+      const wasInvalidated = invalidationTime && invalidationTime > cached.timestamp;
       
-      if (!isExpired) {
+      if (!isExpired && !wasInvalidated) {
         if (cached.type === 'result') {
           // We have a cached result
           console.log("[PLANS] getUserSubscription - Using persistent cache result for:", userId);
@@ -229,6 +240,24 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
   }
 }
 
+/**
+ * Check if a trial subscription is still valid (not expired)
+ */
+function isTrialValid(subscription: any): boolean {
+  if (subscription.status !== "trialing") {
+    return true; // Not a trial, so it's valid
+  }
+  
+  if (!subscription.trialEndDate) {
+    return false; // Trial without end date is invalid
+  }
+  
+  const trialEndDate = new Date(subscription.trialEndDate);
+  const now = new Date();
+  
+  return trialEndDate > now; // Trial is valid if end date is in the future
+}
+
 async function fetchUserSubscription(userId: string): Promise<Subscription | null> {
     const supabase = await createServerClient();
     
@@ -250,12 +279,12 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
     
     if (isMember && ownerId) {
       // User is a household member, inherit plan from owner
-      // Get owner's subscription
+      // Get owner's subscription (active or trialing)
       const { data: ownerSubscription, error: ownerError } = await supabase
         .from("Subscription")
         .select("*")
         .eq("userId", ownerId)
-        .eq("status", "active")
+        .in("status", ["active", "trialing"])
         .order("createdAt", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -266,33 +295,25 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
 
       console.log("[PLANS] getUserSubscription - ownerSubscription:", ownerSubscription ? { planId: ownerSubscription.planId, status: ownerSubscription.status } : null);
 
-      if (ownerSubscription) {
-        // Owner has a subscription, return it as shadow subscription for the member
+      if (ownerSubscription && isTrialValid(ownerSubscription)) {
+        // Owner has a valid subscription, return it as shadow subscription for the member
         // Only inherit if owner has Basic or Premium plan
         const ownerPlanId = ownerSubscription.planId;
         console.log("[PLANS] getUserSubscription - ownerPlanId:", ownerPlanId);
         
         if (ownerPlanId === "basic" || ownerPlanId === "premium") {
           console.log("[PLANS] getUserSubscription - Returning shadow subscription for member:", userId, "with plan:", ownerPlanId);
+          const mapped = mapSubscription(ownerSubscription);
           return {
-            id: ownerSubscription.id,
+            ...mapped,
             userId, // Use member's userId, but owner's subscription data
-            planId: ownerPlanId,
-            status: ownerSubscription.status,
-            stripeSubscriptionId: ownerSubscription.stripeSubscriptionId,
-            stripeCustomerId: ownerSubscription.stripeCustomerId,
-            currentPeriodStart: ownerSubscription.currentPeriodStart ? new Date(ownerSubscription.currentPeriodStart) : null,
-            currentPeriodEnd: ownerSubscription.currentPeriodEnd ? new Date(ownerSubscription.currentPeriodEnd) : null,
-            cancelAtPeriodEnd: ownerSubscription.cancelAtPeriodEnd || false,
-            createdAt: ownerSubscription.createdAt ? new Date(ownerSubscription.createdAt) : new Date(),
-            updatedAt: ownerSubscription.updatedAt ? new Date(ownerSubscription.updatedAt) : new Date(),
           };
         } else {
-          console.log("[PLANS] getUserSubscription - Owner has Free plan, member will get Free");
+          console.log("[PLANS] getUserSubscription - Owner has no valid plan, member will have no subscription");
         }
-        // If owner has Free plan, fall through to return Free for member
+        // If owner has no valid plan, fall through to return null
       } else {
-        console.log("[PLANS] getUserSubscription - Owner has no active subscription");
+        console.log("[PLANS] getUserSubscription - Owner has no active subscription or trial expired");
       }
       // If owner has no subscription or has Free, return Free for member
     } else {
@@ -304,7 +325,7 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
       .from("Subscription")
       .select("*")
       .eq("userId", userId)
-      .eq("status", "active")
+      .in("status", ["active", "trialing"])
       .order("createdAt", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -320,6 +341,12 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
       // User must select a plan on /select-plan page
       // This allows users to choose their plan before being redirected to dashboard
       return null;
+    }
+
+    // Check if trial is still valid
+    if (!isTrialValid(subscription)) {
+      console.log("[PLANS] getUserSubscription - Trial expired for subscription:", subscription.id);
+      return null; // Trial expired, user needs to subscribe
     }
 
     return mapSubscription(subscription);
@@ -360,12 +387,12 @@ export async function checkPlanLimits(
     const userSubscription = subscription ?? await getUserSubscription(userId);
     
     if (!userSubscription) {
-      // Default to free plan
-      const freePlan = await getPlanById("free");
+      // No subscription - user needs to select a plan
+      // Return null plan with default (restrictive) limits
       return {
-        plan: freePlan,
+        plan: null,
         subscription: null,
-        limits: freePlan?.features || getDefaultFeatures(),
+        limits: getDefaultFeatures(),
       };
     }
 
@@ -427,6 +454,8 @@ function mapSubscription(data: any): Subscription {
     stripeCustomerId: data.stripeCustomerId,
     currentPeriodStart: data.currentPeriodStart ? new Date(data.currentPeriodStart) : null,
     currentPeriodEnd: data.currentPeriodEnd ? new Date(data.currentPeriodEnd) : null,
+    trialStartDate: data.trialStartDate ? new Date(data.trialStartDate) : null,
+    trialEndDate: data.trialEndDate ? new Date(data.trialEndDate) : null,
     cancelAtPeriodEnd: data.cancelAtPeriodEnd || false,
     createdAt: new Date(data.createdAt),
     updatedAt: new Date(data.updatedAt),
@@ -447,7 +476,7 @@ function getDefaultFeatures(): PlanFeatures {
 }
 
 export interface UserPlanInfo {
-  name: "free" | "basic" | "premium";
+  name: "basic" | "premium";
   isShadow: boolean; // true se herdado do owner
   ownerId?: string; // se for shadow subscription
   ownerName?: string; // nome do owner (se for shadow)
@@ -510,32 +539,29 @@ export async function getUserPlanInfo(userId: string): Promise<UserPlanInfo | nu
             ownerName: owner?.name || owner?.email || undefined,
           };
         }
-        // If owner has Free plan, fall through to return Free
+        // If owner has no valid plan, fall through to return null
       }
-      // If owner has no subscription or has Free, return Free for member
+      // If owner has no subscription or invalid plan, return null for member
     }
     
-    // User is not a member, or owner has Free/no subscription - check user's own subscription
+    // User is not a member, or owner has no valid subscription - check user's own subscription
     const subscription = await getUserSubscription(userId);
     
     if (subscription) {
-      return {
-        name: subscription.planId as "free" | "basic" | "premium",
-        isShadow: false,
-      };
+      const planId = subscription.planId;
+      if (planId === "basic" || planId === "premium") {
+        return {
+          name: planId as "basic" | "premium",
+          isShadow: false,
+        };
+      }
     }
 
-    // Default to free
-    return {
-      name: "free",
-      isShadow: false,
-    };
+    // No valid subscription - return null (user needs to select a plan)
+    return null;
   } catch (error) {
     console.error("[PLANS] Error in getUserPlanInfo:", error);
-    return {
-      name: "free",
-      isShadow: false,
-    };
+    return null;
   }
 }
 

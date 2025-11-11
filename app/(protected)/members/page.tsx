@@ -14,6 +14,7 @@ import { MemberForm } from "@/components/members/member-form";
 import type { HouseholdMember } from "@/lib/api/members-client";
 import { usePlanLimits } from "@/hooks/use-plan-limits";
 import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
+import { EmptyState } from "@/components/common/empty-state";
 import {
   Table,
   TableBody,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { InvitationStatus } from "@/components/members/invitation-status";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 // Members helper
 function getInitials(name: string | null | undefined): string {
@@ -36,6 +38,7 @@ function getInitials(name: string | null | undefined): string {
 }
 
 export default function MembersPage() {
+  const { openDialog, ConfirmDialog } = useConfirmDialog();
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | undefined>(undefined);
@@ -78,22 +81,28 @@ export default function MembersPage() {
     }
   }
 
-  async function handleDelete(member: HouseholdMember) {
-    if (!confirm(`Are you sure you want to remove ${member.name || member.email} from your household?`)) {
-      return;
-    }
-
-    setDeletingId(member.id);
-    try {
-      const { deleteMemberClient } = await import("@/lib/api/members-client");
-      await deleteMemberClient(member.id);
-      loadMembers();
-    } catch (error) {
-      console.error("Error removing member:", error);
-      alert(error instanceof Error ? error.message : "Failed to remove member");
-    } finally {
-      setDeletingId(null);
-    }
+  function handleDelete(member: HouseholdMember) {
+    openDialog(
+      {
+        title: "Remove Member",
+        description: `Are you sure you want to remove ${member.name || member.email} from your household?`,
+        variant: "destructive",
+        confirmLabel: "Remove",
+      },
+      async () => {
+        setDeletingId(member.id);
+        try {
+          const { deleteMemberClient } = await import("@/lib/api/members-client");
+          await deleteMemberClient(member.id);
+          loadMembers();
+        } catch (error) {
+          console.error("Error removing member:", error);
+          alert(error instanceof Error ? error.message : "Failed to remove member");
+        } finally {
+          setDeletingId(null);
+        }
+      }
+    );
   }
 
   async function handleResend(member: HouseholdMember) {
@@ -132,11 +141,13 @@ export default function MembersPage() {
   if (!limitsLoading && !hasHouseholdMembersAccess) {
     return (
       <div className="space-y-4 md:space-y-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Household Members</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Manage household members and invitations
-          </p>
+        <div className="space-y-2">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Household Members</h1>
+            <p className="text-sm md:text-base text-muted-foreground">
+              Manage household members and invitations
+            </p>
+          </div>
         </div>
         <UpgradePrompt
           feature="Household Members"
@@ -151,13 +162,15 @@ export default function MembersPage() {
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Household Members</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Manage household members and invitations
-          </p>
+        <div className="space-y-2">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold">Household Members</h1>
+            <p className="text-sm md:text-base text-muted-foreground">
+              Manage household members and invitations
+            </p>
+          </div>
         </div>
-        {(currentUserRole === "admin" || currentUserRole === null) && (
+        {(currentUserRole === "admin" || currentUserRole === null) && members.length > 0 && (
           <Button
             onClick={() => setIsFormOpen(true)}
           >
@@ -178,19 +191,14 @@ export default function MembersPage() {
           </CardContent>
         </Card>
       ) : members.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Users className="h-12 w-12 text-muted-foreground mb-4" />
-            <CardTitle className="mb-2">No members yet</CardTitle>
-            <CardDescription className="text-center mb-4">
-              Invite household members to share access to your financial data.
-            </CardDescription>
-            <Button onClick={() => setIsFormOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Invite Your First Member
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Users}
+          title="No members yet"
+          description="Invite household members to share access to your financial data."
+          actionLabel="Invite Your First Member"
+          onAction={() => setIsFormOpen(true)}
+          actionIcon={Plus}
+        />
       ) : (
         <div className="rounded-[12px] border overflow-x-auto">
           <Table>
@@ -329,6 +337,7 @@ export default function MembersPage() {
         member={editingMember}
         onSuccess={handleFormSuccess}
       />
+      {ConfirmDialog}
     </div>
   );
 }

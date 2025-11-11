@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ParallaxFeatureProps {
@@ -20,56 +19,12 @@ export function ParallaxFeature({
   demoComponent,
   reverse = false,
 }: ParallaxFeatureProps) {
-  const [scrollY, setScrollY] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
-        const elementTop = rect.top;
-        const elementBottom = rect.bottom;
-        
-        // Check if element is in viewport
-        const isInViewport = elementTop < windowHeight && elementBottom > 0;
-        setIsVisible(isInViewport);
-
-        if (isInViewport) {
-          // Calculate scroll progress (0 to 1)
-          const scrollProgress = Math.max(
-            0,
-            Math.min(1, (windowHeight - elementTop) / (windowHeight + rect.height))
-          );
-          setScrollY(scrollProgress);
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll(); // Initial check
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const parallaxOffset = (scrollY - 0.5) * 200; // -100px to 100px
-
   return (
     <div
-      ref={containerRef}
-      className={`flex flex-col ${reverse ? "md:flex-row-reverse" : "md:flex-row"} items-center gap-8 md:gap-12 py-12 md:py-20 transition-opacity duration-500 ${
-        isVisible ? "opacity-100" : "opacity-30"
-      }`}
+      className={`flex flex-col ${reverse ? "md:flex-row-reverse" : "md:flex-row"} items-center gap-8 md:gap-12 py-12 md:py-20`}
     >
       {/* Image/Visual Section */}
-      <div
-        className="flex-1 w-full md:w-1/2 relative"
-        style={{
-          transform: `translateY(${parallaxOffset * 0.8}px)`,
-          transition: "transform 0.1s ease-out",
-        }}
-      >
+      <div className="flex-1 w-full md:w-1/2 relative">
         <div className="relative rounded-2xl overflow-hidden shadow-2xl h-[500px] flex items-center justify-center p-4 bg-primary">
           {demoComponent ? (
             <div className="w-full h-full flex items-center justify-center">
@@ -91,13 +46,7 @@ export function ParallaxFeature({
       </div>
 
       {/* Content Section */}
-      <div
-        className="flex-1 w-full md:w-1/2"
-        style={{
-          transform: `translateY(${-parallaxOffset * 0.5}px)`,
-          transition: "transform 0.1s ease-out",
-        }}
-      >
+      <div className="flex-1 w-full md:w-1/2">
         <Card className="transition-colors">
           <CardHeader>
             <CardTitle className="text-2xl md:text-3xl">{title}</CardTitle>

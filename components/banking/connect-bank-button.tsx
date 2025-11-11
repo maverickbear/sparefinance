@@ -10,9 +10,10 @@ import { Loader2 } from 'lucide-react';
 
 interface ConnectBankButtonProps {
   onSuccess?: () => void;
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
 }
 
-export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
+export function ConnectBankButton({ onSuccess, variant = "default" }: ConnectBankButtonProps) {
   const { toast } = useToast();
   const { limits, loading: limitsLoading } = usePlanLimits();
   const [linkToken, setLinkToken] = useState<string | null>(null);
@@ -249,6 +250,7 @@ export function ConnectBankButton({ onSuccess }: ConnectBankButtonProps) {
     <Button
       onClick={handleConnect}
       disabled={isDisabled}
+      variant={variant}
     >
       {isLoading ? (
         <>

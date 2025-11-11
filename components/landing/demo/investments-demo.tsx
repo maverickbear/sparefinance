@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/components/common/money";
@@ -35,52 +34,10 @@ const mockAccounts = [
 ];
 
 export function InvestmentsDemo() {
-  const [scrollY, setScrollY] = useState(0);
-  const [isVisible, setIsVisible] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
-        const elementTop = rect.top;
-        const elementBottom = rect.bottom;
-        
-        const isInViewport = elementTop < windowHeight && elementBottom > 0;
-        setIsVisible(isInViewport);
-
-        if (isInViewport) {
-          const scrollProgress = Math.max(
-            0,
-            Math.min(1, (windowHeight - elementTop) / (windowHeight + rect.height))
-          );
-          setScrollY(scrollProgress);
-        }
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const parallaxOffset = (scrollY - 0.5) * 200;
-
   return (
-    <div 
-      ref={containerRef}
-      className="relative w-full h-[500px] flex items-center justify-center pointer-events-none"
-    >
+    <div className="relative w-full h-[500px] flex items-center justify-center pointer-events-none">
       {/* First Widget - Behind (Crypto) */}
-      <div 
-        className="absolute w-[88%] max-w-sm transform -rotate-2 z-0 transition-transform duration-100 ease-out"
-        style={{
-          transform: `translate(${15 + parallaxOffset * 0.3}px, ${15 - parallaxOffset * 0.2}px) rotate(-2deg)`,
-          opacity: isVisible ? 0.95 : 0.3,
-        }}
-      >
+      <div className="absolute w-[88%] max-w-sm transform -rotate-2 z-0" style={{ transform: "translate(15px, 15px) rotate(-2deg)" }}>
         <Card className="transition-all">
           {(() => {
             const account = mockAccounts[2];
@@ -123,13 +80,7 @@ export function InvestmentsDemo() {
       </div>
 
       {/* Second Widget - Middle (FHSA) */}
-      <div 
-        className="absolute w-[92%] max-w-sm transform rotate-1 z-10 shadow-lg transition-transform duration-100 ease-out"
-        style={{
-          transform: `translate(${-8 - parallaxOffset * 0.2}px, ${8 + parallaxOffset * 0.25}px) rotate(1deg)`,
-          opacity: isVisible ? 1 : 0.3,
-        }}
-      >
+      <div className="absolute w-[92%] max-w-sm transform rotate-1 z-10 shadow-lg" style={{ transform: "translate(-8px, 8px) rotate(1deg)" }}>
         <Card className="transition-all">
           {(() => {
             const account = mockAccounts[1];
@@ -172,13 +123,7 @@ export function InvestmentsDemo() {
       </div>
 
       {/* Third Widget - In Front (RRSP) */}
-      <div 
-        className="absolute w-[95%] max-w-md transform rotate-1.5 z-20 shadow-2xl transition-transform duration-100 ease-out"
-        style={{
-          transform: `translate(${-12 - parallaxOffset * 0.4}px, ${-12 + parallaxOffset * 0.3}px) rotate(1.5deg)`,
-          opacity: isVisible ? 1 : 0.3,
-        }}
-      >
+      <div className="absolute w-[95%] max-w-md transform rotate-1.5 z-20 shadow-2xl" style={{ transform: "translate(-12px, -12px) rotate(1.5deg)" }}>
         <Card className="transition-all">
           {(() => {
             const account = mockAccounts[0];

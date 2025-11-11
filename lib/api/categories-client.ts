@@ -8,7 +8,7 @@ export interface Category {
   macroId?: string | null;
   userId?: string | null;
   macro?: { id: string; name: string } | null;
-  subcategories?: Array<{ id: string; name: string }>;
+  subcategories?: Array<{ id: string; name: string; logo?: string | null }>;
 }
 
 export interface Macro {

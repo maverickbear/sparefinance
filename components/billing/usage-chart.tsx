@@ -52,19 +52,19 @@ export function UsageChart({ limits, transactionLimit, accountLimit }: UsageChar
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Usage</CardTitle>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg sm:text-xl">Usage</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 !p-0 px-6 pb-6">
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between text-xs sm:text-sm">
             <span className="text-muted-foreground">
               {totalUsage.toLocaleString()} / {formatLimit(totalLimit)} used this month
             </span>
           </div>
           
           {/* Segmented Bar Chart */}
-          <div className="w-full h-8 bg-muted rounded-lg overflow-hidden relative">
+          <div className="w-full h-4 bg-muted rounded-lg overflow-hidden relative">
             <div 
               className="h-full flex transition-all"
               style={{ width: `${Math.min(overallUsagePercentage, 100)}%` }}
@@ -108,16 +108,16 @@ export function UsageChart({ limits, transactionLimit, accountLimit }: UsageChar
         </div>
 
         {/* Detailed breakdown */}
-        <div className="space-y-3 pt-2 border-t">
+        <div className="space-y-2 sm:space-y-3 pt-2 border-t">
           <div className="flex justify-between items-center">
-            <span className="text-sm">Transactions</span>
-            <span className="text-sm font-medium">
+            <span className="text-xs sm:text-sm">Transactions</span>
+            <span className="text-xs sm:text-sm font-medium">
               {transactionLimit.current.toLocaleString()} / {formatLimit(transactionLimit.limit)}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-sm">Accounts</span>
-            <span className="text-sm font-medium">
+            <span className="text-xs sm:text-sm">Accounts</span>
+            <span className="text-xs sm:text-sm font-medium">
               {accountLimit.current.toLocaleString()} / {formatLimit(accountLimit.limit)}
             </span>
           </div>

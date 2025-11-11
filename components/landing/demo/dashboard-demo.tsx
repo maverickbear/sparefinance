@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
-import { ArrowUpRight, ArrowDownRight, Wallet, LayoutDashboard, Receipt, FileText, FolderTree, Users, PiggyBank, CreditCard, TrendingUp, ChevronLeft, ChevronRight, User, Calendar } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Wallet, LayoutDashboard, Receipt, FileText, FolderTree, Users, PiggyBank, CreditCard, TrendingUp, ChevronLeft, ChevronRight, User, Calendar, Target } from "lucide-react";
 import { IncomeExpensesChart } from "@/components/charts/income-expenses-chart";
 import { BudgetExecutionChart } from "@/components/charts/budget-execution-chart";
 import { CategoryExpensesChart } from "@/components/charts/category-expenses-chart";
@@ -38,7 +38,8 @@ const navSections = [
   {
     title: "Planning",
     items: [
-      { href: "/budgets", label: "Budgets & Goals", icon: PiggyBank },
+      { href: "/planning/budgets", label: "Budgets", icon: Target },
+      { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
       { href: "/investments", label: "Investments", icon: TrendingUp },
     ],

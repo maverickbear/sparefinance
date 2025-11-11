@@ -1,0 +1,206 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Subscription, Plan } from "@/lib/validations/plan";
+import { format } from "date-fns";
+import { CreditCard, Loader2 } from "lucide-react";
+import { useToast } from "@/components/toast-provider";
+import {
+  Alert,
+  AlertDescription,
+} from "@/components/ui/alert";
+
+interface SubscriptionManagementProps {
+  subscription: Subscription | null;
+  plan: Plan | null;
+  interval?: "month" | "year" | null;
+  onSubscriptionUpdated?: () => void;
+}
+
+interface PaymentMethod {
+  id: string;
+  type: string;
+  card: {
+    brand: string;
+    last4: string;
+    expMonth: number;
+    expYear: number;
+  } | null;
+}
+
+export function SubscriptionManagement({
+  subscription,
+  plan,
+  interval,
+  onSubscriptionUpdated,
+}: SubscriptionManagementProps) {
+  const [loading, setLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    async function loadPaymentMethod() {
+      if (!subscription?.stripeCustomerId) {
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/billing/payment-method");
+        if (response.ok) {
+          const data = await response.json();
+          setPaymentMethod(data.paymentMethod);
+        }
+      } catch (error) {
+        console.error("Error loading payment method:", error);
+      }
+    }
+
+    loadPaymentMethod();
+  }, [subscription?.stripeCustomerId]);
+
+  async function handleOpenStripePortal() {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/stripe/portal", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to open Stripe portal",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error opening portal:", error);
+      toast({
+        title: "Error",
+        description: "Failed to open Stripe portal. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleManageSubscription() {
+    // All subscription management (cancel, reactivate) is done through Stripe Portal
+    await handleOpenStripePortal();
+  }
+
+  if (!subscription || !plan) {
+    return (
+      <Card className="border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Subscription
+          </CardTitle>
+          <CardDescription>You don't have an active subscription. Please select a plan to continue.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+  const price = subscription.currentPeriodStart && subscription.currentPeriodEnd
+    ? (interval === "year" ? plan.priceYearly / 12 : plan.priceMonthly)
+    : 0;
+  const isCancelled = subscription.cancelAtPeriodEnd || subscription.status === "cancelled";
+
+  return (
+    <>
+      <Card className="border">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
+            </CardTitle>
+            {price > 0 && (
+              <div className="text-right">
+                <div className="text-2xl font-bold">${price.toFixed(2)}</div>
+                <div className="text-sm text-muted-foreground">per month</div>
+              </div>
+            )}
+          </div>
+          <CardDescription className="mt-1">
+            {interval === "year" 
+              ? "Yearly Subscription"
+              : interval === "month"
+              ? "Monthly Subscription"
+              : "Subscription"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {subscription.currentPeriodEnd && (
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {isCancelled ? "Subscription ends" : "Renews on"}
+              </p>
+              <p className="font-medium">
+                {format(new Date(subscription.currentPeriodEnd), "PPP")}
+              </p>
+            </div>
+          )}
+
+          {paymentMethod?.card && (
+            <div>
+              <p className="text-sm text-muted-foreground">Payment method</p>
+              <div className="flex items-center gap-2 mt-1">
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <p className="font-medium text-sm">
+                  {paymentMethod.card.brand.charAt(0).toUpperCase() + paymentMethod.card.brand.slice(1)} •••• {paymentMethod.card.last4}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isCancelled && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <strong>Subscription Cancelled:</strong> Your subscription will end on{" "}
+                {subscription.currentPeriodEnd
+                  ? format(new Date(subscription.currentPeriodEnd), "PPP")
+                  : "the end of your billing period"}
+                . You can reactivate it through the Stripe Customer Portal.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {subscription.status === "past_due" && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <strong>Payment Failed:</strong> Please update your payment method to continue using the service.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={handleManageSubscription}
+              disabled={loading}
+              variant="outline"
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                "Manage Subscription"
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+    </>
+  );
+}
+

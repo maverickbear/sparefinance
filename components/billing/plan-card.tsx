@@ -6,6 +6,7 @@ import { PlanBadge } from "@/components/common/plan-badge";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { PricingModal } from "@/components/billing/pricing-modal";
 
 interface PlanCardProps {
   subscription: Subscription | null;
@@ -15,30 +16,16 @@ interface PlanCardProps {
 
 export function PlanCard({ subscription, plan, onManage }: PlanCardProps) {
   const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   async function handleManage() {
+    setIsModalOpen(true);
+  }
+
+  function handleModalSuccess() {
+    setIsModalOpen(false);
     if (onManage) {
       onManage();
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const response = await fetch("/api/stripe/portal", {
-        method: "POST",
-      });
-
-      const data = await response.json();
-
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        console.error("Failed to create portal session:", data.error);
-      }
-    } catch (error) {
-      console.error("Error opening portal:", error);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -78,34 +65,42 @@ export function PlanCard({ subscription, plan, onManage }: PlanCardProps) {
     : "Free";
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Plan</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-medium">
-                {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
-              </p>
-              <PlanBadge plan={plan.name} />
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-sm font-medium">
+                  {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
+                </p>
+                <PlanBadge plan={plan.name} />
+              </div>
+              <p className="text-xs text-muted-foreground">{billingText}</p>
             </div>
-            <p className="text-xs text-muted-foreground">{billingText}</p>
+            {!isFree && (
+              <Button
+                variant="ghost"
+                onClick={handleManage}
+                disabled={loading}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {!isFree && (
-            <Button
-              variant="ghost"
-              onClick={handleManage}
-              disabled={loading}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      <PricingModal
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+        currentPlanId={plan?.id}
+        onSuccess={handleModalSuccess}
+      />
+    </>
   );
 }
 

@@ -78,7 +78,8 @@ export function BudgetCard({
     return "On Track";
   };
 
-  const clampedPercentage = Math.min(budget.percentage || 0, 100);
+  const percentage = budget.percentage || 0;
+  const clampedPercentage = Math.min(percentage, 100);
   const actualSpend = budget.actualSpend || 0;
   const remaining = Math.max(0, budget.amount - actualSpend);
 
@@ -157,10 +158,10 @@ export function BudgetCard({
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Progress</span>
               <span className={cn("font-medium", getStatusTextColor())}>
-                {(budget.percentage || 0).toFixed(1)}%
+                {percentage.toFixed(1)}%
               </span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className={cn(
                   "h-full transition-all",
@@ -168,6 +169,20 @@ export function BudgetCard({
                 )}
                 style={{ width: `${clampedPercentage}%` }}
               />
+              {percentage > 100 && (
+                <div
+                  className={cn(
+                    "absolute top-0 h-full transition-all opacity-30",
+                    getStatusColor()
+                  )}
+                  style={{
+                    width: `${((percentage - 100) / percentage) * 100}%`,
+                    left: "100%",
+                  }}
+                />
+              )}
+              {/* 100% marker */}
+              <div className="absolute top-0 left-0 h-full w-[1px] bg-border" style={{ left: "100%" }} />
             </div>
           </div>
 

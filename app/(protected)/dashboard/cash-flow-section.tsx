@@ -62,7 +62,7 @@ export function CashFlowSection({
     .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
   return (
-    <div className="grid gap-6 md:gap-8 grid-cols-1 md:grid-cols-2">
+    <div className="grid gap-4 sm:gap-5 grid-cols-1 md:grid-cols-2">
       <IncomeExpensesChart data={monthlyData} />
       {financialHealth && (
         <FinancialHealthWidget 

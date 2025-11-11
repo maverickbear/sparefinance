@@ -70,7 +70,7 @@ export function AccountsBreakdownModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Wallet className="h-6 w-6" />
@@ -165,9 +165,11 @@ export function AccountsBreakdownModal({
           ))}
 
           {accounts.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No accounts found</p>
+            <div className="flex items-center justify-center min-h-[400px] w-full">
+              <div className="text-center text-muted-foreground">
+                <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>No accounts found</p>
+              </div>
             </div>
           )}
           </div>

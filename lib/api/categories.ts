@@ -35,6 +35,15 @@ export async function invalidateCategoriesCache(userId: string | null): Promise<
 }
 
 /**
+ * Invalidate categories cache for all users (used when system entities are modified)
+ */
+export async function invalidateAllCategoriesCache(): Promise<void> {
+  categoriesCache.clear();
+  macrosCache.clear();
+  console.log("[CATEGORIES] Invalidated cache for all users (system entities modified)");
+}
+
+/**
  * Get all macros (system defaults + user's custom macros)
  */
 export async function getMacros() {
@@ -414,7 +423,7 @@ export async function updateCategory(id: string, data: { name?: string; macroId?
   return category;
 }
 
-export async function createSubcategory(data: { name: string; categoryId: string }) {
+export async function createSubcategory(data: { name: string; categoryId: string; logo?: string | null }) {
   const supabase = await createServerClient();
 
   // Get current user
@@ -459,6 +468,7 @@ export async function createSubcategory(data: { name: string; categoryId: string
       name: data.name,
       categoryId: data.categoryId,
       userId: subcategoryUserId, // Set userId to identify user-created subcategories
+      logo: data.logo || null,
       createdAt: now,
       updatedAt: now,
     })
@@ -476,7 +486,7 @@ export async function createSubcategory(data: { name: string; categoryId: string
   return subcategory;
 }
 
-export async function updateSubcategory(id: string, data: { name?: string }) {
+export async function updateSubcategory(id: string, data: { name?: string; logo?: string | null }) {
   const supabase = await createServerClient();
 
   // Get current user
@@ -513,6 +523,10 @@ export async function updateSubcategory(id: string, data: { name?: string }) {
   
   if (data.name !== undefined) {
     updateData.name = data.name;
+  }
+  
+  if (data.logo !== undefined) {
+    updateData.logo = data.logo;
   }
 
   const { data: subcategory, error } = await supabase

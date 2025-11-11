@@ -24,6 +24,9 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/common/empty-state";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { PageHeader } from "@/components/common/page-header";
 
 interface Debt {
   id: string;
@@ -57,6 +60,7 @@ interface Debt {
 }
 
 export default function DebtsPage() {
+  const { openDialog, ConfirmDialog } = useConfirmDialog();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -89,21 +93,29 @@ export default function DebtsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this debt?")) return;
+  function handleDelete(id: string) {
+    openDialog(
+      {
+        title: "Delete Debt",
+        description: "Are you sure you want to delete this debt?",
+        variant: "destructive",
+        confirmLabel: "Delete",
+      },
+      async () => {
+        setDeletingId(id);
+        try {
+          const { deleteDebtClient } = await import("@/lib/api/debts-client");
+          await deleteDebtClient(id);
 
-    setDeletingId(id);
-    try {
-      const { deleteDebtClient } = await import("@/lib/api/debts-client");
-      await deleteDebtClient(id);
-
-      loadDebts();
-    } catch (error) {
-      console.error("Error deleting debt:", error);
-      alert(error instanceof Error ? error.message : "Failed to delete debt");
-    } finally {
-      setDeletingId(null);
-    }
+          loadDebts();
+        } catch (error) {
+          console.error("Error deleting debt:", error);
+          alert(error instanceof Error ? error.message : "Failed to delete debt");
+        } finally {
+          setDeletingId(null);
+        }
+      }
+    );
   }
 
   async function handlePause(id: string, isPaused: boolean) {
@@ -179,53 +191,54 @@ export default function DebtsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Debts</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Track your loans and debt payments
-          </p>
-        </div>
-        <Button
-          onClick={() => {
-            setSelectedDebt(null);
-            setIsFormOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Create Debt
-        </Button>
-      </div>
+      <PageHeader
+        title="Debts"
+        description="Track your loans and debt payments"
+      >
+        {!(sortedDebts.length === 0 && filterBy === "all") && (
+          <Button
+            onClick={() => {
+              setSelectedDebt(null);
+              setIsFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Debt
+          </Button>
+        )}
+      </PageHeader>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex gap-4 items-center">
-          <Select value={filterBy} onValueChange={(value) => setFilterBy(value as typeof filterBy)}>
-            <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Debts</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="paused">Paused</SelectItem>
-              <SelectItem value="paid_off">Paid Off</SelectItem>
-            </SelectContent>
-          </Select>
+      {debts.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex gap-4 items-center">
+            <Select value={filterBy} onValueChange={(value) => setFilterBy(value as typeof filterBy)}>
+              <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Debts</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="paused">Paused</SelectItem>
+                <SelectItem value="paid_off">Paid Off</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
-            <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="priority">Priority</SelectItem>
-              <SelectItem value="progress">Progress</SelectItem>
-              <SelectItem value="months_remaining">Months Remaining</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+              <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="progress">Progress</SelectItem>
+                <SelectItem value="months_remaining">Months Remaining</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading && debts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="p-4">
@@ -262,7 +275,7 @@ export default function DebtsPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {sortedDebts.map((debt) => (
             <DebtCard
               key={debt.id}
@@ -286,10 +299,26 @@ export default function DebtsPage() {
           ))}
 
           {sortedDebts.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              {filterBy === "all"
-                ? "No debts created yet. Create one to get started."
-                : `No ${filterBy} debts found.`}
+            <div className="col-span-full min-h-[400px]">
+              <EmptyState
+                icon={CreditCard}
+                title={filterBy === "all" ? "No debts created yet" : `No ${filterBy} debts found`}
+                description={
+                  filterBy === "all"
+                    ? "Create your first debt entry to start tracking your loans and debt payments."
+                    : `Try adjusting your filters to see ${filterBy === "active" ? "completed" : "active"} debts.`
+                }
+                actionLabel={filterBy === "all" ? "Create Your First Debt" : undefined}
+                onAction={
+                  filterBy === "all"
+                    ? () => {
+                        setSelectedDebt(null);
+                        setIsFormOpen(true);
+                      }
+                    : undefined
+                }
+                actionIcon={filterBy === "all" ? Plus : undefined}
+              />
             </div>
           )}
         </div>
@@ -369,6 +398,7 @@ export default function DebtsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {ConfirmDialog}
     </div>
   );
 }

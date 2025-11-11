@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, createContext, useContext } from "react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon } from "lucide-react";
+import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Rocket, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TrialWidget, calculateTrialDaysRemaining, calculateTrialProgress } from "@/components/billing/trial-widget";
 import { useTheme } from "next-themes";
 import {
   DropdownMenu,
@@ -21,7 +22,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const navSections = [
+// Base nav sections (without Portal Management)
+const baseNavSections = [
   {
     title: "Overview",
     items: [
@@ -41,7 +43,8 @@ const navSections = [
   {
     title: "Planning",
     items: [
-      { href: "/budgets", label: "Budgets & Goals", icon: PiggyBank },
+      { href: "/planning/budgets", label: "Budgets", icon: Target },
+      { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
       { href: "/investments", label: "Investments", icon: TrendingUp },
     ],
@@ -57,6 +60,11 @@ interface UserData {
   } | null;
   plan: {
     name: "free" | "basic" | "premium";
+  } | null;
+  subscription?: {
+    status: "active" | "trialing" | "cancelled" | "past_due";
+    trialEndDate?: string | null;
+    trialStartDate?: string | null;
   } | null;
 }
 
@@ -91,6 +99,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   console.log("[NAV] Render:", { hasSubscription, pathname });
 
@@ -123,12 +132,16 @@ export function Nav({ hasSubscription = true }: NavProps) {
     async function fetchUserData() {
       try {
         const { getUserClient } = await import("@/lib/api/user-client");
+        const { getUserRoleClient } = await import("@/lib/api/members-client");
         const data = await getUserClient();
+        const role = await getUserRoleClient();
         console.log("[NAV] User data fetched:", data);
         setUserData(data);
+        setIsSuperAdmin(role === "super_admin");
       } catch (error) {
         console.error("[NAV] Error fetching user data:", error);
         setUserData(null);
+        setIsSuperAdmin(false);
       } finally {
         setLoading(false);
       }
@@ -179,12 +192,25 @@ export function Nav({ hasSubscription = true }: NavProps) {
 
   const user = userData?.user;
 
+  // Build nav sections dynamically - add Portal Management if super_admin
+  const navSections = isSuperAdmin
+    ? [
+        {
+          title: "Portal Management",
+          items: [
+            { href: "/portal-management", label: "Portal Management", icon: Settings2 },
+          ],
+        },
+        ...baseNavSections,
+      ]
+    : baseNavSections;
+
   return (
     <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
       <TooltipProvider>
         <aside
           className={cn(
-            "fixed left-0 top-0 z-40 h-screen border-r bg-card transition-all duration-300 hidden md:block",
+            "fixed left-0 top-0 z-40 h-screen border-r bg-card transition-all duration-300 hidden lg:block",
             isCollapsed ? "w-16 overflow-visible" : "w-64 overflow-hidden"
           )}
         >
@@ -221,6 +247,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
                       pathname === item.href ||
                       pathname === basePath ||
                       (basePath !== "/" && pathname.startsWith(basePath));
+                    
                     const linkElement = (
                       <Link
                         href={item.href}
@@ -267,7 +294,78 @@ export function Nav({ hasSubscription = true }: NavProps) {
               ))}
             </nav>
 
-            <div className="border-t p-3">
+            {/* Trial Widget - Show if user is in trial */}
+            {userData?.subscription?.status === "trialing" && !isCollapsed && (
+              <TrialWidget
+                daysRemaining={calculateTrialDaysRemaining(userData.subscription.trialEndDate)}
+                progress={calculateTrialProgress(userData.subscription.trialStartDate, userData.subscription.trialEndDate)}
+                trialStartDate={userData.subscription.trialStartDate}
+                trialEndDate={userData.subscription.trialEndDate}
+              />
+            )}
+
+            {/* Upgrade Card - Only show if not premium and not in trial */}
+            {userData?.plan?.name !== "premium" && userData?.subscription?.status !== "trialing" && (
+              <div className={cn(
+                "border-t px-3 py-3",
+                isCollapsed && "px-2"
+              )}>
+                <div className={cn(
+                  "rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-3",
+                  isCollapsed && "p-2"
+                )}>
+                  {!isCollapsed ? (
+                    <>
+                      <div className="flex items-start gap-2 mb-2">
+                        <Rocket className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-foreground mb-1">
+                            {userData?.plan?.name === "free" 
+                              ? "Free to Basic"
+                              : "Basic to Premium"}
+                          </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {userData?.plan?.name === "free" 
+                              ? "Upgrade to Basic and enjoy smarter tools, deeper insights, and a better banking experience."
+                              : "Upgrade to Premium and unlock advanced features, priority support, and exclusive benefits."}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="small"
+                        className="w-full mt-2 text-xs border-primary/30 hover:bg-primary/10"
+                      >
+                        <Link href="/select-plan">
+                          Learn More
+                        </Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          asChild
+                          variant="ghost"
+                          size="icon"
+                          className="w-full h-8"
+                        >
+                          <Link href="/select-plan">
+                            <Rocket className="h-4 w-4 text-primary" />
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        Upgrade to Pro
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="p-3">
               {loading ? (
                 <div
                   className={cn(
@@ -275,7 +373,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
                     isCollapsed ? "justify-center" : "space-x-3 px-3 py-2"
                   )}
                 >
-                  <div className="h-12 w-12 rounded-full bg-muted animate-pulse" />
+                  <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
                   {!isCollapsed && (
                     <div className="flex-1 space-y-1">
                       <div className="h-3 w-20 bg-muted rounded-[12px] animate-pulse" />
@@ -289,7 +387,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
                     <Button
                       variant="ghost"
                       className={cn(
-                        "w-full h-auto p-2",
+                        "w-full h-auto p-2 border border-border shadow",
                         isCollapsed ? "justify-center" : "justify-start"
                       )}
                     >
@@ -305,7 +403,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
                               <img
                                 src={user.avatarUrl}
                                 alt={user.name || "User"}
-                                className="h-12 w-12 rounded-full object-cover border"
+                                className="h-10 w-10 rounded-full object-cover border"
                                 onError={(e) => {
                                   e.currentTarget.style.display = "none";
                                   const initialsContainer =
@@ -316,12 +414,12 @@ export function Nav({ hasSubscription = true }: NavProps) {
                                   }
                                 }}
                               />
-                              <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground hidden items-center justify-center text-sm font-semibold border">
+                              <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground hidden items-center justify-center text-xs font-semibold border">
                                 {getInitials(user?.name)}
                               </div>
                             </>
                           ) : (
-                            <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold border">
+                            <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold border">
                               {getInitials(user?.name)}
                             </div>
                           )}
@@ -345,7 +443,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
                     <DropdownMenuItem asChild className="mb-1">
                       <Link href="/settings" className="cursor-pointer">
                         <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
+                        <span>My Account</span>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -401,7 +499,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
               variant="ghost"
               size="icon"
               className={cn(
-                "fixed top-4 h-5 w-5 z-[50] bg-card border border-border shadow-sm hidden md:flex items-center justify-center",
+                "fixed top-4 h-5 w-5 z-[50] bg-card border border-border shadow-sm hidden lg:flex items-center justify-center",
                 isCollapsed ? "left-16" : "left-64"
               )}
               style={{ transform: 'translateX(-50%)' }}

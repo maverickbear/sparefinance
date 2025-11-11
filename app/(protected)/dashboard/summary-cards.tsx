@@ -188,7 +188,7 @@ export function SummaryCards({
 
   return (
     <>
-      <div className="grid gap-6 md:gap-8 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 md:gap-5 grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
         <Card 
           className={cn(
             "cursor-pointer transition-all hover:shadow-md",

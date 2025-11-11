@@ -216,6 +216,8 @@ export async function guardBankIntegration(userId: string): Promise<GuardResult>
 
 /**
  * Get current user ID from session
+ * Also verifies that the user exists in the User table
+ * If user doesn't exist, logs out and returns null
  */
 export async function getCurrentUserId(): Promise<string | null> {
   try {
@@ -223,6 +225,27 @@ export async function getCurrentUserId(): Promise<string | null> {
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error || !user) {
+      return null;
+    }
+    
+    // Verify user exists in User table
+    const { data: userData, error: userError } = await supabase
+      .from("User")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    // If user doesn't exist in User table, logout and return null
+    if (userError || !userData) {
+      console.warn(`[getCurrentUserId] User ${user.id} authenticated but not found in User table. Logging out.`);
+      
+      // Logout to clear session
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error("[getCurrentUserId] Error signing out:", signOutError);
+      }
+      
       return null;
     }
     

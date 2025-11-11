@@ -12,7 +12,7 @@ export interface User {
   name?: string;
   avatarUrl?: string;
   phoneNumber?: string;
-  role?: "admin" | "member";
+  role?: "admin" | "member" | "super_admin";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -186,15 +186,8 @@ export async function signIn(data: SignInFormData): Promise<{ user: User | null;
         }
       }
 
-      // Create free subscription
-      await supabase
-        .from("Subscription")
-        .insert({
-          id: crypto.randomUUID(),
-          userId: userData.id,
-          planId: "free",
-          status: "active",
-        });
+      // Note: Subscription is NOT created automatically during signin
+      // User must select a plan on /select-plan page if they don't have one
     }
 
     return { user: mapUser(userData), error: null };
@@ -231,7 +224,17 @@ export async function getCurrentUser(): Promise<User | null> {
       .eq("id", authUser.id)
       .single();
 
+    // If user doesn't exist in User table, logout and return null
     if (userError || !userData) {
+      console.warn(`[getCurrentUser] User ${authUser.id} authenticated but not found in User table. Logging out.`);
+      
+      // Logout to clear session
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        console.error("[getCurrentUser] Error signing out:", signOutError);
+      }
+      
       return null;
     }
 

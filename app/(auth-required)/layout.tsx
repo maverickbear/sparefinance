@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase-server";
+import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 
 /**
  * Auth Required Layout
@@ -8,7 +9,12 @@ import { createServerClient } from "@/lib/supabase-server";
  * This layout protects routes that require authentication but not subscription.
  * Examples: /select-plan, /welcome
  * 
+ * It verifies:
+ * 1. User is authenticated
+ * 2. User exists in User table
+ * 
  * If user is not authenticated, redirects to /auth/login with redirect parameter
+ * If user doesn't exist in User table, logs out and redirects to /auth/login
  * If user is authenticated, allows access (subscription check is handled in the page itself)
  */
 export default async function AuthRequiredLayout({
@@ -33,7 +39,22 @@ export default async function AuthRequiredLayout({
     redirect(redirectUrl);
   }
 
-  console.log("[AUTH-REQUIRED-LAYOUT] User authenticated:", user.id, "allowing access");
+  console.log("[AUTH-REQUIRED-LAYOUT] User authenticated:", user.id);
+
+  // Verify user exists in User table
+  console.log("[AUTH-REQUIRED-LAYOUT] Verifying user exists in User table");
+  const { exists, userId } = await verifyUserExists();
+  
+  if (!exists) {
+    console.log("[AUTH-REQUIRED-LAYOUT] User does not exist in User table, redirecting to login");
+    // Get current pathname for redirect
+    const headersList = await headers();
+    const pathname = headersList.get("x-pathname") || headersList.get("referer") || "";
+    const redirectUrl = pathname ? `/auth/login?redirect=${encodeURIComponent(pathname)}` : "/auth/login";
+    redirect(redirectUrl);
+  }
+
+  console.log("[AUTH-REQUIRED-LAYOUT] User exists in User table:", userId, "allowing access");
   return <>{children}</>;
 }
 

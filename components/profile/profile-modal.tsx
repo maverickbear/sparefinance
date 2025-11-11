@@ -296,7 +296,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>Profile</DialogTitle>
           <DialogDescription>

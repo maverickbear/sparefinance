@@ -28,6 +28,8 @@ import { supabase } from "@/lib/supabase";
 import { LimitWarning } from "@/components/billing/limit-warning";
 import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
+import { ConnectBankButton } from "@/components/banking/connect-bank-button";
+import { FeatureGuard } from "@/components/common/feature-guard";
 
 interface Account {
   id: string;
@@ -332,7 +334,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{account ? "Edit" : "Add"} Account</DialogTitle>
           <DialogDescription>
@@ -361,7 +363,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Name</label>
-                <Input {...form.register("name")} />
+                <Input {...form.register("name")} required />
               </div>
 
               <div className="space-y-1">
@@ -379,6 +381,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                       form.setValue("initialBalance", undefined);
                     }
                   }}
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -401,6 +404,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                     value={form.watch("creditLimit") || undefined}
                     onChange={(value) => form.setValue("creditLimit", value ?? undefined, { shouldValidate: true })}
                     placeholder="$ 0.00"
+                    required
                   />
                   {form.formState.errors.creditLimit && (
                     <p className="text-sm text-destructive">{form.formState.errors.creditLimit.message}</p>
@@ -415,6 +419,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                     value={form.watch("initialBalance") || undefined}
                     onChange={(value) => form.setValue("initialBalance", value ?? undefined, { shouldValidate: true })}
                     placeholder="$ 0.00"
+                    required
                   />
                   {form.formState.errors.initialBalance && (
                     <p className="text-sm text-destructive">{form.formState.errors.initialBalance.message}</p>
@@ -471,22 +476,33 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
 
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            {(!account && isLimitReached) ? null : (
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save"
-                )}
+          <DialogFooter className="justify-between">
+            <FeatureGuard feature="hasBankIntegration">
+              <ConnectBankButton 
+                variant="outline"
+                onSuccess={() => {
+                  onOpenChange(false);
+                  onSuccess?.();
+                }} 
+              />
+            </FeatureGuard>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                Cancel
               </Button>
-            )}
+              {(!account && isLimitReached) ? null : (
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -304,7 +304,7 @@ export function GoalForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col !p-0 !gap-0">
+      <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{goal ? "Edit" : "Create"} Goal</DialogTitle>
           <DialogDescription>
@@ -323,11 +323,12 @@ export function GoalForm({
               <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">
-              Goal Name {!form.watch("name") && <span className="text-gray-400 text-[12px]">required</span>}
+              Goal Name
             </label>
             <Input
               {...form.register("name")}
               placeholder="e.g., Emergency Fund, Down Payment"
+              required
             />
             {form.formState.errors.name && (
               <p className="text-xs text-destructive">
@@ -339,12 +340,13 @@ export function GoalForm({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium">
-                Target Amount {(!form.watch("targetAmount") || form.watch("targetAmount") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
+                Target Amount
               </label>
               <DollarAmountInput
                 value={form.watch("targetAmount") || undefined}
                 onChange={(value) => form.setValue("targetAmount", value ?? 0, { shouldValidate: true })}
                 placeholder="$ 0.00"
+                required
               />
               {form.formState.errors.targetAmount && (
                 <p className="text-xs text-destructive">
@@ -355,12 +357,13 @@ export function GoalForm({
 
             <div className="space-y-1">
               <label className="text-sm font-medium">
-                Starting Balance {(!form.watch("currentBalance") || form.watch("currentBalance") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
+                Starting Balance
               </label>
               <DollarAmountInput
                 value={form.watch("currentBalance") || undefined}
                 onChange={(value) => form.setValue("currentBalance", value ?? 0, { shouldValidate: true })}
                 placeholder="$ 0.00"
+                required
               />
               {form.formState.errors.currentBalance && (
                 <p className="text-xs text-destructive">
@@ -372,13 +375,14 @@ export function GoalForm({
 
           <div className="space-y-1">
             <label className="text-sm font-medium">
-              Target Months {!form.watch("targetMonths") && <span className="text-gray-400 text-[12px]">required</span>}
+              Target Months
             </label>
             <Select
               value={form.watch("targetMonths") ? form.watch("targetMonths")!.toString() : undefined}
               onValueChange={(value) => {
                 form.setValue("targetMonths", Number(value), { shouldValidate: true });
               }}
+              required
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select months" />
@@ -408,13 +412,14 @@ export function GoalForm({
 
           <div className="space-y-1">
             <label className="text-sm font-medium">
-              Priority {!form.watch("priority") && <span className="text-gray-400 text-[12px]">required</span>}
+              Priority
             </label>
             <Select
               value={form.watch("priority")}
               onValueChange={(value) =>
                 form.setValue("priority", value as "High" | "Medium" | "Low")
               }
+              required
             >
               <SelectTrigger>
                 <SelectValue />

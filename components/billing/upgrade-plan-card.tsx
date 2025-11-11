@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Flame } from "lucide-react";
 import { usePricingModal } from "@/contexts/pricing-modal-context";
 
@@ -24,27 +23,21 @@ export function UpgradePlanCard({
   }
 
   return (
-    <Card className="bg-gradient-to-r from-primary to-primary/90">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-white/10 rounded-lg">
-              <Flame className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-white">Upgrade Plan</h3>
-              <p className="text-sm text-white/90">
-                Unlock unlimited transactions, advanced analytics, priority support and 50% off
-              </p>
-            </div>
+    <Card 
+      className="bg-gradient-to-r from-primary to-primary/90 cursor-pointer hover:from-primary/90 hover:to-primary/80 transition-all"
+      onClick={openModal}
+    >
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2 bg-white/10 rounded-lg flex-shrink-0">
+            <Flame className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
           </div>
-          <Button
-            onClick={openModal}
-            variant="default"
-            className="bg-white text-primary hover:bg-white/90"
-          >
-            Upgrade
-          </Button>
+          <div className="flex-1">
+            <h3 className="text-base sm:text-lg font-bold text-white">Upgrade Plan</h3>
+            <p className="text-xs sm:text-sm text-white/90">
+              Unlock unlimited transactions, advanced analytics, priority support and 50% off
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

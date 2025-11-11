@@ -314,11 +314,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen">
         <Nav hasSubscription={showNav} />
         <main
-          className={`flex-1 pb-16 md:pb-0 pt-16 md:pt-0 transition-all duration-300 ${
-            isSidebarCollapsed ? "md:ml-16" : "md:ml-64"
+          className={`flex-1 pb-16 lg:pb-0 pt-16 lg:pt-0 transition-all duration-300 bg-white dark:bg-background ${
+            isSidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
           }`}
         >
-          <div className="container mx-auto px-4 py-4 md:py-8">{children}</div>
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">{children}</div>
         </main>
       </div>
       <BottomNav hasSubscription={showNav} />
