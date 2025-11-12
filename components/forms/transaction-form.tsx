@@ -368,7 +368,6 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                   }
                   }}
                   className="w-full"
-                  required
                 >
                   <TabsList className="h-12 w-full grid grid-cols-3">
                     <TabsTrigger value="expense" className="text-sm">Expense</TabsTrigger>
@@ -510,10 +509,10 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                               
                               if (category.macro) {
                                 // Macro can be an object with name property
-                                if (typeof category.macro === 'object' && 'name' in category.macro) {
-                                  macroName = category.macro.name;
+                                if (typeof category.macro === 'object' && 'name' in category.macro && !Array.isArray(category.macro)) {
+                                  macroName = (category.macro as { name: string }).name;
                                 } else if (Array.isArray(category.macro) && category.macro.length > 0) {
-                                  macroName = category.macro[0]?.name || 'Uncategorized';
+                                  macroName = (category.macro[0] as { name?: string })?.name || 'Uncategorized';
                                 }
                               } else if (category.macroId) {
                                 // If we only have macroId, we can't get the name without another query

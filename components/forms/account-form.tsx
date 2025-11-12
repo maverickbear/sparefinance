@@ -63,7 +63,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
   const [households, setHouseholds] = useState<Household[]>([]);
   const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([]);
   const [loadingHouseholds, setLoadingHouseholds] = useState(false);
-  const [userRole, setUserRole] = useState<"admin" | "member" | null>(null);
+  const [userRole, setUserRole] = useState<"admin" | "member" | "super_admin" | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [accountLimit, setAccountLimit] = useState<{ current: number; limit: number } | null>(null);
   const [loadingLimit, setLoadingLimit] = useState(false);

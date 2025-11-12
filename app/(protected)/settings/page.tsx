@@ -280,7 +280,7 @@ function ProfileModule() {
             <Button
               onClick={() => setIsEditing(true)}
               variant="outline"
-              size="sm"
+              size="small"
               className="w-full sm:w-auto"
             >
               <Edit className="mr-2 h-4 w-4" />

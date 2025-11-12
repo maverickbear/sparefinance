@@ -43,7 +43,7 @@ export default function MembersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<"admin" | "member" | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<"admin" | "member" | "super_admin" | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { limits, loading: limitsLoading } = usePlanLimits();
 

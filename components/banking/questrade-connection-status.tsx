@@ -252,7 +252,7 @@ export function QuestradeConnectionStatus({
       <div className="flex items-center gap-2.5">
         <Button
           variant="outline"
-          size={embedded ? "sm" : "medium"}
+          size={embedded ? "small" : "medium"}
           onClick={handleDisconnect}
           disabled={disconnecting}
           className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300 transition-all"
@@ -271,7 +271,7 @@ export function QuestradeConnectionStatus({
         </Button>
         <Button
           variant="default"
-          size={embedded ? "sm" : "medium"}
+          size={embedded ? "small" : "medium"}
           onClick={handleSync}
           disabled={syncing}
           className={embedded ? "transition-all shadow-sm hover:shadow-md" : "flex-1 transition-all shadow-sm hover:shadow-md"}

@@ -6,10 +6,14 @@
 import { encrypt, decrypt } from '@/lib/utils/encryption';
 import type {
   QuestradeTokenResponse,
+  QuestradeAccount,
   QuestradeAccountsResponse,
+  QuestradePosition,
   QuestradePositionsResponse,
   QuestradeBalancesResponse,
+  QuestradeActivity,
   QuestradeActivitiesResponse,
+  QuestradeQuote,
   QuestradeQuotesResponse,
   QuestradeSymbolsResponse,
   QuestradeSymbolDetailResponse,
@@ -18,6 +22,14 @@ import type {
   QuestradeCandlesResponse,
   QuestradeErrorResponse,
 } from './types';
+
+// Re-export types for convenience
+export type {
+  QuestradeAccount,
+  QuestradePosition,
+  QuestradeActivity,
+  QuestradeQuote,
+};
 
 const QUESTRADE_TOKEN_URL = 'https://login.questrade.com/oauth2/token';
 

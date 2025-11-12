@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Improve compatibility with React 19 and Next.js 16
+  reactStrictMode: true,
+  
+  // Turbopack configuration (Next.js 16 uses Turbopack by default)
+  turbopack: {},
+  
   async headers() {
     return [
       {

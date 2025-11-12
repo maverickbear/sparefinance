@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Get current subscription
     const { data: subscription, error: subError } = await supabase
       .from("Subscription")
-      .select("stripeSubscriptionId, planId, stripeCustomerId")
+      .select("id, stripeSubscriptionId, planId, stripeCustomerId")
       .eq("userId", authUser.id)
       .eq("status", "active")
       .order("createdAt", { ascending: false })

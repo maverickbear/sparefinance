@@ -125,7 +125,7 @@ export function ExpensesPieChartWidget({
     );
 
     // Convert to array and sort by value descending
-    const dataArray = Object.entries(expensesByCategory)
+    const dataArray = (Object.entries(expensesByCategory) as [string, number][])
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 

@@ -140,7 +140,7 @@ export async function createTransaction(data: TransactionFormData) {
     }
 
     // Invalidate cache to ensure dashboard shows updated data
-    revalidateTag('transactions');
+    revalidateTag('transactions', 'page');
 
     // Return the outgoing transaction as the main one
     return outgoingTransaction;
@@ -200,7 +200,7 @@ export async function createTransaction(data: TransactionFormData) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions');
+  revalidateTag('transactions', 'page');
 
   return transaction;
 }
@@ -268,7 +268,7 @@ export async function deleteTransaction(id: string) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions');
+  revalidateTag('transactions', 'page');
 }
 
 export async function deleteMultipleTransactions(ids: string[]) {
@@ -305,7 +305,7 @@ export async function deleteMultipleTransactions(ids: string[]) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions');
+  revalidateTag('transactions', 'page');
 }
 
 export async function getTransactionsInternal(

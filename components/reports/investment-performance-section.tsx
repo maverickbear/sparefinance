@@ -135,7 +135,7 @@ export function InvestmentPerformanceSection({
                 <div className="space-y-2">
                   {topHoldings.map((holding) => (
                     <div
-                      key={holding.id}
+                      key={`${holding.securityId}-${holding.accountId}`}
                       className="flex items-center justify-between p-3 rounded-lg border bg-card"
                     >
                       <div className="flex-1">

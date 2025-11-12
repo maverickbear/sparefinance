@@ -15,7 +15,7 @@ import {
 } from "@/lib/utils/portfolio-utils";
 import { Loader2 } from "lucide-react";
 import type { Holding as SupabaseHolding } from "@/lib/api/investments";
-import { convertSupabaseHoldingToHolding } from "@/lib/mock-data/portfolio-mock-data";
+import { convertSupabaseHoldingToHolding, type Holding, type Account, type HistoricalDataPoint } from "@/lib/mock-data/portfolio-mock-data";
 import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
 import { QuestradeDataTables } from "@/components/portfolio/questrade-data-tables";
 import { OrdersTabContent } from "@/components/portfolio/orders-tab-content";
@@ -35,36 +35,6 @@ interface PortfolioSummary {
   totalReturnPercent: number;
   totalCost: number;
   holdingsCount: number;
-}
-
-interface Account {
-  id: string;
-  name: string;
-  type: string;
-  value: number;
-  allocationPercent: number;
-}
-
-interface HistoricalDataPoint {
-  date: string;
-  value: number;
-}
-
-interface Holding {
-  id: string;
-  symbol: string;
-  name: string;
-  assetType: string;
-  sector: string;
-  quantity: number;
-  avgPrice: number;
-  currentPrice: number;
-  marketValue: number;
-  bookValue: number;
-  unrealizedPnL: number;
-  unrealizedPnLPercent: number;
-  accountId: string;
-  accountName: string;
 }
 
 export default function InvestmentsPage() {

@@ -1225,6 +1225,7 @@ export async function createSystemSubcategory(data: { name: string; categoryId: 
       createdAt: new Date(subcategory.createdAt),
       updatedAt: new Date(subcategory.updatedAt),
       userId: null,
+      logo: subcategory.logo || null,
     };
   } catch (error) {
     console.error("Error in createSystemSubcategory:", error);

@@ -3,13 +3,14 @@ import { updateSubcategory, deleteSubcategory } from "@/lib/api/categories";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { name, logo } = body;
 
-    const subcategory = await updateSubcategory(params.id, { name, logo });
+    const subcategory = await updateSubcategory(id, { name, logo });
     return NextResponse.json(subcategory, { status: 200 });
   } catch (error) {
     console.error("Error updating subcategory:", error);
@@ -22,10 +23,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await deleteSubcategory(params.id);
+    const { id } = await params;
+    await deleteSubcategory(id);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("Error deleting subcategory:", error);

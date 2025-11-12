@@ -3,9 +3,10 @@ import { createSubcategory } from "@/lib/api/categories";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { name, logo } = body;
 
@@ -16,7 +17,7 @@ export async function POST(
       );
     }
 
-    const subcategory = await createSubcategory({ name, categoryId: params.id, logo });
+    const subcategory = await createSubcategory({ name, categoryId: id, logo });
     return NextResponse.json(subcategory, { status: 201 });
   } catch (error) {
     console.error("Error creating subcategory:", error);
