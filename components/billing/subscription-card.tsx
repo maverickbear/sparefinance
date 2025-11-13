@@ -75,11 +75,22 @@ export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {subscription.currentPeriodEnd && (
+        {(subscription.currentPeriodEnd || subscription.trialEndDate) && (
           <div>
-            <p className="text-sm text-muted-foreground">Current period ends</p>
+            <p className="text-sm text-muted-foreground">
+              {subscription.status === "trialing"
+                ? "Your trial period ends in"
+                : "Current period ends"}
+            </p>
             <p className="font-medium">
-              {format(new Date(subscription.currentPeriodEnd), "PPP")}
+              {format(
+                new Date(
+                  subscription.status === "trialing" && subscription.trialEndDate
+                    ? subscription.trialEndDate
+                    : subscription.currentPeriodEnd!
+                ),
+                "PPP"
+              )}
             </p>
           </div>
         )}

@@ -27,6 +27,7 @@ import { PercentageInput } from "@/components/common/percentage-input";
 import { calculateDebtMetrics, convertToMonthlyPayment, convertFromMonthlyPayment, calculateMonthlyPayment, calculatePaymentsFromDate, type DebtForCalculation } from "@/lib/utils/debts";
 import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
+import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 
 interface Debt {
   id: string;
@@ -79,6 +80,8 @@ export function DebtForm({
     progressPct: number;
   } | null>(null);
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string; type: string }>>([]);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [shouldShowForm, setShouldShowForm] = useState(false);
   
   const isInitialLoad = useRef(false);
   const isDataLoaded = useRef(false);
@@ -146,7 +149,7 @@ export function DebtForm({
     }> = {
       mortgage: {
         showDownPayment: true,
-        downPaymentRequired: true,
+        downPaymentRequired: false,
         showTotalMonths: true,
         totalMonthsRequired: true,
         showPaymentFrequency: true,
@@ -160,7 +163,7 @@ export function DebtForm({
       },
       car_loan: {
         showDownPayment: true,
-        downPaymentRequired: true,
+        downPaymentRequired: false,
         showTotalMonths: true,
         totalMonthsRequired: true,
         showPaymentFrequency: true,
@@ -547,6 +550,50 @@ export function DebtForm({
     }
   }, [open]);
 
+  // Check accounts when opening form for new debt
+  useEffect(() => {
+    if (open) {
+      // If editing a debt, no need to check accounts
+      if (debt) {
+        setShouldShowForm(true);
+        loadAccounts();
+      } else {
+        // If creating a new debt, check if there are accounts
+        checkAccountsAndShowForm();
+      }
+    } else {
+      setShouldShowForm(false);
+      setShowAccountDialog(false);
+    }
+  }, [open, debt]);
+
+  async function checkAccountsAndShowForm() {
+    try {
+      const accountsRes = await fetch("/api/accounts");
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json().catch(() => []);
+        if (accountsData.length === 0) {
+          // No accounts, show the dialog
+          setShowAccountDialog(true);
+          setShouldShowForm(false);
+        } else {
+          // Has accounts, can show the form
+          setShouldShowForm(true);
+          loadAccounts();
+        }
+      } else {
+        // Error fetching accounts, try to show the form anyway
+        setShouldShowForm(true);
+        loadAccounts();
+      }
+    } catch (error) {
+      console.error("Error checking accounts:", error);
+      // In case of error, try to show the form anyway
+      setShouldShowForm(true);
+      loadAccounts();
+    }
+  }
+
   async function loadAccounts() {
     try {
       const res = await fetch("/api/accounts");
@@ -779,8 +826,23 @@ export function DebtForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
+    <>
+      <AccountRequiredDialog
+        open={showAccountDialog}
+        onOpenChange={(isOpen) => {
+          setShowAccountDialog(isOpen);
+          if (!isOpen) {
+            onOpenChange(false);
+          }
+        }}
+        onAccountCreated={() => {
+          setShowAccountDialog(false);
+          checkAccountsAndShowForm();
+        }}
+      />
+      {shouldShowForm && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{debt ? "Edit" : "Create"} Debt</DialogTitle>
         </DialogHeader>
@@ -889,7 +951,6 @@ export function DebtForm({
                   value={form.watch("interestRate") || undefined}
                   onChange={(value) => form.setValue("interestRate", value ?? 0, { shouldValidate: true })}
                   placeholder="0.00 %"
-                  required
                 />
                 {form.formState.errors.interestRate && (
                   <p className="text-xs text-destructive">
@@ -1220,6 +1281,8 @@ export function DebtForm({
         </form>
       </DialogContent>
     </Dialog>
+      )}
+    </>
   );
 }
 

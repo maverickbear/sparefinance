@@ -12,6 +12,7 @@ import { formatMoney } from "@/components/common/money";
 import { EmptyState } from "@/components/common/empty-state";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface Budget {
   id: string;
@@ -63,6 +64,7 @@ interface Category {
 export default function BudgetsPage() {
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
+  const { checkWriteAccess } = useWriteGuard();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
@@ -107,6 +109,7 @@ export default function BudgetsPage() {
   }
 
   function handleDelete(id: string) {
+    if (!checkWriteAccess()) return;
     openDialog(
       {
         title: "Delete Budget",
@@ -239,6 +242,7 @@ export default function BudgetsPage() {
           description="Create your first budget to start tracking your spending and stay on top of your finances."
           actionLabel="Create Your First Budget"
           onAction={() => {
+            if (!checkWriteAccess()) return;
             setSelectedBudget(null);
             setIsFormOpen(true);
           }}
@@ -253,6 +257,7 @@ export default function BudgetsPage() {
             {budgets.length > 0 && (
               <Button
                 onClick={() => {
+                  if (!checkWriteAccess()) return;
                   setSelectedBudget(null);
                   setIsFormOpen(true);
                 }}
@@ -268,10 +273,12 @@ export default function BudgetsPage() {
                 key={budget.id}
                 budget={budget}
                 onEdit={(b) => {
+                  if (!checkWriteAccess()) return;
                   setSelectedBudget(b);
                   setIsFormOpen(true);
                 }}
                 onDelete={(id) => {
+                  if (!checkWriteAccess()) return;
                   if (deletingId !== id) {
                     handleDelete(id);
                   }

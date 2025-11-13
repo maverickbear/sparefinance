@@ -164,19 +164,8 @@ export async function guardAccountLimit(userId: string): Promise<GuardResult> {
  */
 export async function guardHouseholdMembers(userId: string): Promise<GuardResult> {
   try {
-    const { plan } = await checkPlanLimits(userId);
-    
-    // Household members are only available for Basic and Premium plans
-    if (!plan || plan.name === "free") {
-      return {
-        allowed: false,
-        error: createPlanError(PlanErrorCode.HOUSEHOLD_MEMBERS_NOT_AVAILABLE, {
-          currentPlan: plan?.name || "free",
-        }),
-      };
-    }
-    
-    return { allowed: true };
+    // Use guardFeatureAccess to check hasHousehold feature (Premium only)
+    return await guardFeatureAccess(userId, "hasHousehold");
   } catch (error) {
     console.error("Error in guardHouseholdMembers:", error);
     return {

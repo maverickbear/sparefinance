@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Script para importar logos nas subcategorias existentes
- * Usa APIs gratuitas de logos (Clearbit e Google Favicon)
+ * Script to import logos for existing subcategories
+ * Uses free logo APIs (Clearbit and Google Favicon)
  * 
- * Execute com: npm run import:logos
+ * Run with: npm run import:logos
  */
 
 // Load environment variables from .env.local FIRST
@@ -39,14 +39,14 @@ function createServiceRoleClient() {
   });
 }
 
-// Mapeamento de nomes de subcategorias para domínios
+// Mapping of subcategory names to domains
 const subcategoryDomainMap: Record<string, string> = {
   // Utilities
   "BC Hydro": "bchydro.com",
   "Fortis BC": "fortisbc.com",
-  "Internet": "", // Genérico, não tem logo específico
-  "Maintenance": "", // Genérico
-  "Insurance": "", // Genérico
+  "Internet": "", // Generic, no specific logo
+  "Maintenance": "", // Generic
+  "Insurance": "", // Generic
   
   // Streaming
   "Netflix": "netflix.com",
@@ -57,66 +57,66 @@ const subcategoryDomainMap: Record<string, string> = {
   // Software
   "Adobe": "adobe.com",
   "ChatGPT": "openai.com",
-  "Cloud": "", // Genérico
+  "Cloud": "", // Generic
   
   // Vehicle
-  "Car Loan": "", // Genérico
-  "Car Insurance": "", // Genérico
-  "Fuel": "", // Genérico
-  "Parking": "", // Genérico
-  "Vehicle Maintenance": "", // Genérico
+  "Car Loan": "", // Generic
+  "Car Insurance": "", // Generic
+  "Fuel": "", // Generic
+  "Parking": "", // Generic
+  "Vehicle Maintenance": "", // Generic
   
   // Transit
-  "Transit Pass": "", // Genérico
-  "Public Transit": "", // Genérico
+  "Transit Pass": "", // Generic
+  "Public Transit": "", // Generic
   
   // Food
-  "Apollo": "", // Pode ser marca de pet food, mas não tenho certeza do domínio
+  "Apollo": "", // Could be pet food brand, but not sure of domain
   
   // Health
   "Ozempic": "ozempic.com",
-  "Naor": "", // Nome pessoal
-  "Natalia": "", // Nome pessoal
+  "Naor": "", // Personal name
+  "Natalia": "", // Personal name
   
   // Business
-  "Office Rent (70%)": "", // Genérico
-  "Phone & Internet": "", // Genérico
-  "Equipment": "", // Genérico
-  "Hosting": "", // Genérico
-  "Accounting": "", // Genérico
+  "Office Rent (70%)": "", // Generic
+  "Phone & Internet": "", // Generic
+  "Equipment": "", // Generic
+  "Hosting": "", // Generic
+  "Accounting": "", // Generic
 };
 
 /**
- * Tenta inferir o domínio baseado no nome da subcategoria
+ * Tries to infer the domain based on the subcategory name
  */
 function inferDomain(subcategoryName: string): string | null {
-  // Primeiro, verifica o mapeamento direto
+  // First, check the direct mapping
   const mappedDomain = subcategoryDomainMap[subcategoryName];
   if (mappedDomain) {
-    // Se for string vazia, significa que é genérico e não tem logo
+    // If it's an empty string, it means it's generic and has no logo
     if (mappedDomain === "") {
       return null;
     }
     return mappedDomain;
   }
   
-  // Tenta inferir baseado no nome
+  // Try to infer based on the name
   const name = subcategoryName.toLowerCase().trim();
   
-  // Remove caracteres especiais e espaços, mas mantém pontos e hífens
+  // Remove special characters and spaces, but keep dots and hyphens
   let cleanName = name.replace(/[^a-z0-9.-]/g, "");
   
-  // Remove pontos e hífens no início/fim
+  // Remove dots and hyphens at the beginning/end
   cleanName = cleanName.replace(/^[.-]+|[.-]+$/g, "");
   
-  // Se o nome já parece ser um domínio (tem ponto)
+  // If the name already looks like a domain (has a dot)
   if (cleanName.includes(".")) {
     return cleanName;
   }
   
-  // Se o nome parece ser uma empresa conhecida (mais de 3 caracteres)
+  // If the name looks like a known company (more than 3 characters)
   if (cleanName.length > 3 && cleanName.length < 30) {
-    // Tenta algumas variações comuns
+    // Try some common variations
     return `${cleanName}.com`;
   }
   
@@ -124,7 +124,7 @@ function inferDomain(subcategoryName: string): string | null {
 }
 
 /**
- * Busca logo usando Clearbit Logo API
+ * Fetches logo using Clearbit Logo API
  */
 async function getClearbitLogo(domain: string): Promise<string | null> {
   try {
@@ -142,7 +142,7 @@ async function getClearbitLogo(domain: string): Promise<string | null> {
 }
 
 /**
- * Busca logo usando Google Favicon API (fallback)
+ * Fetches logo using Google Favicon API (fallback)
  */
 async function getGoogleFavicon(domain: string): Promise<string | null> {
   try {
@@ -160,38 +160,38 @@ async function getGoogleFavicon(domain: string): Promise<string | null> {
 }
 
 /**
- * Busca logo para uma subcategoria
+ * Finds logo for a subcategory
  */
 async function findLogoForSubcategory(subcategoryName: string): Promise<string | null> {
   const domain = inferDomain(subcategoryName);
   
   if (!domain) {
-    console.log(`⚠️  Não foi possível inferir domínio para: ${subcategoryName}`);
+    console.log(`⚠️  Could not infer domain for: ${subcategoryName}`);
     return null;
   }
   
-  console.log(`🔍 Buscando logo para "${subcategoryName}" (${domain})...`);
+  console.log(`🔍 Searching for logo for "${subcategoryName}" (${domain})...`);
   
-  // Tenta Clearbit primeiro (melhor qualidade)
+  // Try Clearbit first (better quality)
   const clearbitLogo = await getClearbitLogo(domain);
   if (clearbitLogo) {
-    console.log(`✅ Logo encontrado (Clearbit): ${clearbitLogo}`);
+    console.log(`✅ Logo found (Clearbit): ${clearbitLogo}`);
     return clearbitLogo;
   }
   
-  // Fallback para Google Favicon
+  // Fallback to Google Favicon
   const faviconLogo = await getGoogleFavicon(domain);
   if (faviconLogo) {
-    console.log(`✅ Logo encontrado (Google Favicon): ${faviconLogo}`);
+    console.log(`✅ Logo found (Google Favicon): ${faviconLogo}`);
     return faviconLogo;
   }
   
-  console.log(`❌ Logo não encontrado para: ${subcategoryName}`);
+  console.log(`❌ Logo not found for: ${subcategoryName}`);
   return null;
 }
 
 /**
- * Atualiza uma subcategoria com o logo
+ * Updates a subcategory with the logo
  */
 async function updateSubcategoryLogo(
   supabase: ReturnType<typeof createServiceRoleClient>,
@@ -203,29 +203,29 @@ async function updateSubcategoryLogo(
       .from("Subcategory")
       .update({ logo, updatedAt: new Date().toISOString() })
       .eq("id", subcategoryId)
-      .is("userId", null); // Apenas subcategorias do sistema
+      .is("userId", null); // Only system subcategories
     
     if (error) {
-      console.error(`❌ Erro ao atualizar subcategoria ${subcategoryId}:`, error);
+      console.error(`❌ Error updating subcategory ${subcategoryId}:`, error);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error(`❌ Erro ao atualizar subcategoria ${subcategoryId}:`, error);
+    console.error(`❌ Error updating subcategory ${subcategoryId}:`, error);
     return false;
   }
 }
 
 /**
- * Função principal
+ * Main function
  */
 async function main() {
-  console.log("🚀 Iniciando importação de logos para subcategorias...\n");
+  console.log("🚀 Starting logo import for subcategories...\n");
   
   const supabase = createServiceRoleClient();
   
-  // Busca todas as subcategorias do sistema (userId IS NULL)
+  // Fetch all system subcategories (userId IS NULL)
   const { data: subcategories, error } = await supabase
     .from("Subcategory")
     .select("id, name, logo")
@@ -233,68 +233,68 @@ async function main() {
     .order("name");
   
   if (error) {
-    console.error("❌ Erro ao buscar subcategorias:", error);
+    console.error("❌ Error fetching subcategories:", error);
     process.exit(1);
   }
   
   if (!subcategories || subcategories.length === 0) {
-    console.log("ℹ️  Nenhuma subcategoria encontrada.");
+    console.log("ℹ️  No subcategories found.");
     return;
   }
   
-  console.log(`📋 Encontradas ${subcategories.length} subcategorias do sistema.\n`);
+  console.log(`📋 Found ${subcategories.length} system subcategories.\n`);
   
   let updated = 0;
   let skipped = 0;
   let failed = 0;
   
   for (const subcategory of subcategories) {
-    // Pula se já tem logo
+    // Skip if it already has a logo
     if (subcategory.logo) {
-      console.log(`⏭️  Pulando "${subcategory.name}" (já tem logo)`);
+      console.log(`⏭️  Skipping "${subcategory.name}" (already has logo)`);
       skipped++;
       continue;
     }
     
-    // Busca logo
+    // Find logo
     const logo = await findLogoForSubcategory(subcategory.name);
     
     if (logo) {
-      // Atualiza subcategoria
+      // Update subcategory
       const success = await updateSubcategoryLogo(supabase, subcategory.id, logo);
       
       if (success) {
         updated++;
-        console.log(`✅ Logo importado para "${subcategory.name}"\n`);
+        console.log(`✅ Logo imported for "${subcategory.name}"\n`);
       } else {
         failed++;
-        console.log(`❌ Falha ao atualizar "${subcategory.name}"\n`);
+        console.log(`❌ Failed to update "${subcategory.name}"\n`);
       }
     } else {
       skipped++;
-      console.log(`⏭️  Pulando "${subcategory.name}" (logo não encontrado)\n`);
+      console.log(`⏭️  Skipping "${subcategory.name}" (logo not found)\n`);
     }
     
-    // Pequeno delay para não sobrecarregar as APIs
+    // Small delay to avoid overloading the APIs
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   
   console.log("\n" + "=".repeat(50));
-  console.log("📊 Resumo:");
-  console.log(`✅ Atualizadas: ${updated}`);
-  console.log(`⏭️  Puladas: ${skipped}`);
-  console.log(`❌ Falhas: ${failed}`);
+  console.log("📊 Summary:");
+  console.log(`✅ Updated: ${updated}`);
+  console.log(`⏭️  Skipped: ${skipped}`);
+  console.log(`❌ Failed: ${failed}`);
   console.log("=".repeat(50));
 }
 
-// Executa o script
+// Run the script
 main()
   .then(() => {
-    console.log("\n✨ Importação concluída!");
+    console.log("\n✨ Import completed!");
     process.exit(0);
   })
   .catch((error) => {
-    console.error("\n❌ Erro fatal:", error);
+    console.error("\n❌ Fatal error:", error);
     process.exit(1);
   });
 

@@ -138,13 +138,18 @@ export async function GET(request: NextRequest) {
     // Create a map of database subscription ID to Stripe data
     const stripeSubMap = new Map<string, Stripe.Subscription>();
     stripeSubscriptions.forEach((result) => {
-      if (result.status === "fulfilled" && !result.value.error) {
-        stripeSubMap.set(result.value.dbSubscriptionId, result.value.stripeSub);
+      if (result.status === "fulfilled") {
+        const value = result.value as { dbSubscriptionId: string; stripeSub: Stripe.Subscription } | { dbSubscriptionId: string; error: any };
+        if (!("error" in value)) {
+          stripeSubMap.set(value.dbSubscriptionId, value.stripeSub);
+        }
       }
     });
 
     for (const sub of activeSubscriptions) {
-      if (!sub.plan) continue;
+      // Handle plan as array (from Supabase join) or single object
+      const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
+      if (!plan) continue;
 
       let monthlyRevenue = 0;
       let interval: "month" | "year" | "unknown" = "unknown";
@@ -157,22 +162,22 @@ export async function GET(request: NextRequest) {
       if (stripeSub) {
         const priceId = stripeSub.items.data[0]?.price.id;
 
-        if (priceId === sub.plan.stripePriceIdMonthly) {
+        if (priceId === plan.stripePriceIdMonthly) {
           interval = "month";
-          monthlyRevenue = Number(sub.plan.priceMonthly) || 0;
-        } else if (priceId === sub.plan.stripePriceIdYearly) {
+          monthlyRevenue = Number(plan.priceMonthly) || 0;
+        } else if (priceId === plan.stripePriceIdYearly) {
           interval = "year";
           // Convert yearly to monthly for MRR
-          monthlyRevenue = (Number(sub.plan.priceYearly) || 0) / 12;
+          monthlyRevenue = (Number(plan.priceYearly) || 0) / 12;
         } else {
           // Fallback: assume monthly if we can't determine
           interval = "month";
-          monthlyRevenue = Number(sub.plan.priceMonthly) || 0;
+          monthlyRevenue = Number(plan.priceMonthly) || 0;
         }
       } else {
         // No Stripe subscription ID or failed to fetch, assume monthly
         interval = "month";
-        monthlyRevenue = Number(sub.plan.priceMonthly) || 0;
+        monthlyRevenue = Number(plan.priceMonthly) || 0;
       }
 
       mrr += monthlyRevenue;
@@ -181,7 +186,7 @@ export async function GET(request: NextRequest) {
         subscriptionId: sub.id,
         userId: sub.userId,
         planId: sub.planId,
-        planName: sub.plan.name,
+        planName: plan.name,
         status: sub.status,
         monthlyRevenue,
         interval,
@@ -203,7 +208,9 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     for (const sub of trialingSubscriptions) {
-      if (!sub.plan || !sub.trialEndDate) continue;
+      // Handle plan as array (from Supabase join) or single object
+      const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
+      if (!plan || !sub.trialEndDate) continue;
 
       const trialEnd = new Date(sub.trialEndDate);
       const daysUntilEnd = Math.ceil(
@@ -213,14 +220,14 @@ export async function GET(request: NextRequest) {
       // Only count trials that haven't ended
       if (daysUntilEnd > 0) {
         // Assume they'll convert to monthly plan
-        const estimatedMonthlyRevenue = Number(sub.plan.priceMonthly) || 0;
+        const estimatedMonthlyRevenue = Number(plan.priceMonthly) || 0;
         estimatedFutureMRR += estimatedMonthlyRevenue;
 
         upcomingTrials.push({
           subscriptionId: sub.id,
           userId: sub.userId,
           planId: sub.planId,
-          planName: sub.plan.name,
+          planName: plan.name,
           trialEndDate: sub.trialEndDate,
           daysUntilEnd,
           estimatedMonthlyRevenue,
@@ -254,7 +261,9 @@ export async function GET(request: NextRequest) {
     });
 
     subscriptionsList.forEach((sub) => {
-      if (sub.plan && planDistribution[sub.planId]) {
+      // Handle plan as array (from Supabase join) or single object
+      const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
+      if (plan && planDistribution[sub.planId]) {
         planDistribution[sub.planId].totalCount++;
         if (sub.status === "active") {
           planDistribution[sub.planId].activeCount++;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SimpleTabs, SimpleTabsContent, SimpleTabsList, SimpleTabsTrigger } from "@/components/ui/simple-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UsersTable } from "@/components/admin/users-table";
@@ -303,27 +303,27 @@ export default function PortalManagementPage() {
         description="Manage users, promotional codes, and system entities (groups, categories, subcategories) for the platform."
       />
 
-      <Tabs defaultValue="dashboard" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="dashboard" className="flex items-center gap-2">
+      <SimpleTabs defaultValue="dashboard" className="space-y-4">
+        <SimpleTabsList>
+          <SimpleTabsTrigger value="dashboard" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Dashboard
-          </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
+          </SimpleTabsTrigger>
+          <SimpleTabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Users
-          </TabsTrigger>
-          <TabsTrigger value="promo-codes" className="flex items-center gap-2">
+          </SimpleTabsTrigger>
+          <SimpleTabsTrigger value="promo-codes" className="flex items-center gap-2">
             <Tag className="h-4 w-4" />
             Promo Codes
-          </TabsTrigger>
-          <TabsTrigger value="system-entities" className="flex items-center gap-2">
+          </SimpleTabsTrigger>
+          <SimpleTabsTrigger value="system-entities" className="flex items-center gap-2">
             <FolderTree className="h-4 w-4" />
             System Entities
-          </TabsTrigger>
-        </TabsList>
+          </SimpleTabsTrigger>
+        </SimpleTabsList>
 
-        <TabsContent value="dashboard" className="space-y-6">
+        <SimpleTabsContent value="dashboard" className="space-y-6">
           <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -370,9 +370,9 @@ export default function PortalManagementPage() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        </SimpleTabsContent>
 
-        <TabsContent value="users" className="space-y-4">
+        <SimpleTabsContent value="users" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>All Users</CardTitle>
@@ -384,9 +384,9 @@ export default function PortalManagementPage() {
               <UsersTable users={users} loading={loading} />
             </CardContent>
           </Card>
-        </TabsContent>
+        </SimpleTabsContent>
 
-        <TabsContent value="promo-codes" className="space-y-4">
+        <SimpleTabsContent value="promo-codes" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -412,17 +412,17 @@ export default function PortalManagementPage() {
               />
             </CardContent>
           </Card>
-        </TabsContent>
+        </SimpleTabsContent>
 
-        <TabsContent value="system-entities" className="space-y-4">
-          <Tabs defaultValue="groups" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="groups">Groups</TabsTrigger>
-              <TabsTrigger value="categories">Categories</TabsTrigger>
-              <TabsTrigger value="subcategories">Subcategories</TabsTrigger>
-            </TabsList>
+        <SimpleTabsContent value="system-entities" className="space-y-4">
+          <SimpleTabs defaultValue="groups" className="space-y-4">
+            <SimpleTabsList>
+              <SimpleTabsTrigger value="groups">Groups</SimpleTabsTrigger>
+              <SimpleTabsTrigger value="categories">Categories</SimpleTabsTrigger>
+              <SimpleTabsTrigger value="subcategories">Subcategories</SimpleTabsTrigger>
+            </SimpleTabsList>
 
-            <TabsContent value="groups" className="space-y-4">
+            <SimpleTabsContent value="groups" className="space-y-4">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -447,9 +447,9 @@ export default function PortalManagementPage() {
                   />
                 </CardContent>
               </Card>
-            </TabsContent>
+            </SimpleTabsContent>
 
-            <TabsContent value="categories" className="space-y-4">
+            <SimpleTabsContent value="categories" className="space-y-4">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -475,9 +475,9 @@ export default function PortalManagementPage() {
                   />
                 </CardContent>
               </Card>
-            </TabsContent>
+            </SimpleTabsContent>
 
-            <TabsContent value="subcategories" className="space-y-4">
+            <SimpleTabsContent value="subcategories" className="space-y-4">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -503,10 +503,10 @@ export default function PortalManagementPage() {
                   />
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-      </Tabs>
+            </SimpleTabsContent>
+          </SimpleTabs>
+        </SimpleTabsContent>
+      </SimpleTabs>
 
       <PromoCodeDialog
         open={isDialogOpen}

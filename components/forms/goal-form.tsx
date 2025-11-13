@@ -28,6 +28,7 @@ import { calculateProgress, calculateIncomePercentageFromTargetMonths } from "@/
 import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
+import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 
 interface Goal {
   id: string;
@@ -66,6 +67,8 @@ export function GoalForm({
     totalAllocation: number;
     allocationError?: string;
   } | null>(null);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [shouldShowForm, setShouldShowForm] = useState(false);
 
   const form = useForm<GoalFormData>({
     resolver: zodResolver(goalSchema),
@@ -193,30 +196,63 @@ export function GoalForm({
 
   // Load goal data when editing
   useEffect(() => {
-    if (open && goal) {
-      form.reset({
-        name: goal.name || "",
-        targetAmount: goal.targetAmount || 0,
-        currentBalance: goal.currentBalance ?? 0,
-        incomePercentage: goal.incomePercentage ?? undefined,
-        priority: goal.priority || "Medium",
-        description: goal.description || "",
-        expectedIncome: goal.expectedIncome ?? undefined,
-        targetMonths: goal.targetMonths ?? undefined,
-      });
-    } else if (open && !goal) {
-      form.reset({
-        name: "",
-        targetAmount: 0,
-        currentBalance: 0,
-        incomePercentage: undefined,
-        priority: "Medium",
-        description: "",
-        expectedIncome: undefined,
-        targetMonths: undefined,
-      });
+    if (open) {
+      // If editing a goal, no need to check accounts
+      if (goal) {
+        setShouldShowForm(true);
+        form.reset({
+          name: goal.name || "",
+          targetAmount: goal.targetAmount || 0,
+          currentBalance: goal.currentBalance ?? 0,
+          incomePercentage: goal.incomePercentage ?? undefined,
+          priority: goal.priority || "Medium",
+          description: goal.description || "",
+          expectedIncome: goal.expectedIncome ?? undefined,
+          targetMonths: goal.targetMonths ?? undefined,
+        });
+      } else {
+        // If creating a new goal, check if there are accounts
+        checkAccountsAndShowForm();
+      }
+    } else {
+      setShouldShowForm(false);
+      setShowAccountDialog(false);
     }
   }, [open, goal, form]);
+
+  async function checkAccountsAndShowForm() {
+    try {
+      const accountsRes = await fetch("/api/accounts");
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json().catch(() => []);
+        if (accountsData.length === 0) {
+          // No accounts, show the dialog
+          setShowAccountDialog(true);
+          setShouldShowForm(false);
+        } else {
+          // Has accounts, can show the form
+          setShouldShowForm(true);
+          form.reset({
+            name: "",
+            targetAmount: 0,
+            currentBalance: 0,
+            incomePercentage: undefined,
+            priority: "Medium",
+            description: "",
+            expectedIncome: undefined,
+            targetMonths: undefined,
+          });
+        }
+      } else {
+        // Error fetching accounts, try to show the form anyway
+        setShouldShowForm(true);
+      }
+    } catch (error) {
+      console.error("Error checking accounts:", error);
+      // In case of error, try to show the form anyway
+      setShouldShowForm(true);
+    }
+  }
 
   async function onSubmit(data: GoalFormData) {
     try {
@@ -303,8 +339,23 @@ export function GoalForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
+    <>
+      <AccountRequiredDialog
+        open={showAccountDialog}
+        onOpenChange={(isOpen) => {
+          setShowAccountDialog(isOpen);
+          if (!isOpen) {
+            onOpenChange(false);
+          }
+        }}
+        onAccountCreated={() => {
+          setShowAccountDialog(false);
+          checkAccountsAndShowForm();
+        }}
+      />
+      {shouldShowForm && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{goal ? "Edit" : "Create"} Goal</DialogTitle>
           <DialogDescription>
@@ -523,6 +574,8 @@ export function GoalForm({
         </form>
       </DialogContent>
     </Dialog>
+      )}
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
 import { GoalsOverview } from "@/components/dashboard/goals-overview";
 import { CategoryExpensesChart } from "@/components/charts/category-expenses-chart";
+import { logger } from "@/lib/utils/logger";
 
 interface ChartsSectionProps {
   selectedMonthTransactions: any[];
@@ -10,7 +11,9 @@ export function ChartsSection({
   selectedMonthTransactions, 
   goals 
 }: ChartsSectionProps) {
-  console.log("🔍 [ChartsSection] Goals received:", {
+  const log = logger.withPrefix("ChartsSection");
+  
+  log.log("Goals received:", {
     goalsCount: goals?.length || 0,
     goals: goals?.slice(0, 3).map((g: any) => ({
       id: g.id,

@@ -6,7 +6,7 @@ import { PlanBadge } from "@/components/common/plan-badge";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { PricingModal } from "@/components/billing/pricing-modal";
+import { useRouter } from "next/navigation";
 
 interface PlanCardProps {
   subscription: Subscription | null;
@@ -16,17 +16,10 @@ interface PlanCardProps {
 
 export function PlanCard({ subscription, plan, onManage }: PlanCardProps) {
   const [loading, setLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
 
   async function handleManage() {
-    setIsModalOpen(true);
-  }
-
-  function handleModalSuccess() {
-    setIsModalOpen(false);
-    if (onManage) {
-      onManage();
-    }
+    router.push("/pricing");
   }
 
   if (!subscription || !plan) {
@@ -94,12 +87,6 @@ export function PlanCard({ subscription, plan, onManage }: PlanCardProps) {
           </div>
         </CardContent>
       </Card>
-      <PricingModal
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        currentPlanId={plan?.id}
-        onSuccess={handleModalSuccess}
-      />
     </>
   );
 }

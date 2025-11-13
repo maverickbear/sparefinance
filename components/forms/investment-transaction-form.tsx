@@ -25,6 +25,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import { Loader2, Check } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
+import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -115,6 +116,8 @@ export function InvestmentTransactionForm({
   const [showSecurityDropdown, setShowSecurityDropdown] = useState(false);
   const [apiSearchResults, setApiSearchResults] = useState<Array<{ symbol: string; name: string; class: string; exchange?: string; logo?: string }>>([]);
   const [isSearchingSecurities, setIsSearchingSecurities] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [shouldShowForm, setShouldShowForm] = useState(false);
 
   const form = useForm<InvestmentTransactionFormData & { currentPrice?: number; security?: { symbol: string; name: string; class: string } }>({
     resolver: zodResolver(investmentTransactionSchema),
@@ -133,24 +136,12 @@ export function InvestmentTransactionForm({
 
   useEffect(() => {
     if (open) {
-      // Reset accounts to empty when dialog opens to show loading state
-      setAccounts([]);
-      setIsLoadingAccounts(true);
-      loadData();
-      form.reset({
-        date: new Date(),
-        type: "buy",
-        quantity: undefined,
-        price: undefined,
-        fees: 0,
-        notes: "",
-        securityId: undefined,
-      });
-      setShowSecurityDropdown(false);
-      setSecuritySearch("");
-      setApiSearchResults([]);
+      // Check if there are accounts before showing the form
+      checkAccountsAndShowForm();
     } else {
       // Reset state when dialog closes
+      setShouldShowForm(false);
+      setShowAccountDialog(false);
       setIsAddingAccount(false);
       setNewAccountName("");
       setShowSecurityDropdown(false);
@@ -158,6 +149,52 @@ export function InvestmentTransactionForm({
       setApiSearchResults([]);
     }
   }, [open]);
+
+  async function checkAccountsAndShowForm() {
+    try {
+      const accountsRes = await fetch("/api/accounts");
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json().catch(() => []);
+        if (accountsData.length === 0) {
+          // No accounts, show the dialog
+          setShowAccountDialog(true);
+          setShouldShowForm(false);
+        } else {
+          // Has accounts, can show the form
+          setShouldShowForm(true);
+          // Reset accounts to empty when dialog opens to show loading state
+          setAccounts([]);
+          setIsLoadingAccounts(true);
+          loadData();
+          form.reset({
+            date: new Date(),
+            type: "buy",
+            quantity: undefined,
+            price: undefined,
+            fees: 0,
+            notes: "",
+            securityId: undefined,
+          });
+          setShowSecurityDropdown(false);
+          setSecuritySearch("");
+          setApiSearchResults([]);
+        }
+      } else {
+        // Error fetching accounts, try to show the form anyway
+        setShouldShowForm(true);
+        setAccounts([]);
+        setIsLoadingAccounts(true);
+        loadData();
+      }
+    } catch (error) {
+      console.error("Error checking accounts:", error);
+      // In case of error, try to show the form anyway
+      setShouldShowForm(true);
+      setAccounts([]);
+      setIsLoadingAccounts(true);
+      loadData();
+    }
+  }
 
   async function loadData() {
     setIsLoadingAccounts(true);
@@ -547,7 +584,21 @@ export function InvestmentTransactionForm({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <AccountRequiredDialog
+        open={showAccountDialog}
+        onOpenChange={(isOpen) => {
+          setShowAccountDialog(isOpen);
+          if (!isOpen) {
+            onOpenChange(false);
+          }
+        }}
+        onAccountCreated={() => {
+          setShowAccountDialog(false);
+          checkAccountsAndShowForm();
+        }}
+      />
+      {shouldShowForm && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
           <DialogHeader>
             <DialogTitle>Add Investment Transaction</DialogTitle>
@@ -1010,6 +1061,7 @@ export function InvestmentTransactionForm({
           </form>
         </DialogContent>
       </Dialog>
+      )}
 
       <SecurityDialog open={showSecurityDialog} onOpenChange={(open) => {
         setShowSecurityDialog(open);

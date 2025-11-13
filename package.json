@@ -15,7 +15,12 @@
     "cleanup:duplicates": "tsx scripts/cleanup-duplicate-categories.ts",
     "check:duplicate-subcategories": "tsx scripts/check-duplicate-subcategories.ts",
     "cleanup:duplicate-subcategories": "tsx scripts/cleanup-duplicate-subcategories.ts",
-    "import:logos": "tsx scripts/import-subcategory-logos.ts"
+    "import:logos": "tsx scripts/import-subcategory-logos.ts",
+    "sync:stripe-features": "tsx scripts/sync-features-to-stripe.ts",
+    "test:create-users": "tsx scripts/create-test-users.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:subscription": "jest tests/subscription-scenarios.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -64,6 +69,10 @@
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@types/jest": "^29.5.0",
+    "jest": "^29.7.0",
+    "jest-environment-node": "^29.7.0",
+    "dotenv": "^16.0.0"
   }
 }

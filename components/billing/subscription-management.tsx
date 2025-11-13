@@ -118,9 +118,18 @@ export function SubscriptionManagement({
       <Card className="border">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>
-              {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
-            </CardTitle>
+            <div>
+              <CardTitle>
+                {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {interval === "year" 
+                  ? "Yearly Subscription"
+                  : interval === "month"
+                  ? "Monthly Subscription"
+                  : "Subscription"}
+              </CardDescription>
+            </div>
             {price > 0 && (
               <div className="text-right">
                 <div className="text-2xl font-bold">${price.toFixed(2)}</div>
@@ -128,22 +137,26 @@ export function SubscriptionManagement({
               </div>
             )}
           </div>
-          <CardDescription className="mt-1">
-            {interval === "year" 
-              ? "Yearly Subscription"
-              : interval === "month"
-              ? "Monthly Subscription"
-              : "Subscription"}
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {subscription.currentPeriodEnd && (
+          {(subscription.currentPeriodEnd || subscription.trialEndDate) && (
             <div>
               <p className="text-sm text-muted-foreground">
-                {isCancelled ? "Subscription ends" : "Renews on"}
+                {isCancelled 
+                  ? "Subscription ends" 
+                  : subscription.status === "trialing"
+                  ? "Your trial period ends in"
+                  : "Renews on"}
               </p>
               <p className="font-medium">
-                {format(new Date(subscription.currentPeriodEnd), "PPP")}
+                {format(
+                  new Date(
+                    subscription.status === "trialing" && subscription.trialEndDate
+                      ? subscription.trialEndDate
+                      : subscription.currentPeriodEnd!
+                  ), 
+                  "PPP"
+                )}
               </p>
             </div>
           )}

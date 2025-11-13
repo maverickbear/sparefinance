@@ -25,6 +25,7 @@ import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 
 interface Macro {
   id: string;
@@ -92,6 +93,8 @@ export function BudgetForm({
   const [selectedMacroId, setSelectedMacroId] = useState<string>("");
   const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [subcategoriesMap, setSubcategoriesMap] = useState<Map<string, Array<{ id: string; name: string }>>>(new Map());
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [shouldShowForm, setShouldShowForm] = useState(false);
 
   const form = useForm<BudgetFormData>({
     resolver: zodResolver(budgetSchema),
@@ -179,7 +182,9 @@ export function BudgetForm({
 
   useEffect(() => {
     if (open) {
+      // If editing a budget, no need to check accounts
       if (budget) {
+        setShouldShowForm(true);
         // Load budget data
         form.reset({
           period: new Date(budget.period),
@@ -189,17 +194,46 @@ export function BudgetForm({
           amount: budget.amount,
         });
       } else {
-        // Reset form for new budget
-        form.reset({
-          period,
-          macroId: "",
-          categoryId: "",
-          subcategoryId: "",
-          amount: 0,
-        });
+        // If creating a new budget, check if there are accounts
+        checkAccountsAndShowForm();
       }
+    } else {
+      setShouldShowForm(false);
+      setShowAccountDialog(false);
     }
   }, [open, budget, period, form]);
+
+  async function checkAccountsAndShowForm() {
+    try {
+      const accountsRes = await fetch("/api/accounts");
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json().catch(() => []);
+        if (accountsData.length === 0) {
+          // No accounts, show the dialog
+          setShowAccountDialog(true);
+          setShouldShowForm(false);
+        } else {
+          // Has accounts, can show the form
+          setShouldShowForm(true);
+          // Reset form for new budget
+          form.reset({
+            period,
+            macroId: "",
+            categoryId: "",
+            subcategoryId: "",
+            amount: 0,
+          });
+        }
+      } else {
+        // Error fetching accounts, try to show the form anyway
+        setShouldShowForm(true);
+      }
+    } catch (error) {
+      console.error("Error checking accounts:", error);
+      // In case of error, try to show the form anyway
+      setShouldShowForm(true);
+    }
+  }
 
   function handleMacroChange(macroId: string) {
     setSelectedMacroId(macroId);
@@ -325,8 +359,23 @@ export function BudgetForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
+    <>
+      <AccountRequiredDialog
+        open={showAccountDialog}
+        onOpenChange={(isOpen) => {
+          setShowAccountDialog(isOpen);
+          if (!isOpen) {
+            onOpenChange(false);
+          }
+        }}
+        onAccountCreated={() => {
+          setShowAccountDialog(false);
+          checkAccountsAndShowForm();
+        }}
+      />
+      {shouldShowForm && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{budget ? "Edit" : "Add"} Budget</DialogTitle>
           <DialogDescription>
@@ -576,6 +625,8 @@ export function BudgetForm({
         </form>
       </DialogContent>
     </Dialog>
+      )}
+    </>
   );
 }
 

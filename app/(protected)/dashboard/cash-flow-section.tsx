@@ -1,6 +1,10 @@
 import { IncomeExpensesChart } from "@/components/charts/income-expenses-chart";
 import { FinancialHealthWidget } from "@/components/dashboard/financial-health-widget";
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from "date-fns";
+import { format } from "date-fns/format";
+import { startOfMonth } from "date-fns/startOfMonth";
+import { endOfMonth } from "date-fns/endOfMonth";
+import { eachMonthOfInterval } from "date-fns/eachMonthOfInterval";
+import { subMonths } from "date-fns/subMonths";
 
 interface CashFlowSectionProps {
   chartTransactions: any[];

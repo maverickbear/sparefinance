@@ -200,21 +200,63 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Get existing subscription to check if trial should be finalized
+    const { data: existingSubData } = await serviceSupabase
+      .from("Subscription")
+      .select("trialStartDate, trialEndDate, status")
+      .eq("id", subscriptionId)
+      .maybeSingle();
+
+    // Prepare subscription data
+    const subscriptionData: any = {
+      id: subscriptionId,
+      userId: authUser.id,
+      planId: plan.id,
+      status: status,
+      stripeSubscriptionId: activeSubscription.id,
+      stripeCustomerId: customerId,
+      currentPeriodStart: new Date((activeSubscription as any).current_period_start * 1000),
+      currentPeriodEnd: new Date((activeSubscription as any).current_period_end * 1000),
+      cancelAtPeriodEnd: (activeSubscription as any).cancel_at_period_end,
+      updatedAt: new Date(),
+    };
+
+    // Preserve trial start date if it exists
+    if (existingSubData?.trialStartDate) {
+      subscriptionData.trialStartDate = existingSubData.trialStartDate;
+    } else if ((activeSubscription as any).trial_start) {
+      subscriptionData.trialStartDate = new Date((activeSubscription as any).trial_start * 1000);
+    }
+
+    // If subscription status is "active" and was previously "trialing", finalize trial immediately
+    const wasTrialing = existingSubData?.status === "trialing";
+    const isNowActive = status === "active";
+    const hasTrialEndDate = existingSubData?.trialEndDate || (activeSubscription as any).trial_end;
+
+    if (isNowActive && wasTrialing && hasTrialEndDate) {
+      // Payment was made during trial - finalize trial immediately
+      const now = new Date();
+      subscriptionData.trialEndDate = now;
+      console.log("[SYNC] Payment made during trial - finalizing trial immediately:", {
+        subscriptionId,
+        previousStatus: existingSubData?.status,
+        newStatus: status,
+        previousTrialEndDate: existingSubData?.trialEndDate,
+        newTrialEndDate: now,
+      });
+    } else {
+      // Preserve trial end date if it exists, or set from Stripe if available
+      if (existingSubData?.trialEndDate) {
+        subscriptionData.trialEndDate = existingSubData.trialEndDate;
+      } else if ((activeSubscription as any).trial_end) {
+        subscriptionData.trialEndDate = new Date((activeSubscription as any).trial_end * 1000);
+      }
+    }
+
     // Upsert the subscription
     const { data: upsertedSub, error: upsertError } = await serviceSupabase
       .from("Subscription")
-      .upsert({
-        id: subscriptionId,
-        userId: authUser.id,
-        planId: plan.id,
-        status: status,
-        stripeSubscriptionId: activeSubscription.id,
-        stripeCustomerId: customerId,
-        currentPeriodStart: new Date((activeSubscription as any).current_period_start * 1000),
-        currentPeriodEnd: new Date((activeSubscription as any).current_period_end * 1000),
-        cancelAtPeriodEnd: (activeSubscription as any).cancel_at_period_end,
-        updatedAt: new Date(),
-      }, {
+      .upsert(subscriptionData, {
         onConflict: "id",
       })
       .select();

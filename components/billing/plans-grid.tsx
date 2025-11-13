@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Plan, Subscription } from "@/lib/validations/plan";
 import { Loader2 } from "lucide-react";
-import { PricingModal } from "@/components/billing/pricing-modal";
 import { ChangePlanConfirmationModal } from "@/components/billing/change-plan-confirmation";
 import { useToast } from "@/components/toast-provider";
 
@@ -18,7 +17,6 @@ interface PlansGridProps {
 export function PlansGrid({ currentPlanId, subscription, onPlanChange }: PlansGridProps) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [changingPlanId, setChangingPlanId] = useState<string | null>(null);
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<Plan | null>(null);
@@ -44,14 +42,8 @@ export function PlansGrid({ currentPlanId, subscription, onPlanChange }: PlansGr
   }
 
   function handleUpgrade(planId: string) {
-    setIsModalOpen(true);
-  }
-
-  function handleModalSuccess() {
-    setIsModalOpen(false);
-    if (onPlanChange) {
-      onPlanChange();
-    }
+    // Redirect to pricing page instead of opening modal
+    window.location.href = "/pricing";
   }
 
   async function handleDirectPlanChange(plan: Plan) {
@@ -78,7 +70,7 @@ export function PlansGrid({ currentPlanId, subscription, onPlanChange }: PlansGr
   async function processPlanChange(plan: Plan, isUpgrade: boolean, isDowngrade: boolean) {
     if (!subscription?.stripeSubscriptionId) {
       // No active subscription, need to create one via checkout
-      setIsModalOpen(true);
+      window.location.href = "/pricing";
       return;
     }
 
@@ -148,6 +140,10 @@ export function PlansGrid({ currentPlanId, subscription, onPlanChange }: PlansGr
     if (plan.priceMonthly === 0) {
       return "Get Started";
     }
+    // If user doesn't have a plan (currentPlanId is undefined), show "Start 1-month trial" for paid plans
+    if (!currentPlanId && plan.priceMonthly > 0) {
+      return "Start 1-month trial";
+    }
     // Check if it's an upgrade or downgrade
     const currentPlan = plans.find(p => p.id === currentPlanId);
     if (currentPlan) {
@@ -195,8 +191,10 @@ export function PlansGrid({ currentPlanId, subscription, onPlanChange }: PlansGr
       features.push("Goals tracking");
     }
     
-    // All paid plans include household members
-    features.push("Household members");
+    // Household Members (Premium only)
+    if (plan.features.hasHousehold) {
+      features.push("Household members");
+    }
     
     if (plan.features.hasBankIntegration) {
       features.push("Bank account integration");
@@ -292,13 +290,6 @@ export function PlansGrid({ currentPlanId, subscription, onPlanChange }: PlansGr
           );
         })}
       </div>
-
-      <PricingModal
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        currentPlanId={currentPlanId}
-        onSuccess={handleModalSuccess}
-      />
 
       {pendingPlan && currentPlanId && (
         <ChangePlanConfirmationModal

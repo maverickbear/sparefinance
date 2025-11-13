@@ -3,6 +3,7 @@
 import { createServerClient } from "@/lib/supabase-server";
 import { getCurrentTimestamp } from "@/lib/utils/timestamp";
 import { checkPlanLimits } from "@/lib/api/plans";
+import { logger } from "@/lib/utils/logger";
 
 // Cache for categories (they don't change frequently)
 const categoriesCache = new Map<string, { data: any[]; timestamp: number; userId: string | null }>();
@@ -20,7 +21,7 @@ async function hasPaidPlan(userId: string): Promise<boolean> {
     const { plan } = await checkPlanLimits(userId);
     return plan !== null && plan.id !== "free";
   } catch (error) {
-    console.error("Error checking plan:", error);
+    logger.error("Error checking plan:", error);
     return false;
   }
 }
@@ -31,7 +32,7 @@ async function hasPaidPlan(userId: string): Promise<boolean> {
 export async function invalidateCategoriesCache(userId: string | null): Promise<void> {
   categoriesCache.delete(userId || 'null');
   macrosCache.delete(userId || 'null');
-  console.log("[CATEGORIES] Invalidated cache for user:", userId || 'null');
+  logger.withPrefix("CATEGORIES").log("Invalidated cache for user:", userId || 'null');
 }
 
 /**
@@ -40,7 +41,7 @@ export async function invalidateCategoriesCache(userId: string | null): Promise<
 export async function invalidateAllCategoriesCache(): Promise<void> {
   categoriesCache.clear();
   macrosCache.clear();
-  console.log("[CATEGORIES] Invalidated cache for all users (system entities modified)");
+  logger.withPrefix("CATEGORIES").log("Invalidated cache for all users (system entities modified)");
 }
 
 /**
@@ -54,11 +55,13 @@ export async function getMacros() {
   const userId = authUser?.id || null;
   const cacheKey = userId || 'null';
   
+  const log = logger.withPrefix("CATEGORIES");
+  
   // Check cache
   const now = Date.now();
   const cached = macrosCache.get(cacheKey);
   if (cached && (now - cached.timestamp) < MACROS_CACHE_TTL) {
-    console.log("[CATEGORIES] getMacros - Using cache for user:", userId || 'null');
+    log.log("getMacros - Using cache for user:", userId || 'null');
     return cached.data;
   }
   
@@ -212,11 +215,13 @@ export async function getAllCategories() {
   const userId = authUser?.id || null;
   const cacheKey = userId || 'null';
   
+  const log = logger.withPrefix("CATEGORIES");
+  
   // Check cache
   const now = Date.now();
   const cached = categoriesCache.get(cacheKey);
   if (cached && (now - cached.timestamp) < CATEGORIES_CACHE_TTL) {
-    console.log("[CATEGORIES] getAllCategories - Using cache for user:", userId || 'null');
+    log.log("getAllCategories - Using cache for user:", userId || 'null');
     return cached.data;
   }
   
@@ -273,7 +278,7 @@ export async function getAllCategories() {
     .order("name", { ascending: true });
 
   if (error) {
-    console.error("Error fetching categories:", error);
+    logger.error("Error fetching categories:", error);
     return [];
   }
 

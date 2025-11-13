@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { logger } from "@/lib/utils/logger";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,7 @@ interface CategorySelectionModalProps {
   categories: Category[];
   onSelect: (categoryId: string | null, subcategoryId: string | null) => void;
   onClear: () => void;
+  clearTrigger?: number;
 }
 
 export function CategorySelectionModal({
@@ -24,6 +26,7 @@ export function CategorySelectionModal({
   categories,
   onSelect,
   onClear,
+  clearTrigger,
 }: CategorySelectionModalProps) {
   const [macros, setMacros] = useState<Macro[]>([]);
   const [selectedMacroId, setSelectedMacroId] = useState<string>("");
@@ -40,7 +43,7 @@ export function CategorySelectionModal({
         setAvailableCategories(data || []);
       }
     } catch (error) {
-      console.error("Error loading categories:", error);
+      logger.error("Error loading categories:", error);
       setAvailableCategories([]);
     }
   }, []);
@@ -53,7 +56,7 @@ export function CategorySelectionModal({
         setSubcategories(data || []);
       }
     } catch (error) {
-      console.error("Error loading subcategories:", error);
+      logger.error("Error loading subcategories:", error);
       setSubcategories([]);
     }
   }, []);
@@ -109,6 +112,18 @@ export function CategorySelectionModal({
     }
     initialize();
   }, [transaction, categories, loadCategoriesForMacro, loadSubcategories]);
+
+  // Handle clear trigger
+  useEffect(() => {
+    if (clearTrigger !== undefined && clearTrigger > 0) {
+      setSelectedMacroId("");
+      setSelectedCategoryId("");
+      setSelectedSubcategoryId("");
+      setAvailableCategories([]);
+      setSubcategories([]);
+      onClear();
+    }
+  }, [clearTrigger, onClear]);
 
   function handleMacroChange(macroId: string) {
     setSelectedMacroId(macroId);

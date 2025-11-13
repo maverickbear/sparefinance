@@ -25,11 +25,13 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
   // Get planId from props or search params
   const finalPlanId = planId || searchParams.get("planId") || undefined;
   const finalInterval = interval || (searchParams.get("interval") as "month" | "year") || "month";
+  const fromCheckout = searchParams.get("from_checkout") === "true";
+  const prefillEmail = searchParams.get("email") || undefined;
 
   const form = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
-      email: "",
+      email: prefillEmail || "",
       password: "",
       name: "",
     },
@@ -53,51 +55,90 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
         return;
       }
 
-      // If planId is provided, process the plan selection
-      if (finalPlanId) {
+      // If user came from checkout, link their Stripe subscription
+      if (fromCheckout && prefillEmail) {
         try {
-          if (finalPlanId === "free") {
-            // Setup free plan directly
-            const response = await fetch("/api/billing/setup-free", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-            });
+          // Wait for session to be fully established
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Link subscription by email
+          const linkResponse = await fetch("/api/stripe/link-subscription", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ email: prefillEmail }),
+          });
 
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-              // Redirect to dashboard for free plan
+          if (linkResponse.ok) {
+            const linkData = await linkResponse.json();
+            if (linkData.success) {
+              console.log("[SIGNUP] Subscription linked successfully");
+              // Redirect to dashboard
               router.push("/dashboard");
-              return;
-            } else {
-              console.error("Failed to setup free plan:", data.error);
-              setError(data.error || "Failed to setup free plan. Please try again.");
-              return;
-            }
-          } else {
-            // Start trial for paid plans (no Stripe checkout needed)
-            const response = await fetch("/api/billing/start-trial", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ planId: finalPlanId }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-              // Trial started successfully, redirect to dashboard
-              router.push("/dashboard");
-              return;
-            } else {
-              console.error("Failed to start trial:", data.error);
-              setError(data.error || "Failed to start trial. Please try again.");
               return;
             }
           }
+          // If linking fails, continue with normal flow
+          console.log("[SIGNUP] Could not link subscription, continuing with normal flow");
+        } catch (error) {
+          console.error("[SIGNUP] Error linking subscription:", error);
+          // Continue with normal flow
+        }
+      }
+
+      // If planId is provided, redirect to Stripe Checkout
+      // Wait a bit to ensure session is established
+      if (finalPlanId) {
+        try {
+          // Wait for session to be fully established
+          // Retry up to 3 times with increasing delays
+          let retries = 3;
+          let delay = 500;
+          let lastError: string | null = null;
+          
+          while (retries > 0) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            // Create Stripe Checkout session and redirect to Stripe
+            const response = await fetch("/api/stripe/checkout", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ 
+                planId: finalPlanId,
+                interval: finalInterval,
+                returnUrl: "/subscription/success"
+              }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.url) {
+              // Redirect to Stripe Checkout
+              window.location.href = data.url;
+              return;
+            } else {
+              lastError = data.error || "Failed to create checkout session";
+              console.error(`Failed to create checkout (${4 - retries}/3):`, lastError);
+              
+              // If unauthorized, session might not be ready yet
+              if (response.status === 401 && retries > 1) {
+                retries--;
+                delay *= 2; // Exponential backoff
+                continue;
+              }
+              
+              // For other errors or last retry, show error
+              setError(lastError || "Failed to start checkout. Please try again.");
+              return;
+            }
+          }
+          
+          // If we exhausted retries, show last error
+          setError(lastError || "Failed to start checkout. Please try again.");
+          return;
         } catch (error) {
           console.error("Error processing plan:", error);
           setError("An error occurred while processing your plan. Please try again.");
@@ -107,7 +148,7 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
 
       // No planId provided, redirect to plan selection page
       // Supabase session is automatically managed
-      router.push("/select-plan");
+      router.push("/dashboard");
     } catch (error) {
       console.error("Error during signup:", error);
       setError("An unexpected error occurred");

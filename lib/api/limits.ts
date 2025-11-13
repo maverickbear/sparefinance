@@ -156,6 +156,7 @@ function getDefaultLimits(): PlanFeatures {
     hasDebts: true,
     hasGoals: true,
     hasBankIntegration: false,
+    hasHousehold: false,
   };
 }
 

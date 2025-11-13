@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { PlanSelector } from "@/components/billing/plan-selector";
-import { Plan } from "@/lib/validations/plan";
+import { StripePricingTable } from "@/components/billing/stripe-pricing-table";
 import { useRouter, useSearchParams } from "next/navigation";
 
 // Component that uses useSearchParams - must be wrapped in Suspense
@@ -10,12 +9,16 @@ function PricingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [currentPlanId, setCurrentPlanId] = useState<string | undefined>();
-  const [selecting, setSelecting] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get Stripe Pricing Table ID from environment
+  const pricingTableId = process.env.NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID;
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
   useEffect(() => {
-    loadPlans();
+    loadCustomerInfo();
 
     // Check for success/cancel from Stripe
     const success = searchParams.get("success");
@@ -28,62 +31,51 @@ function PricingPageContent() {
       // Show cancel message
       console.log("Checkout was canceled");
     }
+
+    setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadPlans() {
+  async function loadCustomerInfo() {
     try {
-      setLoading(true);
-
-      // Get plans
-      const plansResponse = await fetch("/api/billing/plans");
-      if (plansResponse.ok) {
-        const plansData = await plansResponse.json();
-        setPlans(plansData.plans);
-        setCurrentPlanId(plansData.currentPlanId);
+      const response = await fetch("/api/stripe/customer");
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerId(data.customerId);
+        setCustomerEmail(data.customerEmail);
+        setUserId(data.userId || null);
       }
     } catch (error) {
-      console.error("Error loading plans:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error loading customer info:", error);
     }
   }
 
-  async function handleSelectPlan(planId: string, interval: "month" | "year") {
-    try {
-      setSelecting(true);
-
-      // Start trial for paid plans (no Stripe checkout needed)
-      const response = await fetch("/api/billing/start-trial", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ planId }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        // Trial started successfully, redirect to dashboard
-        router.push("/dashboard");
-      } else {
-        console.error("Failed to start trial:", data.error);
-        alert(data.error || "Failed to start trial. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error starting trial:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setSelecting(false);
-    }
+  // Show error if Stripe Pricing Table is not configured
+  if (!pricingTableId || !publishableKey) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="space-y-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold">Pricing</h1>
+            <p className="text-muted-foreground mt-2">
+              Choose the plan that's right for you
+            </p>
+          </div>
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              Pricing table is not configured. Please set NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment variables.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (loading) {
     return (
       <div className="container mx-auto py-8">
         <div className="space-y-6">
-          <div>
+          <div className="text-center">
             <h1 className="text-3xl font-bold">Pricing</h1>
             <p className="text-muted-foreground">Choose the plan that's right for you</p>
           </div>
@@ -105,12 +97,17 @@ function PricingPageContent() {
           </p>
         </div>
 
-        <PlanSelector
-          plans={plans}
-          currentPlanId={currentPlanId}
-          onSelectPlan={handleSelectPlan}
-          loading={selecting}
-        />
+        <div className="flex justify-center">
+          <div className="w-full max-w-4xl">
+            <StripePricingTable
+              pricingTableId={pricingTableId}
+              publishableKey={publishableKey}
+              customerId={customerId || undefined}
+              customerEmail={customerEmail || undefined}
+              clientReferenceId={userId || undefined}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

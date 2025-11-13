@@ -55,7 +55,7 @@ export function UsageChart({ limits, transactionLimit, accountLimit }: UsageChar
       <CardHeader className="pb-4">
         <CardTitle className="text-lg sm:text-xl">Usage</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 !p-0 px-6 pb-6">
+      <CardContent className="space-y-4 pl-6 pr-6 pb-6 pt-0">
         <div className="space-y-2">
           <div className="flex justify-between text-xs sm:text-sm">
             <span className="text-muted-foreground">

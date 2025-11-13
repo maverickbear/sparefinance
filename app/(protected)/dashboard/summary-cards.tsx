@@ -6,6 +6,7 @@ import { formatMoney } from "@/components/common/money";
 import { ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { AccountsBreakdownModal } from "@/components/dashboard/accounts-breakdown-modal";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/utils/logger";
 
 interface SummaryCardsProps {
   selectedMonthTransactions: any[];
@@ -66,15 +67,17 @@ export function SummaryCards({
       txDate.setHours(0, 0, 0, 0);
       return txDate <= today;
     } catch (error) {
-      console.error("Error parsing transaction date:", t.date, error);
+      logger.error("Error parsing transaction date:", t.date, error);
       return true; // Include if date parsing fails
     }
   });
 
+  const log = logger.withPrefix("summary-cards");
+  
   // Debug: Log transactions to understand the issue
   // IMPORTANT: Monthly Income should show transactions from the SELECTED MONTH (from MonthSelector)
   // selectedMonthTransactions already contains transactions from the selected month
-  console.log("🔍 [summary-cards] Processing transactions for Monthly Income (SELECTED MONTH):", {
+  log.log("Processing transactions for Monthly Income (SELECTED MONTH):", {
     note: "Monthly Income shows transactions from the month selected in MonthSelector at the top",
       totalTransactions: selectedMonthTransactions.length,
       pastTransactions: pastTransactions.length,
@@ -114,7 +117,7 @@ export function SummaryCards({
         amount = isNaN(parsed) ? 0 : parsed;
       }
       const newSum = sum + amount;
-      console.log("🔍 [summary-cards] Calculating income - transaction:", {
+      log.log("Calculating income - transaction:", {
         id: t.id,
         type: t.type,
         amount: t.amount,
@@ -125,7 +128,7 @@ export function SummaryCards({
       return newSum;
     }, 0);
 
-  console.log("🔍 [summary-cards] Final Monthly Income calculation:", {
+  log.log("Final Monthly Income calculation:", {
     currentIncome,
     incomeTransactionsCount: pastTransactions.filter((t) => t && t.type === "income").length,
     totalPastTransactions: pastTransactions.length,
@@ -143,7 +146,7 @@ export function SummaryCards({
       return sum + amount;
     }, 0);
 
-  console.log("🔍 [summary-cards] Final Monthly Expenses calculation:", {
+  log.log("Final Monthly Expenses calculation:", {
     currentExpenses,
     expenseTransactionsCount: pastTransactions.filter((t) => t && t.type === "expense").length,
   });

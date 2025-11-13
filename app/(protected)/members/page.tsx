@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { InvitationStatus } from "@/components/members/invitation-status";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 // Members helper
 function getInitials(name: string | null | undefined): string {
@@ -40,6 +41,7 @@ function getInitials(name: string | null | undefined): string {
 
 export default function MembersPage() {
   const { openDialog, ConfirmDialog } = useConfirmDialog();
+  const { checkWriteAccess } = useWriteGuard();
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | undefined>(undefined);
@@ -48,7 +50,7 @@ export default function MembersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { limits, loading: limitsLoading } = usePlanLimits();
 
-  const hasHouseholdMembersAccess = limits.hasInvestments;
+  const hasHouseholdMembersAccess = limits.hasHousehold;
 
   useEffect(() => {
     if (!limitsLoading) {
@@ -83,6 +85,7 @@ export default function MembersPage() {
   }
 
   function handleDelete(member: HouseholdMember) {
+    if (!checkWriteAccess()) return;
     openDialog(
       {
         title: "Remove Member",
@@ -107,6 +110,7 @@ export default function MembersPage() {
   }
 
   async function handleResend(member: HouseholdMember) {
+    if (!checkWriteAccess()) return;
     try {
       const res = await fetch(`/api/members/${member.id}/resend`, {
         method: "POST",
@@ -125,6 +129,7 @@ export default function MembersPage() {
   }
 
   function handleEdit(member: HouseholdMember) {
+    if (!checkWriteAccess()) return;
     setEditingMember(member);
     setIsFormOpen(true);
   }
@@ -149,8 +154,8 @@ export default function MembersPage() {
         <UpgradePrompt
           feature="Household Members"
           currentPlan="free"
-          requiredPlan="basic"
-          message="Household members are not available in the Free plan. Upgrade to Basic or Premium to add family members."
+          requiredPlan="premium"
+          message="Household members are only available in the Premium plan. Upgrade to Premium to add family members."
         />
       </div>
     );
@@ -164,7 +169,10 @@ export default function MembersPage() {
       >
         {(currentUserRole === "admin" || currentUserRole === null) && members.length > 0 && (
           <Button
-            onClick={() => setIsFormOpen(true)}
+            onClick={() => {
+              if (!checkWriteAccess()) return;
+              setIsFormOpen(true);
+            }}
           >
             <Plus className="mr-2 h-4 w-4" />
             Invite Member
@@ -188,7 +196,10 @@ export default function MembersPage() {
           title="No members yet"
           description="Invite household members to share access to your financial data."
           actionLabel="Invite Your First Member"
-          onAction={() => setIsFormOpen(true)}
+          onAction={() => {
+            if (!checkWriteAccess()) return;
+            setIsFormOpen(true);
+          }}
           actionIcon={Plus}
         />
       ) : (

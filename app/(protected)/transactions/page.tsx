@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { logger } from "@/lib/utils/logger";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -11,9 +12,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TransactionForm } from "@/components/forms/transaction-form";
-import { CsvImportDialog } from "@/components/forms/csv-import-dialog";
-import { CategorySelectionModal } from "@/components/transactions/category-selection-modal";
+import dynamic from "next/dynamic";
+
+// Lazy load heavy form components
+const TransactionForm = dynamic(() => import("@/components/forms/transaction-form").then(m => ({ default: m.TransactionForm })), { ssr: false });
+const CsvImportDialog = dynamic(() => import("@/components/forms/csv-import-dialog").then(m => ({ default: m.CsvImportDialog })), { ssr: false });
+const CategorySelectionModal = dynamic(() => import("@/components/transactions/category-selection-modal").then(m => ({ default: m.CategorySelectionModal })), { ssr: false });
 import { formatMoney } from "@/components/common/money";
 import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, Clock, Receipt } from "lucide-react";
 import { EmptyState } from "@/components/common/empty-state";
@@ -34,7 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
+import { format } from "date-fns/format";
 import { getAccounts } from "@/lib/api/accounts";
 import { getAllCategories } from "@/lib/api/categories";
 import { exportTransactionsToCSV, downloadCSV } from "@/lib/csv/export";
@@ -44,6 +48,7 @@ import type { Category } from "@/lib/api/categories-client";
 import { usePlanLimits } from "@/hooks/use-plan-limits";
 import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { Badge } from "@/components/ui/badge";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
@@ -71,6 +76,7 @@ export default function TransactionsPage() {
   const [transactionForCategory, setTransactionForCategory] = useState<Transaction | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
+  const [clearCategoryTrigger, setClearCategoryTrigger] = useState(0);
   const [dateRange, setDateRange] = useState<"all-dates" | "today" | "past-7-days" | "past-15-days" | "past-30-days" | "past-90-days" | "last-3-months" | "last-month" | "last-6-months" | "past-6-months" | "this-month" | "this-year" | "year-to-date" | "last-year" | "custom">("all-dates");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState({
@@ -85,6 +91,7 @@ export default function TransactionsPage() {
   const [activeCategoryIds, setActiveCategoryIds] = useState<Set<string>>(new Set());
   const [selectValue, setSelectValue] = useState<string>("");
   const { limits, loading: limitsLoading } = usePlanLimits();
+  const { checkWriteAccess } = useWriteGuard();
 
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -136,7 +143,7 @@ export default function TransactionsPage() {
         const data = await getTransactionsClient(transactionFilters);
         setTransactions(data);
       } catch (error) {
-        console.error("Error loading transactions:", error);
+        logger.error("Error loading transactions:", error);
       } finally {
         setLoading(false);
       }
@@ -303,7 +310,7 @@ export default function TransactionsPage() {
       
       setActiveCategoryIds(activeCategories);
     } catch (error) {
-      console.error("Error loading data:", error);
+      logger.error("Error loading data:", error);
     }
   }
 
@@ -361,6 +368,10 @@ export default function TransactionsPage() {
   }
 
   function handleDelete(id: string) {
+    // Check if user can perform write operations
+    if (!checkWriteAccess()) {
+      return;
+    }
     openDeleteDialog(
       {
         title: "Delete Transaction",
@@ -739,6 +750,10 @@ export default function TransactionsPage() {
           )}
           {transactions.length > 0 && (
             <Button onClick={() => {
+              // Check if user can perform write operations
+              if (!checkWriteAccess()) {
+                return;
+              }
               setSelectedTransaction(null);
               setIsFormOpen(true);
             }} className="text-xs md:text-sm">
@@ -886,6 +901,10 @@ export default function TransactionsPage() {
                 isSelected={selectedTransactionIds.has(tx.id)}
                 onSelect={(checked) => handleSelectTransaction(tx.id, checked)}
                 onEdit={() => {
+                  // Check if user can perform write operations
+                  if (!checkWriteAccess()) {
+                    return;
+                  }
                   setSelectedTransaction(tx);
                   setIsFormOpen(true);
                 }}
@@ -914,6 +933,10 @@ export default function TransactionsPage() {
             description="Start tracking your finances by adding your first transaction or importing from a CSV file."
             actionLabel="Add Transaction"
             onAction={() => {
+              // Check if user can perform write operations
+              if (!checkWriteAccess()) {
+                return;
+              }
               setSelectedTransaction(null);
               setIsFormOpen(true);
             }}
@@ -1124,6 +1147,10 @@ export default function TransactionsPage() {
                       size="icon"
                       className="h-7 w-7 md:h-10 md:w-10"
                       onClick={() => {
+                        // Check if user can perform write operations
+                        if (!checkWriteAccess()) {
+                          return;
+                        }
                         setSelectedTransaction(tx);
                         setIsFormOpen(true);
                       }}
@@ -1190,23 +1217,23 @@ export default function TransactionsPage() {
             onClear={() => {
               setSelectedCategoryId(null);
               setSelectedSubcategoryId(null);
-              handleCategoryUpdate(null, null);
             }}
+            clearTrigger={clearCategoryTrigger}
           />
           <DialogFooter>
-            {transactionForCategory?.categoryId && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setSelectedCategoryId(null);
-                  setSelectedSubcategoryId(null);
-                  handleCategoryUpdate(null, null);
-                }}
-              >
-                Clear
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                // Clear parent state
+                setSelectedCategoryId(null);
+                setSelectedSubcategoryId(null);
+                // Trigger clear in modal by incrementing the trigger
+                setClearCategoryTrigger(prev => prev + 1);
+              }}
+            >
+              Clear
+            </Button>
             <Button
               type="button"
               onClick={() => {

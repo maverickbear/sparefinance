@@ -45,7 +45,7 @@ export async function GET() {
         .select(`
           *,
           security:Security(*),
-          account:InvestmentAccount(name, questradeAccountNumber)
+          account:Account(name)
         `)
         .in("accountId", accountIds)
         .order("date", { ascending: false })

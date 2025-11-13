@@ -25,15 +25,17 @@ export function ConnectQuestradeButton({
   onSuccess,
 }: ConnectQuestradeButtonProps) {
   const { toast } = useToast();
+  const { checkWriteAccess } = useWriteGuard();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [manualAuthToken, setManualAuthToken] = useState("");
 
   const handleConnect = async () => {
+    if (!checkWriteAccess()) return;
     if (!manualAuthToken.trim()) {
       toast({
-        title: "Erro",
-        description: "Por favor, insira seu token de autorização da Questrade",
+        title: "Error",
+        description: "Please enter your Questrade authorization token",
         variant: "destructive",
       });
       return;
@@ -57,9 +59,9 @@ export function ConnectQuestradeButton({
       }
 
       toast({
-        title: "Conta conectada",
+        title: "Account connected",
         description:
-          "Sua conta Questrade foi conectada com sucesso. Suas posições e transações estão sendo sincronizadas.",
+          "Your Questrade account has been connected successfully. Your positions and transactions are being synchronized.",
         variant: "success",
       });
 
@@ -72,8 +74,8 @@ export function ConnectQuestradeButton({
     } catch (error: any) {
       console.error("Error connecting Questrade account:", error);
       toast({
-        title: "Erro",
-        description: error.message || "Falha ao conectar conta Questrade",
+        title: "Error",
+        description: error.message || "Failed to connect Questrade account",
         variant: "destructive",
       });
     } finally {
@@ -83,33 +85,43 @@ export function ConnectQuestradeButton({
 
   return (
     <FeatureGuard feature="hasInvestments" featureName="Investments">
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (open && !checkWriteAccess()) return;
+        setIsOpen(open);
+      }}>
         <DialogTrigger asChild>
-          <Button variant="outline">
-            Conectar Questrade
+          <Button 
+            variant="outline"
+            onClick={(e) => {
+              if (!checkWriteAccess()) {
+                e.preventDefault();
+                return;
+              }
+            }}
+          >
+            Connect Questrade
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Conectar Conta Questrade</DialogTitle>
+            <DialogTitle>Connect Questrade Account</DialogTitle>
             <DialogDescription>
-              Para conectar sua conta Questrade, você precisa gerar um token de
-              autorização no Questrade API Centre.
+              To connect your Questrade account, you need to generate an authorization token in the Questrade API Centre.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="token">Token de Autorização</Label>
+              <Label htmlFor="token">Authorization Token</Label>
               <Input
                 id="token"
                 type="text"
-                placeholder="Insira seu token de autorização da Questrade"
+                placeholder="Enter your Questrade authorization token"
                 value={manualAuthToken}
                 onChange={(e) => setManualAuthToken(e.target.value)}
                 disabled={isLoading}
               />
               <p className="text-sm text-muted-foreground">
-                Obtenha seu token no{" "}
+                Get your token at{" "}
                 <a
                   href="https://www.questrade.com/api/documentation/getting-started"
                   target="_blank"
@@ -122,14 +134,14 @@ export function ConnectQuestradeButton({
               </p>
             </div>
             <div className="rounded-lg bg-muted p-4 text-sm">
-              <p className="font-semibold mb-2">Como obter seu token:</p>
+              <p className="font-semibold mb-2">How to get your token:</p>
               <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                <li>Faça login na sua conta Questrade</li>
-                <li>Vá para API Centre no menu superior direito</li>
-                <li>Clique em "Ativar API" e aceite os termos</li>
-                <li>Clique em "Registrar um app pessoal"</li>
-                <li>Clique em "Nova autorização manual"</li>
-                <li>Copie o token de autorização e cole aqui</li>
+                <li>Log in to your Questrade account</li>
+                <li>Go to API Centre in the top right menu</li>
+                <li>Click "Activate API" and accept the terms</li>
+                <li>Click "Register a personal app"</li>
+                <li>Click "New manual authorization"</li>
+                <li>Copy the authorization token and paste it here</li>
               </ol>
             </div>
           </div>
@@ -139,16 +151,16 @@ export function ConnectQuestradeButton({
               onClick={() => setIsOpen(false)}
               disabled={isLoading}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button onClick={handleConnect} disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Conectando...
+                  Connecting...
                 </>
               ) : (
-                "Conectar"
+                "Connect"
               )}
             </Button>
           </DialogFooter>

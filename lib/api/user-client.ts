@@ -21,12 +21,12 @@ export async function getUserClient(): Promise<{
     return { user: null, plan: null, subscription: null };
   }
 
-  // Get user's subscription (active or trialing)
+  // Get user's subscription (most recent, including cancelled/past_due)
   const { data: subscription } = await supabase
     .from("Subscription")
     .select("planId, status, trialEndDate, trialStartDate")
     .eq("userId", user.id)
-    .in("status", ["active", "trialing"])
+    .in("status", ["active", "trialing", "cancelled", "past_due"])
     .order("createdAt", { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { logger } from "@/lib/utils/logger";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -23,6 +24,7 @@ import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import type { Category, Macro } from "@/lib/api/categories-client";
 import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface Subcategory {
   id: string;
@@ -39,6 +41,7 @@ interface GroupedData {
 
 export default function CategoriesPage() {
   const { toast } = useToast();
+  const { checkWriteAccess } = useWriteGuard();
   const { openDialog: openDeleteCategoryDialog, ConfirmDialog: DeleteCategoryConfirmDialog } = useConfirmDialog();
   const { openDialog: openDeleteSubcategoryDialog, ConfirmDialog: DeleteSubcategoryConfirmDialog } = useConfirmDialog();
   const { openDialog: openDeleteGroupDialog, ConfirmDialog: DeleteGroupConfirmDialog } = useConfirmDialog();
@@ -66,7 +69,7 @@ export default function CategoriesPage() {
         setCurrentUserId(data.user?.id || null);
       }
     } catch (error) {
-      console.error("Error loading current user:", error);
+      logger.error("Error loading current user:", error);
     }
   }
 
@@ -81,7 +84,7 @@ export default function CategoriesPage() {
       setCategories(allCategories);
       setMacros(macrosData);
     } catch (error) {
-      console.error("Error loading data:", error);
+      logger.error("Error loading data:", error);
     }
   }
 
@@ -219,6 +222,7 @@ export default function CategoriesPage() {
   }
 
   function handleDeleteCategory(id: string) {
+    if (!checkWriteAccess()) return;
     openDeleteCategoryDialog(
       {
         title: "Delete Category",
@@ -245,7 +249,7 @@ export default function CategoriesPage() {
           
           loadData();
         } catch (error) {
-          console.error("Error deleting category:", error);
+          logger.error("Error deleting category:", error);
           // Revert optimistic update on error
           if (categoryToDelete) {
             setCategories(prev => [...prev, categoryToDelete]);
@@ -264,6 +268,7 @@ export default function CategoriesPage() {
   }
 
   function handleDeleteSubcategory(id: string) {
+    if (!checkWriteAccess()) return;
     openDeleteSubcategoryDialog(
       {
         title: "Delete Subcategory",
@@ -285,7 +290,7 @@ export default function CategoriesPage() {
           
           loadData();
         } catch (error) {
-          console.error("Error deleting subcategory:", error);
+          logger.error("Error deleting subcategory:", error);
           const errorMessage = error instanceof Error ? error.message : "Failed to delete subcategory";
           toast({
             title: "Error",
@@ -300,6 +305,7 @@ export default function CategoriesPage() {
   }
 
   function handleDeleteGroup(macroId: string) {
+    if (!checkWriteAccess()) return;
     openDeleteGroupDialog(
       {
         title: "Delete Group",
@@ -326,7 +332,7 @@ export default function CategoriesPage() {
           
           loadData();
         } catch (error) {
-          console.error("Error deleting group:", error);
+          logger.error("Error deleting group:", error);
           // Revert optimistic update on error
           if (groupToDelete) {
             setMacros(prev => [...prev, groupToDelete]);
@@ -360,6 +366,7 @@ export default function CategoriesPage() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem
               onClick={() => {
+                if (!checkWriteAccess()) return;
                 setIsGroupDialogOpen(true);
               }}
             >
@@ -367,6 +374,7 @@ export default function CategoriesPage() {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
+                if (!checkWriteAccess()) return;
                 setSelectedCategory(null);
                 setIsDialogOpen(true);
               }}
@@ -469,7 +477,10 @@ export default function CategoriesPage() {
                                               variant="ghost"
                                               size="icon"
                                               className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                              onClick={() => handleDeleteSubcategory(subcat.id)}
+                                              onClick={() => {
+                                                if (!checkWriteAccess()) return;
+                                                handleDeleteSubcategory(subcat.id);
+                                              }}
                                               title="Delete subcategory"
                                               disabled={deletingSubcategoryId === subcat.id}
                                             >
@@ -494,6 +505,7 @@ export default function CategoriesPage() {
                                       size="icon"
                                       className="h-7 w-7 md:h-10 md:w-10"
                                       onClick={() => {
+                                        if (!checkWriteAccess()) return;
                                         setSelectedCategory(category);
                                         setIsDialogOpen(true);
                                       }}
@@ -573,7 +585,10 @@ export default function CategoriesPage() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7 md:h-10 md:w-10"
-                                  onClick={() => handleDeleteGroup(group.macro.id)}
+                                  onClick={() => {
+                                    if (!checkWriteAccess()) return;
+                                    handleDeleteGroup(group.macro.id);
+                                  }}
                                   title="Delete group"
                                   disabled={deletingGroupId === group.macro.id}
                                 >
@@ -626,7 +641,10 @@ export default function CategoriesPage() {
                                               variant="ghost"
                                               size="icon"
                                               className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                              onClick={() => handleDeleteSubcategory(subcat.id)}
+                                              onClick={() => {
+                                                if (!checkWriteAccess()) return;
+                                                handleDeleteSubcategory(subcat.id);
+                                              }}
                                               title="Delete subcategory"
                                               disabled={deletingSubcategoryId === subcat.id}
                                             >
@@ -651,6 +669,7 @@ export default function CategoriesPage() {
                                       size="icon"
                                       className="h-7 w-7 md:h-10 md:w-10"
                                       onClick={() => {
+                                        if (!checkWriteAccess()) return;
                                         setSelectedCategory(category);
                                         setIsDialogOpen(true);
                                       }}
@@ -663,7 +682,10 @@ export default function CategoriesPage() {
                                         variant="ghost"
                                         size="icon"
                                         className="h-7 w-7 md:h-10 md:w-10"
-                                        onClick={() => handleDeleteCategory(category.id)}
+                                        onClick={() => {
+                                          if (!checkWriteAccess()) return;
+                                          handleDeleteCategory(category.id);
+                                        }}
                                         title="Delete category"
                                         disabled={deletingCategoryId === category.id}
                                       >

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { checkTransactionLimit, checkAccountLimit, PlanFeatures } from "@/lib/api/limits";
 import { checkPlanLimits } from "@/lib/api/plans";
 import { createServerClient } from "@/lib/supabase-server";
+import { logger } from "@/lib/utils/logger";
 
 /**
  * @deprecated This API route is deprecated. Use the Server Action `getBillingLimitsAction` from `@/lib/actions/billing` instead.
@@ -34,7 +35,7 @@ export async function GET() {
       accountLimit,
     });
   } catch (error) {
-    console.error("Error fetching limits:", error);
+    logger.error("Error fetching limits:", error);
     return NextResponse.json(
       { error: "Failed to fetch limits" },
       { status: 500 }
@@ -68,7 +69,7 @@ async function checkTransactionLimitWithLimits(userId: string, limits: PlanFeatu
       .lte("date", endOfMonth.toISOString());
 
     if (error) {
-      console.error("Error checking transaction limit:", error);
+      logger.error("Error checking transaction limit:", error);
       return {
         allowed: false,
         limit: limits.maxTransactions,
@@ -87,7 +88,7 @@ async function checkTransactionLimitWithLimits(userId: string, limits: PlanFeatu
       message: allowed ? undefined : `You've reached your monthly transaction limit (${limits.maxTransactions}). Upgrade to continue.`,
     };
   } catch (error) {
-    console.error("Error in checkTransactionLimitWithLimits:", error);
+    logger.error("Error in checkTransactionLimitWithLimits:", error);
     return {
       allowed: false,
       limit: 50,
@@ -116,7 +117,7 @@ async function checkAccountLimitWithLimits(userId: string, limits: PlanFeatures)
       .select("*", { count: "exact", head: true });
 
     if (error) {
-      console.error("Error checking account limit:", error);
+      logger.error("Error checking account limit:", error);
       return {
         allowed: false,
         limit: limits.maxAccounts,
@@ -135,7 +136,7 @@ async function checkAccountLimitWithLimits(userId: string, limits: PlanFeatures)
       message: allowed ? undefined : `You've reached your account limit (${limits.maxAccounts}). Upgrade to continue.`,
     };
   } catch (error) {
-    console.error("Error in checkAccountLimitWithLimits:", error);
+    logger.error("Error in checkAccountLimitWithLimits:", error);
     return {
       allowed: false,
       limit: 2,

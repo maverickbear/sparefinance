@@ -27,6 +27,7 @@ import { ChevronDown, RefreshCw, Unlink, Loader2, Plus, ExternalLink } from "luc
 import { useToast } from "@/components/toast-provider";
 import { FeatureGuard } from "@/components/common/feature-guard";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface IntegrationDropdownProps {
   onSync?: () => void;
@@ -46,6 +47,7 @@ export function IntegrationDropdown({
 }: IntegrationDropdownProps) {
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
+  const { checkWriteAccess } = useWriteGuard();
   const [questradeStatus, setQuestradeStatus] = useState<ConnectionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -202,6 +204,7 @@ export function IntegrationDropdown({
   }
 
   async function handleConnect() {
+    if (!checkWriteAccess()) return;
     if (!manualAuthToken.trim()) {
       toast({
         title: "Error",
@@ -330,6 +333,7 @@ export function IntegrationDropdown({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => {
+              if (!checkWriteAccess()) return;
               setDropdownOpen(false);
               setShowConnectDialog(true);
             }}

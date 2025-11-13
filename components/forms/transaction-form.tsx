@@ -1,6 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
+import { logger } from "@/lib/utils/logger";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { transactionSchema, TransactionFormData } from "@/lib/validations/transaction";
 import { Button } from "@/components/ui/button";
@@ -22,26 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/toast-provider";
 import type { Transaction } from "@/lib/api/transactions-client";
 import { LimitWarning } from "@/components/billing/limit-warning";
-import { Loader2, Check, ChevronsUpDown } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
-import { cn } from "@/lib/utils";
+import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 
 interface TransactionFormProps {
   open: boolean;
@@ -57,6 +45,11 @@ interface Account {
   type: string;
 }
 
+interface Macro {
+  id: string;
+  name: string;
+}
+
 interface Category {
   id: string;
   name: string;
@@ -65,6 +58,10 @@ interface Category {
     id: string;
     name: string;
   };
+  subcategories?: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 interface Subcategory {
@@ -76,13 +73,16 @@ interface Subcategory {
 export function TransactionForm({ open, onOpenChange, transaction, onSuccess, defaultType = "expense" }: TransactionFormProps) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [macros, setMacros] = useState<Macro[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [selectedMacroId, setSelectedMacroId] = useState<string>("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
-  const [categoryOpen, setCategoryOpen] = useState(false);
-  const [categorySearch, setCategorySearch] = useState("");
+  const [subcategoriesMap, setSubcategoriesMap] = useState<Map<string, Array<{ id: string; name: string }>>>(new Map());
   const [transactionLimit, setTransactionLimit] = useState<{ current: number; limit: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [shouldShowForm, setShouldShowForm] = useState(false);
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -96,9 +96,11 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
 
   useEffect(() => {
     if (open) {
-      loadData();
-      loadTransactionLimit();
+      // If editing a transaction, no need to check accounts
       if (transaction) {
+        setShouldShowForm(true);
+        loadData();
+        loadTransactionLimit();
         form.reset({
           date: new Date(transaction.date),
           type: transaction.type as "expense" | "income" | "transfer",
@@ -110,73 +112,149 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           description: transaction.description || "",
           recurring: transaction.recurring ?? false,
         });
-        if (transaction.categoryId) {
-          setSelectedCategoryId(transaction.categoryId);
-        }
+        // Category will be loaded by the useEffect that handles transaction editing
       } else {
-        form.reset({
-          date: new Date(),
-          type: defaultType,
-          amount: 0,
-          recurring: false,
-        });
-        setSelectedCategoryId("");
-        setSubcategories([]);
-        setCategorySearch("");
+        // If creating a new transaction, check if there are accounts
+        checkAccountsAndShowForm();
       }
+    } else {
+      setShouldShowForm(false);
+      setShowAccountDialog(false);
     }
   }, [open, transaction]);
+
+  async function checkAccountsAndShowForm() {
+    try {
+      const accountsRes = await fetch("/api/accounts");
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json().catch(() => []);
+        if (accountsData.length === 0) {
+          // No accounts, show the dialog
+          setShowAccountDialog(true);
+          setShouldShowForm(false);
+        } else {
+          // Has accounts, can show the form
+          setShouldShowForm(true);
+          loadData();
+          loadTransactionLimit();
+          form.reset({
+            date: new Date(),
+            type: defaultType,
+            amount: 0,
+            recurring: false,
+          });
+          setSelectedMacroId("");
+          setSelectedCategoryId("");
+          setAvailableCategories([]);
+          setSubcategories([]);
+          setSubcategoriesMap(new Map());
+        }
+      } else {
+        // Error fetching accounts, try to show the form anyway
+        setShouldShowForm(true);
+        loadData();
+        loadTransactionLimit();
+      }
+    } catch (error) {
+      console.error("Error checking accounts:", error);
+      // In case of error, try to show the form anyway
+      setShouldShowForm(true);
+      loadData();
+      loadTransactionLimit();
+    }
+  }
+
+  // Load macros when form opens
+  useEffect(() => {
+    if (open) {
+      loadMacros();
+    }
+  }, [open]);
+
+  // Load categories when macro is selected
+  useEffect(() => {
+    if (selectedMacroId && open) {
+      loadCategoriesForMacro(selectedMacroId);
+    } else if (!selectedMacroId) {
+      setAvailableCategories([]);
+      setSubcategories([]);
+      setSubcategoriesMap(new Map());
+    }
+  }, [selectedMacroId, open]);
 
   // Load subcategories when category is selected
   useEffect(() => {
-    if (open && transaction && transaction.categoryId) {
-      loadSubcategoriesForTransaction(transaction);
+    if (selectedCategoryId && open) {
+      loadSubcategoriesForCategory(selectedCategoryId);
+    } else if (!selectedCategoryId) {
+      setSubcategories([]);
+      form.setValue("subcategoryId", undefined);
     }
-  }, [open, transaction]);
-
-  // Sync selectedCategoryId with form categoryId when form changes
-  const formCategoryId = form.watch("categoryId");
-  useEffect(() => {
-    setSelectedCategoryId(formCategoryId || "");
-  }, [formCategoryId]);
+  }, [selectedCategoryId, open]);
 
   async function loadData() {
     try {
-      const [accountsRes, categoriesRes] = await Promise.all([
-        fetch("/api/accounts"),
-        fetch("/api/categories?all=true"),
-      ]);
-
-      // Check if responses are ok before parsing JSON
+      const accountsRes = await fetch("/api/accounts");
+      
       if (!accountsRes.ok) {
-        console.error("Error fetching accounts:", accountsRes.status, accountsRes.statusText);
+        logger.error("Error fetching accounts:", accountsRes.status, accountsRes.statusText);
         setAccounts([]);
       } else {
         const accountsData = await accountsRes.json().catch(() => []);
         setAccounts(accountsData);
       }
+    } catch (error) {
+      logger.error("Error loading data:", error);
+      setAccounts([]);
+    }
+  }
 
-      if (!categoriesRes.ok) {
-        console.error("Error fetching categories:", categoriesRes.status, categoriesRes.statusText);
-        setAllCategories([]);
-      } else {
-        const categoriesData = await categoriesRes.json().catch(() => []);
-        // Process categories to ensure macro is properly formatted
-        const processedCategories = (categoriesData || []).map((cat: any) => ({
-          ...cat,
-          // Handle macro - it can be an object, array, or null
-          macro: Array.isArray(cat.macro) 
-            ? (cat.macro.length > 0 ? cat.macro[0] : null)
-            : cat.macro || null,
-        }));
-        console.log("Loaded categories:", processedCategories.length, "categories");
-        console.log("Sample category:", processedCategories[0]);
-        setAllCategories(processedCategories);
+  async function loadMacros() {
+    try {
+      const res = await fetch("/api/categories");
+      if (res.ok) {
+        const macrosData = await res.json().catch(() => []);
+        setMacros(macrosData || []);
       }
     } catch (error) {
-      console.error("Error loading data:", error);
-      setAccounts([]);
-      setAllCategories([]);
+      logger.error("Error loading macros:", error);
+      setMacros([]);
+    }
+  }
+
+  async function loadCategoriesForMacro(macroId: string) {
+    try {
+      const res = await fetch(`/api/categories?macroId=${macroId}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      const cats = await res.json();
+      setAvailableCategories(cats || []);
+      
+      // Load subcategories for all categories
+      const newSubcategoriesMap = new Map<string, Array<{ id: string; name: string }>>();
+      for (const category of cats || []) {
+        if (category.subcategories && category.subcategories.length > 0) {
+          newSubcategoriesMap.set(category.id, category.subcategories);
+        } else {
+          // Fetch subcategories if not included
+          try {
+            const subRes = await fetch(`/api/categories?categoryId=${category.id}`);
+            if (subRes.ok) {
+              const subcats = await subRes.json();
+              if (subcats && subcats.length > 0) {
+                newSubcategoriesMap.set(category.id, subcats);
+              }
+            }
+          } catch (err) {
+            console.error("Error loading subcategories:", err);
+          }
+        }
+      }
+      setSubcategoriesMap(newSubcategoriesMap);
+    } catch (error) {
+      console.error("Error loading categories:", error);
+      setAvailableCategories([]);
     }
   }
 
@@ -191,43 +269,93 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         });
       }
     } catch (error) {
-      console.error("Error loading transaction limit:", error);
+      logger.error("Error loading transaction limit:", error);
     }
   }
 
-  async function loadSubcategoriesForTransaction(tx: Transaction) {
-    if (!tx.categoryId) return;
-    
-    setSelectedCategoryId(tx.categoryId);
+  async function loadSubcategoriesForCategory(categoryId: string) {
     try {
-      const subcatsRes = await fetch(`/api/categories?categoryId=${tx.categoryId}`);
-      if (subcatsRes.ok) {
-        const subcats = await subcatsRes.json().catch(() => []);
-        setSubcategories(subcats);
+      const subcategories = subcategoriesMap.get(categoryId);
+      if (subcategories && subcategories.length > 0) {
+        setSubcategories(subcategories);
+      } else {
+        // Fetch if not in map
+        const res = await fetch(`/api/categories?categoryId=${categoryId}`);
+        if (res.ok) {
+          const subcats = await res.json().catch(() => []);
+          setSubcategories(subcats);
+          // Update map
+          if (subcats && subcats.length > 0) {
+            setSubcategoriesMap(prev => new Map(prev).set(categoryId, subcats));
+          }
+        } else {
+          setSubcategories([]);
+        }
       }
     } catch (error) {
-      console.error("Error loading subcategories:", error);
+      logger.error("Error loading subcategories:", error);
+      setSubcategories([]);
     }
   }
 
-  async function handleCategoryChange(categoryId: string) {
-    console.log("handleCategoryChange called with:", categoryId);
+  // Initialize form when editing a transaction
+  useEffect(() => {
+    if (open && transaction && transaction.categoryId) {
+      // Find the category to get its macro
+      const findCategoryAndLoad = async () => {
+        try {
+          // First, load all categories to find the one we need
+          const res = await fetch("/api/categories?all=true");
+          if (res.ok) {
+            const allCats = await res.json().catch(() => []);
+            const category = allCats.find((c: Category) => c.id === transaction.categoryId);
+            if (category) {
+              const macroId = category.macroId || (category.macro ? (Array.isArray(category.macro) ? category.macro[0]?.id : category.macro.id) : null);
+              if (macroId) {
+                setSelectedMacroId(macroId);
+                await loadCategoriesForMacro(macroId);
+              }
+              setSelectedCategoryId(transaction.categoryId);
+              if (transaction.subcategoryId) {
+                await loadSubcategoriesForCategory(transaction.categoryId);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error initializing category:", error);
+        }
+      };
+      findCategoryAndLoad();
+    }
+  }, [open, transaction]);
+
+  function handleMacroChange(macroId: string) {
+    setSelectedMacroId(macroId);
+    setSelectedCategoryId("");
+    setAvailableCategories([]);
+    setSubcategories([]);
+    setSubcategoriesMap(new Map());
+    form.setValue("categoryId", "");
+    form.setValue("subcategoryId", undefined);
+  }
+
+  function handleCategoryChange(categoryId: string) {
     setSelectedCategoryId(categoryId);
     form.setValue("categoryId", categoryId);
     form.setValue("subcategoryId", undefined);
-    setCategoryOpen(false);
-    try {
-      const res = await fetch(`/api/categories?categoryId=${categoryId}`);
-      if (res.ok) {
-        const subcats = await res.json().catch(() => []);
-        setSubcategories(subcats);
-      } else {
-        console.error("Error fetching subcategories:", res.status, res.statusText);
-        setSubcategories([]);
-      }
-    } catch (error) {
-      console.error("Error loading subcategories:", error);
+    // Load subcategories for the selected category
+    if (categoryId) {
+      loadSubcategoriesForCategory(categoryId);
+    } else {
       setSubcategories([]);
+    }
+  }
+
+  function handleSubcategoryChange(subcategoryId: string) {
+    if (subcategoryId && subcategoryId !== "") {
+      form.setValue("subcategoryId", subcategoryId);
+    } else {
+      form.setValue("subcategoryId", undefined);
     }
   }
 
@@ -277,7 +405,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
             errorMessage = res.statusText || errorMessage;
           }
         }
-        console.error("API Error:", { status: res.status, statusText: res.statusText, message: errorMessage });
+        logger.error("API Error:", { status: res.status, statusText: res.statusText, message: errorMessage });
         throw new Error(errorMessage);
       }
 
@@ -294,7 +422,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       // Reload transactions after successful save
       onSuccess?.();
     } catch (error) {
-      console.error("Error saving transaction:", error);
+      logger.error("Error saving transaction:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to save transaction",
@@ -308,8 +436,23 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
+    <>
+      <AccountRequiredDialog
+        open={showAccountDialog}
+        onOpenChange={(isOpen) => {
+          setShowAccountDialog(isOpen);
+          if (!isOpen) {
+            onOpenChange(false);
+          }
+        }}
+        onAccountCreated={() => {
+          setShowAccountDialog(false);
+          checkAccountsAndShowForm();
+        }}
+      />
+      {shouldShowForm && (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>{transaction ? "Edit" : "Add"} Transaction</DialogTitle>
           <DialogDescription>
@@ -363,8 +506,11 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                   if (newType === "transfer") {
                     form.setValue("categoryId", undefined);
                     form.setValue("subcategoryId", undefined);
+                    setSelectedMacroId("");
                     setSelectedCategoryId("");
+                    setAvailableCategories([]);
                     setSubcategories([]);
+                    setSubcategoriesMap(new Map());
                   }
                   }}
                   className="w-full"
@@ -452,145 +598,107 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
               </div>
             )}
 
-            {/* Category and Subcategory row (only for non-transfers) */}
+            {/* Group, Category and Subcategory (only for non-transfers) */}
             {form.watch("type") !== "transfer" && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Category</label>
-                  <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={categoryOpen}
-                        className="w-full justify-between h-12"
-                      >
-                        {(() => {
-                          const categoryId = formCategoryId || selectedCategoryId;
-                          if (categoryId && allCategories.length > 0) {
-                            const category = allCategories.find((c) => c.id === categoryId);
-                            return category?.name || "Select category...";
-                          }
-                          return "Select category...";
-                        })()}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
-                      <Command shouldFilter={false}>
-                        <CommandInput 
-                          placeholder="Search category..." 
-                          value={categorySearch}
-                          onValueChange={setCategorySearch}
-                        />
-                        <CommandList className="max-h-[300px] overflow-y-auto">
-                          {(() => {
-                            // Group categories by macro
-                            const categoriesByMacro = new Map<string, Category[]>();
-                            
-                            if (allCategories.length === 0) {
-                              return <CommandEmpty>No categories available.</CommandEmpty>;
-                            }
-                            
-                            // Filter categories based on search
-                            const filteredCategories = categorySearch
-                              ? allCategories.filter((cat) =>
-                                  cat.name.toLowerCase().includes(categorySearch.toLowerCase())
-                                )
-                              : allCategories;
-                            
-                            if (filteredCategories.length === 0) {
-                              return <CommandEmpty>No category found.</CommandEmpty>;
-                            }
-                            
-                            filteredCategories.forEach((category) => {
-                              // Get macro name - handle different formats from Supabase
-                              let macroName = 'Uncategorized';
-                              
-                              if (category.macro) {
-                                // Macro can be an object with name property
-                                if (typeof category.macro === 'object' && 'name' in category.macro && !Array.isArray(category.macro)) {
-                                  macroName = (category.macro as { name: string }).name;
-                                } else if (Array.isArray(category.macro) && category.macro.length > 0) {
-                                  macroName = (category.macro[0] as { name?: string })?.name || 'Uncategorized';
-                                }
-                              } else if (category.macroId) {
-                                // If we only have macroId, we can't get the name without another query
-                                // For now, use macroId as fallback
-                                macroName = category.macroId;
-                              }
-                              
-                              if (!categoriesByMacro.has(macroName)) {
-                                categoriesByMacro.set(macroName, []);
-                              }
-                              categoriesByMacro.get(macroName)!.push(category);
-                            });
-
-                            // Sort macros alphabetically
-                            const sortedMacros = Array.from(categoriesByMacro.entries()).sort((a, b) => 
-                              a[0].localeCompare(b[0])
-                            );
-
-                            return sortedMacros.map(([macroName, categories]) => {
-                              // Sort categories within each macro alphabetically
-                              const sortedCategories = [...categories].sort((a, b) => 
-                                a.name.localeCompare(b.name)
-                              );
-                              
-                              return (
-                                <CommandGroup key={macroName} heading={macroName}>
-                                  {sortedCategories.map((category) => (
-                                  <CommandItem
-                                    key={category.id}
-                                    onSelect={() => {
-                                      console.log("CommandItem onSelect triggered:", category.name, category.id);
-                                      handleCategoryChange(category.id);
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        selectedCategoryId === category.id ? "opacity-100" : "opacity-0"
-                                      )}
-                                    />
-                                    {category.name}
-                                  </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              );
-                            });
-                          })()}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <label className="text-sm font-medium">
+                    Group {!selectedMacroId && <span className="text-gray-400 text-[12px]">required</span>}
+                  </label>
+                  <Select
+                    value={selectedMacroId}
+                    onValueChange={handleMacroChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {macros.map((macro) => (
+                        <SelectItem key={macro.id} value={macro.id}>
+                          {macro.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {(subcategories.length > 0 || form.watch("subcategoryId")) && (
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Subcategory</label>
-                    <Select
-                      value={form.watch("subcategoryId") || undefined}
-                      onValueChange={(value) => {
-                        if (value) {
-                          form.setValue("subcategoryId", value);
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select subcategory" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subcategories.map((subcategory) => (
-                          <SelectItem key={subcategory.id} value={subcategory.id}>
-                            {subcategory.name}
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">
+                    Category {!selectedCategoryId && <span className="text-gray-400 text-[12px]">required</span>}
+                  </label>
+                  <Select
+                    value={selectedCategoryId}
+                    onValueChange={handleCategoryChange}
+                    disabled={!selectedMacroId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!selectedMacroId ? (
+                        <div className="p-2 text-sm text-muted-foreground">
+                          Select a group first
+                        </div>
+                      ) : availableCategories.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground">
+                          No categories found for this group
+                        </div>
+                      ) : (
+                        availableCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.categoryId && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.categoryId.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">
+                    Subcategory <span className="text-gray-400 text-[12px]">(optional)</span>
+                  </label>
+                  <Select
+                    value={form.watch("subcategoryId") || undefined}
+                    onValueChange={handleSubcategoryChange}
+                    disabled={!selectedCategoryId || (() => {
+                      const subcats = subcategoriesMap.get(selectedCategoryId) || [];
+                      return subcats.length === 0;
+                    })()}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        if (!selectedCategoryId) {
+                          return (
+                            <div className="p-2 text-sm text-muted-foreground">
+                              Select a category first
+                            </div>
+                          );
+                        }
+                        const subcats = subcategoriesMap.get(selectedCategoryId) || [];
+                        return subcats.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground">
+                            No subcategories found for this category
+                          </div>
+                        ) : (
+                          subcats.map((subcategory) => (
+                            <SelectItem key={subcategory.id} value={subcategory.id}>
+                              {subcategory.name}
+                            </SelectItem>
+                          ))
+                        );
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
@@ -634,6 +742,8 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         </form>
       </DialogContent>
     </Dialog>
+      )}
+    </>
   );
 }
 

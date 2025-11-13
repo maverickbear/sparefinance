@@ -25,14 +25,14 @@ export function SyncStatsCard({ stats }: SyncStatsCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium">Estatísticas de Sincronização</CardTitle>
+        <CardTitle className="text-sm font-medium">Sync Statistics</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Database className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Total de itens</span>
+              <span className="text-sm text-muted-foreground">Total items</span>
             </div>
             <Badge variant="outline" className="text-sm font-semibold">
               {totalItems}
@@ -44,7 +44,7 @@ export function SyncStatsCard({ stats }: SyncStatsCardProps) {
               <Wallet className="h-5 w-5 text-muted-foreground" />
               <div className="text-center">
                 <div className="text-2xl font-bold">{stats.accounts}</div>
-                <div className="text-xs text-muted-foreground">Contas</div>
+                <div className="text-xs text-muted-foreground">Accounts</div>
               </div>
             </div>
 
@@ -52,7 +52,7 @@ export function SyncStatsCard({ stats }: SyncStatsCardProps) {
               <TrendingUp className="h-5 w-5 text-muted-foreground" />
               <div className="text-center">
                 <div className="text-2xl font-bold">{stats.holdings}</div>
-                <div className="text-xs text-muted-foreground">Posições</div>
+                <div className="text-xs text-muted-foreground">Holdings</div>
               </div>
             </div>
 
@@ -60,14 +60,14 @@ export function SyncStatsCard({ stats }: SyncStatsCardProps) {
               <Activity className="h-5 w-5 text-muted-foreground" />
               <div className="text-center">
                 <div className="text-2xl font-bold">{stats.transactions}</div>
-                <div className="text-xs text-muted-foreground">Transações</div>
+                <div className="text-xs text-muted-foreground">Transactions</div>
               </div>
             </div>
           </div>
 
           {stats.lastSyncedAt && (
             <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-              Última sincronização: {new Date(stats.lastSyncedAt).toLocaleString("pt-BR")}
+              Last sync: {new Date(stats.lastSyncedAt).toLocaleString("en-US")}
             </div>
           )}
         </div>

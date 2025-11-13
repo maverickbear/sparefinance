@@ -8,7 +8,10 @@ import { getAccounts } from "@/lib/api/accounts";
 import { checkOnboardingStatus } from "@/lib/api/onboarding";
 import { getUserLiabilities } from "@/lib/api/plaid/liabilities";
 import { getCurrentUserId } from "@/lib/api/feature-guard";
-import { startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { startOfMonth } from "date-fns/startOfMonth";
+import { endOfMonth } from "date-fns/endOfMonth";
+import { subMonths } from "date-fns/subMonths";
+import { logger } from "@/lib/utils/logger";
 
 interface DashboardData {
   selectedMonthTransactions: any[];
@@ -36,7 +39,9 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
   const chartStart = startOfMonth(sixMonthsAgo);
   const chartEnd = endOfMonth(selectedMonth);
 
-  console.log("🔍 [data-loader] Date calculations:", {
+  const log = logger.withPrefix("data-loader");
+  
+  log.log("Date calculations:", {
     selectedMonthDate: selectedMonthDate.toISOString(),
     selectedMonth: {
       start: selectedMonth.toISOString(),
@@ -74,7 +79,7 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
       endDate: selectedMonthEnd,
     }).then((transactions) => {
       // Debug: Log transactions to understand the issue
-      console.log("🔍 [data-loader] Selected Month Transactions loaded:", {
+      log.log("Selected Month Transactions loaded:", {
           count: transactions.length,
           dateRange: {
             start: selectedMonth.toISOString(),
@@ -110,22 +115,22 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
       });
       return transactions;
     }).catch((error) => {
-      console.error("❌ [data-loader] Error fetching selected month transactions:", error);
+      log.error("Error fetching selected month transactions:", error);
       return [];
     }),
     getTransactions({
       startDate: lastMonth,
       endDate: lastMonthEnd,
     }).catch((error) => {
-      console.error("Error fetching last month transactions:", error);
+      log.error("Error fetching last month transactions:", error);
       return [];
     }),
     getTotalInvestmentsValue().catch((error) => {
-      console.error("Error fetching total investments value:", error);
+      log.error("Error fetching total investments value:", error);
       return 0;
     }),
     getBudgets(selectedMonth).then((budgets) => {
-      console.log("🔍 [data-loader] Budgets loaded:", {
+      log.log("Budgets loaded:", {
         count: budgets?.length || 0,
         budgets: budgets?.map((b: any) => ({
           id: b.id,
@@ -136,15 +141,15 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
       });
       return budgets;
     }).catch((error) => {
-      console.error("❌ [data-loader] Error fetching budgets:", error);
+      log.error("Error fetching budgets:", error);
       return [];
     }),
     getUpcomingTransactions(5).catch((error) => {
-      console.error("Error fetching upcoming transactions:", error);
+      log.error("Error fetching upcoming transactions:", error);
       return [];
     }),
     calculateFinancialHealth(selectedMonth).catch((error) => {
-      console.error("❌ [data-loader] Error calculating financial health:", {
+      log.error("Error calculating financial health:", {
         error: error?.message,
         stack: error?.stack,
         errorType: error?.constructor?.name,
@@ -152,7 +157,7 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
       return null;
     }),
     getGoals().then((goals) => {
-      console.log("🔍 [data-loader] Goals loaded:", {
+      log.log("Goals loaded:", {
         count: goals?.length || 0,
         goals: goals?.map((g: any) => ({
           id: g.id,
@@ -164,26 +169,26 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
       });
       return goals;
     }).catch((error) => {
-      console.error("❌ [data-loader] Error fetching goals:", error);
+      log.error("Error fetching goals:", error);
       return [];
     }),
     getTransactions({
       startDate: chartStart,
       endDate: chartEnd,
     }).catch((error) => {
-      console.error("Error fetching chart transactions:", error);
+      log.error("Error fetching chart transactions:", error);
       return [];
     }),
     getAccounts().catch((error) => {
-      console.error("Error fetching accounts:", error);
+      log.error("Error fetching accounts:", error);
       return [];
     }),
     userId ? getUserLiabilities(userId).catch((error) => {
-      console.error("Error fetching liabilities:", error);
+      log.error("Error fetching liabilities:", error);
       return [];
     }) : Promise.resolve([]),
     checkOnboardingStatus().catch((error) => {
-      console.error("Error checking onboarding status:", error);
+      log.error("Error checking onboarding status:", error);
       return null;
     }),
   ]);
@@ -218,7 +223,7 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
   const lastMonthTotalBalance = totalBalance - currentMonthNetChange;
 
   // Debug: Log final data being returned
-  console.log("🔍 [data-loader] Final dashboard data:", {
+  log.log("Final dashboard data:", {
     budgetsCount: budgets?.length || 0,
     goalsCount: goals?.length || 0,
     budgets: budgets?.length > 0 ? budgets.slice(0, 3).map((b: any) => ({

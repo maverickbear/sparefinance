@@ -83,7 +83,7 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
     .select(`
       *,
       security:Security(*),
-      account:InvestmentAccount(*)
+      account:Account(*)
     `)
     .order("date", { ascending: true });
 
@@ -248,7 +248,7 @@ export async function getInvestmentTransactions(filters?: {
     .from("InvestmentTransaction")
     .select(`
       *,
-      account:InvestmentAccount(*),
+      account:Account(*),
       security:Security(*)
     `)
     .order("date", { ascending: false });

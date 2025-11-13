@@ -26,6 +26,7 @@ import {
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface Goal {
   id: string;
@@ -50,6 +51,7 @@ interface Goal {
 export default function GoalsPage() {
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
+  const { checkWriteAccess } = useWriteGuard();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
@@ -284,6 +286,7 @@ export default function GoalsPage() {
         {!(sortedGoals.length === 0 && filterBy === "all") && (
           <Button
             onClick={() => {
+              if (!checkWriteAccess()) return;
               setSelectedGoal(null);
               setIsFormOpen(true);
             }}
@@ -335,7 +338,7 @@ export default function GoalsPage() {
             Loading goals...
           </div>
         ) : sortedGoals.length === 0 ? (
-          <div className="col-span-full min-h-[400px]">
+          <div className="col-span-full">
             <EmptyState
               icon={PiggyBank}
               title={filterBy === "all" ? "No goals created yet" : `No ${filterBy} goals found`}
@@ -348,6 +351,7 @@ export default function GoalsPage() {
               onAction={
                 filterBy === "all"
                   ? () => {
+                      if (!checkWriteAccess()) return;
                       setSelectedGoal(null);
                       setIsFormOpen(true);
                     }
@@ -362,11 +366,13 @@ export default function GoalsPage() {
             key={goal.id}
             goal={goal}
             onEdit={(g) => {
+              if (!checkWriteAccess()) return;
               // Ensure the selected goal has createdAt and updatedAt properties
               setSelectedGoal({ ...g, createdAt: goal.createdAt, updatedAt: goal.updatedAt });
               setIsFormOpen(true);
             }}
             onDelete={(id) => {
+              if (!checkWriteAccess()) return;
               if (deletingId !== id) {
                 handleDelete(id);
               }

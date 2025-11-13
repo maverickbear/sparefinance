@@ -1,30 +1,34 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { FeatureGuard } from "@/components/common/feature-guard";
 import { PortfolioSummaryCards } from "@/components/portfolio/portfolio-summary-cards";
-import { AssetAllocationChart } from "@/components/portfolio/asset-allocation-chart";
-import { PortfolioPerformanceChart } from "@/components/portfolio/portfolio-performance-chart";
-import { HoldingsTable } from "@/components/portfolio/holdings-table";
-import { AccountBreakdown } from "@/components/portfolio/account-breakdown";
-import { SectorBreakdown } from "@/components/portfolio/sector-breakdown";
+import { Loader2 } from "lucide-react";
+import type { Holding as SupabaseHolding } from "@/lib/api/investments";
+import { convertSupabaseHoldingToHolding, type Holding, type Account, type HistoricalDataPoint } from "@/lib/mock-data/portfolio-mock-data";
+import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
+import { SimpleTabs, SimpleTabsList, SimpleTabsTrigger, SimpleTabsContent } from "@/components/ui/simple-tabs";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 import {
   calculateAssetTypeAllocation,
   calculateSectorAllocation,
   calculateAccountAllocation,
 } from "@/lib/utils/portfolio-utils";
-import { Loader2 } from "lucide-react";
-import type { Holding as SupabaseHolding } from "@/lib/api/investments";
-import { convertSupabaseHoldingToHolding, type Holding, type Account, type HistoricalDataPoint } from "@/lib/mock-data/portfolio-mock-data";
-import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
-import { OrdersTabContent } from "@/components/portfolio/orders-tab-content";
-import { ExecutionsTabContent } from "@/components/portfolio/executions-tab-content";
-import { MarketDataTabContent } from "@/components/portfolio/market-data-tab-content";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { InvestmentTransactionForm } from "@/components/forms/investment-transaction-form";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { PageHeader } from "@/components/common/page-header";
+
+// Lazy load heavy components
+const AssetAllocationChart = dynamic(() => import("@/components/portfolio/asset-allocation-chart").then(m => ({ default: m.AssetAllocationChart })), { ssr: false });
+const PortfolioPerformanceChart = dynamic(() => import("@/components/portfolio/portfolio-performance-chart").then(m => ({ default: m.PortfolioPerformanceChart })), { ssr: false });
+const HoldingsTable = dynamic(() => import("@/components/portfolio/holdings-table").then(m => ({ default: m.HoldingsTable })), { ssr: false });
+const AccountBreakdown = dynamic(() => import("@/components/portfolio/account-breakdown").then(m => ({ default: m.AccountBreakdown })), { ssr: false });
+const SectorBreakdown = dynamic(() => import("@/components/portfolio/sector-breakdown").then(m => ({ default: m.SectorBreakdown })), { ssr: false });
+const OrdersTabContent = dynamic(() => import("@/components/portfolio/orders-tab-content").then(m => ({ default: m.OrdersTabContent })), { ssr: false });
+const ExecutionsTabContent = dynamic(() => import("@/components/portfolio/executions-tab-content").then(m => ({ default: m.ExecutionsTabContent })), { ssr: false });
+const MarketDataTabContent = dynamic(() => import("@/components/portfolio/market-data-tab-content").then(m => ({ default: m.MarketDataTabContent })), { ssr: false });
+const InvestmentTransactionForm = dynamic(() => import("@/components/forms/investment-transaction-form").then(m => ({ default: m.InvestmentTransactionForm })), { ssr: false });
 
 // Types
 interface PortfolioSummary {
@@ -38,6 +42,7 @@ interface PortfolioSummary {
 }
 
 export default function InvestmentsPage() {
+  const { checkWriteAccess } = useWriteGuard();
   const [loading, setLoading] = useState(true);
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -133,7 +138,7 @@ export default function InvestmentsPage() {
   };
 
   return (
-    <FeatureGuard feature="hasInvestments" featureName="Investments">
+    <FeatureGuard feature="hasInvestments" featureName="Investments" requiredPlan="premium">
       <div className="space-y-4 md:space-y-6">
       <PageHeader
         title="Portfolio Management"
@@ -150,7 +155,10 @@ export default function InvestmentsPage() {
             onSuccess={loadPortfolioData}
           />
           <Button
-            onClick={() => setShowTransactionForm(true)}
+            onClick={() => {
+              if (!checkWriteAccess()) return;
+              setShowTransactionForm(true);
+            }}
             variant="default"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -159,15 +167,15 @@ export default function InvestmentsPage() {
         </div>
       </PageHeader>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 md:w-fit">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="executions">Executions</TabsTrigger>
-            <TabsTrigger value="market-data">Market Data</TabsTrigger>
-          </TabsList>
+        <SimpleTabs defaultValue="overview" className="w-full">
+          <SimpleTabsList>
+            <SimpleTabsTrigger value="overview">Overview</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="orders">Orders</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="executions">Executions</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="market-data">Market Data</SimpleTabsTrigger>
+          </SimpleTabsList>
 
-          <TabsContent value="overview" className="mt-4">
+          <SimpleTabsContent value="overview" className="mt-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -196,20 +204,20 @@ export default function InvestmentsPage() {
                 <HoldingsTable holdings={holdings} />
               </div>
             )}
-          </TabsContent>
+          </SimpleTabsContent>
 
-          <TabsContent value="orders" className="mt-4">
+          <SimpleTabsContent value="orders" className="mt-4">
             <OrdersTabContent />
-          </TabsContent>
+          </SimpleTabsContent>
 
-          <TabsContent value="executions" className="mt-4">
+          <SimpleTabsContent value="executions" className="mt-4">
             <ExecutionsTabContent />
-          </TabsContent>
+          </SimpleTabsContent>
 
-          <TabsContent value="market-data" className="mt-4">
+          <SimpleTabsContent value="market-data" className="mt-4">
             <MarketDataTabContent />
-          </TabsContent>
-        </Tabs>
+          </SimpleTabsContent>
+        </SimpleTabs>
       </div>
       
       <InvestmentTransactionForm

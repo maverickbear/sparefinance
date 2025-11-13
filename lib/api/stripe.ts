@@ -2,6 +2,7 @@
 
 import Stripe from "stripe";
 import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
+import { PlanFeatures } from "@/lib/validations/plan";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY is not set");
@@ -16,6 +17,145 @@ export interface CheckoutSessionData {
   planId: string;
   priceId: string; // monthly or yearly
   mode: "subscription";
+}
+
+/**
+ * Create a checkout session for trial (no authentication required)
+ * This allows users to start a trial before creating an account
+ */
+export async function createTrialCheckoutSession(
+  planId: string,
+  interval: "month" | "year" = "month",
+  returnUrl?: string,
+  promoCode?: string
+): Promise<{ url: string | null; error: string | null }> {
+  try {
+    console.log("[TRIAL-CHECKOUT] Starting trial checkout session creation:", { planId, interval });
+    const supabase = await createServerClient();
+    
+    // Get plan
+    const { data: plan, error: planError } = await supabase
+      .from("Plan")
+      .select("*")
+      .eq("id", planId)
+      .single();
+
+    if (planError || !plan) {
+      console.error("[TRIAL-CHECKOUT] Plan not found:", { planId, planError });
+      return { url: null, error: "Plan not found" };
+    }
+    console.log("[TRIAL-CHECKOUT] Plan found:", { planId: plan.id, name: plan.name });
+
+    const priceId = interval === "month" 
+      ? plan.stripePriceIdMonthly 
+      : plan.stripePriceIdYearly;
+
+    if (!priceId) {
+      console.error("[TRIAL-CHECKOUT] Stripe price ID not configured:", { planId, interval });
+      return { url: null, error: "Stripe price ID not configured for this plan" };
+    }
+    console.log("[TRIAL-CHECKOUT] Using price ID:", { priceId, interval });
+
+    // Get promo code if provided
+    let stripeCouponId: string | undefined;
+    if (promoCode) {
+      console.log("[TRIAL-CHECKOUT] Looking up promo code:", promoCode);
+      const { data: promoCodeData, error: promoError } = await supabase
+        .from("PromoCode")
+        .select("stripeCouponId, isActive, expiresAt, planIds")
+        .eq("code", promoCode.toUpperCase())
+        .single();
+
+      if (!promoError && promoCodeData) {
+        // Check if promo code is active
+        if (!promoCodeData.isActive) {
+          console.log("[TRIAL-CHECKOUT] Promo code is not active:", promoCode);
+          return { url: null, error: "Promo code is not active" };
+        }
+
+        // Check if expired
+        if (promoCodeData.expiresAt && new Date(promoCodeData.expiresAt) < new Date()) {
+          console.log("[TRIAL-CHECKOUT] Promo code has expired:", promoCode);
+          return { url: null, error: "Promo code has expired" };
+        }
+
+        // Check if plan is allowed (if planIds is specified)
+        const planIds = (promoCodeData.planIds || []) as string[];
+        if (planIds.length > 0 && !planIds.includes(planId)) {
+          console.log("[TRIAL-CHECKOUT] Promo code not valid for this plan:", { promoCode, planId });
+          return { url: null, error: "Promo code not valid for this plan" };
+        }
+
+        stripeCouponId = promoCodeData.stripeCouponId || undefined;
+        console.log("[TRIAL-CHECKOUT] Promo code found:", { promoCode, stripeCouponId });
+      } else {
+        console.log("[TRIAL-CHECKOUT] Promo code not found:", promoCode);
+        return { url: null, error: "Promo code not found" };
+      }
+    }
+
+    // Create checkout session with trial period
+    // No customer ID needed - Stripe will create one from email entered in checkout
+    // Note: Stripe requires a payment method for subscriptions, but won't charge during trial
+    // Use client_reference_id to link session to user when they sign up later
+    console.log("[TRIAL-CHECKOUT] Creating Stripe checkout session with trial:", { priceId, planId, promoCode, stripeCouponId });
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        trial_period_days: 30,
+        metadata: {
+          planId: planId,
+          interval: interval,
+        },
+      },
+      // Payment method is required but won't be charged during trial
+      // User can add payment method in checkout, and it will only be charged after trial ends
+      payment_method_collection: "always",
+      // client_reference_id will be available in checkout.session.completed webhook
+      // We can use it to link the subscription when user signs up
+      // Using planId as part of reference for easier tracking
+      client_reference_id: `trial-${planId}-${Date.now()}`,
+      success_url: returnUrl 
+        ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
+        : `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: returnUrl 
+        ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}canceled=true`
+        : `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/pricing?canceled=true`,
+      metadata: {
+        planId: planId,
+        interval: interval,
+        isTrial: "true",
+      },
+    };
+
+    // Add discount if promo code is provided
+    if (stripeCouponId) {
+      sessionParams.discounts = [{ coupon: stripeCouponId }];
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    console.log("[TRIAL-CHECKOUT] Checkout session created successfully:", { 
+      sessionId: session.id, 
+      url: session.url,
+      subscriptionId: session.subscription,
+    });
+
+    return { url: session.url, error: null };
+  } catch (error) {
+    console.error("[TRIAL-CHECKOUT] Error creating checkout session:", error);
+    return { 
+      url: null, 
+      error: error instanceof Error ? error.message : "Failed to create checkout session" 
+    };
+  }
 }
 
 export async function createCheckoutSession(
@@ -84,16 +224,24 @@ export async function createCheckoutSession(
       customerId = subscription.stripeCustomerId;
       console.log("[CHECKOUT] Using existing Stripe customer:", customerId);
     } else {
+      // Get user name from User table
+      const { data: userData } = await supabase
+        .from("User")
+        .select("name")
+        .eq("id", userId)
+        .single();
+
       // Create Stripe customer
       console.log("[CHECKOUT] Creating new Stripe customer for user:", userId);
       const customer = await stripe.customers.create({
         email: authUser.email!,
+        name: userData?.name || undefined,
         metadata: {
           userId: userId,
         },
       });
       customerId = customer.id;
-      console.log("[CHECKOUT] Stripe customer created:", { customerId, email: authUser.email });
+      console.log("[CHECKOUT] Stripe customer created:", { customerId, email: authUser.email, name: userData?.name });
 
       // If user has an existing subscription (free), update it with customer ID
       // Otherwise, the webhook will create the subscription when payment succeeds
@@ -164,13 +312,20 @@ export async function createCheckoutSession(
           quantity: 1,
         },
       ],
-      success_url: returnUrl || `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/welcome?plan=paid`,
-      cancel_url: returnUrl ? `${returnUrl}?canceled=true` : `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/select-plan?canceled=true`,
+      success_url: returnUrl 
+        ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`
+        : `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: returnUrl 
+        ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}canceled=true`
+        : `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/pricing?canceled=true`,
       metadata: {
         userId: userId,
         planId: planId,
         interval: interval,
       },
+      // client_reference_id helps link checkout session to user
+      // Useful for tracking and webhook processing
+      client_reference_id: userId,
     };
 
     // Add discount if promo code is provided
@@ -283,9 +438,11 @@ export async function createPortalSession(userId: string): Promise<{ url: string
     }
 
     // Create portal session
+    // Return URL includes a parameter to trigger subscription sync
+    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/settings?tab=billing&portal_return=true`;
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/settings`,
+      return_url: returnUrl,
       ...(configuration && { configuration: configuration.id }),
     });
 
@@ -308,6 +465,8 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<{ success
     });
 
     // Use service role client for webhooks to bypass RLS
+    // Note: This function is called AFTER we've already returned a 2xx response
+    // to Stripe, so we can do complex processing here without timeout concerns
     const supabase = createServiceRoleClient();
     console.log("[WEBHOOK] Service role client created");
 
@@ -381,8 +540,25 @@ async function handleCheckoutSessionCompleted(
     customerId: session.customer,
     subscriptionId: session.subscription,
     mode: session.mode,
-    metadata: session.metadata 
+    metadata: session.metadata,
+    clientReferenceId: session.client_reference_id
   });
+  
+  // If we have a userId in metadata or client_reference_id, update customer metadata
+  const userId = session.metadata?.userId || (session.client_reference_id?.startsWith('trial-') ? null : session.client_reference_id);
+  if (userId && session.customer && typeof session.customer === 'string') {
+    try {
+      await stripe.customers.update(session.customer, {
+        metadata: {
+          userId: userId,
+          ...(session.metadata || {}),
+        },
+      });
+      console.log("[WEBHOOK:CHECKOUT] Updated customer metadata with userId:", userId);
+    } catch (error) {
+      console.error("[WEBHOOK:CHECKOUT] Error updating customer metadata:", error);
+    }
+  }
   
   if (session.mode === "subscription" && session.subscription) {
     console.log("[WEBHOOK:CHECKOUT] Retrieving subscription from Stripe:", session.subscription);
@@ -396,7 +572,7 @@ async function handleCheckoutSessionCompleted(
         customerId: subscription.customer,
         priceId: subscription.items.data[0]?.price.id
       });
-      await handleSubscriptionChange(supabase, subscription);
+      await handleSubscriptionChange(supabase, subscription, session);
     } catch (error) {
       console.error("[WEBHOOK:CHECKOUT] Error retrieving subscription from checkout session:", error);
     }
@@ -410,7 +586,8 @@ async function handleCheckoutSessionCompleted(
 
 async function handleSubscriptionChange(
   supabase: ReturnType<typeof createServiceRoleClient>,
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  checkoutSession?: Stripe.Checkout.Session
 ) {
   const customerId = subscription.customer as string;
   console.log("[WEBHOOK:SUBSCRIPTION] Processing subscription change:", {
@@ -420,24 +597,41 @@ async function handleSubscriptionChange(
     priceId: subscription.items.data[0]?.price.id
   });
   
-  // First, try to find user by existing subscription with customer ID
+  // First, try to find user by existing subscription with stripeSubscriptionId (most direct)
   let userId: string | null = null;
-  console.log("[WEBHOOK:SUBSCRIPTION] Looking for existing subscription with customer ID:", customerId);
-  const { data: existingSub, error: existingSubError } = await supabase
+  console.log("[WEBHOOK:SUBSCRIPTION] Looking for existing subscription with stripeSubscriptionId:", subscription.id);
+  const { data: existingSubByStripeId, error: existingSubByStripeIdError } = await supabase
     .from("Subscription")
     .select("userId")
-    .eq("stripeCustomerId", customerId)
+    .eq("stripeSubscriptionId", subscription.id)
     .limit(1)
     .maybeSingle();
 
-  if (existingSubError) {
-    console.error("[WEBHOOK:SUBSCRIPTION] Error fetching existing subscription:", existingSubError);
+  if (existingSubByStripeIdError) {
+    console.error("[WEBHOOK:SUBSCRIPTION] Error fetching subscription by stripeSubscriptionId:", existingSubByStripeIdError);
   }
 
-  if (existingSub) {
-    userId = existingSub.userId;
-    console.log("[WEBHOOK:SUBSCRIPTION] Found userId from existing subscription:", userId);
+  if (existingSubByStripeId) {
+    userId = existingSubByStripeId.userId;
+    console.log("[WEBHOOK:SUBSCRIPTION] Found userId from existing subscription (by stripeSubscriptionId):", userId);
   } else {
+    // Try to find by customer ID
+    console.log("[WEBHOOK:SUBSCRIPTION] Looking for existing subscription with customer ID:", customerId);
+    const { data: existingSub, error: existingSubError } = await supabase
+      .from("Subscription")
+      .select("userId")
+      .eq("stripeCustomerId", customerId)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingSubError) {
+      console.error("[WEBHOOK:SUBSCRIPTION] Error fetching existing subscription:", existingSubError);
+    }
+
+    if (existingSub) {
+      userId = existingSub.userId;
+      console.log("[WEBHOOK:SUBSCRIPTION] Found userId from existing subscription (by customerId):", userId);
+    } else {
     console.log("[WEBHOOK:SUBSCRIPTION] No existing subscription found, trying to get userId from Stripe customer metadata");
     // If not found, try to get userId from Stripe customer metadata
     try {
@@ -456,9 +650,180 @@ async function handleSubscriptionChange(
       console.error("[WEBHOOK:SUBSCRIPTION] Error retrieving customer from Stripe:", error);
     }
 
-    if (!userId) {
-      console.error("[WEBHOOK:SUBSCRIPTION] No user found for customer:", customerId);
-      return;
+      if (!userId) {
+        // User hasn't signed up yet - create pending subscription
+        // The subscription will be linked automatically when they sign up with matching email
+        console.log("[WEBHOOK:SUBSCRIPTION] ⚠️ No userId found for customer - will create pending subscription");
+        console.log("[WEBHOOK:SUBSCRIPTION] Customer ID:", customerId);
+        
+        // Get customer email for pending subscription
+        let customerEmail: string | null = null;
+        try {
+          const customer = await stripe.customers.retrieve(customerId);
+          if (customer && typeof customer !== "string" && !customer.deleted && customer.email) {
+            customerEmail = customer.email;
+            console.log("[WEBHOOK:SUBSCRIPTION] Customer email found for pending subscription:", customerEmail);
+          }
+        } catch (error) {
+          console.error("[WEBHOOK:SUBSCRIPTION] Error retrieving customer:", error);
+        }
+
+        if (!customerEmail) {
+          console.log("[WEBHOOK:SUBSCRIPTION] No customer email found - cannot create pending subscription");
+          return;
+        }
+
+        // Get plan from price ID
+        const priceId = subscription.items.data[0]?.price.id;
+        if (!priceId) {
+          console.error("[WEBHOOK:SUBSCRIPTION] No price ID in subscription");
+          return;
+        }
+
+        // Find plan by price ID (need name for email)
+        const { data: plan, error: planError } = await supabase
+          .from("Plan")
+          .select("id, name")
+          .or(`stripePriceIdMonthly.eq.${priceId},stripePriceIdYearly.eq.${priceId}`)
+          .single();
+
+        if (planError || !plan) {
+          console.error("[WEBHOOK:SUBSCRIPTION] No plan found for price ID:", { priceId, planError });
+          return;
+        }
+
+        // Create pending subscription ID using customerId (temporary, will be updated when user signs up)
+        const pendingSubscriptionId = `pending-${customerId}-${plan.id}`;
+        const status = mapStripeStatus(subscription.status);
+
+        // Check if pending subscription already exists
+        const { data: existingPendingSub } = await supabase
+          .from("Subscription")
+          .select("id")
+          .eq("stripeCustomerId", customerId)
+          .is("userId", null)
+          .maybeSingle();
+
+        const subscriptionData: any = {
+          id: existingPendingSub?.id || pendingSubscriptionId,
+          userId: null, // NULL for pending subscriptions
+          planId: plan.id,
+          status: status,
+          stripeSubscriptionId: subscription.id,
+          stripeCustomerId: customerId,
+          pendingEmail: customerEmail.toLowerCase(),
+          currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
+          currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+          cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
+          trialStartDate: (subscription as any).trial_start ? new Date((subscription as any).trial_start * 1000) : null,
+          trialEndDate: (subscription as any).trial_end ? new Date((subscription as any).trial_end * 1000) : null,
+          updatedAt: new Date(),
+        };
+
+        // Upsert pending subscription
+        // If exists, update by id; otherwise insert new
+        let shouldSendEmail = false;
+        
+        if (existingPendingSub) {
+          const { error: updateError } = await supabase
+            .from("Subscription")
+            .update(subscriptionData)
+            .eq("id", existingPendingSub.id);
+          
+          if (updateError) {
+            console.error("[WEBHOOK:SUBSCRIPTION] Error updating pending subscription:", updateError);
+          } else {
+            console.log("[WEBHOOK:SUBSCRIPTION] Pending subscription updated successfully:", {
+              subscriptionId: subscriptionData.id,
+              email: customerEmail,
+              status,
+              trialEndDate: subscriptionData.trialEndDate,
+            });
+            // Only send email on first creation, not on updates
+            shouldSendEmail = false;
+          }
+        } else {
+          const { error: insertError } = await supabase
+            .from("Subscription")
+            .insert(subscriptionData);
+          
+          if (insertError) {
+            console.error("[WEBHOOK:SUBSCRIPTION] Error creating pending subscription:", insertError);
+          } else {
+            console.log("[WEBHOOK:SUBSCRIPTION] Pending subscription created successfully:", {
+              subscriptionId: subscriptionData.id,
+              email: customerEmail,
+              status,
+              trialEndDate: subscriptionData.trialEndDate,
+            });
+            console.log("[WEBHOOK:SUBSCRIPTION] Subscription will be automatically linked when user signs up with email:", customerEmail);
+            shouldSendEmail = true;
+          }
+        }
+        
+        // Send email to user with signup link (only on creation)
+        if (shouldSendEmail) {
+          console.log("[WEBHOOK:SUBSCRIPTION] Preparing to send checkout pending email to:", customerEmail);
+          try {
+            const { sendCheckoutPendingEmail } = await import("@/lib/utils/email");
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com";
+            console.log("[WEBHOOK:SUBSCRIPTION] App URL:", appUrl);
+            
+            // Try to get checkout session ID from subscription metadata or find latest session for customer
+            let sessionId: string | null = null;
+            if (checkoutSession?.id) {
+              sessionId = checkoutSession.id;
+              console.log("[WEBHOOK:SUBSCRIPTION] Using checkout session from parameter:", sessionId);
+            } else {
+              // Try to find the latest checkout session for this customer
+              console.log("[WEBHOOK:SUBSCRIPTION] No checkout session in parameter, searching for customer sessions...");
+              try {
+                const sessions = await stripe.checkout.sessions.list({
+                  customer: customerId,
+                  limit: 1,
+                });
+                if (sessions.data.length > 0) {
+                  sessionId = sessions.data[0].id;
+                  console.log("[WEBHOOK:SUBSCRIPTION] Found checkout session:", sessionId);
+                } else {
+                  console.log("[WEBHOOK:SUBSCRIPTION] No checkout sessions found for customer");
+                }
+              } catch (error) {
+                console.error("[WEBHOOK:SUBSCRIPTION] Error fetching checkout session:", error);
+              }
+            }
+            
+            const signupUrl = sessionId 
+              ? `${appUrl}/subscription/success?session_id=${sessionId}`
+              : `${appUrl}/auth/signup`;
+            
+            console.log("[WEBHOOK:SUBSCRIPTION] Signup URL:", signupUrl);
+            console.log("[WEBHOOK:SUBSCRIPTION] Plan name:", plan.name || plan.id);
+            console.log("[WEBHOOK:SUBSCRIPTION] Trial end date:", subscriptionData.trialEndDate);
+            
+            await sendCheckoutPendingEmail({
+              to: customerEmail,
+              planName: plan.name || plan.id,
+              trialEndDate: subscriptionData.trialEndDate,
+              signupUrl: signupUrl,
+              appUrl: appUrl,
+            });
+            
+            console.log("[WEBHOOK:SUBSCRIPTION] ✅ Checkout pending email sent successfully to:", customerEmail);
+          } catch (emailError) {
+            console.error("[WEBHOOK:SUBSCRIPTION] ❌ Error sending checkout pending email:", emailError);
+            if (emailError instanceof Error) {
+              console.error("[WEBHOOK:SUBSCRIPTION] Error message:", emailError.message);
+              console.error("[WEBHOOK:SUBSCRIPTION] Error stack:", emailError.stack);
+            }
+            // Don't fail the webhook if email fails
+          }
+        } else {
+          console.log("[WEBHOOK:SUBSCRIPTION] Skipping email send (subscription already exists)");
+        }
+
+        return;
+      }
     }
   }
 
@@ -535,22 +900,64 @@ async function handleSubscriptionChange(
     console.log("[WEBHOOK:SUBSCRIPTION] No other active subscriptions found to cancel");
   }
 
-  // Upsert the new paid subscription
+  // Get existing subscription to preserve trial dates if they exist
+  const { data: existingSubData } = await supabase
+    .from("Subscription")
+    .select("trialStartDate, trialEndDate, status")
+    .eq("id", subscriptionId)
+    .maybeSingle();
+
+  // Prepare subscription data
+  const subscriptionData: any = {
+    id: subscriptionId,
+    userId: userId,
+    planId: plan.id,
+    status: status,
+    stripeSubscriptionId: subscription.id,
+    stripeCustomerId: customerId,
+    currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
+    currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+    cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
+    updatedAt: new Date(),
+  };
+
+  // Preserve trial start date if it exists, or set from Stripe if available
+  if (existingSubData?.trialStartDate) {
+    subscriptionData.trialStartDate = existingSubData.trialStartDate;
+  } else if ((subscription as any).trial_start) {
+    subscriptionData.trialStartDate = new Date((subscription as any).trial_start * 1000);
+  }
+
+  // If subscription status is changing to "active" (payment was made), finalize trial immediately
+  const wasTrialing = existingSubData?.status === "trialing";
+  const isNowActive = status === "active";
+  const hasTrialEndDate = existingSubData?.trialEndDate || (subscription as any).trial_end;
+
+  if (isNowActive && wasTrialing && hasTrialEndDate) {
+    // Payment was made during trial - finalize trial immediately by setting trialEndDate to now
+    const now = new Date();
+    subscriptionData.trialEndDate = now;
+    console.log("[WEBHOOK:SUBSCRIPTION] Payment made during trial - finalizing trial immediately:", {
+      subscriptionId,
+      previousStatus: existingSubData?.status,
+      newStatus: status,
+      previousTrialEndDate: existingSubData?.trialEndDate,
+      newTrialEndDate: now,
+    });
+  } else {
+    // Preserve trial end date if it exists, or set from Stripe if available
+    if (existingSubData?.trialEndDate) {
+      subscriptionData.trialEndDate = existingSubData.trialEndDate;
+    } else if ((subscription as any).trial_end) {
+      subscriptionData.trialEndDate = new Date((subscription as any).trial_end * 1000);
+    }
+  }
+
+  // Upsert the subscription
   console.log("[WEBHOOK:SUBSCRIPTION] Upserting subscription to database...");
   const { data: upsertedSub, error: upsertError } = await supabase
     .from("Subscription")
-    .upsert({
-      id: subscriptionId,
-      userId: userId,
-      planId: plan.id,
-      status: status,
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: customerId,
-      currentPeriodStart: new Date((subscription as any).current_period_start * 1000),
-      currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
-      cancelAtPeriodEnd: (subscription as any).cancel_at_period_end,
-      updatedAt: new Date(),
-    }, {
+    .upsert(subscriptionData, {
       onConflict: "id",
     })
     .select();
@@ -564,6 +971,11 @@ async function handleSubscriptionChange(
     subscriptionId,
     upsertedData: upsertedSub
   });
+
+  // Invalidate subscription cache to ensure UI reflects changes immediately
+  const { invalidateSubscriptionCache } = await import("@/lib/api/plans");
+  await invalidateSubscriptionCache(userId);
+  console.log("[WEBHOOK:SUBSCRIPTION] Subscription cache invalidated for user:", userId);
 }
 
 async function handleSubscriptionDeletion(
@@ -604,6 +1016,11 @@ async function handleSubscriptionDeletion(
       console.error("[WEBHOOK:DELETION] Error updating subscription to cancelled:", updateError);
     } else {
       console.log("[WEBHOOK:DELETION] Subscription updated to cancelled successfully. User will need to sign up for a new plan.");
+      
+      // Invalidate subscription cache to ensure UI reflects cancellation immediately
+      const { invalidateSubscriptionCache } = await import("@/lib/api/plans");
+      await invalidateSubscriptionCache(existingSub.userId);
+      console.log("[WEBHOOK:DELETION] Subscription cache invalidated for user:", existingSub.userId);
     }
   } else {
     console.log("[WEBHOOK:DELETION] No existing subscription found for customer:", customerId);
@@ -614,14 +1031,68 @@ async function handleInvoicePaymentSucceeded(
   supabase: ReturnType<typeof createServiceRoleClient>,
   invoice: Stripe.Invoice
 ) {
-  // Payment succeeded - subscription should already be updated
-  // This is just for logging or additional actions
+  const customerId = invoice.customer as string;
+  const subscriptionId = (invoice as any).subscription as string | null;
+  
   console.log("[WEBHOOK:INVOICE] Payment succeeded for invoice:", {
     invoiceId: invoice.id,
-    customerId: invoice.customer,
-    subscriptionId: (invoice as any).subscription,
+    customerId,
+    subscriptionId,
     amount: (invoice as any).amount_paid
   });
+
+  // If payment was made, finalize any active trial immediately
+  if (subscriptionId) {
+    try {
+      // Find subscription by Stripe subscription ID
+      const { data: subscription, error: subError } = await supabase
+        .from("Subscription")
+        .select("id, status, trialEndDate")
+        .eq("stripeSubscriptionId", subscriptionId)
+        .maybeSingle();
+
+      if (subError) {
+        console.error("[WEBHOOK:INVOICE] Error fetching subscription:", subError);
+      }
+
+      // If subscription exists and is in trialing status, finalize trial
+      if (subscription && subscription.status === "trialing" && subscription.trialEndDate) {
+        const now = new Date();
+        const { error: updateError } = await supabase
+          .from("Subscription")
+          .update({
+            trialEndDate: now,
+            updatedAt: now,
+          })
+          .eq("id", subscription.id);
+
+        if (updateError) {
+          console.error("[WEBHOOK:INVOICE] Error finalizing trial:", updateError);
+        } else {
+          console.log("[WEBHOOK:INVOICE] Trial finalized immediately after payment:", {
+            subscriptionId: subscription.id,
+            previousTrialEndDate: subscription.trialEndDate,
+            newTrialEndDate: now,
+          });
+
+          // Invalidate cache
+          const { data: subData } = await supabase
+            .from("Subscription")
+            .select("userId")
+            .eq("id", subscription.id)
+            .single();
+
+          if (subData?.userId) {
+            const { invalidateSubscriptionCache } = await import("@/lib/api/plans");
+            await invalidateSubscriptionCache(subData.userId);
+            console.log("[WEBHOOK:INVOICE] Subscription cache invalidated for user:", subData.userId);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[WEBHOOK:INVOICE] Error processing payment succeeded:", error);
+    }
+  }
 }
 
 async function handleInvoicePaymentFailed(
@@ -662,8 +1133,180 @@ function mapStripeStatus(status: Stripe.Subscription.Status): "active" | "cancel
       return "past_due";
     case "trialing":
       return "trialing";
+    case "incomplete":
+    case "incomplete_expired":
+      // Incomplete subscriptions (no payment method) should be treated as trialing
+      // until payment method is added, then they become active
+      // If incomplete_expired, treat as cancelled
+      return status === "incomplete_expired" ? "cancelled" : "trialing";
     default:
       return "active";
+  }
+}
+
+/**
+ * Feature definitions mapping our plan features to Stripe Features
+ */
+const FEATURE_DEFINITIONS = [
+  { lookupKey: "investments", name: "Investments", description: "Investment tracking and portfolio management" },
+  { lookupKey: "household", name: "Household Members", description: "Add and manage household members" },
+  { lookupKey: "advanced_reports", name: "Advanced Reports", description: "Access to advanced financial reports" },
+  { lookupKey: "csv_export", name: "CSV Export", description: "Export data to CSV format" },
+  { lookupKey: "debts", name: "Debt Tracking", description: "Track and manage debts" },
+  { lookupKey: "goals", name: "Goals", description: "Set and track financial goals" },
+  { lookupKey: "bank_integration", name: "Bank Integration", description: "Connect bank accounts via Plaid" },
+] as const;
+
+/**
+ * Create or update a Stripe Feature
+ */
+async function ensureStripeFeature(
+  lookupKey: string,
+  name: string,
+  description: string
+): Promise<string> {
+  try {
+    // Try to find existing feature
+    const existingFeatures = await stripe.entitlements.features.list({
+      lookup_key: lookupKey,
+      limit: 1,
+    });
+
+    if (existingFeatures.data.length > 0) {
+      // Update existing feature
+      const feature = await stripe.entitlements.features.update(
+        existingFeatures.data[0].id,
+        {
+          name,
+          metadata: {
+            description,
+          },
+        }
+      );
+      return feature.id;
+    } else {
+      // Create new feature
+      const feature = await stripe.entitlements.features.create({
+        lookup_key: lookupKey,
+        name,
+        metadata: {
+          description,
+        },
+      });
+      return feature.id;
+    }
+  } catch (error) {
+    console.error(`Error ensuring feature ${lookupKey}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get all features associated with a product
+ */
+async function getProductFeatures(productId: string): Promise<string[]> {
+  try {
+    const product = await stripe.products.retrieve(productId);
+    // Features are stored in product.default_price or we need to check entitlements
+    // For now, we'll use the product's metadata or check entitlements
+    const features: string[] = [];
+    
+    // List all entitlements for this product to get associated features
+    // Note: This requires checking subscriptions or using a different approach
+    // For simplicity, we'll manage features through product metadata for now
+    return features;
+  } catch (error) {
+    console.error(`Error getting product features for ${productId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Sync plan features to Stripe using Features API
+ * This creates/updates Stripe Features and associates them with products
+ */
+export async function syncPlanFeaturesToStripe(planId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createServerClient();
+    
+    // Get plan from database
+    const { data: plan, error: planError } = await supabase
+      .from("Plan")
+      .select("id, name, features, stripeProductId")
+      .eq("id", planId)
+      .single();
+
+    if (planError || !plan) {
+      return { success: false, error: `Plan ${planId} not found` };
+    }
+
+    if (!plan.stripeProductId) {
+      return { success: false, error: `Plan ${planId} has no Stripe Product ID configured` };
+    }
+
+    // Map our features to Stripe Features
+    const featureMap: Record<string, boolean> = {
+      investments: plan.features.hasInvestments,
+      household: plan.features.hasHousehold,
+      advanced_reports: plan.features.hasAdvancedReports,
+      csv_export: plan.features.hasCsvExport,
+      debts: plan.features.hasDebts,
+      goals: plan.features.hasGoals,
+      bank_integration: plan.features.hasBankIntegration,
+    };
+
+    // Create/update all features in Stripe
+    const featureIds: string[] = [];
+    for (const featureDef of FEATURE_DEFINITIONS) {
+      if (featureMap[featureDef.lookupKey]) {
+        try {
+          const featureId = await ensureStripeFeature(
+            featureDef.lookupKey,
+            featureDef.name,
+            featureDef.description
+          );
+          featureIds.push(featureId);
+          console.log(`✅ Feature ${featureDef.lookupKey} ensured: ${featureId}`);
+        } catch (error) {
+          console.error(`❌ Error ensuring feature ${featureDef.lookupKey}:`, error);
+        }
+      }
+    }
+
+    // Update product with features metadata for reference
+    // Note: Stripe Features are associated through entitlements when subscriptions are created
+    // For now, we'll also store in product metadata for easy reference
+    const metadata: Record<string, string> = {
+      planId: plan.id,
+      planName: plan.name,
+      // Individual feature flags
+      hasInvestments: String(plan.features.hasInvestments),
+      hasAdvancedReports: String(plan.features.hasAdvancedReports),
+      hasCsvExport: String(plan.features.hasCsvExport),
+      hasDebts: String(plan.features.hasDebts),
+      hasGoals: String(plan.features.hasGoals),
+      hasBankIntegration: String(plan.features.hasBankIntegration),
+      hasHousehold: String(plan.features.hasHousehold),
+      // Limits
+      maxTransactions: String(plan.features.maxTransactions),
+      maxAccounts: String(plan.features.maxAccounts),
+      // Feature IDs (comma-separated)
+      featureIds: featureIds.join(","),
+      // Full features JSON (for reference)
+      features: JSON.stringify(plan.features),
+    };
+
+    await stripe.products.update(plan.stripeProductId, {
+      metadata,
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error syncing plan features to Stripe:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }
 

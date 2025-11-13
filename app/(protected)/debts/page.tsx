@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/empty-state";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface Debt {
   id: string;
@@ -61,6 +62,7 @@ interface Debt {
 
 export default function DebtsPage() {
   const { openDialog, ConfirmDialog } = useConfirmDialog();
+  const { checkWriteAccess } = useWriteGuard();
   const [debts, setDebts] = useState<Debt[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -198,6 +200,7 @@ export default function DebtsPage() {
         {!(sortedDebts.length === 0 && filterBy === "all") && (
           <Button
             onClick={() => {
+              if (!checkWriteAccess()) return;
               setSelectedDebt(null);
               setIsFormOpen(true);
             }}
@@ -281,10 +284,12 @@ export default function DebtsPage() {
               key={debt.id}
               debt={debt}
               onEdit={(d) => {
+                if (!checkWriteAccess()) return;
                 setSelectedDebt({ ...d, createdAt: debt.createdAt, updatedAt: debt.updatedAt });
                 setIsFormOpen(true);
               }}
               onDelete={(id) => {
+                if (!checkWriteAccess()) return;
                 if (deletingId !== id) {
                   handleDelete(id);
                 }
@@ -299,7 +304,7 @@ export default function DebtsPage() {
           ))}
 
           {sortedDebts.length === 0 && (
-            <div className="col-span-full min-h-[400px]">
+            <div className="col-span-full">
               <EmptyState
                 icon={CreditCard}
                 title={filterBy === "all" ? "No debts created yet" : `No ${filterBy} debts found`}
@@ -312,6 +317,7 @@ export default function DebtsPage() {
                 onAction={
                   filterBy === "all"
                     ? () => {
+                        if (!checkWriteAccess()) return;
                         setSelectedDebt(null);
                         setIsFormOpen(true);
                       }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSearchParams, useRouter } from "next/navigation";
 import { profileSchema, ProfileFormData } from "@/lib/validations/profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { PaymentHistory } from "@/components/billing/payment-history";
 import { SubscriptionManagement } from "@/components/billing/subscription-management";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { PlanFeatures, LimitCheckResult } from "@/lib/api/limits";
+import { PageHeader } from "@/components/common/page-header";
 
 // Profile interfaces
 interface Profile {
@@ -250,16 +252,15 @@ function ProfileModule() {
   if (loading) {
     return (
       <Card className="h-fit">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <User className="h-4 w-4" />
             Profile
           </CardTitle>
-          <CardDescription>Manage your profile information</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-[120px] bg-muted rounded-full w-[120px] mx-auto"></div>
+          <div className="animate-pulse space-y-3">
+            <div className="h-16 bg-muted rounded-full w-16 mx-auto sm:h-20 sm:w-20"></div>
             <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
             <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
           </div>
@@ -270,11 +271,11 @@ function ProfileModule() {
 
   return (
     <Card className="h-fit">
-      <CardHeader className="pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <CardHeader className="pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center gap-2">
-            <User className="h-4 w-4 sm:h-5 sm:w-5" />
-            <CardTitle className="text-lg sm:text-xl">Profile</CardTitle>
+            <User className="h-4 w-4" />
+            <CardTitle className="text-base sm:text-lg">Profile</CardTitle>
           </div>
           {!isEditing && (
             <Button
@@ -288,154 +289,163 @@ function ProfileModule() {
             </Button>
           )}
         </div>
-        <CardDescription className="text-xs sm:text-sm mt-1">
-          Manage your profile information
-        </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
-          <div className="flex flex-col items-center space-y-3 md:space-y-4">
-            <div className="relative">
-              {getAvatarUrl() ? (
-                <img
-                  src={getAvatarUrl()!}
-                  alt="Profile"
-                  className="h-24 w-24 sm:h-28 sm:w-28 md:h-[120px] md:w-[120px] rounded-full object-cover border-2"
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                    const initialsContainer = e.currentTarget.nextElementSibling;
-                    if (initialsContainer) {
-                      (initialsContainer as HTMLElement).style.display = "flex";
-                    }
-                  }}
-                />
-              ) : null}
-              <div
-                className={`h-24 w-24 sm:h-28 sm:w-28 md:h-[120px] md:w-[120px] rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xl sm:text-2xl md:text-3xl font-semibold border-2 ${
-                  getAvatarUrl() ? "hidden" : "flex"
-                }`}
-              >
-                {getInitials(form.watch("name") || profile?.name || "User")}
-              </div>
-            </div>
-            
-            {isEditing && (
-              <div className="flex flex-col items-center space-y-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  ref={fileInputRef}
-                  disabled={uploading}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                  }}
-                  disabled={uploading}
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-6">
+            {/* Avatar Section - Left Side */}
+            <div className="flex flex-col items-center sm:items-start space-y-2">
+              <div className="relative">
+                {getAvatarUrl() ? (
+                  <img
+                    src={getAvatarUrl()!}
+                    alt="Profile"
+                    className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border-2"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      const initialsContainer = e.currentTarget.nextElementSibling;
+                      if (initialsContainer) {
+                        (initialsContainer as HTMLElement).style.display = "flex";
+                      }
+                    }}
+                  />
+                ) : null}
+                <div
+                  className={`h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-base sm:text-lg font-semibold border-2 ${
+                    getAvatarUrl() ? "hidden" : "flex"
+                  }`}
                 >
-                  <Upload className="mr-2 h-4 w-4" />
-                  {uploading ? "Uploading..." : "Upload Avatar"}
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">
-                  JPG, PNG or GIF. Max size 5MB
-                </p>
+                  {getInitials(form.watch("name") || profile?.name || "User")}
+                </div>
               </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Name</label>
-            {isEditing ? (
-              <>
-                <Input {...form.register("name")} />
-                {form.formState.errors.name && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.name.message}
+              
+              {isEditing && (
+                <div className="flex flex-col items-center sm:items-start space-y-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    ref={fileInputRef}
+                    disabled={uploading}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="small"
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={uploading}
+                  >
+                    <Upload className="mr-2 h-3 w-3" />
+                    {uploading ? "Uploading..." : "Upload Avatar"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground text-center sm:text-left">
+                    JPG, PNG or GIF. Max size 5MB
                   </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground py-2">
-                {profile?.name || "Not set"}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Email</label>
-            {isEditing ? (
-              <>
-                <Input
-                  {...form.register("email")}
-                  type="email"
-                  placeholder="user@example.com"
-                />
-                {form.formState.errors.email && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.email.message}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground py-2">
-                {profile?.email || "Not set"}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Phone Number</label>
-            {isEditing ? (
-              <>
-                <Input
-                  {...form.register("phoneNumber")}
-                  type="tel"
-                  placeholder="+1 (555) 123-4567"
-                />
-                {form.formState.errors.phoneNumber && (
-                  <p className="text-sm text-destructive">
-                    {form.formState.errors.phoneNumber.message}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground py-2">
-                {profile?.phoneNumber || "Not set"}
-              </p>
-            )}
-          </div>
-
-          {isEditing && (
-            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCancel}
-                disabled={saving}
-                className="w-full sm:w-auto"
-              >
-                <X className="mr-2 h-4 w-4" />
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Changes
-                  </>
-                )}
-              </Button>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Form Fields Section - Right Side */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs sm:text-sm font-medium">Name</label>
+                  {isEditing ? (
+                    <>
+                      <Input {...form.register("name")} className="h-9" />
+                      {form.formState.errors.name && (
+                        <p className="text-xs text-destructive">
+                          {form.formState.errors.name.message}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-1">
+                      {profile?.name || "Not set"}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs sm:text-sm font-medium">Email</label>
+                  {isEditing ? (
+                    <>
+                      <Input
+                        {...form.register("email")}
+                        type="email"
+                        placeholder="user@example.com"
+                        className="h-9"
+                      />
+                      {form.formState.errors.email && (
+                        <p className="text-xs text-destructive">
+                          {form.formState.errors.email.message}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-1">
+                      {profile?.email || "Not set"}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs sm:text-sm font-medium">Phone Number</label>
+                  {isEditing ? (
+                    <>
+                      <Input
+                        {...form.register("phoneNumber")}
+                        type="tel"
+                        placeholder="+1 (555) 123-4567"
+                        className="h-9"
+                      />
+                      {form.formState.errors.phoneNumber && (
+                        <p className="text-xs text-destructive">
+                          {form.formState.errors.phoneNumber.message}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-1">
+                      {profile?.phoneNumber || "Not set"}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {isEditing && (
+                <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="small"
+                    onClick={handleCancel}
+                    disabled={saving}
+                    className="w-full sm:w-auto"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="small" disabled={saving} className="w-full sm:w-auto">
+                    {saving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
         </form>
       </CardContent>
     </Card>
@@ -443,7 +453,10 @@ function ProfileModule() {
 }
 
 // Billing Module Component
-function BillingModule() {
+function BillingModuleContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { toast } = useToast();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [limits, setLimits] = useState<PlanFeatures | null>(null);
@@ -451,9 +464,11 @@ function BillingModule() {
   const [accountLimit, setAccountLimit] = useState<LimitCheckResult | null>(null);
   const [interval, setInterval] = useState<"month" | "year" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   const syncSubscription = useCallback(async () => {
     try {
+      setSyncing(true);
       console.log("[BILLING] Syncing subscription from Stripe...");
       const response = await fetch("/api/stripe/sync-subscription", {
         method: "POST",
@@ -466,6 +481,10 @@ function BillingModule() {
 
       if (response.ok && data.success) {
         console.log("[BILLING] Subscription synced successfully:", data.subscription);
+        toast({
+          title: "Subscription Updated",
+          description: "Your subscription has been updated successfully.",
+        });
         return true;
       } else {
         console.error("[BILLING] Failed to sync subscription:", data.error);
@@ -474,14 +493,12 @@ function BillingModule() {
     } catch (error) {
       console.error("[BILLING] Error syncing subscription:", error);
       return false;
+    } finally {
+      setSyncing(false);
     }
-  }, []);
+  }, [toast]);
 
-  useEffect(() => {
-    loadBillingData();
-  }, []);
-
-  async function loadBillingData() {
+  const loadBillingData = useCallback(async () => {
     try {
       setLoading(true);
       const [subResponse, limitsAction] = await Promise.all([
@@ -506,9 +523,27 @@ function BillingModule() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  if (loading) {
+  // Check if user is returning from Stripe Portal
+  useEffect(() => {
+    const portalReturn = searchParams.get("portal_return");
+    if (portalReturn === "true") {
+      // Remove the parameter from URL
+      router.replace("/settings?tab=billing", { scroll: false });
+      // Sync subscription from Stripe
+      syncSubscription().then(() => {
+        // Reload billing data after sync
+        loadBillingData();
+      });
+    }
+  }, [searchParams, router, syncSubscription, loadBillingData]);
+
+  useEffect(() => {
+    loadBillingData();
+  }, [loadBillingData]);
+
+  if (loading || syncing) {
     return (
       <Card className="h-fit">
         <CardHeader>
@@ -563,12 +598,33 @@ function BillingModule() {
         onUpgradeSuccess={loadBillingData}
       />
 
-      <Card className="h-fit w-full">
-        <CardContent className="p-6">
-          <PaymentHistory />
+      <PaymentHistory />
+    </div>
+  );
+}
+
+// Billing Module Component (wrapped for Suspense)
+function BillingModule() {
+  return (
+    <Suspense fallback={
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Billing
+          </CardTitle>
+          <CardDescription>Manage your subscription and usage</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-muted rounded w-3/4"></div>
+            <div className="h-4 bg-muted rounded w-1/2"></div>
+          </div>
         </CardContent>
       </Card>
-    </div>
+    }>
+      <BillingModuleContent />
+    </Suspense>
   );
 }
 
@@ -576,14 +632,10 @@ function BillingModule() {
 export default function MyAccountPage() {
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="space-y-2">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">My Account</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Manage your account settings and preferences
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="My Account"
+        description="Manage your account settings and preferences"
+      />
 
       <div className="space-y-4 md:space-y-6">
         <ProfileModule />

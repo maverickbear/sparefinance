@@ -282,7 +282,7 @@ export interface Database {
   };
 }
 
-// Helper para obter o cliente Supabase
+// Helper to get the Supabase client
 export function getSupabaseClient() {
   return createServerClient();
 }

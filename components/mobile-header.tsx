@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Wallet } from "lucide-react";
+import { UpgradeBanner } from "@/components/common/upgrade-banner";
 
 interface MobileHeaderProps {
   hasSubscription?: boolean;
@@ -14,8 +15,8 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 border-b bg-card lg:hidden">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6">
+    <header className="fixed top-0 left-0 right-0 z-40 bg-card lg:hidden" id="mobile-header">
+      <div className="flex h-16 items-center justify-between px-4 sm:px-6 border-b">
         <Link href="/dashboard" className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-[12px]">
             <Wallet className="w-5 h-5 text-primary" />

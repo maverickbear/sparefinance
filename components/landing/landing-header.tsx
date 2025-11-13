@@ -130,15 +130,15 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                   <Link href="/auth/login">Sign In</Link>
                 </Button>
                 {isScrolled ? (
-                  <Button asChild className="bg-[#9333ea] text-white hover:bg-[#9333ea]/90 font-semibold">
-                    <Link href="/auth/signup">Get Started</Link>
+                  <Button asChild className="bg-[#4A4AF2] text-white hover:bg-[#3A3AD2] font-semibold">
+                    <Link href="#pricing">Get Started</Link>
                   </Button>
                 ) : (
                   <Button
                     asChild
                     className="bg-white text-foreground hover:bg-white/90 font-semibold"
                   >
-                    <Link href="/auth/signup">Get Started</Link>
+                    <Link href="#pricing">Get Started</Link>
                   </Button>
                 )}
               </>
@@ -217,11 +217,11 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                     asChild 
                     className={`w-full font-semibold ${
                       isScrolled
-                        ? "bg-[#9333ea] text-white hover:bg-[#9333ea]/90"
+                        ? "bg-[#4A4AF2] text-white hover:bg-[#3A3AD2]"
                         : "bg-white text-foreground hover:bg-white/90"
                     }`}
                   >
-                    <Link href="/auth/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Link href="#pricing" onClick={() => setIsMobileMenuOpen(false)}>
                       Get Started
                     </Link>
                   </Button>

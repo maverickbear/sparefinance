@@ -1,96 +1,38 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { PlanSelector } from "@/components/billing/plan-selector";
-import { Plan } from "@/lib/validations/plan";
-import { supabase } from "@/lib/supabase";
+import { StripePricingTable } from "@/components/billing/stripe-pricing-table";
 
 export function PricingSection() {
-  const router = useRouter();
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selecting, setSelecting] = useState(false);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get Stripe Pricing Table ID from environment
+  const pricingTableId = process.env.NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID;
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
   useEffect(() => {
-    loadPlans();
+    loadCustomerInfo();
+    setLoading(false);
   }, []);
 
-  async function loadPlans() {
+  async function loadCustomerInfo() {
     try {
-      setLoading(true);
-      // Use public endpoint that doesn't require authentication
-      const response = await fetch("/api/billing/plans/public");
+      const response = await fetch("/api/stripe/customer");
       if (response.ok) {
         const data = await response.json();
-        setPlans(data.plans);
-      } else {
-        console.error("Failed to load plans:", response.statusText);
+        setCustomerId(data.customerId);
+        setCustomerEmail(data.customerEmail);
+        setUserId(data.userId || null);
+      } else if (response.status === 401) {
+        // User is not authenticated - this is fine for public landing page
+        // Pricing table will work without customer info
       }
     } catch (error) {
-      console.error("Error loading plans:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSelectPlan(planId: string, interval: "month" | "year") {
-    try {
-      setSelecting(true);
-
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        // Redirect to signup with planId
-        router.push(`/auth/signup?planId=${planId}&interval=${interval}`);
-        return;
-      }
-
-      // User is authenticated, proceed with plan selection
-      if (planId === "free") {
-        // Setup free plan directly
-        const response = await fetch("/api/billing/setup-free", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          // Redirect to dashboard for free plan
-          router.push("/dashboard");
-        } else {
-          console.error("Failed to setup free plan:", data.error);
-          alert(data.error || "Failed to setup free plan. Please try again.");
-        }
-      } else {
-        // Start trial for paid plans (no Stripe checkout needed)
-        const response = await fetch("/api/billing/start-trial", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ planId }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          // Trial started successfully, redirect to dashboard
-          router.push("/dashboard");
-        } else {
-          console.error("Failed to start trial:", data.error);
-          alert(data.error || "Failed to start trial. Please try again.");
-        }
-      }
-    } catch (error) {
-      console.error("Error selecting plan:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setSelecting(false);
+      // Silently fail - customer info is optional for public pricing section
+      // Pricing table works fine without customer info (it will just not pre-fill)
     }
   }
 
@@ -107,13 +49,32 @@ export function PricingSection() {
             </p>
           </div>
           <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-96 bg-muted rounded-[12px]" />
-                </div>
-              ))}
+            <div className="animate-pulse">
+              <div className="h-96 bg-muted rounded-[12px]" />
             </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // If Stripe Pricing Table is not configured, show a link to pricing page
+  if (!pricingTableId || !publishableKey) {
+    return (
+      <section id="pricing" className="py-20 md:py-32 bg-background">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Start free forever. Upgrade when you're ready for advanced features like bank integration, unlimited transactions, and family sharing.
+            </p>
+          </div>
+          <div className="text-center py-12">
+            <a href="/pricing" className="text-primary hover:underline">
+              View pricing plans →
+            </a>
           </div>
         </div>
       </section>
@@ -133,21 +94,18 @@ export function PricingSection() {
           </p>
         </div>
 
-        {/* Plan Selector */}
-        {plans.length > 0 ? (
-          <div className="max-w-7xl mx-auto">
-            <PlanSelector
-              plans={plans}
-              onSelectPlan={handleSelectPlan}
-              loading={selecting}
-              isPublic={true}
+        {/* Stripe Pricing Table */}
+        <div className="max-w-7xl mx-auto flex justify-center">
+          <div className="w-full max-w-4xl">
+            <StripePricingTable
+              pricingTableId={pricingTableId}
+              publishableKey={publishableKey}
+              customerId={customerId || undefined}
+              customerEmail={customerEmail || undefined}
+              clientReferenceId={userId || undefined}
             />
           </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Unable to load plans. Please try again later.</p>
-          </div>
-        )}
+        </div>
       </div>
     </section>
   );

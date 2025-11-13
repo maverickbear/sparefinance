@@ -3,6 +3,7 @@
 import { createServerClient } from "@/lib/supabase-server";
 import { Plan, PlanFeatures, Subscription } from "@/lib/validations/plan";
 import { getOwnerIdForMember, isHouseholdMember } from "./members";
+import { logger } from "@/lib/utils/logger";
 
 export interface PlanWithSubscription extends Plan {
   subscription?: Subscription;
@@ -41,7 +42,8 @@ export async function invalidateSubscriptionCache(userId: string): Promise<void>
   // (since members inherit the owner's subscription)
   // Note: This is a simple implementation - in production you might want
   // to track household relationships in the cache
-  console.log("[PLANS] Invalidated subscription cache for user:", userId);
+  const log = logger.withPrefix("PLANS");
+  log.log("Invalidated subscription cache for user:", userId);
 }
 
 async function refreshPlansCache(): Promise<void> {
@@ -55,7 +57,7 @@ async function refreshPlansCache(): Promise<void> {
       .order("priceMonthly", { ascending: true });
 
     if (error || !plans) {
-      console.error("Error fetching plans for cache:", error);
+      logger.error("Error fetching plans for cache:", error);
       return;
     }
 
@@ -72,7 +74,7 @@ async function refreshPlansCache(): Promise<void> {
     
     cacheTimestamp = Date.now();
   } catch (error) {
-    console.error("Error refreshing plans cache:", error);
+    logger.error("Error refreshing plans cache:", error);
   }
 }
 
@@ -87,7 +89,7 @@ export async function getPlans(): Promise<Plan[]> {
     // Return cached plans
     return Array.from(plansCache.values()).sort((a, b) => a.priceMonthly - b.priceMonthly);
   } catch (error) {
-    console.error("Error in getPlans:", error);
+    logger.error("Error in getPlans:", error);
     return [];
   }
 }
@@ -116,7 +118,7 @@ export async function getPlanById(planId: string): Promise<Plan | null> {
       .single();
 
     if (error || !plan) {
-      console.error("Error fetching plan:", error);
+      logger.error("Error fetching plan:", error);
       return null;
     }
 
@@ -126,19 +128,21 @@ export async function getPlanById(planId: string): Promise<Plan | null> {
     
     return mappedPlan;
   } catch (error) {
-    console.error("Error in getPlanById:", error);
+    logger.error("Error in getPlanById:", error);
     return null;
   }
 }
 
 export async function getUserSubscription(userId: string): Promise<Subscription | null> {
   try {
+    const log = logger.withPrefix("PLANS");
+    
     // Check request-level cache first (prevents duplicate calls in same request)
     // Use get() instead of has() + get() to avoid race conditions
     const requestKey = `subscription:${userId}`;
     const cachedPromise = requestCache.get(requestKey);
     if (cachedPromise) {
-      console.log("[PLANS] getUserSubscription - Using request-level cache for:", userId);
+      log.log("getUserSubscription - Using request-level cache for:", userId);
       return await cachedPromise;
     }
 
@@ -156,14 +160,14 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
       if (!isExpired && !wasInvalidated) {
         if (cached.type === 'result') {
           // We have a cached result
-          console.log("[PLANS] getUserSubscription - Using persistent cache result for:", userId);
+          log.log("getUserSubscription - Using persistent cache result for:", userId);
           const result = Promise.resolve(cached.subscription);
           requestCache.set(requestKey, result);
           setTimeout(() => requestCache.delete(requestKey), 100);
           return cached.subscription;
         } else if (cached.type === 'promise') {
           // There's an in-flight promise - reuse it
-          console.log("[PLANS] getUserSubscription - Reusing in-flight promise for:", userId);
+          log.log("getUserSubscription - Reusing in-flight promise for:", userId);
           requestCache.set(requestKey, cached.promise);
           setTimeout(() => requestCache.delete(requestKey), 1000);
           return await cached.promise;
@@ -180,20 +184,20 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
     const doubleCheckCache = subscriptionCache.get(userId);
     if (doubleCheckCache && (now - doubleCheckCache.timestamp) < SUBSCRIPTION_CACHE_TTL) {
       if (doubleCheckCache.type === 'result') {
-        console.log("[PLANS] getUserSubscription - Using persistent cache result (double-check) for:", userId);
+        log.log("getUserSubscription - Using persistent cache result (double-check) for:", userId);
         const result = Promise.resolve(doubleCheckCache.subscription);
         requestCache.set(requestKey, result);
         setTimeout(() => requestCache.delete(requestKey), 100);
         return doubleCheckCache.subscription;
       } else if (doubleCheckCache.type === 'promise') {
-        console.log("[PLANS] getUserSubscription - Reusing in-flight promise (double-check) for:", userId);
+        log.log("getUserSubscription - Reusing in-flight promise (double-check) for:", userId);
         requestCache.set(requestKey, doubleCheckCache.promise);
         setTimeout(() => requestCache.delete(requestKey), 1000);
         return await doubleCheckCache.promise;
       }
     }
     
-    console.log("[PLANS] getUserSubscription - Fetching new subscription for:", userId);
+    log.log("getUserSubscription - Fetching new subscription for:", userId);
     
     // Create promise and cache it IMMEDIATELY (before awaiting) to prevent concurrent calls
     // This ensures all concurrent calls get the same promise
@@ -231,8 +235,8 @@ export async function getUserSubscription(userId: string): Promise<Subscription 
     }, 1000);
 
     return await subscriptionPromise;
-  } catch (error) {
-    console.error("[PLANS] Error in getUserSubscription:", error);
+    } catch (error) {
+      logger.error("Error in getUserSubscription:", error);
     // On error, return null to allow user to select a plan
     // This prevents assuming user has a plan when there's a database error
     // Note: This is different from when user has no subscription (also returns null)
@@ -269,13 +273,15 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
       .eq("status", "active")
       .maybeSingle();
 
+    const log = logger.withPrefix("PLANS");
+    
     if (memberError && memberError.code !== "PGRST116") {
-      console.error("[PLANS] Error checking household membership:", memberError);
+      log.error("Error checking household membership:", memberError);
     }
 
     const isMember = member !== null;
     const ownerId = member?.ownerId || null;
-    console.log("[PLANS] getUserSubscription - userId:", userId, "isMember:", isMember, "ownerId:", ownerId);
+    log.log("getUserSubscription - userId:", userId, "isMember:", isMember, "ownerId:", ownerId);
     
     if (isMember && ownerId) {
       // User is a household member, inherit plan from owner
@@ -290,42 +296,44 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
         .maybeSingle();
 
       if (ownerError && ownerError.code !== "PGRST116") {
-        console.error("[PLANS] Error fetching owner subscription:", ownerError);
+        log.error("Error fetching owner subscription:", ownerError);
       }
 
-      console.log("[PLANS] getUserSubscription - ownerSubscription:", ownerSubscription ? { planId: ownerSubscription.planId, status: ownerSubscription.status } : null);
+      log.log("getUserSubscription - ownerSubscription:", ownerSubscription ? { planId: ownerSubscription.planId, status: ownerSubscription.status } : null);
 
-      if (ownerSubscription && isTrialValid(ownerSubscription)) {
-        // Owner has a valid subscription, return it as shadow subscription for the member
+      if (ownerSubscription) {
+        // Owner has a subscription, return it as shadow subscription for the member
+        // Allow even if trial expired - user can still view the system
         // Only inherit if owner has Basic or Premium plan
         const ownerPlanId = ownerSubscription.planId;
-        console.log("[PLANS] getUserSubscription - ownerPlanId:", ownerPlanId);
+        log.log("getUserSubscription - ownerPlanId:", ownerPlanId);
         
         if (ownerPlanId === "basic" || ownerPlanId === "premium") {
-          console.log("[PLANS] getUserSubscription - Returning shadow subscription for member:", userId, "with plan:", ownerPlanId);
+          log.log("getUserSubscription - Returning shadow subscription for member:", userId, "with plan:", ownerPlanId);
           const mapped = mapSubscription(ownerSubscription);
           return {
             ...mapped,
             userId, // Use member's userId, but owner's subscription data
           };
         } else {
-          console.log("[PLANS] getUserSubscription - Owner has no valid plan, member will have no subscription");
+          log.log("getUserSubscription - Owner has no valid plan, member will have no subscription");
         }
         // If owner has no valid plan, fall through to return null
       } else {
-        console.log("[PLANS] getUserSubscription - Owner has no active subscription or trial expired");
+        log.log("getUserSubscription - Owner has no active subscription");
       }
       // If owner has no subscription or has Free, return Free for member
     } else {
-      console.log("[PLANS] getUserSubscription - User is not a household member");
+      log.log("getUserSubscription - User is not a household member");
     }
     
     // User is not a member, or owner has Free/no subscription - check user's own subscription
+    // Include all statuses to handle cancelled/expired subscriptions properly
     const { data: subscription, error } = await supabase
       .from("Subscription")
       .select("*")
       .eq("userId", userId)
-      .in("status", ["active", "trialing"])
+      .in("status", ["active", "trialing", "cancelled", "past_due"])
       .order("createdAt", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -333,7 +341,7 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
     // If error is PGRST116 (no rows returned), it's expected when no subscription exists
     // Other errors should be logged
     if (error && error.code !== "PGRST116") {
-      console.error("[PLANS] Error fetching subscription:", error);
+      log.error("Error fetching subscription:", error);
     }
 
     if (!subscription) {
@@ -343,10 +351,11 @@ async function fetchUserSubscription(userId: string): Promise<Subscription | nul
       return null;
     }
 
-    // Check if trial is still valid
+    // Allow access even if trial expired - user can still view the system
+    // We don't block access when trial expires, just return the subscription
     if (!isTrialValid(subscription)) {
-      console.log("[PLANS] getUserSubscription - Trial expired for subscription:", subscription.id);
-      return null; // Trial expired, user needs to subscribe
+      log.log("getUserSubscription - Trial expired for subscription:", subscription.id, "- but allowing access to view system");
+      // Return subscription even if expired - user can still view the system
     }
 
     return mapSubscription(subscription);
@@ -367,7 +376,7 @@ export async function getCurrentUserSubscription(): Promise<Subscription | null>
     const subscription = await getUserSubscription(authUser.id);
     return subscription;
   } catch (error) {
-    console.error("Error in getCurrentUserSubscription:", error);
+    logger.error("Error in getCurrentUserSubscription:", error);
     // Even on error, if we have a user, we should return a free subscription
     // But we can't access the user here, so return null
     return null;
@@ -411,7 +420,7 @@ export async function checkPlanLimits(
       limits: plan.features,
     };
   } catch (error) {
-    console.error("Error in checkPlanLimits:", error);
+    logger.error("Error in checkPlanLimits:", error);
     return {
       plan: null,
       subscription: null,
@@ -472,6 +481,7 @@ function getDefaultFeatures(): PlanFeatures {
     hasDebts: true,
     hasGoals: true,
     hasBankIntegration: false,
+    hasHousehold: false,
   };
 }
 
@@ -494,8 +504,10 @@ export async function getUserPlanInfo(userId: string): Promise<UserPlanInfo | nu
       .eq("status", "active")
       .maybeSingle();
 
+    const log = logger.withPrefix("PLANS");
+    
     if (memberError && memberError.code !== "PGRST116") {
-      console.error("[PLANS] Error checking household membership:", memberError);
+      log.error("Error checking household membership:", memberError);
     }
 
     const isMember = member !== null;
@@ -524,7 +536,7 @@ export async function getUserPlanInfo(userId: string): Promise<UserPlanInfo | nu
       const { data: owner } = ownerResult;
 
       if (ownerError && ownerError.code !== "PGRST116") {
-        console.error("[PLANS] Error fetching owner subscription:", ownerError);
+        log.error("Error fetching owner subscription:", ownerError);
       }
 
       if (ownerSubscription) {
@@ -560,7 +572,7 @@ export async function getUserPlanInfo(userId: string): Promise<UserPlanInfo | nu
     // No valid subscription - return null (user needs to select a plan)
     return null;
   } catch (error) {
-    console.error("[PLANS] Error in getUserPlanInfo:", error);
+    logger.error("Error in getUserPlanInfo:", error);
     return null;
   }
 }

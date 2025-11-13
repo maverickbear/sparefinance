@@ -185,8 +185,36 @@ export async function signUpClient(data: SignUpFormData): Promise<{ user: User |
       }
     }
 
-    // Note: Subscription is NOT created automatically during signup
-    // User must select a plan on /select-plan page
+    // Check if there's a pending subscription for this email and link it automatically
+    if (userData && authData.user.email) {
+      try {
+        // Wait a bit for the user record to be fully created
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Try to link any pending subscription
+        const linkResponse = await fetch("/api/stripe/link-subscription", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: authData.user.email }),
+        });
+
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          if (linkData.success) {
+            console.log("[SIGNUP] Pending subscription linked automatically:", authData.user.email);
+          }
+        }
+        // If linking fails, it's OK - user can still use the app normally
+      } catch (error) {
+        console.error("[SIGNUP] Error linking pending subscription:", error);
+        // Don't fail signup if linking fails
+      }
+    }
+
+    // Note: Subscription is NOT created automatically during signup (unless there's a pending one)
+    // User must select a plan on /select-plan page if they don't have one
     // This allows users to choose their plan before being redirected to dashboard
 
     return { user: userData ? mapUser(userData) : null, error: null };

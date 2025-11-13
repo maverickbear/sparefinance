@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, memo, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Rocket, Settings2 } from "lucide-react";
+import { logger } from "@/lib/utils/logger";
+import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TrialWidget, calculateTrialDaysRemaining, calculateTrialProgress } from "@/components/billing/trial-widget";
 import { useTheme } from "next-themes";
@@ -92,7 +93,7 @@ interface NavProps {
   hasSubscription?: boolean;
 }
 
-export function Nav({ hasSubscription = true }: NavProps) {
+function NavComponent({ hasSubscription = true }: NavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -101,7 +102,9 @@ export function Nav({ hasSubscription = true }: NavProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  console.log("[NAV] Render:", { hasSubscription, pathname });
+  const log = logger.withPrefix("NAV");
+  
+  log.log("Render:", { hasSubscription, pathname });
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -120,26 +123,26 @@ export function Nav({ hasSubscription = true }: NavProps) {
 
   // Fetch user data - always run hooks, but only fetch if hasSubscription
   useEffect(() => {
-    console.log("[NAV] useEffect triggered:", { hasSubscription });
+    log.log("useEffect triggered:", { hasSubscription });
     if (!hasSubscription) {
-      console.log("[NAV] No subscription, skipping user data fetch");
+      log.log("No subscription, skipping user data fetch");
       setLoading(false);
       setUserData(null);
       return;
     }
 
-    console.log("[NAV] Fetching user data");
+    log.log("Fetching user data");
     async function fetchUserData() {
       try {
         const { getUserClient } = await import("@/lib/api/user-client");
         const { getUserRoleClient } = await import("@/lib/api/members-client");
         const data = await getUserClient();
         const role = await getUserRoleClient();
-        console.log("[NAV] User data fetched:", data);
+        log.log("User data fetched:", data);
         setUserData(data);
         setIsSuperAdmin(role === "super_admin");
       } catch (error) {
-        console.error("[NAV] Error fetching user data:", error);
+        log.error("Error fetching user data:", error);
         setUserData(null);
         setIsSuperAdmin(false);
       } finally {
@@ -151,7 +154,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
 
     // Listen for profile updates
     const handleProfileUpdate = () => {
-      console.log("[NAV] Profile update event received");
+      log.log("Profile update event received");
       fetchUserData();
     };
     window.addEventListener("profile-updated", handleProfileUpdate);
@@ -164,13 +167,13 @@ export function Nav({ hasSubscription = true }: NavProps) {
   // Don't render Nav if user doesn't have subscription
   // But all hooks must be called before this return
   if (!hasSubscription) {
-    console.log("[NAV] Returning null (no subscription)");
+    log.log("Returning null (no subscription)");
     return null;
   }
 
-  console.log("[NAV] Rendering nav component");
+  log.log("Rendering nav component");
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       const { signOutClient } = await import("@/lib/api/auth-client");
       const result = await signOutClient();
@@ -180,20 +183,21 @@ export function Nav({ hasSubscription = true }: NavProps) {
       window.location.href = "/";
       
       if (result.error) {
-        console.error("Failed to sign out:", result.error);
+        log.error("Failed to sign out:", result.error);
       }
     } catch (error) {
-      console.error("Error signing out:", error);
+      log.error("Error signing out:", error);
       // Still redirect to landing page even if there's an error
       router.push("/");
       window.location.href = "/";
     }
-  };
+  }, [router, log]);
 
   const user = userData?.user;
 
   // Build nav sections dynamically - add Portal Management if super_admin
-  const navSections = isSuperAdmin
+  // Memoize to avoid recreating on every render
+  const navSections = useMemo(() => isSuperAdmin
     ? [
         {
           title: "Portal Management",
@@ -203,7 +207,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
         },
         ...baseNavSections,
       ]
-    : baseNavSections;
+    : baseNavSections, [isSuperAdmin]);
 
   return (
     <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
@@ -254,7 +258,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
                         onClick={(e) => {
                           if (!hasSubscription) {
                             e.preventDefault();
-                            router.push("/select-plan");
+                            router.push("/dashboard");
                           }
                         }}
                         className={cn(
@@ -301,69 +305,10 @@ export function Nav({ hasSubscription = true }: NavProps) {
                 progress={calculateTrialProgress(userData.subscription.trialStartDate, userData.subscription.trialEndDate)}
                 trialStartDate={userData.subscription.trialStartDate}
                 trialEndDate={userData.subscription.trialEndDate}
+                planName={userData.plan?.name}
               />
             )}
 
-            {/* Upgrade Card - Only show if not premium and not in trial */}
-            {!loading && userData && userData.plan?.name !== "premium" && userData.subscription?.status !== "trialing" && (
-              <div className={cn(
-                "border-t px-3 py-3",
-                isCollapsed && "px-2"
-              )}>
-                <div className={cn(
-                  "rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 p-3",
-                  isCollapsed && "p-2"
-                )}>
-                  {!isCollapsed ? (
-                    <>
-                      <div className="flex items-start gap-2 mb-2">
-                        <Rocket className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-semibold text-foreground mb-1">
-                            {userData?.plan?.name === "free" 
-                              ? "Free to Basic"
-                              : "Basic to Premium"}
-                          </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            {userData?.plan?.name === "free" 
-                              ? "Upgrade to Basic and enjoy smarter tools, deeper insights, and a better banking experience."
-                              : "Upgrade to Premium and unlock advanced features, priority support, and exclusive benefits."}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="small"
-                        className="w-full mt-2 text-xs border-primary/30 hover:bg-primary/10"
-                      >
-                        <Link href="/select-plan">
-                          Learn More
-                        </Link>
-                      </Button>
-                    </>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="icon"
-                          className="w-full h-8"
-                        >
-                          <Link href="/select-plan">
-                            <Rocket className="h-4 w-4 text-primary" />
-                          </Link>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        Upgrade to Pro
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              </div>
-            )}
 
             <div className="p-3">
               {loading ? (
@@ -520,4 +465,7 @@ export function Nav({ hasSubscription = true }: NavProps) {
     </SidebarContext.Provider>
   );
 }
+
+// Memoize Nav component to prevent unnecessary re-renders
+export const Nav = memo(NavComponent);
 

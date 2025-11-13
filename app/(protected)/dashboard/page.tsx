@@ -1,18 +1,21 @@
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { MonthSelector } from "@/components/dashboard/month-selector";
 import { SummaryCardSkeleton } from "@/components/ui/card-skeleton";
 import { ChartSkeleton, BudgetExecutionSkeleton, CategoryExpensesSkeleton } from "@/components/ui/chart-skeleton";
 import { ListSkeleton, GoalsOverviewSkeleton, FinancialHealthSkeleton } from "@/components/ui/list-skeleton";
 import { SummaryCards } from "./summary-cards";
-import { CashFlowSection } from "./cash-flow-section";
-import { TransactionsBudgetSection } from "./transactions-budget-section";
-import { ChartsSection } from "./charts-section";
-import { OnboardingWidget } from "@/components/dashboard/onboarding-widget";
-import { SavingsDistributionWidget } from "@/components/dashboard/savings-distribution-widget";
-import { ExpensesPieChartWidget } from "@/components/dashboard/expenses-pie-chart-widget";
 import { loadDashboardData } from "./data-loader";
 import { PageHeader } from "@/components/common/page-header";
 import { getProfile } from "@/lib/api/profile";
+
+// Lazy load heavy chart components
+const CashFlowSection = dynamic(() => import("./cash-flow-section").then(m => ({ default: m.CashFlowSection })), { ssr: true });
+const TransactionsBudgetSection = dynamic(() => import("./transactions-budget-section").then(m => ({ default: m.TransactionsBudgetSection })), { ssr: true });
+const ChartsSection = dynamic(() => import("./charts-section").then(m => ({ default: m.ChartsSection })), { ssr: true });
+const OnboardingWidget = dynamic(() => import("@/components/dashboard/onboarding-widget").then(m => ({ default: m.OnboardingWidget })), { ssr: true });
+const SavingsDistributionWidget = dynamic(() => import("@/components/dashboard/savings-distribution-widget").then(m => ({ default: m.SavingsDistributionWidget })), { ssr: true });
+const ExpensesPieChartWidget = dynamic(() => import("@/components/dashboard/expenses-pie-chart-widget").then(m => ({ default: m.ExpensesPieChartWidget })), { ssr: true });
 
 interface DashboardProps {
   searchParams: Promise<{ month?: string }> | { month?: string };
@@ -91,17 +94,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const profile = await getProfile();
   const firstName = profile?.name?.split(' ')[0] || 'there';
   
-  console.log("🔍 [dashboard] Selected month from URL:", {
-    monthParam: selectedMonthParam,
-    selectedMonthDate: selectedMonthDate.toISOString(),
-    selectedMonth: selectedMonth.toISOString(),
-    monthName: selectedMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' }),
-  });
+  // Log removed for production performance
 
   return (
     <div className="space-y-4 sm:space-y-5 md:space-y-6">
       <PageHeader
-        title={`Welcome back, ${firstName}`}
+        title={`Welcome, ${firstName}`}
         description="See your money move — and make it work for you."
       >
         <MonthSelector />

@@ -36,13 +36,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify webhook signature
+    // The constructEvent method automatically verifies:
+    // 1. The signature is valid
+    // 2. The timestamp is recent (default tolerance: 5 minutes)
+    // This prevents replay attacks
     let event: Stripe.Event;
     try {
       console.log("[WEBHOOK:ROUTE] Verifying webhook signature...");
       event = stripe.webhooks.constructEvent(
         body,
         signature,
-        process.env.STRIPE_WEBHOOK_SECRET
+        process.env.STRIPE_WEBHOOK_SECRET,
+        // Optional: customize timestamp tolerance (default is 300 seconds / 5 minutes)
+        // For production, 5 minutes is recommended to account for clock skew
       );
       console.log("[WEBHOOK:ROUTE] Webhook signature verified successfully");
     } catch (err) {

@@ -1,5 +1,6 @@
 import { UpcomingTransactions } from "@/components/dashboard/upcoming-transactions";
 import { BudgetExecutionChart } from "@/components/charts/budget-execution-chart";
+import { logger } from "@/lib/utils/logger";
 
 interface TransactionsBudgetSectionProps {
   budgets: any[];
@@ -10,7 +11,9 @@ export function TransactionsBudgetSection({
   budgets, 
   upcomingTransactions 
 }: TransactionsBudgetSectionProps) {
-  console.log("🔍 [TransactionsBudgetSection] Budgets received:", {
+  const log = logger.withPrefix("TransactionsBudgetSection");
+  
+  log.log("Budgets received:", {
     budgetsCount: budgets?.length || 0,
     budgets: budgets?.slice(0, 3).map((b: any) => ({
       id: b.id,

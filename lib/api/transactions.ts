@@ -11,6 +11,7 @@ import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
 import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/lib/api/feature-guard";
 import { requireTransactionOwnership } from "@/lib/utils/security";
 import { suggestCategory } from "@/lib/api/category-learning";
+import { logger } from "@/lib/utils/logger";
 
 export async function createTransaction(data: TransactionFormData) {
     const supabase = await createServerClient();
@@ -44,7 +45,7 @@ export async function createTransaction(data: TransactionFormData) {
         data.amount,
         data.type
       );
-      console.log('Category suggestion for manual transaction:', {
+      logger.log('Category suggestion for manual transaction:', {
         description: data.description?.substring(0, 50),
         amount: data.amount,
         type: data.type,
@@ -55,7 +56,7 @@ export async function createTransaction(data: TransactionFormData) {
         } : null,
       });
     } catch (error) {
-      console.error('Error getting category suggestion:', error);
+      logger.error('Error getting category suggestion:', error);
       // Continue without suggestion if there's an error
     }
   }
@@ -97,7 +98,7 @@ export async function createTransaction(data: TransactionFormData) {
       .single();
 
     if (outgoingError) {
-      console.error("Supabase error creating outgoing transfer transaction:", {
+      logger.error("Supabase error creating outgoing transfer transaction:", {
         message: outgoingError.message,
         details: outgoingError.details,
         hint: outgoingError.hint,
@@ -130,7 +131,7 @@ export async function createTransaction(data: TransactionFormData) {
     if (incomingError) {
       // If incoming transaction fails, try to delete the outgoing one
       await supabase.from("Transaction").delete().eq("id", outgoingId);
-      console.error("Supabase error creating incoming transfer transaction:", {
+      logger.error("Supabase error creating incoming transfer transaction:", {
         message: incomingError.message,
         details: incomingError.details,
         hint: incomingError.hint,
@@ -167,7 +168,7 @@ export async function createTransaction(data: TransactionFormData) {
     .single();
 
   if (error) {
-    console.error("Supabase error creating transaction:", {
+    logger.error("Supabase error creating transaction:", {
       message: error.message,
       details: error.details,
       hint: error.hint,
@@ -188,9 +189,9 @@ export async function createTransaction(data: TransactionFormData) {
       .eq('id', id);
 
     if (updateError) {
-      console.error('Error updating transaction with suggestion:', updateError);
+      logger.error('Error updating transaction with suggestion:', updateError);
     } else {
-      console.log('Transaction updated with category suggestion:', {
+      logger.log('Transaction updated with category suggestion:', {
         transactionId: id,
         suggestedCategoryId: categorySuggestion.categoryId,
         confidence: categorySuggestion.confidence,
@@ -236,7 +237,7 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     .single();
 
   if (error) {
-    console.error("Supabase error updating transaction:", error);
+    logger.error("Supabase error updating transaction:", error);
     throw new Error(`Failed to update transaction: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -257,13 +258,13 @@ export async function deleteTransaction(id: string) {
     .single();
 
   if (fetchError || !transaction) {
-    console.error("Supabase error fetching transaction:", fetchError);
+    logger.error("Supabase error fetching transaction:", fetchError);
     throw new Error("Transaction not found");
   }
 
   const { error } = await supabase.from("Transaction").delete().eq("id", id);
   if (error) {
-    console.error("Supabase error deleting transaction:", error);
+    logger.error("Supabase error deleting transaction:", error);
     throw new Error(`Failed to delete transaction: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -290,7 +291,7 @@ export async function deleteMultipleTransactions(ids: string[]) {
     .in("id", ids);
 
   if (fetchError) {
-    console.error("Supabase error fetching transactions:", fetchError);
+    logger.error("Supabase error fetching transactions:", fetchError);
     throw new Error("Failed to verify transactions");
   }
 
@@ -300,7 +301,7 @@ export async function deleteMultipleTransactions(ids: string[]) {
 
   const { error } = await supabase.from("Transaction").delete().in("id", ids);
   if (error) {
-    console.error("Supabase error deleting transactions:", error);
+    logger.error("Supabase error deleting transactions:", error);
     throw new Error(`Failed to delete transactions: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -321,7 +322,7 @@ export async function getTransactionsInternal(
   accessToken?: string,
   refreshToken?: string
 ) {
-    const supabase = await createServerClient(accessToken, refreshToken);
+  const supabase = await createServerClient(accessToken, refreshToken);
 
   // IMPORTANT: Buscar transações SEM joins primeiro para evitar problemas de RLS
   // Quando fazemos select('*, account:Account(*)'), o Supabase aplica RLS em Account também
@@ -332,9 +333,11 @@ export async function getTransactionsInternal(
     .select("*")
     .order("date", { ascending: false });
 
+  const log = logger.withPrefix("getTransactionsInternal");
+  
   // Log the date filters being applied
   if (filters?.startDate || filters?.endDate) {
-    console.log("🔍 [getTransactionsInternal] Applying date filters:", {
+    log.log("Applying date filters:", {
       startDate: filters.startDate ? {
         original: filters.startDate.toISOString(),
         formatted: formatDateStart(filters.startDate),
@@ -363,7 +366,7 @@ export async function getTransactionsInternal(
   }
 
   if (filters?.type) {
-    console.log("🔍 [getTransactionsInternal] Applying type filter:", {
+    log.log("Applying type filter:", {
       type: filters.type,
     });
     query = query.eq("type", filters.type);
@@ -378,7 +381,7 @@ export async function getTransactionsInternal(
   }
 
   // Log the final query being executed
-  console.log("🔍 [getTransactionsInternal] Executing query with filters:", {
+  log.log("Executing query with filters:", {
     hasStartDate: !!filters?.startDate,
     hasEndDate: !!filters?.endDate,
     type: filters?.type,
@@ -391,14 +394,14 @@ export async function getTransactionsInternal(
   
   // Se não estiver autenticado, retornar array vazio (não lançar erro)
   if (authError || !currentUser) {
-    console.log("🔍 [getTransactionsInternal] User not authenticated:", {
+    log.log("User not authenticated:", {
       authError: authError?.message,
       hasUser: !!currentUser,
     });
     return [];
   }
 
-  console.log("🔍 [getTransactionsInternal] Authentication check:", {
+  log.log("Authentication check:", {
     hasUser: !!currentUser,
     userId: currentUser?.id,
   });
@@ -406,7 +409,7 @@ export async function getTransactionsInternal(
   const { data, error } = await query;
 
   if (error) {
-    console.error("Supabase error fetching transactions:", {
+    logger.error("Supabase error fetching transactions:", {
       message: error.message,
       details: error.details,
       hint: error.hint,
@@ -418,7 +421,7 @@ export async function getTransactionsInternal(
 
   // Log detalhado sobre o resultado
   if (data && data.length > 0) {
-    console.log("🔍 [getTransactionsInternal] Transactions found:", {
+    log.log("Transactions found:", {
       count: data.length,
       sampleTransaction: data[0] ? {
         id: data[0].id,
@@ -435,102 +438,100 @@ export async function getTransactionsInternal(
 
   if (!data || data.length === 0) {
     // Only log in development to reduce noise in production
-    if (process.env.NODE_ENV === "development") {
-      // Log the actual formatted dates being used in the query
-      const logFilters = filters ? {
-        ...filters,
-        startDate: filters.startDate ? formatDateStart(filters.startDate) : undefined,
-        endDate: filters.endDate ? formatDateEnd(filters.endDate) : undefined,
-      } : filters;
-      console.log("🔍 [getTransactionsInternal] No transactions found with filters:", logFilters);
-      
-      // Check if there are ANY transactions in the database (without date filters)
-      // This helps us understand if the problem is with date filtering or if there are no transactions at all
-      // Also check if userId column exists
-        // IMPORTANT: Test RLS by checking auth.uid() directly
-        const { data: { user: testUser } } = await supabase.auth.getUser();
-        console.log("🔍 [getTransactionsInternal] RLS Test - auth.uid() check:", {
-          currentUserId: currentUser?.id,
-          testUserId: testUser?.id,
-          userIdsMatch: currentUser?.id === testUser?.id,
-        });
+    // Log the actual formatted dates being used in the query
+    const logFilters = filters ? {
+      ...filters,
+      startDate: filters.startDate ? formatDateStart(filters.startDate) : undefined,
+      endDate: filters.endDate ? formatDateEnd(filters.endDate) : undefined,
+    } : filters;
+    log.log("No transactions found with filters:", logFilters);
+    
+    // Check if there are ANY transactions in the database (without date filters)
+    // This helps us understand if the problem is with date filtering or if there are no transactions at all
+    // Also check if userId column exists
+      // IMPORTANT: Test RLS by checking auth.uid() directly
+      const { data: { user: testUser } } = await supabase.auth.getUser();
+      log.log("RLS Test - auth.uid() check:", {
+        currentUserId: currentUser?.id,
+        testUserId: testUser?.id,
+        userIdsMatch: currentUser?.id === testUser?.id,
+      });
 
-      const { data: allTransactions, error: allError } = await supabase
-        .from("Transaction")
-        .select("id, date, type, amount, accountId, userId")
-        .limit(10)
-        .order("date", { ascending: false });
-      
-      if (allError) {
-        console.error("❌ [getTransactionsInternal] Error checking for any transactions:", allError);
-      } else {
-        console.log("🔍 [getTransactionsInternal] Sample of ALL transactions in DB (first 10):", {
-          totalFound: allTransactions?.length || 0,
-          transactions: allTransactions?.map((t: any) => ({
-            id: t.id,
-            date: t.date,
-            dateType: typeof t.date,
+    const { data: allTransactions, error: allError } = await supabase
+      .from("Transaction")
+      .select("id, date, type, amount, accountId, userId")
+      .limit(10)
+      .order("date", { ascending: false });
+    
+    if (allError) {
+      log.error("Error checking for any transactions:", allError);
+    } else {
+      log.log("Sample of ALL transactions in DB (first 10):", {
+        totalFound: allTransactions?.length || 0,
+        transactions: allTransactions?.map((t: any) => ({
+          id: t.id,
+          date: t.date,
+          dateType: typeof t.date,
+          type: t.type,
+          amount: t.amount,
+          accountId: t.accountId,
+          userId: t.userId, // Check if userId column exists and is populated
+          hasUserId: t.userId !== null && t.userId !== undefined,
+        })) || [],
+        dateRange: allTransactions && allTransactions.length > 0 ? {
+          oldest: allTransactions[allTransactions.length - 1]?.date,
+          newest: allTransactions[0]?.date,
+        } : null,
+      });
+
+      // Check if user has accounts and if transactions belong to those accounts
+      if (allTransactions && allTransactions.length > 0) {
+        const { data: userAccounts, error: accountsError } = await supabase
+          .from("Account")
+          .select("id, userId, name")
+          .limit(10);
+        
+        // Get current user ID
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        // Check AccountOwner for transaction accounts
+        const transactionAccountIds = [...new Set(allTransactions.map((t: any) => t.accountId))];
+        const { data: accountOwners, error: ownersError } = await supabase
+          .from("AccountOwner")
+          .select("accountId, ownerId")
+          .in("accountId", transactionAccountIds);
+        
+        log.log("User accounts check:", {
+          currentUserId: currentUser?.id,
+          accountsFound: userAccounts?.length || 0,
+          accounts: userAccounts || [],
+          accountsError: accountsError,
+          transactionAccountIds: transactionAccountIds,
+          transactionAccounts: allTransactions.map((t: any) => ({
+            transactionId: t.id,
+            accountId: t.accountId,
             type: t.type,
             amount: t.amount,
-            accountId: t.accountId,
-            userId: t.userId, // Check if userId column exists and is populated
-            hasUserId: t.userId !== null && t.userId !== undefined,
-          })) || [],
-          dateRange: allTransactions && allTransactions.length > 0 ? {
-            oldest: allTransactions[allTransactions.length - 1]?.date,
-            newest: allTransactions[0]?.date,
-          } : null,
+          })),
+          matchingAccounts: userAccounts?.filter((acc: any) => 
+            allTransactions.some((t: any) => t.accountId === acc.id)
+          ) || [],
+          accountOwners: accountOwners || [],
+          ownersError: ownersError,
+          accountsBelongingToUser: userAccounts?.filter((acc: any) => 
+            acc.userId === currentUser?.id
+          ) || [],
+          accountsWithAccountOwner: accountOwners?.filter((ao: any) => 
+            ao.ownerId === currentUser?.id
+          ) || [],
         });
-
-        // Check if user has accounts and if transactions belong to those accounts
-        if (allTransactions && allTransactions.length > 0) {
-          const { data: userAccounts, error: accountsError } = await supabase
-            .from("Account")
-            .select("id, userId, name")
-            .limit(10);
-          
-          // Get current user ID
-          const { data: { user: currentUser } } = await supabase.auth.getUser();
-          
-          // Check AccountOwner for transaction accounts
-          const transactionAccountIds = [...new Set(allTransactions.map((t: any) => t.accountId))];
-          const { data: accountOwners, error: ownersError } = await supabase
-            .from("AccountOwner")
-            .select("accountId, ownerId")
-            .in("accountId", transactionAccountIds);
-          
-          console.log("🔍 [getTransactionsInternal] User accounts check:", {
-            currentUserId: currentUser?.id,
-            accountsFound: userAccounts?.length || 0,
-            accounts: userAccounts || [],
-            accountsError: accountsError,
-            transactionAccountIds: transactionAccountIds,
-            transactionAccounts: allTransactions.map((t: any) => ({
-              transactionId: t.id,
-              accountId: t.accountId,
-              type: t.type,
-              amount: t.amount,
-            })),
-            matchingAccounts: userAccounts?.filter((acc: any) => 
-              allTransactions.some((t: any) => t.accountId === acc.id)
-            ) || [],
-            accountOwners: accountOwners || [],
-            ownersError: ownersError,
-            accountsBelongingToUser: userAccounts?.filter((acc: any) => 
-              acc.userId === currentUser?.id
-            ) || [],
-            accountsWithAccountOwner: accountOwners?.filter((ao: any) => 
-              ao.ownerId === currentUser?.id
-            ) || [],
-          });
-        }
       }
     }
     return [];
   }
 
   // Log detailed transaction information for debugging Monthly Income issue
-  console.log("🔍 [getTransactionsInternal] Found transactions:", {
+  log.log("Found transactions:", {
     totalCount: data.length,
     filters: filters ? {
       startDate: filters.startDate ? formatDateStart(filters.startDate) : undefined,
@@ -567,49 +568,39 @@ export async function getTransactionsInternal(
   const categoryIds = [...new Set(data.map((t: any) => t.categoryId).filter(Boolean))];
   const subcategoryIds = [...new Set(data.map((t: any) => t.subcategoryId).filter(Boolean))];
 
-  // Buscar contas separadamente
+  // Buscar todos os relacionamentos em paralelo para melhor performance
+  const [accountsResult, categoriesResult, subcategoriesResult] = await Promise.all([
+    accountIds.length > 0 
+      ? supabase.from("Account").select("*").in("id", accountIds)
+      : Promise.resolve({ data: null, error: null }),
+    categoryIds.length > 0
+      ? supabase.from("Category").select("*").in("id", categoryIds)
+      : Promise.resolve({ data: null, error: null }),
+    subcategoryIds.length > 0
+      ? supabase.from("Subcategory").select("*").in("id", subcategoryIds)
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  // Criar maps para acesso rápido
   const accountsMap = new Map();
-  if (accountIds.length > 0) {
-    const { data: accounts } = await supabase
-      .from("Account")
-      .select("*")
-      .in("id", accountIds);
-    
-    if (accounts) {
-      accounts.forEach((acc: any) => {
-        accountsMap.set(acc.id, acc);
-      });
-    }
-    }
+  if (accountsResult.data) {
+    accountsResult.data.forEach((acc: any) => {
+      accountsMap.set(acc.id, acc);
+    });
+  }
 
-  // Buscar categorias separadamente
   const categoriesMap = new Map();
-  if (categoryIds.length > 0) {
-    const { data: categories } = await supabase
-      .from("Category")
-      .select("*")
-      .in("id", categoryIds);
-    
-    if (categories) {
-      categories.forEach((cat: any) => {
-        categoriesMap.set(cat.id, cat);
-      });
-    }
-    }
+  if (categoriesResult.data) {
+    categoriesResult.data.forEach((cat: any) => {
+      categoriesMap.set(cat.id, cat);
+    });
+  }
 
-  // Buscar subcategorias separadamente
   const subcategoriesMap = new Map();
-  if (subcategoryIds.length > 0) {
-    const { data: subcategories } = await supabase
-      .from("Subcategory")
-      .select("*")
-      .in("id", subcategoryIds);
-    
-    if (subcategories) {
-      subcategories.forEach((sub: any) => {
-        subcategoriesMap.set(sub.id, sub);
-      });
-    }
+  if (subcategoriesResult.data) {
+    subcategoriesResult.data.forEach((sub: any) => {
+      subcategoriesMap.set(sub.id, sub);
+    });
   }
 
   // Combinar transações com relacionamentos
@@ -646,19 +637,17 @@ export async function getTransactions(filters?: {
       refreshToken = session.refresh_token;
     }
     
-    // Log token availability (only in development)
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [getTransactions] Token check:", {
+      // Log token availability (only in development)
+      logger.log("Token check:", {
         hasAccessToken: !!accessToken,
         hasRefreshToken: !!refreshToken,
         accessTokenLength: accessToken?.length,
         refreshTokenLength: refreshToken?.length,
         hasSession: !!session,
       });
-    }
-  } catch (error: any) {
-    // If we can't get tokens (e.g., inside unstable_cache), continue without them
-    console.warn("⚠️ [getTransactions] Could not get tokens:", error?.message);
+    } catch (error: any) {
+      // If we can't get tokens (e.g., inside unstable_cache), continue without them
+      logger.warn("Could not get tokens:", error?.message);
   }
   
   // Cache for 30 seconds if no search filter (searches should be real-time)
@@ -693,7 +682,7 @@ export async function getUpcomingTransactions(limit: number = 5) {
     .order("date", { ascending: true });
 
   if (error) {
-    console.error("Supabase error fetching recurring transactions:", error);
+    logger.error("Supabase error fetching recurring transactions:", error);
     // Return empty array if there's an error
     return [];
   }
@@ -876,7 +865,7 @@ export async function getUpcomingTransactions(limit: number = 5) {
           }
         }
       } catch (error) {
-        console.error(`Error fetching category mapping for debt ${debt.id}:`, error);
+        logger.error(`Error fetching category mapping for debt ${debt.id}:`, error);
       }
 
       // Add debt payments to upcoming list
@@ -896,7 +885,7 @@ export async function getUpcomingTransactions(limit: number = 5) {
       }
     }
   } catch (error) {
-    console.error("Error fetching debt payments:", error);
+    logger.error("Error fetching debt payments:", error);
     // Continue even if debt payments fail
   }
 

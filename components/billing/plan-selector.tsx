@@ -14,9 +14,12 @@ interface PlanSelectorProps {
   loading?: boolean;
   showComparison?: boolean;
   isPublic?: boolean; // If true, shows "Get {plantype}" instead of "Get Started" or "Upgrade"
+  alreadyHadTrial?: boolean; // If true, user already had trial and should subscribe directly
+  subscriptionStatus?: "active" | "trialing" | "cancelled" | "past_due" | null; // Subscription status to determine if plan is truly active
+  trialEndDate?: string | null; // Trial end date to check if trial is expired
 }
 
-export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, showComparison = false, isPublic = false }: PlanSelectorProps) {
+export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, showComparison = false, isPublic = false, alreadyHadTrial = false, subscriptionStatus, trialEndDate }: PlanSelectorProps) {
   const [interval, setInterval] = useState<"month" | "year">("month");
   const sortedPlans = [...plans].sort((a, b) => {
     const order = { free: 0, basic: 1, premium: 2 };
@@ -26,16 +29,53 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
   // Only show interval selector for paid plans
   const hasPaidPlans = sortedPlans.some(p => p.priceMonthly > 0);
 
+  // Helper function to check if subscription is truly active
+  function isSubscriptionActive(): boolean {
+    if (!subscriptionStatus) return false;
+    
+    // Active status is always active
+    if (subscriptionStatus === "active") return true;
+    
+    // Trialing is active only if trial hasn't expired
+    if (subscriptionStatus === "trialing") {
+      if (!trialEndDate) return false;
+      const trialEnd = new Date(trialEndDate);
+      const now = new Date();
+      return trialEnd > now;
+    }
+    
+    // Cancelled and past_due are not active
+    return false;
+  }
+
   // Helper function to get button text based on plan comparison
   function getButtonText(plan: Plan, isCurrent: boolean, currentPlanId?: string): string {
-    if (isCurrent) {
+    // If this is the current plan but subscription is not active, show renew/reactivate
+    if (isCurrent && !isSubscriptionActive()) {
+      if (subscriptionStatus === "cancelled") {
+        return "Reactivate";
+      }
+      if (subscriptionStatus === "past_due") {
+        return "Renew";
+      }
+      if (subscriptionStatus === "trialing" && trialEndDate) {
+        const trialEnd = new Date(trialEndDate);
+        const now = new Date();
+        if (trialEnd <= now) {
+          return "Renew";
+        }
+      }
+      return "Renew";
+    }
+    
+    if (isCurrent && isSubscriptionActive()) {
       return "Current";
     }
     
     if (isPublic) {
-      // For paid plans, show "Start 1 Month Trial", for free plan show "Get Started"
+      // For paid plans, show "Start 1-month trial", for free plan show "Get Started"
       if (plan.priceMonthly > 0) {
-        return "Start 1 Month Trial";
+        return "Start 1-month trial";
       }
       return "Get Started";
     }
@@ -44,9 +84,19 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
       return "Get Started";
     }
 
-    // For paid plans (Basic and Premium), show "Start 30-day Trial"
+    // If user already had trial, always show "Subscribe" (no more trial)
+    if (alreadyHadTrial && plan.priceMonthly > 0) {
+      return "Subscribe";
+    }
+
+    // If user doesn't have a plan (currentPlanId is undefined), show "Start 1-month trial" for paid plans
+    if (!currentPlanId && plan.priceMonthly > 0) {
+      return "Start 1-month trial";
+    }
+
+    // For paid plans (Basic and Premium) when user has a plan, show "Subscribe"
     if (plan.priceMonthly > 0) {
-      return "Start 30-day Trial";
+      return "Subscribe";
     }
 
     // If we have a current plan, determine if it's an upgrade or downgrade
@@ -89,7 +139,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
               className={`flex items-center gap-2 ${interval === "year" ? "shadow-sm" : ""}`}
             >
               Yearly
-              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-[10px] px-1.5 py-0 h-4 font-semibold">
+              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-[10px] px-1.5 py-0 h-4 font-semibold hover:bg-green-100 dark:hover:bg-green-900">
                 10% OFF
               </Badge>
             </Button>
@@ -126,7 +176,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                       <td key={plan.id} className="px-6 py-4 text-center text-sm">
                         {hasDiscount && originalYearlyPrice && (
                           <div className="mb-1">
-                            <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs mb-1">
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs mb-1 hover:bg-green-100 dark:hover:bg-green-900">
                               10% OFF
                             </Badge>
                             <div>
@@ -240,7 +290,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                   <td className="px-6 py-4 text-sm text-foreground">Household Members</td>
                   {sortedPlans.map((plan) => (
                     <td key={plan.id} className="px-6 py-4 text-center">
-                      {plan.name !== "free" ? (
+                      {plan.features.hasHousehold ? (
                         <Check className="h-5 w-5 text-primary mx-auto" />
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -253,16 +303,22 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                   {sortedPlans.map((plan) => {
                     const price = interval === "month" ? plan.priceMonthly : plan.priceYearly;
                     const isCurrent = plan.id === currentPlanId;
+                    const isTrulyActive = isCurrent && isSubscriptionActive();
                     return (
                       <td key={plan.id} className="px-6 py-4">
                         <Button
                           className="w-full"
                           variant={plan.name === "premium" ? "default" : "outline"}
-                          disabled={isCurrent || loading}
+                          disabled={isTrulyActive || loading}
                           onClick={() => onSelectPlan(plan.id, interval)}
                         >
                           {getButtonText(plan, isCurrent, currentPlanId)}
                         </Button>
+                        {!isCurrent && plan.priceMonthly > 0 && !alreadyHadTrial && (
+                          <p className="text-xs text-center text-muted-foreground mt-2">
+                            No credit card required for trial
+                          </p>
+                        )}
                       </td>
                     );
                   })}
@@ -282,6 +338,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
             const price = interval === "month" ? monthlyPrice : discountedPrice;
             const originalYearlyPrice = interval === "year" && yearlyPrice > 0 ? yearlyPrice : null;
             const isCurrent = plan.id === currentPlanId;
+            const isTrulyActive = isCurrent && isSubscriptionActive();
             
             // All features
             const allFeatures = [];
@@ -326,7 +383,7 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
             }
             
             // Household Members
-            if (plan.name !== "free") {
+            if (plan.features.hasHousehold) {
               allFeatures.push("Household members");
             }
 
@@ -348,17 +405,17 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                 } ${isCurrent ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
               >
                 <CardHeader className="pt-6 pb-4">
-                  <CardTitle className="text-xl mb-1">
-                    {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)}
-                  </CardTitle>
-                  <div className="mt-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CardTitle className="text-xl">
+                      {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)}
+                    </CardTitle>
                     {hasDiscount && originalYearlyPrice && (
-                      <div className="mb-2">
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs mb-1">
-                          10% OFF
-                        </Badge>
-                      </div>
+                      <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs hover:bg-green-100 dark:hover:bg-green-900">
+                        10% OFF
+                      </Badge>
                     )}
+                  </div>
+                  <div className="mt-4">
                     <div className="flex items-baseline gap-1">
                       <span className="text-4xl font-bold">
                         {price === 0 ? "Free" : `$${price.toFixed(2)}`}
@@ -384,13 +441,13 @@ export function PlanSelector({ plans, currentPlanId, onSelectPlan, loading, show
                 <CardFooter className="pt-4 mt-auto flex flex-col gap-2">
                   <Button
                     className="w-full"
-                    variant={isCurrent ? "secondary" : "default"}
-                    disabled={isCurrent || loading}
+                    variant={isTrulyActive ? "secondary" : "default"}
+                    disabled={isTrulyActive || loading}
                     onClick={() => onSelectPlan(plan.id, interval)}
                   >
                     {getButtonText(plan, isCurrent, currentPlanId)}
                   </Button>
-                  {!isCurrent && plan.priceMonthly > 0 && (
+                  {!isCurrent && plan.priceMonthly > 0 && !alreadyHadTrial && (
                     <p className="text-xs text-center text-muted-foreground">
                       No credit card required for trial
                     </p>

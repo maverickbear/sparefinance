@@ -124,8 +124,8 @@ export function QuestradeConnectionStatus({
       const balancesInfo = balancesSynced > 0 ? `, Balances: ${balancesSynced}` : "";
 
       toast({
-        title: "Dados sincronizados",
-        description: `Sincronizados ${totalSynced} itens. Contas: ${results.accounts?.synced || 0}, Posições: ${results.holdings?.synced || 0}, Transações: ${results.transactions?.synced || 0}${balancesInfo}`,
+        title: "Data synchronized",
+        description: `Synchronized ${totalSynced} items. Accounts: ${results.accounts?.synced || 0}, Holdings: ${results.holdings?.synced || 0}, Transactions: ${results.transactions?.synced || 0}${balancesInfo}`,
         variant: "success",
       });
 
@@ -136,8 +136,8 @@ export function QuestradeConnectionStatus({
     } catch (error: any) {
       console.error("Error syncing Questrade data:", error);
       toast({
-        title: "Erro",
-        description: error.message || "Falha ao sincronizar dados da Questrade",
+        title: "Error",
+        description: error.message || "Failed to sync Questrade data",
         variant: "destructive",
       });
     } finally {
@@ -148,10 +148,10 @@ export function QuestradeConnectionStatus({
   function handleDisconnect() {
     openDialog(
       {
-        title: "Desconectar Questrade",
-        description: "Tem certeza de que deseja desconectar sua conta Questrade? Isso removerá todas as conexões Questrade.",
+        title: "Disconnect Questrade",
+        description: "Are you sure you want to disconnect your Questrade account? This will remove all Questrade connections.",
         variant: "destructive",
-        confirmLabel: "Desconectar",
+        confirmLabel: "Disconnect",
       },
       async () => {
         try {
@@ -167,9 +167,9 @@ export function QuestradeConnectionStatus({
           }
 
           toast({
-            title: "Conta desconectada",
+            title: "Account disconnected",
             description:
-              "Sua conta Questrade foi desconectada com sucesso.",
+              "Your Questrade account has been disconnected successfully.",
             variant: "success",
           });
 
@@ -180,8 +180,8 @@ export function QuestradeConnectionStatus({
         } catch (error: any) {
           console.error("Error disconnecting Questrade account:", error);
           toast({
-            title: "Erro",
-            description: error.message || "Falha ao desconectar conta Questrade",
+            title: "Error",
+            description: error.message || "Failed to disconnect Questrade account",
             variant: "destructive",
           });
         } finally {
@@ -260,12 +260,12 @@ export function QuestradeConnectionStatus({
           {disconnecting ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Desconectando...
+              Disconnecting...
             </>
           ) : (
             <>
               <Unlink className="h-4 w-4 mr-2" />
-              Desconectar
+              Disconnect
             </>
           )}
         </Button>
@@ -279,12 +279,12 @@ export function QuestradeConnectionStatus({
           {syncing ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Sincronizando...
+              Syncing...
             </>
           ) : (
             <>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Sincronizar
+              Sync
             </>
           )}
         </Button>

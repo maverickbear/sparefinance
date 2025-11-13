@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { createContext, useContext, ReactNode } from "react";
 import { PlanFeatures } from "@/lib/validations/plan";
+import { useSubscriptionContext } from "./subscription-context";
+import { logger } from "@/lib/utils/logger";
 
 interface PlanLimitsContextValue {
   limits: PlanFeatures;
@@ -22,83 +23,26 @@ const defaultLimits: PlanFeatures = {
   hasDebts: true,
   hasGoals: true,
   hasBankIntegration: false,
+  hasHousehold: false,
 };
 
 export function PlanLimitsProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const [limits, setLimits] = useState<PlanFeatures>(defaultLimits);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const fetchingRef = useRef(false);
+  // Use subscription context instead of making separate API calls
+  const { limits: subscriptionLimits, checking } = useSubscriptionContext();
 
-  // Check if we're on a public page that doesn't require authentication
-  const isPublicPage = pathname?.startsWith("/auth") || 
-                       pathname?.startsWith("/members/accept") ||
-                       pathname === "/" ||
-                       pathname === "/pricing" ||
-                       pathname?.startsWith("/api");
-
-  const fetchLimits = useCallback(async () => {
-    // Skip fetching on public pages
-    if (isPublicPage) {
-      console.log("[PLAN-LIMITS] Skipping fetch on public page:", pathname);
-      setLoading(false);
-      setLimits(defaultLimits);
-      return;
-    }
-
-    // Prevent concurrent calls
-    if (fetchingRef.current) {
-      console.log("[PLAN-LIMITS] Already fetching, skipping duplicate call");
-      return;
-    }
-
-    try {
-      fetchingRef.current = true;
-      setError(null);
-
-      const response = await fetch("/api/billing/subscription");
-      if (!response.ok) {
-        // If 401, user is not authenticated - use default limits
-        if (response.status === 401) {
-          console.log("[PLAN-LIMITS] User not authenticated, using default limits");
-          setLimits(defaultLimits);
-          setLoading(false);
-          fetchingRef.current = false;
-          return;
-        }
-        throw new Error("Failed to fetch subscription");
-      }
-
-      const data = await response.json();
-      if (data.limits) {
-        setLimits(data.limits);
-      } else {
-        // Fallback: use default limits
-        setLimits(defaultLimits);
-      }
-    } catch (err) {
-      console.error("Error fetching plan limits:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch limits");
-      // Use default limits on error
-      setLimits(defaultLimits);
-    } finally {
-      setLoading(false);
-      fetchingRef.current = false;
-    }
-  }, [isPublicPage, pathname]);
-
-  useEffect(() => {
-    fetchLimits();
-  }, [fetchLimits]);
+  // Use limits from subscription context if available, otherwise use defaults
+  // Ensure type safety by casting to PlanFeatures
+  const limits: PlanFeatures = (subscriptionLimits as PlanFeatures) || defaultLimits;
 
   return (
     <PlanLimitsContext.Provider
       value={{
         limits,
-        loading,
-        error,
-        refetch: fetchLimits,
+        loading: checking,
+        error: null,
+        refetch: async () => {
+          // Refetch is handled by subscription context
+        },
       }}
     >
       {children}
@@ -110,7 +54,7 @@ export function usePlanLimitsContext() {
   const context = useContext(PlanLimitsContext);
   if (context === undefined) {
     // Return default values if context is not available (shouldn't happen, but prevents crashes)
-    console.warn("usePlanLimitsContext called outside PlanLimitsProvider, using defaults");
+    logger.warn("usePlanLimitsContext called outside PlanLimitsProvider, using defaults");
     return {
       limits: defaultLimits,
       loading: false,

@@ -5,8 +5,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
+import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { PlanLimitsProvider } from "@/contexts/plan-limits-context";
-import { PricingModalProvider } from "@/contexts/pricing-modal-context";
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -36,12 +36,12 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ToastProvider>
-            <PlanLimitsProvider>
-              <PricingModalProvider>
-              <LayoutWrapper>{children}</LayoutWrapper>
-              <KBarWrapper />
-              </PricingModalProvider>
-            </PlanLimitsProvider>
+            <SubscriptionProvider>
+              <PlanLimitsProvider>
+                <LayoutWrapper>{children}</LayoutWrapper>
+                <KBarWrapper />
+              </PlanLimitsProvider>
+            </SubscriptionProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

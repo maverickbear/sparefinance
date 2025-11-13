@@ -1,6 +1,8 @@
 import { getBudgets } from "@/lib/api/budgets";
 import { getTransactions } from "@/lib/api/transactions";
-import { startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { startOfMonth } from "date-fns/startOfMonth";
+import { endOfMonth } from "date-fns/endOfMonth";
+import { subMonths } from "date-fns/subMonths";
 import { getCurrentUserLimits } from "@/lib/api/limits";
 import { ReportsContent } from "./reports-content";
 import { getDebts } from "@/lib/api/debts";

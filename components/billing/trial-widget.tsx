@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 interface TrialWidgetProps {
   daysRemaining: number;
@@ -8,6 +9,7 @@ interface TrialWidgetProps {
   trialStartDate?: string | null;
   trialEndDate?: string | null;
   onUpgrade?: () => void;
+  planName?: "free" | "basic" | "premium" | null;
 }
 
 function calculateTrialDaysRemaining(trialEndDate: string | null | undefined): number {
@@ -43,9 +45,11 @@ export function TrialWidget({
   progress: initialProgress,
   trialStartDate,
   trialEndDate,
-  onUpgrade 
+  onUpgrade,
+  planName 
 }: TrialWidgetProps) {
   const [currentProgress, setCurrentProgress] = useState(initialProgress);
+  const router = useRouter();
 
   // Update progress dynamically
   useEffect(() => {
@@ -66,9 +70,29 @@ export function TrialWidget({
     return () => clearInterval(interval);
   }, [trialStartDate, trialEndDate]);
 
+  const handleClick = () => {
+    if (onUpgrade) {
+      onUpgrade();
+    } else {
+      router.push("/settings?tab=billing");
+    }
+  };
+
   return (
     <div className="px-3 py-3">
-      <div className="rounded-lg bg-card border border-border overflow-hidden relative">
+      <div 
+        className="rounded-lg bg-card border border-border overflow-hidden relative cursor-pointer hover:bg-accent/50 transition-colors"
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
+        aria-label="Go to billing page"
+      >
         {/* Main content section */}
         <div className="p-3 bg-card">
           {/* Free trial and days left */}
@@ -93,6 +117,13 @@ export function TrialWidget({
               style={{ left: `calc(${currentProgress}% - 1px)` }}
             />
           </div>
+          
+          {/* Plan name */}
+          {planName && (
+            <div className="text-xs text-muted-foreground font-medium capitalize">
+              {planName} Plan
+            </div>
+          )}
         </div>
       </div>
     </div>

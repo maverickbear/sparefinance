@@ -39,7 +39,9 @@ export function FeatureGuard({
     }
 
     // Determine required plan based on feature
-    const plan = requiredPlan || (feature === "hasInvestments" || feature === "hasAdvancedReports" || feature === "hasCsvExport" || feature === "hasBankIntegration" ? "basic" : "premium");
+    // hasInvestments and hasHousehold are Premium-only
+    // hasAdvancedReports, hasCsvExport, and hasBankIntegration are Basic+
+    const plan = requiredPlan || (feature === "hasInvestments" || feature === "hasHousehold" ? "premium" : "basic");
     const name = featureName || getFeatureName(feature);
 
     return (
@@ -64,6 +66,7 @@ function getFeatureName(feature: keyof PlanFeatures): string {
     hasDebts: "Debts",
     hasGoals: "Goals",
     hasBankIntegration: "Bank Integration",
+    hasHousehold: "Household Members",
   };
 
   return names[feature] || feature;

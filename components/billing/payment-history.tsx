@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 import { format } from "date-fns";
 
 interface Invoice {
@@ -106,7 +108,7 @@ export function PaymentHistory({ className }: PaymentHistoryProps) {
           <div className="space-y-4">
             {invoices.map((invoice) => (
               <div key={invoice.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
                   <div>
                     <p className="text-sm font-medium">
                       {format(new Date(invoice.created * 1000), "MMMM d, yyyy")}
@@ -116,8 +118,23 @@ export function PaymentHistory({ className }: PaymentHistoryProps) {
                     {getStatusBadge(invoice.status)}
                   </div>
                 </div>
-                <div className="text-sm font-medium">
-                  {formatAmount(invoice.amount, invoice.currency)}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-medium">
+                    {formatAmount(invoice.amount, invoice.currency)}
+                  </div>
+                  {invoice.invoice_pdf && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        window.open(invoice.invoice_pdf!, "_blank");
+                      }}
+                      className="h-8 w-8 p-0"
+                      title="Download invoice PDF"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

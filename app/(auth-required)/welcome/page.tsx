@@ -5,12 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Zap, Crown, ArrowRight } from "lucide-react";
-import { usePricingModal } from "@/contexts/pricing-modal-context";
 
 function WelcomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { openModal } = usePricingModal();
   const plan = searchParams.get("plan") || "free";
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -119,7 +117,7 @@ function WelcomeContent() {
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
-                    onClick={openModal}
+                    onClick={() => router.push("/pricing")}
                     className="flex-1"
                   >
                     View Plans

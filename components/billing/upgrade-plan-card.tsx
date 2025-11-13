@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Flame } from "lucide-react";
-import { usePricingModal } from "@/contexts/pricing-modal-context";
+import { useRouter } from "next/navigation";
 
 interface UpgradePlanCardProps {
   currentPlan?: string;
@@ -15,7 +15,7 @@ export function UpgradePlanCard({
   currentPlanId,
   onUpgradeSuccess 
 }: UpgradePlanCardProps) {
-  const { openModal } = usePricingModal();
+  const router = useRouter();
 
   // Don't show upgrade card if user is already on premium plan
   if (currentPlan === "premium") {
@@ -25,7 +25,7 @@ export function UpgradePlanCard({
   return (
     <Card 
       className="bg-gradient-to-r from-primary to-primary/90 cursor-pointer hover:from-primary/90 hover:to-primary/80 transition-all"
-      onClick={openModal}
+      onClick={() => router.push("/pricing")}
     >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-center gap-3 sm:gap-4">

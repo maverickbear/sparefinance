@@ -8,8 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PlanSelector } from "@/components/billing/plan-selector";
-import { Plan } from "@/lib/validations/plan";
+import { StripePricingTable } from "@/components/billing/stripe-pricing-table";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -18,7 +17,7 @@ interface UpgradePlanModalProps {
   onOpenChange: (open: boolean) => void;
   currentPlanId?: string;
   onSuccess?: () => void;
-  preloadedPlans?: Plan[];
+  preloadedPlans?: any[]; // Not used anymore, kept for backward compatibility
 }
 
 export function UpgradePlanModal({ 
@@ -29,104 +28,33 @@ export function UpgradePlanModal({
   preloadedPlans = []
 }: UpgradePlanModalProps) {
   const router = useRouter();
-  const [loading, setLoading] = useState(!preloadedPlans.length);
-  const [plans, setPlans] = useState<Plan[]>(preloadedPlans);
-  const [selecting, setSelecting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get Stripe Pricing Table ID from environment
+  const pricingTableId = process.env.NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID;
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
   useEffect(() => {
-    // If we have preloaded plans, use them immediately
-    if (preloadedPlans.length > 0) {
-      setPlans(preloadedPlans);
-      setLoading(false);
-      return;
-    }
-
-    // Otherwise, load plans when modal opens
     if (open) {
-      loadPlans();
-    }
-  }, [open, preloadedPlans]);
-
-  async function loadPlans() {
-    try {
-      setLoading(true);
-
-      // Get plans
-      const plansResponse = await fetch("/api/billing/plans");
-      if (plansResponse.ok) {
-        const plansData = await plansResponse.json();
-        setPlans(plansData.plans);
-      }
-    } catch (error) {
-      console.error("Error loading plans:", error);
-    } finally {
+      loadCustomerInfo();
       setLoading(false);
     }
-  }
+  }, [open]);
 
-  async function handleSelectPlan(planId: string, interval: "month" | "year") {
+  async function loadCustomerInfo() {
     try {
-      setSelecting(true);
-
-      // If selecting the same plan, just close the modal
-      if (planId === currentPlanId) {
-        onOpenChange(false);
-        return;
-      }
-
-      // Check if user has an active subscription
-      const subscriptionResponse = await fetch("/api/billing/subscription");
-      const subscriptionData = subscriptionResponse.ok 
-        ? await subscriptionResponse.json() 
-        : null;
-
-      const hasActiveSubscription = subscriptionData?.subscription?.stripeSubscriptionId;
-
-      // Check if user has an active paid subscription
-      if (hasActiveSubscription) {
-        // User has a paid subscription, redirect to Stripe Portal for plan changes
-        const portalResponse = await fetch("/api/stripe/portal", {
-          method: "POST",
-        });
-
-        const portalData = await portalResponse.json();
-
-        if (portalData.url) {
-          window.location.href = portalData.url;
-        } else {
-          console.error("Failed to create portal session:", portalData.error);
-          alert(portalData.error || "Failed to open subscription management. Please try again.");
-        }
-      } else {
-        // User doesn't have a paid subscription, start trial
-        const trialResponse = await fetch("/api/billing/start-trial", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ planId }),
-        });
-
-        const trialData = await trialResponse.json();
-
-        if (trialResponse.ok && trialData.success) {
-          // Trial started successfully
-          onOpenChange(false);
-          if (onSuccess) {
-            onSuccess();
-          } else {
-            window.location.reload();
-          }
-        } else {
-          console.error("Failed to start trial:", trialData.error);
-          alert(trialData.error || "Failed to start trial. Please try again.");
-        }
+      const response = await fetch("/api/stripe/customer");
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerId(data.customerId);
+        setCustomerEmail(data.customerEmail);
+        setUserId(data.userId || null);
       }
     } catch (error) {
-      console.error("Error selecting plan:", error);
-      alert("An error occurred. Please try again.");
-    } finally {
-      setSelecting(false);
+      console.error("Error loading customer info:", error);
     }
   }
 
@@ -145,14 +73,30 @@ export function UpgradePlanModal({
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
+          ) : !pricingTableId || !publishableKey ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground mb-4">
+                Pricing table is not configured. Please set NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment variables.
+              </p>
+              <button
+                onClick={() => router.push("/pricing")}
+                className="text-primary hover:underline"
+              >
+                Go to Pricing Page
+              </button>
+            </div>
           ) : (
-            <PlanSelector
-              plans={plans}
-              currentPlanId={currentPlanId}
-              onSelectPlan={handleSelectPlan}
-              loading={selecting}
-              showComparison={false}
-            />
+            <div className="flex justify-center">
+              <div className="w-full max-w-4xl">
+                <StripePricingTable
+                  pricingTableId={pricingTableId}
+                  publishableKey={publishableKey}
+                  customerId={customerId || undefined}
+                  customerEmail={customerEmail || undefined}
+                  clientReferenceId={userId || undefined}
+                />
+              </div>
+            </div>
           )}
         </div>
       </DialogContent>

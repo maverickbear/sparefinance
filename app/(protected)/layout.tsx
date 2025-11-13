@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase-server";
 import { getCurrentUserSubscription } from "@/lib/api/plans";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
+import { SubscriptionGuard } from "@/components/subscription-guard";
+import { Suspense } from "react";
 
 /**
  * Protected Layout
@@ -15,7 +17,7 @@ import { verifyUserExists } from "@/lib/utils/verify-user-exists";
  * 
  * If user is not authenticated, redirects to /auth/login with redirect parameter
  * If user doesn't exist in User table, logs out and redirects to /auth/login
- * If user is authenticated but has no subscription, redirects to /select-plan
+ * If user is authenticated but has no subscription, redirects to pricing page
  */
 export default async function ProtectedLayout({
   children,
@@ -57,6 +59,9 @@ export default async function ProtectedLayout({
   console.log("[PROTECTED-LAYOUT] User exists in User table:", userId);
 
   // Check subscription
+  let shouldOpenModal = false;
+  let reason: "no_subscription" | "trial_expired" | "subscription_inactive" | undefined;
+  
   try {
     console.log("[PROTECTED-LAYOUT] Checking subscription");
     const subscription = await getCurrentUserSubscription();
@@ -66,40 +71,54 @@ export default async function ProtectedLayout({
     // Note: getCurrentUserSubscription returns null if user has no subscription
     // (not even a free plan, which should be created automatically)
     if (!subscription) {
-      console.log("[PROTECTED-LAYOUT] No subscription found, redirecting to /select-plan");
-      redirect("/select-plan");
-    }
-    
-    // If subscription exists but status is not active or trialing, redirect to select-plan
-    // Also check if trial is expired
-    if (subscription.status !== "active" && subscription.status !== "trialing") {
-      console.log("[PROTECTED-LAYOUT] Subscription not active or trialing, redirecting to /select-plan");
-      redirect("/select-plan");
-    }
-    
-    // If trial, check if it's still valid
-    if (subscription.status === "trialing") {
-      if (!subscription.trialEndDate) {
-        console.log("[PROTECTED-LAYOUT] Trial subscription without end date, redirecting to /select-plan");
-        redirect("/select-plan");
-      }
-      
-      const trialEndDate = new Date(subscription.trialEndDate);
-      const now = new Date();
-      
-      if (trialEndDate <= now) {
-        console.log("[PROTECTED-LAYOUT] Trial expired, redirecting to /select-plan");
-        redirect("/select-plan");
+      console.log("[PROTECTED-LAYOUT] No subscription found, will redirect to pricing page");
+      shouldOpenModal = true;
+      reason = "no_subscription";
+    } else {
+      // If subscription exists but status is not active or trialing, check if we should open modal
+      // Don't open modal for "expired" or "cancelled" status - allow user to view system
+      if (subscription.status !== "active" && subscription.status !== "trialing") {
+        // Only open modal for "past_due" status, not for "expired" or "cancelled"
+        if (subscription.status === "past_due") {
+          console.log("[PROTECTED-LAYOUT] Subscription past_due, will redirect to pricing page");
+        shouldOpenModal = true;
+        reason = "subscription_inactive";
+        } else {
+          // For "expired" or "cancelled", allow access without opening modal
+          console.log("[PROTECTED-LAYOUT] Subscription status:", subscription.status, "- allowing access without opening modal");
+        }
+      } else if (subscription.status === "trialing") {
+        // If trial, allow access even if expired - user can still view the system
+        // We don't block access when trial expires, just allow them to see the system
+        const trialEndDate = subscription.trialEndDate ? new Date(subscription.trialEndDate) : null;
+        const now = new Date();
+        
+        if (trialEndDate && trialEndDate <= now) {
+          console.log("[PROTECTED-LAYOUT] Trial expired, but allowing access to view system");
+          // Don't open modal - allow user to see the system
+        } else {
+          console.log("[PROTECTED-LAYOUT] Trial is still active");
+        }
       }
     }
 
-    console.log("[PROTECTED-LAYOUT] User has active subscription, allowing access");
+    if (!shouldOpenModal) {
+      console.log("[PROTECTED-LAYOUT] User has active subscription, allowing access");
+    }
   } catch (error) {
-    // If error checking subscription, redirect to select-plan
+    // If error checking subscription, open modal
     console.error("[PROTECTED-LAYOUT] Error checking subscription:", error);
-    redirect("/select-plan");
+    shouldOpenModal = true;
+    reason = "no_subscription";
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <SubscriptionGuard shouldOpenModal={shouldOpenModal} reason={reason} />
+      </Suspense>
+      {children}
+    </>
+  );
 }
 

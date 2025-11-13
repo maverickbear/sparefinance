@@ -10,8 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from "date-fns";
+import { SimpleTabs, SimpleTabsContent, SimpleTabsList, SimpleTabsTrigger } from "@/components/ui/simple-tabs";
+import { format } from "date-fns/format";
+import { startOfMonth } from "date-fns/startOfMonth";
+import { endOfMonth } from "date-fns/endOfMonth";
+import { eachMonthOfInterval } from "date-fns/eachMonthOfInterval";
+import { subMonths } from "date-fns/subMonths";
 import { PlanFeatures } from "@/lib/validations/plan";
 import { FeatureGuard } from "@/components/common/feature-guard";
 import type { Budget } from "@/lib/api/budgets";
@@ -163,19 +167,19 @@ export function ReportsContent({
       />
 
       {/* Tabs for organized sections */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="income-expenses">Income & Expenses</TabsTrigger>
-          <TabsTrigger value="investments">Investments</TabsTrigger>
-          <TabsTrigger value="debts">Debts</TabsTrigger>
-          <TabsTrigger value="goals">Goals</TabsTrigger>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
-        </TabsList>
+      <SimpleTabs defaultValue="overview" className="w-full">
+        <SimpleTabsList className="flex-wrap">
+          <SimpleTabsTrigger value="overview">Overview</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="income-expenses">Income & Expenses</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="investments">Investments</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="debts">Debts</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="goals">Goals</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="accounts">Accounts</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="insights">Insights</SimpleTabsTrigger>
+        </SimpleTabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
+        <SimpleTabsContent value="overview" className="space-y-4">
           {/* Income vs Expenses Trend */}
           {monthlyData.length > 0 && (
             <IncomeExpensesChart data={monthlyData} />
@@ -233,7 +237,7 @@ export function ReportsContent({
                     {Object.values(expensesByCategory).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="p-0">
-                          <div className="flex items-center justify-center min-h-[400px] w-full">
+                          <div className="flex items-center justify-center py-8 w-full">
                             <div className="text-center text-muted-foreground">
                               No expenses found for this month
                             </div>
@@ -283,7 +287,7 @@ export function ReportsContent({
                       {topExpenses.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={5} className="p-0">
-                            <div className="flex items-center justify-center min-h-[400px] w-full">
+                            <div className="flex items-center justify-center py-8 w-full">
                               <div className="text-center text-muted-foreground">
                                 No expenses found
                               </div>
@@ -297,10 +301,10 @@ export function ReportsContent({
               </CardContent>
             </Card>
           </FeatureGuard>
-        </TabsContent>
+        </SimpleTabsContent>
 
         {/* Income & Expenses Tab */}
-        <TabsContent value="income-expenses" className="space-y-4">
+        <SimpleTabsContent value="income-expenses" className="space-y-4">
           {monthlyData.length > 0 && (
             <IncomeExpensesChart data={monthlyData} />
           )}
@@ -311,41 +315,41 @@ export function ReportsContent({
             />
           )}
           <SpendingPatternsSection transactions={historicalTransactions} />
-        </TabsContent>
+        </SimpleTabsContent>
 
         {/* Investments Tab */}
-        <TabsContent value="investments" className="space-y-4">
+        <SimpleTabsContent value="investments" className="space-y-4">
           <InvestmentPerformanceSection
             portfolioSummary={portfolioSummary}
             portfolioHoldings={portfolioHoldings}
             portfolioHistorical={portfolioHistorical}
           />
-        </TabsContent>
+        </SimpleTabsContent>
 
         {/* Debts Tab */}
-        <TabsContent value="debts" className="space-y-4">
+        <SimpleTabsContent value="debts" className="space-y-4">
           <DebtAnalysisSection debts={debts} />
-        </TabsContent>
+        </SimpleTabsContent>
 
         {/* Goals Tab */}
-        <TabsContent value="goals" className="space-y-4">
+        <SimpleTabsContent value="goals" className="space-y-4">
           <GoalsProgressSection goals={goals} />
-        </TabsContent>
+        </SimpleTabsContent>
 
         {/* Accounts Tab */}
-        <TabsContent value="accounts" className="space-y-4">
+        <SimpleTabsContent value="accounts" className="space-y-4">
           <AccountBalancesSection
             accounts={accounts}
             historicalTransactions={historicalTransactions}
             now={now}
           />
-        </TabsContent>
+        </SimpleTabsContent>
 
         {/* Insights Tab */}
-        <TabsContent value="insights" className="space-y-4">
+        <SimpleTabsContent value="insights" className="space-y-4">
           <FinancialHealthInsights financialHealth={financialHealth} />
-        </TabsContent>
-      </Tabs>
+        </SimpleTabsContent>
+      </SimpleTabs>
     </div>
   );
 }

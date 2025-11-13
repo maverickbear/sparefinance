@@ -64,7 +64,7 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
 
   const handleItemClick = (href: string) => {
     if (!hasSubscription) {
-      router.push("/select-plan");
+      router.push("/dashboard");
       return;
     }
   };
@@ -91,7 +91,7 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
               onClick={(e) => {
                 if (!hasSubscription) {
                   e.preventDefault();
-                  router.push("/select-plan");
+                  router.push("/dashboard");
                 }
               }}
               className={cn(
@@ -131,7 +131,7 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
                     onClick={(e) => {
                       if (!hasSubscription) {
                         e.preventDefault();
-                        router.push("/select-plan");
+                        router.push("/dashboard");
                       } else {
                         handleItemClick(item.href);
                       }

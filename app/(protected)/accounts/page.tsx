@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/common/page-header";
+import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface Account {
   id: string;
@@ -34,6 +35,7 @@ interface Account {
 export default function AccountsPage() {
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
+  const { checkWriteAccess } = useWriteGuard();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -79,6 +81,7 @@ export default function AccountsPage() {
   }
 
   async function handleAddAccount() {
+    if (!checkWriteAccess()) return;
     setSelectedAccount(null);
     // Load limit before opening modal for immediate display
     await loadAccountLimit();
@@ -86,6 +89,7 @@ export default function AccountsPage() {
   }
 
   function handleDelete(id: string) {
+    if (!checkWriteAccess()) return;
     openDialog(
       {
         title: "Delete Account",
@@ -311,6 +315,7 @@ export default function AccountsPage() {
                         className="h-8 w-8"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!checkWriteAccess()) return;
                           setSelectedAccount(account);
                           setIsFormOpen(true);
                         }}
@@ -324,6 +329,7 @@ export default function AccountsPage() {
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!checkWriteAccess()) return;
                           handleDelete(account.id);
                         }}
                         disabled={deletingId === account.id || account.isConnected}
