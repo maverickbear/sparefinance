@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -14,15 +14,44 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Edit, Save, X, User, CreditCard, Upload, Loader2 } from "lucide-react";
+import { Save, User, CreditCard, Upload, Loader2, Calendar } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { UsageChart } from "@/components/billing/usage-chart";
 import { UpgradePlanCard } from "@/components/billing/upgrade-plan-card";
-import { PaymentHistory } from "@/components/billing/payment-history";
 import { SubscriptionManagement } from "@/components/billing/subscription-management";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { PlanFeatures, LimitCheckResult } from "@/lib/api/limits";
 import { PageHeader } from "@/components/common/page-header";
+import { SimpleTabs, SimpleTabsList, SimpleTabsTrigger, SimpleTabsContent } from "@/components/ui/simple-tabs";
+
+// Lazy load PaymentHistory to improve initial load time
+const PaymentHistory = lazy(() => 
+  import("@/components/billing/payment-history").then(m => ({ default: m.PaymentHistory }))
+);
+
+function LazyPaymentHistory() {
+  return (
+    <Suspense fallback={
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle>Billing History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="animate-pulse space-y-2">
+                <div className="h-4 bg-muted rounded w-3/4" />
+                <div className="h-4 bg-muted rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    }>
+      <PaymentHistory />
+    </Suspense>
+  );
+}
 
 // Profile interfaces
 interface Profile {
@@ -30,6 +59,7 @@ interface Profile {
   email: string;
   avatarUrl?: string;
   phoneNumber?: string;
+  dateOfBirth?: string;
   plan?: {
     name: "free" | "basic" | "premium";
     isShadow: boolean;
@@ -45,11 +75,27 @@ interface Profile {
 }
 
 
+// Global cache for profile data (shared across all instances)
+const profileDataCache = {
+  data: null as Profile | null,
+  promise: null as Promise<Profile | null> | null,
+  timestamp: 0,
+  TTL: 5 * 60 * 1000, // 5 minutes cache
+};
+
+// Expose cache for preloading during login
+if (typeof window !== 'undefined') {
+  (window as any).profileDataCache = profileDataCache;
+}
+
 // Profile Module Component
 function ProfileModule() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // Check cache immediately to avoid showing skeleton if data is already available
+  const hasCachedData = profileDataCache.data && 
+    (Date.now() - profileDataCache.timestamp) < profileDataCache.TTL;
+  
+  const [profile, setProfile] = useState<Profile | null>(hasCachedData ? profileDataCache.data : null);
+  const [loading, setLoading] = useState(!hasCachedData);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -58,22 +104,109 @@ function ProfileModule() {
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: "",
-      email: "",
-      avatarUrl: "",
-      phoneNumber: "",
+      name: hasCachedData ? (profileDataCache.data?.name || "") : "",
+      email: hasCachedData ? (profileDataCache.data?.email || "") : "",
+      avatarUrl: hasCachedData ? (profileDataCache.data?.avatarUrl || "") : "",
+      phoneNumber: hasCachedData ? (profileDataCache.data?.phoneNumber || "") : "",
+      dateOfBirth: hasCachedData ? (profileDataCache.data?.dateOfBirth || "") : "",
     },
   });
 
   useEffect(() => {
-    loadProfile();
+    // If we have cached data, set form values immediately and skip loading
+    if (hasCachedData && profileDataCache.data) {
+      form.reset({
+        name: profileDataCache.data.name || "",
+        email: profileDataCache.data.email || "",
+        avatarUrl: profileDataCache.data.avatarUrl || "",
+        phoneNumber: profileDataCache.data.phoneNumber || "",
+        dateOfBirth: profileDataCache.data.dateOfBirth || "",
+      });
+      // Still call loadProfile in background to refresh if needed, but don't show loading
+      loadProfile();
+    } else {
+      // No cached data, load normally
+      loadProfile();
+    }
   }, []);
 
-  async function loadProfile() {
+  async function loadProfile(force = false) {
+    // Check cache first (unless forced)
+    if (!force) {
+      const now = Date.now();
+      if (profileDataCache.data && (now - profileDataCache.timestamp) < profileDataCache.TTL) {
+        // Use cached data - don't change loading state if we already have data
+        const cached = profileDataCache.data;
+        setProfile(cached);
+        form.reset({
+          name: cached.name || "",
+          email: cached.email || "",
+          avatarUrl: cached.avatarUrl || "",
+          phoneNumber: cached.phoneNumber || "",
+          dateOfBirth: cached.dateOfBirth || "",
+        });
+        // Only set loading to false if it was true (don't change if already false)
+        setLoading(false);
+        return;
+      }
+
+      // Reuse in-flight request if exists
+      if (profileDataCache.promise) {
+        try {
+          // Only show loading if we don't have cached data
+          const hasValidCache = profileDataCache.data && 
+            (Date.now() - profileDataCache.timestamp) < profileDataCache.TTL;
+          if (!hasValidCache) {
+            setLoading(true);
+          }
+          const result = await profileDataCache.promise;
+          if (result) {
+            setProfile(result);
+            form.reset({
+              name: result.name || "",
+              email: result.email || "",
+              avatarUrl: result.avatarUrl || "",
+              phoneNumber: result.phoneNumber || "",
+              dateOfBirth: result.dateOfBirth || "",
+            });
+          }
+          setLoading(false);
+          return;
+        } catch (error) {
+          // If promise failed, continue to fetch new data
+          console.error("Cached promise failed:", error);
+        }
+      }
+    }
+
     try {
-      setLoading(true);
-      const { getProfileClient } = await import("@/lib/api/profile-client");
-      const profileData = await getProfileClient();
+      // Only show loading if we don't have cached data
+      const hasValidCache = profileDataCache.data && 
+        (Date.now() - profileDataCache.timestamp) < profileDataCache.TTL;
+      if (!hasValidCache) {
+        setLoading(true);
+      }
+      
+      // Create fetch promise and cache it
+      const fetchPromise = (async () => {
+        const { getProfileClient } = await import("@/lib/api/profile-client");
+        const profileData = await getProfileClient();
+        
+        // Update cache
+        if (profileData) {
+          profileDataCache.data = profileData;
+          profileDataCache.timestamp = Date.now();
+        }
+        profileDataCache.promise = null;
+        
+        return profileData;
+      })();
+
+      // Cache the promise
+      profileDataCache.promise = fetchPromise;
+
+      const profileData = await fetchPromise;
+
       if (profileData) {
         setProfile(profileData);
         form.reset({
@@ -81,6 +214,7 @@ function ProfileModule() {
           email: profileData.email || "",
           avatarUrl: profileData.avatarUrl || "",
           phoneNumber: profileData.phoneNumber || "",
+          dateOfBirth: profileData.dateOfBirth || "",
         });
       } else {
         const defaultProfile: Profile = {
@@ -88,6 +222,7 @@ function ProfileModule() {
           email: "",
           avatarUrl: "",
           phoneNumber: "",
+          dateOfBirth: "",
         };
         setProfile(defaultProfile);
         form.reset(defaultProfile);
@@ -99,9 +234,11 @@ function ProfileModule() {
         email: "",
         avatarUrl: "",
         phoneNumber: "",
+        dateOfBirth: "",
       };
       setProfile(defaultProfile);
       form.reset(defaultProfile);
+      profileDataCache.promise = null;
     } finally {
       setLoading(false);
     }
@@ -113,7 +250,12 @@ function ProfileModule() {
       const { updateProfileClient } = await import("@/lib/api/profile-client");
       const updatedProfile = await updateProfileClient(data);
       setProfile(updatedProfile);
-      setIsEditing(false);
+      
+      // Update cache after successful save
+      profileDataCache.data = updatedProfile;
+      profileDataCache.timestamp = Date.now();
+      profileDataCache.promise = null;
+      
       const successEvent = new CustomEvent("profile-saved", { detail: updatedProfile });
       window.dispatchEvent(successEvent);
       toast({ title: "Success", description: "Profile updated successfully", variant: "success" });
@@ -127,18 +269,6 @@ function ProfileModule() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function handleCancel() {
-    if (profile) {
-      form.reset({
-        name: profile.name || "",
-        email: profile.email || "",
-        avatarUrl: profile.avatarUrl || "",
-        phoneNumber: profile.phoneNumber || "",
-      });
-    }
-    setIsEditing(false);
   }
 
   function getAvatarUrl() {
@@ -218,6 +348,11 @@ function ProfileModule() {
         const updatedProfile = await updateProfileClient({ avatarUrl: url });
         setProfile(updatedProfile);
         
+        // Update cache after successful avatar update
+        profileDataCache.data = updatedProfile;
+        profileDataCache.timestamp = Date.now();
+        profileDataCache.promise = null;
+        
         // Dispatch event to notify other components
         const successEvent = new CustomEvent("profile-saved", { detail: updatedProfile });
         window.dispatchEvent(successEvent);
@@ -249,20 +384,27 @@ function ProfileModule() {
     }
   }
 
-  if (loading) {
+  // Show skeleton while loading and no profile data
+  if (loading && !profile) {
     return (
       <Card className="h-fit">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <div className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            Profile
-          </CardTitle>
+            <CardTitle className="text-base sm:text-lg">Profile</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-3">
-            <div className="h-16 bg-muted rounded-full w-16 mx-auto sm:h-20 sm:w-20"></div>
-            <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
-            <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-6">
+            <div className="flex flex-col items-center sm:items-start space-y-2">
+              <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted animate-pulse" />
+            </div>
+            <div className="space-y-4">
+              <div className="h-9 bg-muted rounded animate-pulse" />
+              <div className="h-9 bg-muted rounded animate-pulse" />
+              <div className="h-9 bg-muted rounded animate-pulse" />
+              <div className="h-9 bg-muted rounded animate-pulse" />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -272,22 +414,9 @@ function ProfileModule() {
   return (
     <Card className="h-fit">
       <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <CardTitle className="text-base sm:text-lg">Profile</CardTitle>
-          </div>
-          {!isEditing && (
-            <Button
-              onClick={() => setIsEditing(true)}
-              variant="outline"
-              size="small"
-              className="w-full sm:w-auto"
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
+        <div className="flex items-center gap-2">
+          <User className="h-4 w-4" />
+          <CardTitle className="text-base sm:text-lg">Profile</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
@@ -301,6 +430,8 @@ function ProfileModule() {
                     src={getAvatarUrl()!}
                     alt="Profile"
                     className="h-16 w-16 sm:h-20 sm:w-20 rounded-full object-cover border-2"
+                    loading="eager"
+                    decoding="async"
                     onError={(e) => {
                       e.currentTarget.style.display = "none";
                       const initialsContainer = e.currentTarget.nextElementSibling;
@@ -319,137 +450,136 @@ function ProfileModule() {
                 </div>
               </div>
               
-              {isEditing && (
-                <div className="flex flex-col items-center sm:items-start space-y-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    ref={fileInputRef}
-                    disabled={uploading}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="small"
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                    }}
-                    disabled={uploading}
-                  >
-                    <Upload className="mr-2 h-3 w-3" />
-                    {uploading ? "Uploading..." : "Upload Avatar"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground text-center sm:text-left">
-                    JPG, PNG or GIF. Max size 5MB
-                  </p>
-                </div>
-              )}
+              <div className="flex flex-col items-center sm:items-start space-y-1">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  ref={fileInputRef}
+                  disabled={uploading}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="small"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={uploading}
+                >
+                  <Upload className="mr-2 h-3 w-3" />
+                  {uploading ? "Uploading..." : "Upload Avatar"}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center sm:text-left">
+                  JPG, PNG or GIF. Max size 5MB
+                </p>
+              </div>
             </div>
 
             {/* Form Fields Section - Right Side */}
             <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs sm:text-sm font-medium">Name</label>
-                  {isEditing ? (
-                    <>
-                      <Input {...form.register("name")} className="h-9" />
-                      {form.formState.errors.name && (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.name.message}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-1">
-                      {profile?.name || "Not set"}
+                  <Input {...form.register("name")} className="h-9" />
+                  {form.formState.errors.name && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.name.message}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs sm:text-sm font-medium">Email</label>
-                  {isEditing ? (
-                    <>
-                      <Input
-                        {...form.register("email")}
-                        type="email"
-                        placeholder="user@example.com"
-                        className="h-9"
-                      />
-                      {form.formState.errors.email && (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.email.message}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-1">
-                      {profile?.email || "Not set"}
+                  <Input
+                    {...form.register("email")}
+                    type="email"
+                    placeholder="user@example.com"
+                    className="h-9"
+                  />
+                  {form.formState.errors.email && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.email.message}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs sm:text-sm font-medium">Phone Number</label>
-                  {isEditing ? (
-                    <>
-                      <Input
-                        {...form.register("phoneNumber")}
-                        type="tel"
-                        placeholder="+1 (555) 123-4567"
-                        className="h-9"
-                      />
-                      {form.formState.errors.phoneNumber && (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.phoneNumber.message}
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-1">
-                      {profile?.phoneNumber || "Not set"}
+                  <Input
+                    {...form.register("phoneNumber")}
+                    type="tel"
+                    placeholder="+1 (555) 123-4567"
+                    className="h-9"
+                  />
+                  {form.formState.errors.phoneNumber && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.phoneNumber.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs sm:text-sm font-medium">Date of Birth</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
+                    <Input
+                      {...form.register("dateOfBirth")}
+                      type="date"
+                      className="h-9 pl-10 uppercase placeholder:uppercase"
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </div>
+                  {form.formState.errors.dateOfBirth && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.dateOfBirth.message}
                     </p>
                   )}
                 </div>
               </div>
 
-              {isEditing && (
-                <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="small"
-                    onClick={handleCancel}
-                    disabled={saving}
-                    className="w-full sm:w-auto"
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Cancel
-                  </Button>
-                  <Button type="submit" size="small" disabled={saving} className="w-full sm:w-auto">
-                    {saving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Changes
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
+              <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
+                <Button type="submit" size="small" disabled={saving} className="w-full sm:w-auto">
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </form>
       </CardContent>
     </Card>
   );
+}
+
+// Global cache for billing data (shared across all instances)
+const billingDataCache = {
+  data: null as {
+    subscription: Subscription | null;
+    plan: Plan | null;
+    limits: PlanFeatures | null;
+    transactionLimit: LimitCheckResult | null;
+    accountLimit: LimitCheckResult | null;
+    interval: "month" | "year" | null;
+  } | null,
+  promise: null as Promise<any> | null,
+  timestamp: 0,
+  TTL: 5 * 60 * 1000, // 5 minutes cache
+};
+
+// Expose cache for preloading during login
+if (typeof window !== 'undefined') {
+  (window as any).billingDataCache = billingDataCache;
 }
 
 // Billing Module Component
@@ -463,8 +593,9 @@ function BillingModuleContent() {
   const [transactionLimit, setTransactionLimit] = useState<LimitCheckResult | null>(null);
   const [accountLimit, setAccountLimit] = useState<LimitCheckResult | null>(null);
   const [interval, setInterval] = useState<"month" | "year" | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const syncSubscription = useCallback(async () => {
     try {
@@ -481,6 +612,12 @@ function BillingModuleContent() {
 
       if (response.ok && data.success) {
         console.log("[BILLING] Subscription synced successfully:", data.subscription);
+        
+        // Invalidate cache after sync
+        billingDataCache.data = null;
+        billingDataCache.timestamp = 0;
+        billingDataCache.promise = null;
+        
         toast({
           title: "Subscription Updated",
           description: "Your subscription has been updated successfully.",
@@ -498,70 +635,137 @@ function BillingModuleContent() {
     }
   }, [toast]);
 
-  const loadBillingData = useCallback(async () => {
+  const loadBillingData = useCallback(async (force = false) => {
+    // Check cache first (unless forced)
+    if (!force) {
+      const now = Date.now();
+      if (billingDataCache.data && (now - billingDataCache.timestamp) < billingDataCache.TTL) {
+        // Use cached data
+        const cached = billingDataCache.data;
+        setSubscription(cached.subscription);
+        setPlan(cached.plan);
+        setLimits(cached.limits);
+        setTransactionLimit(cached.transactionLimit);
+        setAccountLimit(cached.accountLimit);
+        setInterval(cached.interval);
+        setHasLoaded(true);
+        return;
+      }
+
+      // Reuse in-flight request if exists
+      if (billingDataCache.promise) {
+        try {
+          const result = await billingDataCache.promise;
+          setSubscription(result.subscription);
+          setPlan(result.plan);
+          setLimits(result.limits);
+          setTransactionLimit(result.transactionLimit);
+          setAccountLimit(result.accountLimit);
+          setInterval(result.interval);
+          setHasLoaded(true);
+          return;
+        } catch (error) {
+          // If promise failed, continue to fetch new data
+          console.error("Cached promise failed:", error);
+        }
+      }
+    }
+
+    // Don't reload if already loaded and not forced
+    if (hasLoaded && !syncing && !force) {
+      return;
+    }
+
     try {
       setLoading(true);
-      const [subResponse, limitsAction] = await Promise.all([
-        fetch("/api/billing/subscription"),
+      
+      // Create fetch promise and cache it
+      const fetchPromise = Promise.all([
+        fetch("/api/billing/subscription", {
+          cache: "no-store",
+        }),
         import("@/lib/actions/billing").then(m => m.getBillingLimitsAction()),
-      ]);
+      ]).then(async ([subResponse, limitsAction]) => {
+        let subscriptionData: Subscription | null = null;
+        let planData: Plan | null = null;
+        let limitsData: PlanFeatures | null = null;
+        let intervalData: "month" | "year" | null = null;
 
-      if (subResponse.ok) {
-        const subData = await subResponse.json();
-        setSubscription(subData.subscription);
-        setPlan(subData.plan);
-        setLimits(subData.limits);
-        setInterval(subData.interval || null);
-      }
+        // Process subscription data
+        if (subResponse.ok) {
+          const subData = await subResponse.json();
+          subscriptionData = subData.subscription;
+          planData = subData.plan;
+          limitsData = subData.limits;
+          intervalData = subData.interval || null;
+        } else {
+          console.error("Failed to fetch subscription:", subResponse.status);
+        }
 
-      if (limitsAction) {
-        setTransactionLimit(limitsAction.transactionLimit);
-        setAccountLimit(limitsAction.accountLimit);
-      }
+        // Process limits data
+        const transactionLimitData = limitsAction?.transactionLimit || null;
+        const accountLimitData = limitsAction?.accountLimit || null;
+
+        const result = {
+          subscription: subscriptionData,
+          plan: planData,
+          limits: limitsData,
+          transactionLimit: transactionLimitData,
+          accountLimit: accountLimitData,
+          interval: intervalData,
+        };
+
+        // Update cache
+        billingDataCache.data = result;
+        billingDataCache.timestamp = Date.now();
+        billingDataCache.promise = null;
+
+        return result;
+      });
+
+      // Cache the promise
+      billingDataCache.promise = fetchPromise;
+
+      const result = await fetchPromise;
+
+      // Update state
+      setSubscription(result.subscription);
+      setPlan(result.plan);
+      setLimits(result.limits);
+      setTransactionLimit(result.transactionLimit);
+      setAccountLimit(result.accountLimit);
+      setInterval(result.interval);
+      setHasLoaded(true);
     } catch (error) {
       console.error("Error loading billing data:", error);
+      billingDataCache.promise = null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [hasLoaded, syncing]);
 
   // Check if user is returning from Stripe Portal
   useEffect(() => {
     const portalReturn = searchParams.get("portal_return");
     if (portalReturn === "true") {
-      // Remove the parameter from URL
+      // Redirect to billing tab
       router.replace("/settings?tab=billing", { scroll: false });
+      // Force reload after sync
+      setHasLoaded(false);
       // Sync subscription from Stripe
       syncSubscription().then(() => {
         // Reload billing data after sync
-        loadBillingData();
+        loadBillingData(true);
       });
     }
   }, [searchParams, router, syncSubscription, loadBillingData]);
 
+  // Load data on mount immediately
   useEffect(() => {
-    loadBillingData();
-  }, [loadBillingData]);
-
-  if (loading || syncing) {
-    return (
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Billing
-          </CardTitle>
-          <CardDescription>Manage your subscription and usage</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-muted rounded w-3/4"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+    if (!hasLoaded) {
+      loadBillingData();
+    }
+  }, [hasLoaded, loadBillingData]);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -576,29 +780,39 @@ function BillingModuleContent() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <SubscriptionManagement
-          subscription={subscription}
-          plan={plan}
-          interval={interval}
-          onSubscriptionUpdated={loadBillingData}
-        />
+      <SubscriptionManagement
+        subscription={subscription}
+        plan={plan}
+        interval={interval}
+        onSubscriptionUpdated={() => {
+          // Invalidate cache when subscription is updated
+          billingDataCache.data = null;
+          billingDataCache.timestamp = 0;
+          billingDataCache.promise = null;
+          loadBillingData(true);
+        }}
+      />
 
-        {limits && transactionLimit && accountLimit && (
-          <UsageChart
-            limits={limits}
-            transactionLimit={transactionLimit}
-            accountLimit={accountLimit}
-          />
-        )}
+        <UsageChart
+          limits={limits}
+          transactionLimit={transactionLimit}
+          accountLimit={accountLimit}
+        />
       </div>
 
       <UpgradePlanCard 
         currentPlan={plan?.name} 
         currentPlanId={plan?.id}
-        onUpgradeSuccess={loadBillingData}
+        onUpgradeSuccess={() => {
+          // Invalidate cache when plan is upgraded
+          billingDataCache.data = null;
+          billingDataCache.timestamp = 0;
+          billingDataCache.promise = null;
+          loadBillingData(true);
+        }}
       />
 
-      <PaymentHistory />
+      <LazyPaymentHistory />
     </div>
   );
 }
@@ -606,30 +820,65 @@ function BillingModuleContent() {
 // Billing Module Component (wrapped for Suspense)
 function BillingModule() {
   return (
-    <Suspense fallback={
-      <Card className="h-fit">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Billing
-          </CardTitle>
-          <CardDescription>Manage your subscription and usage</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-muted rounded w-3/4"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-          </div>
-        </CardContent>
-      </Card>
-    }>
+    <Suspense fallback={null}>
       <BillingModuleContent />
     </Suspense>
   );
 }
 
+// Preload billing data hook - loads data in background
+function useBillingPreload() {
+  useEffect(() => {
+    // Preload billing data in background when page loads
+    // This ensures data is ready when user clicks on Billing tab
+    const preloadBillingData = async () => {
+      try {
+        await Promise.all([
+          fetch("/api/billing/subscription", { cache: "no-store" }),
+          import("@/lib/actions/billing").then(m => m.getBillingLimitsAction()),
+        ]);
+      } catch (error) {
+        // Silently fail - data will load when tab is opened
+        console.debug("Billing preload failed:", error);
+      }
+    };
+
+    // Small delay to not block initial page load
+    const timer = setTimeout(preloadBillingData, 500);
+    return () => clearTimeout(timer);
+  }, []);
+}
+
 // Main My Account Page
 export default function MyAccountPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get("tab");
+    return tab === "billing" ? "billing" : "profile";
+  });
+
+  // Preload billing data in background
+  useBillingPreload();
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "billing") {
+      setActiveTab("billing");
+    } else {
+      setActiveTab("profile");
+    }
+  }, [searchParams]);
+
+  function handleTabChange(value: string) {
+    setActiveTab(value);
+    if (value === "billing") {
+      router.replace("/settings?tab=billing", { scroll: false });
+    } else {
+      router.replace("/settings", { scroll: false });
+    }
+  }
+
   return (
     <div className="space-y-4 md:space-y-6">
       <PageHeader
@@ -637,10 +886,24 @@ export default function MyAccountPage() {
         description="Manage your account settings and preferences"
       />
 
-      <div className="space-y-4 md:space-y-6">
-        <ProfileModule />
-        <BillingModule />
-      </div>
+      <SimpleTabs 
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="w-full"
+      >
+        <SimpleTabsList>
+          <SimpleTabsTrigger value="profile">Profile</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="billing">Billing</SimpleTabsTrigger>
+        </SimpleTabsList>
+
+        <SimpleTabsContent value="profile" className="space-y-4 md:space-y-6">
+          <ProfileModule />
+        </SimpleTabsContent>
+
+        <SimpleTabsContent value="billing" className="space-y-4 md:space-y-6">
+          <BillingModule />
+        </SimpleTabsContent>
+      </SimpleTabs>
     </div>
   );
 }

@@ -10,6 +10,64 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
+/**
+ * Preloads user, profile, and billing data into global caches
+ * This ensures data is ready immediately when user navigates after login/signup
+ */
+async function preloadUserData() {
+  try {
+    const preloadPromises = [
+      // Preload user data and role for Nav
+      Promise.all([
+        import("@/lib/api/user-client").then(m => m.getUserClient()),
+        import("@/lib/api/members-client").then(m => m.getUserRoleClient()),
+      ]).then(async ([userData, role]) => {
+        if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
+          (window as any).navUserDataCache.data = userData;
+          (window as any).navUserDataCache.timestamp = Date.now();
+          (window as any).navUserDataCache.role = role;
+          (window as any).navUserDataCache.roleTimestamp = Date.now();
+        }
+        return userData;
+      }).catch(() => null),
+      // Preload profile data
+      import("@/lib/api/profile-client").then(async (m) => {
+        const profile = await m.getProfileClient();
+        if (typeof window !== 'undefined' && (window as any).profileDataCache) {
+          (window as any).profileDataCache.data = profile;
+          (window as any).profileDataCache.timestamp = Date.now();
+        }
+        return profile;
+      }).catch(() => null),
+      // Preload subscription/billing data (without limits - loaded later when needed)
+      // Optimized: Skip Stripe API call and limits check during signup for faster loading
+      fetch("/api/billing/subscription?skipStripe=true", { cache: "no-store" }).then(async (r) => {
+        if (!r.ok) return null;
+        const subData = await r.json();
+        if (!subData) return null;
+        
+        // Store basic billing data without limits (limits loaded on-demand)
+        const billingData = {
+          subscription: subData.subscription,
+          plan: subData.plan,
+          limits: subData.limits,
+          transactionLimit: null, // Loaded on-demand when Billing tab is opened
+          accountLimit: null, // Loaded on-demand when Billing tab is opened
+          interval: subData.interval || null,
+        };
+        if (typeof window !== 'undefined' && (window as any).billingDataCache) {
+          (window as any).billingDataCache.data = billingData;
+          (window as any).billingDataCache.timestamp = Date.now();
+        }
+        return billingData;
+      }).catch(() => null),
+    ];
+    await Promise.allSettled(preloadPromises);
+  } catch (preloadError) {
+    console.debug("Preload failed:", preloadError);
+  }
+}
+
 interface SignUpFormProps {
   planId?: string;
   interval?: "month" | "year";
@@ -74,6 +132,8 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
             const linkData = await linkResponse.json();
             if (linkData.success) {
               console.log("[SIGNUP] Subscription linked successfully");
+              // Preload user and plan data before redirecting
+              await preloadUserData();
               // Redirect to dashboard
               router.push("/dashboard");
               return;
@@ -146,7 +206,11 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
         }
       }
 
-      // No planId provided, redirect to plan selection page
+      // No planId provided, redirect to dashboard
+      // Preload user and plan data while showing loading
+      // This ensures data is ready when user navigates
+      await preloadUserData();
+      
       // Supabase session is automatically managed
       router.push("/dashboard");
     } catch (error) {

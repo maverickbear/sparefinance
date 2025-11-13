@@ -12,7 +12,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   typescript: true,
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createServerClient();
     
@@ -25,14 +25,19 @@ export async function GET() {
       );
     }
 
+    // Check if we should skip Stripe API call (for faster preload during login)
+    const { searchParams } = new URL(request.url);
+    const skipStripe = searchParams.get("skipStripe") === "true";
+
     // Fetch subscription once and reuse it
     const subscription = await getCurrentUserSubscription();
     // Pass subscription to checkPlanLimits to avoid duplicate fetch
     const { plan, limits } = await checkPlanLimits(authUser.id, subscription);
 
     // Determine subscription interval (monthly/yearly)
+    // Optimized: Skip Stripe API call during preload for faster loading
     let interval: "month" | "year" | null = null;
-    if (subscription?.stripeSubscriptionId && plan) {
+    if (!skipStripe && subscription?.stripeSubscriptionId && plan) {
       try {
         const stripeSubscription = await stripe.subscriptions.retrieve(
           subscription.stripeSubscriptionId

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
   CardContent,
@@ -7,80 +10,67 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { HelpCircle, Mail, MessageCircle, Book, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/common/page-header";
 import Link from "next/link";
+import { useToast } from "@/components/toast-provider";
+import { contactFormSchema, ContactFormData } from "@/lib/validations/contact";
+import { Loader2 } from "lucide-react";
 
 export default function HelpSupportPage() {
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<ContactFormData>({
+    resolver: zodResolver(contactFormSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      subject: "",
+      message: "",
+    },
+  });
+
+  async function onSubmit(data: ContactFormData) {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to submit contact form");
+      }
+
+      toast({
+        title: "Message sent!",
+        description: "We'll get back to you within 24 hours.",
+      });
+
+      form.reset();
+    } catch (error) {
+      console.error("Error submitting contact form:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to submit contact form",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="space-y-2">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Help & Support</h1>
-          <p className="text-sm md:text-base text-muted-foreground">
-            Get help with your account, billing, and using Spare Finance
-          </p>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="cursor-pointer hover:bg-accent transition-colors">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Search className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Search Help</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              Search our knowledge base for answers to common questions
-            </CardDescription>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:bg-accent transition-colors">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Book className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Documentation</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              Browse our comprehensive guides and tutorials
-            </CardDescription>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:bg-accent transition-colors">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Live Chat</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              Chat with our support team in real-time
-            </CardDescription>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:bg-accent transition-colors">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />
-              <CardTitle className="text-base">Email Support</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CardDescription>
-              Send us an email and we'll get back to you
-            </CardDescription>
-          </CardContent>
-        </Card>
-      </div>
+      <PageHeader
+        title="Help & Support"
+        description="Get help with your account, billing, and using Spare Finance"
+      />
 
       {/* Frequently Asked Questions */}
       <Card>
@@ -139,7 +129,16 @@ export default function HelpSupportPage() {
             <p className="text-sm text-muted-foreground">
               Absolutely. We use bank-level encryption to protect your data. All information 
               is stored securely and we never share your financial data with third parties. 
-              See our Privacy Policy for more details.
+              See our{" "}
+              <Link 
+                href="/privacy-policy" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-primary hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              {" "}for more details.
             </p>
           </div>
 
@@ -167,63 +166,78 @@ export default function HelpSupportPage() {
         <CardHeader>
           <CardTitle>Contact Support</CardTitle>
           <CardDescription>
-            Still need help? Our support team is here for you
+            Still need help? Send us a message and we'll respond within 24 hours
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-4">
-            <Mail className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold mb-1">Email Support</h3>
-              <p className="text-sm text-muted-foreground mb-2">
-                Send us an email and we'll respond within 24 hours
-              </p>
-              <Button variant="outline" asChild>
-                <a href="mailto:support@sparefinance.com">support@sparefinance.com</a>
-              </Button>
+        <CardContent>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                {...form.register("name")}
+                placeholder="Your name"
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.name && (
+                <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
+              )}
             </div>
-          </div>
 
-          <div className="flex items-start gap-4">
-            <MessageCircle className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold mb-1">Live Chat</h3>
-              <p className="text-sm text-muted-foreground mb-2">
-                Chat with our support team Monday-Friday, 9 AM - 5 PM EST
-              </p>
-              <Button variant="outline">
-                Start Chat
-              </Button>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                {...form.register("email")}
+                placeholder="your.email@example.com"
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.email && (
+                <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              )}
             </div>
-          </div>
 
-          <div className="flex items-start gap-4">
-            <HelpCircle className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold mb-1">Help Center</h3>
-              <p className="text-sm text-muted-foreground mb-2">
-                Browse our comprehensive knowledge base and tutorials
-              </p>
-              <Button variant="outline">
-                Visit Help Center
-              </Button>
+            <div className="space-y-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                {...form.register("subject")}
+                placeholder="What can we help you with?"
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.subject && (
+                <p className="text-sm text-destructive">{form.formState.errors.subject.message}</p>
+              )}
             </div>
-          </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="message">Message</Label>
+              <Textarea
+                id="message"
+                {...form.register("message")}
+                placeholder="Please describe your question or issue..."
+                rows={6}
+                disabled={isSubmitting}
+              />
+              {form.formState.errors.message && (
+                <p className="text-sm text-destructive">{form.formState.errors.message.message}</p>
+              )}
+            </div>
+
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Send Message"
+              )}
+            </Button>
+          </form>
         </CardContent>
       </Card>
-
-      {/* Related Links */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" asChild>
-          <Link href="/settings">Account Settings</Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href="/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</Link>
-        </Button>
-        <Button variant="outline" asChild>
-          <Link href="/terms-of-service" target="_blank" rel="noopener noreferrer">Terms of Service</Link>
-        </Button>
-      </div>
     </div>
   );
 }

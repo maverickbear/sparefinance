@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const stripeSubscription = subscriptions.data[0];
+    const stripeSubscription = subscriptions.data[0] as Stripe.Subscription;
 
     // Get price ID to find plan
     const priceId = stripeSubscription.items.data[0]?.price.id;

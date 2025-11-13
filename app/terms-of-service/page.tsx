@@ -127,6 +127,20 @@ export default function TermsOfServicePage() {
               </div>
 
               <div>
+                <h3 className="font-semibold mb-2">Service Features</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  The Service includes various features, some of which may be subject to plan limitations:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li><strong>Bank Integration (Plaid):</strong> Available on BASIC and PREMIUM plans. By connecting your bank accounts, you authorize us to access your account information, transactions, and balances through Plaid. You understand that we do not store your bank credentials and that Plaid handles all authentication securely.</li>
+                  <li><strong>Household Members:</strong> Available on BASIC and PREMIUM plans. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions.</li>
+                  <li><strong>AI-Powered Categorization:</strong> The Service uses intelligent categorization to suggest transaction categories based on your historical data. These are suggestions only, and you are responsible for verifying and approving all categorizations.</li>
+                  <li><strong>CSV Import/Export:</strong> Available on BASIC and PREMIUM plans. You may import and export your financial data. You are responsible for the accuracy of imported data and for maintaining backups of exported data.</li>
+                  <li><strong>Plan Limits:</strong> Your subscription plan includes specific limits (e.g., number of transactions per month, number of accounts). You agree not to exceed these limits and understand that exceeding limits may result in service restrictions.</li>
+                </ul>
+              </div>
+
+              <div>
                 <h3 className="font-semibold mb-2">Prohibited Activities</h3>
                 <p className="text-sm text-muted-foreground mb-2">
                   You agree not to:
@@ -142,6 +156,9 @@ export default function TermsOfServicePage() {
                   <li>Impersonate any person or entity</li>
                   <li>Collect or harvest information about other users</li>
                   <li>Use the Service to transmit spam or unsolicited communications</li>
+                  <li>Share your account credentials with unauthorized persons</li>
+                  <li>Attempt to circumvent plan limits or restrictions</li>
+                  <li>Use the Service to store or process data for commercial purposes without authorization</li>
                 </ul>
               </div>
             </CardContent>
@@ -149,24 +166,62 @@ export default function TermsOfServicePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Subscription and Payment</CardTitle>
+              <CardTitle>Subscription Plans and Payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Some features of the Service require a paid subscription. By subscribing, you agree to:
-              </p>
-              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                <li>Pay all fees associated with your subscription</li>
-                <li>Provide accurate payment information</li>
-                <li>Authorize us to charge your payment method for recurring subscriptions</li>
-                <li>Understand that subscription fees are non-refundable except as required by law</li>
-                <li>Accept that subscription prices may change with notice</li>
-              </ul>
-              <p className="text-sm text-muted-foreground">
-                Subscriptions automatically renew unless cancelled. You may cancel your subscription 
-                at any time through your account settings. Cancellation will take effect at the end 
-                of your current billing period.
-              </p>
+              <div>
+                <h3 className="font-semibold mb-2">Available Plans</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Spare Finance offers the following subscription plans:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li><strong>BASIC Plan:</strong> $7.99/month or $79.90/year - Includes 500 transactions per month, 10 accounts, investments, advanced reports, CSV import/export, bank integration via Plaid, household members, and AI-powered categorization</li>
+                  <li><strong>PREMIUM Plan:</strong> $14.99/month or $149.90/year - Includes unlimited transactions and accounts, plus all BASIC plan features</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Free Trial</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Both BASIC and PREMIUM plans include a 30-day free trial period. During the trial:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li>You have full access to all features of your selected plan</li>
+                  <li>No payment is required until the trial period ends</li>
+                  <li>You may cancel at any time during the trial without being charged</li>
+                  <li>If you do not cancel before the trial ends, your subscription will automatically begin and you will be charged</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Payment Terms</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  By subscribing, you agree to:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li>Pay all fees associated with your subscription</li>
+                  <li>Provide accurate payment information</li>
+                  <li>Authorize us to charge your payment method for recurring subscriptions</li>
+                  <li>Understand that subscription fees are non-refundable except as required by law</li>
+                  <li>Accept that subscription prices may change with notice</li>
+                  <li>Understand that plan limits (transactions, accounts) are enforced and cannot be exceeded</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-2">Subscription Management</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Subscriptions automatically renew unless cancelled. You may:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li>Cancel your subscription at any time through your account settings or the Stripe Customer Portal</li>
+                  <li>Upgrade or downgrade your plan at any time</li>
+                  <li>Change your billing cycle (monthly to annual or vice versa)</li>
+                </ul>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Cancellation will take effect at the end of your current billing period. Upgrades are applied immediately, while downgrades take effect at the end of your current billing period.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -233,6 +288,18 @@ export default function TermsOfServicePage() {
               <p className="text-sm text-muted-foreground">
                 The Service is a financial management tool and does not provide financial, legal, 
                 or tax advice. You should consult with qualified professionals for such advice.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Bank Integration Disclaimer:</strong> Bank account connections are provided through 
+                Plaid, a third-party service. We are not responsible for the availability, accuracy, or 
+                security of Plaid's services. Bank data is provided "as is" and we do not guarantee the 
+                accuracy or completeness of imported bank transactions or account information.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>AI Categorization Disclaimer:</strong> Category suggestions provided by our 
+                AI-powered system are based on patterns in your historical data and are suggestions only. 
+                You are responsible for reviewing and approving all categorizations. We do not guarantee 
+                the accuracy of category suggestions.
               </p>
             </CardContent>
           </Card>

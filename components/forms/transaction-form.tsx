@@ -111,6 +111,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           subcategoryId: transaction.subcategoryId || undefined,
           description: transaction.description || "",
           recurring: transaction.recurring ?? false,
+          expenseType: transaction.expenseType as "fixed" | "variable" | undefined,
         });
         // Category will be loaded by the useEffect that handles transaction editing
       } else {
@@ -512,6 +513,10 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                     setSubcategories([]);
                     setSubcategoriesMap(new Map());
                   }
+                  // Clear expenseType if not expense
+                  if (newType !== "expense") {
+                    form.setValue("expenseType", undefined);
+                  }
                   }}
                   className="w-full"
                 >
@@ -706,6 +711,29 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
               <label className="text-sm font-medium">Description</label>
               <Input {...form.register("description")} />
             </div>
+
+            {/* Expense Type (only for expense transactions) */}
+            {form.watch("type") === "expense" && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">
+                  Expense Type <span className="text-gray-400 text-[12px]">(optional)</span>
+                </label>
+                <Select
+                  value={form.watch("expenseType") || ""}
+                  onValueChange={(value) => {
+                    form.setValue("expenseType", value === "" ? undefined : (value as "fixed" | "variable"));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select expense type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">Fixed</SelectItem>
+                    <SelectItem value="variable">Variable</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="flex items-center space-x-2">
               <Checkbox

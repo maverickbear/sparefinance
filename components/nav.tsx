@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, createContext, useContext, memo, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/utils/logger";
-import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2 } from "lucide-react";
+import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TrialWidget, calculateTrialDaysRemaining, calculateTrialProgress } from "@/components/billing/trial-widget";
 import { useTheme } from "next-themes";
@@ -93,6 +93,21 @@ interface NavProps {
   hasSubscription?: boolean;
 }
 
+// Global cache for user data in Nav (shared across all instances)
+const navUserDataCache = {
+  data: null as UserData | null,
+  promise: null as Promise<UserData> | null,
+  timestamp: 0,
+  TTL: 5 * 60 * 1000, // 5 minutes cache
+  role: null as "admin" | "member" | "super_admin" | null,
+  roleTimestamp: 0,
+};
+
+// Expose cache for preloading during login
+if (typeof window !== 'undefined') {
+  (window as any).navUserDataCache = navUserDataCache;
+}
+
 function NavComponent({ hasSubscription = true }: NavProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -131,20 +146,74 @@ function NavComponent({ hasSubscription = true }: NavProps) {
       return;
     }
 
-    log.log("Fetching user data");
     async function fetchUserData() {
+      // Check cache first
+      const now = Date.now();
+      if (navUserDataCache.data && (now - navUserDataCache.timestamp) < navUserDataCache.TTL) {
+        // Use cached data
+        log.log("Using cached user data");
+        setUserData(navUserDataCache.data);
+        if (navUserDataCache.role && (now - navUserDataCache.roleTimestamp) < navUserDataCache.TTL) {
+          setIsSuperAdmin(navUserDataCache.role === "super_admin");
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Reuse in-flight request if exists
+      if (navUserDataCache.promise) {
+        try {
+          log.log("Reusing in-flight user data request");
+          setLoading(true);
+          const result = await navUserDataCache.promise;
+          setUserData(result);
+          if (navUserDataCache.role) {
+            setIsSuperAdmin(navUserDataCache.role === "super_admin");
+          }
+          setLoading(false);
+          return;
+        } catch (error) {
+          log.error("Cached promise failed:", error);
+        }
+      }
+
+      log.log("Fetching user data");
       try {
-        const { getUserClient } = await import("@/lib/api/user-client");
-        const { getUserRoleClient } = await import("@/lib/api/members-client");
-        const data = await getUserClient();
-        const role = await getUserRoleClient();
+        setLoading(true);
+        
+        // Create fetch promise and cache it
+        const fetchPromise = (async () => {
+          const { getUserClient } = await import("@/lib/api/user-client");
+          const { getUserRoleClient } = await import("@/lib/api/members-client");
+          const [data, role] = await Promise.all([
+            getUserClient(),
+            getUserRoleClient(),
+          ]);
+          
+          const result: UserData = data;
+          
+          // Update cache
+          navUserDataCache.data = result;
+          navUserDataCache.timestamp = Date.now();
+          navUserDataCache.role = role;
+          navUserDataCache.roleTimestamp = Date.now();
+          navUserDataCache.promise = null;
+          
+          return result;
+        })();
+
+        // Cache the promise
+        navUserDataCache.promise = fetchPromise;
+
+        const data = await fetchPromise;
         log.log("User data fetched:", data);
         setUserData(data);
-        setIsSuperAdmin(role === "super_admin");
+        setIsSuperAdmin(navUserDataCache.role === "super_admin");
       } catch (error) {
         log.error("Error fetching user data:", error);
         setUserData(null);
         setIsSuperAdmin(false);
+        navUserDataCache.promise = null;
       } finally {
         setLoading(false);
       }
@@ -152,15 +221,35 @@ function NavComponent({ hasSubscription = true }: NavProps) {
 
     fetchUserData();
 
-    // Listen for profile updates
-    const handleProfileUpdate = () => {
+    // Listen for profile updates to update cache
+    const handleProfileUpdate = (event: CustomEvent) => {
       log.log("Profile update event received");
-      fetchUserData();
+      const updatedProfile = event.detail;
+      
+      // Update cache directly if we have cached data
+      if (navUserDataCache.data && navUserDataCache.data.user) {
+        navUserDataCache.data.user = {
+          ...navUserDataCache.data.user,
+          name: updatedProfile.name,
+          avatarUrl: updatedProfile.avatarUrl,
+          phoneNumber: updatedProfile.phoneNumber,
+          dateOfBirth: updatedProfile.dateOfBirth,
+        };
+        navUserDataCache.timestamp = Date.now();
+        // Update state immediately
+        setUserData({ ...navUserDataCache.data });
+      } else {
+        // If no cache, invalidate and reload
+        navUserDataCache.data = null;
+        navUserDataCache.timestamp = 0;
+        navUserDataCache.promise = null;
+        fetchUserData();
+      }
     };
-    window.addEventListener("profile-updated", handleProfileUpdate);
+    window.addEventListener("profile-saved", handleProfileUpdate as EventListener);
 
     return () => {
-      window.removeEventListener("profile-updated", handleProfileUpdate);
+      window.removeEventListener("profile-saved", handleProfileUpdate as EventListener);
     };
   }, [hasSubscription]);
 
@@ -349,6 +438,8 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                                 src={user.avatarUrl}
                                 alt={user.name || "User"}
                                 className="h-10 w-10 rounded-full object-cover border"
+                                loading="eager"
+                                decoding="async"
                                 onError={(e) => {
                                   e.currentTarget.style.display = "none";
                                   const initialsContainer =
@@ -363,16 +454,20 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                                 {getInitials(user?.name)}
                               </div>
                             </>
-                          ) : (
+                          ) : user?.name ? (
                             <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold border">
-                              {getInitials(user?.name)}
+                              {getInitials(user.name)}
                             </div>
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
                           )}
                         </div>
                         {!isCollapsed && (
                           <div className="flex-1 min-w-0 text-left">
                             <div className="text-sm font-medium truncate">
-                              {user?.name || "User"}
+                              {user?.name || (
+                                <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                              )}
                             </div>
                             {user?.email && (
                               <div className="mt-0.5 text-xs text-muted-foreground truncate">
@@ -392,6 +487,12 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild className="mb-1">
+                      <Link href="/feedback" className="cursor-pointer">
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        <span>Feedback</span>
+                      </Link>
+                    </DropdownMenuItem>
                     <DropdownMenuItem asChild className="mb-1">
                       <Link href="/help-support" className="cursor-pointer">
                         <HelpCircle className="mr-2 h-4 w-4" />

@@ -32,9 +32,9 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
       setIsAuthenticated(!!user);
     }
     
-    if (initialAuth === undefined) {
-      checkAuth();
-    }
+    // Always check auth on client side to ensure we have the latest state
+    // The initialAuth prop from server helps avoid flash, but client check ensures accuracy
+    checkAuth();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -50,7 +50,7 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
     return () => {
       subscription.unsubscribe();
     };
-  }, [initialAuth]);
+  }, []);
 
   const navItems = [
     { label: "Home", href: "#home" },

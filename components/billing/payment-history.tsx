@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,15 +27,24 @@ interface PaymentHistoryProps {
 
 export function PaymentHistory({ className }: PaymentHistoryProps) {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
+    // Prevent duplicate loads
+    if (hasLoaded || loading) {
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/stripe/invoices?page=1&limit=10`);
+      const response = await fetch(`/api/stripe/invoices?page=1&limit=10`, {
+        cache: "no-store",
+      });
       
       if (!response.ok) {
         throw new Error("Failed to fetch invoices");
@@ -43,17 +52,37 @@ export function PaymentHistory({ className }: PaymentHistoryProps) {
 
       const data = await response.json();
       setInvoices(data.invoices || []);
+      setHasLoaded(true);
     } catch (err) {
       console.error("Error loading invoices:", err);
       setError(err instanceof Error ? err.message : "Failed to load invoices");
     } finally {
       setLoading(false);
     }
-  };
+  }, [hasLoaded, loading]);
 
+  // Load invoices when component becomes visible (lazy loading)
   useEffect(() => {
-    loadInvoices();
-  }, []);
+    if (hasLoaded) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadInvoices();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "100px" } // Start loading 100px before it's visible
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasLoaded, loadInvoices]);
 
   const formatAmount = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
@@ -80,12 +109,21 @@ export function PaymentHistory({ className }: PaymentHistoryProps) {
   };
 
   return (
-    <Card className={className}>
+    <Card ref={cardRef} className={className}>
       <CardHeader>
         <CardTitle>Billing History</CardTitle>
       </CardHeader>
       <CardContent>
-        {loading && invoices.length === 0 ? (
+        {!hasLoaded && !loading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="animate-pulse space-y-2">
+                <div className="h-4 bg-muted rounded w-3/4" />
+                <div className="h-4 bg-muted rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        ) : loading && invoices.length === 0 ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="animate-pulse space-y-2">

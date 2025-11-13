@@ -48,7 +48,11 @@ export default function FAQPage() {
         },
         {
           question: "Do you offer a free trial?",
-          answer: "Yes! Both BASIC and PREMIUM plans include a 30-day free trial. You can try any plan risk-free for 30 days before being charged. You can cancel anytime during the trial period without being charged.",
+          answer: "Yes! Both BASIC and PREMIUM plans include a 30-day free trial. You can try any plan risk-free for 30 days before being charged. During the trial, you have full access to all features of your selected plan. You can cancel anytime during the trial period without being charged. If you don't cancel before the trial ends, your subscription will automatically begin and you'll be charged.",
+        },
+        {
+          question: "What happens when my trial ends?",
+          answer: "If you don't cancel before your 30-day trial ends, your subscription will automatically begin and you'll be charged according to your selected plan. You can cancel at any time, and cancellation will take effect at the end of your current billing period. You'll continue to have access until the end of the period you've paid for.",
         },
         {
           question: "What features are available in the BASIC plan?",
@@ -68,7 +72,11 @@ export default function FAQPage() {
         },
         {
           question: "Can I cancel my subscription?",
-          answer: "Yes, you can cancel your subscription at any time through your account settings. The cancellation will take effect at the end of your current billing period, and you will continue to have access until then.",
+          answer: "Yes, you can cancel your subscription at any time through your account settings or the Stripe Customer Portal. The cancellation will take effect at the end of your current billing period, and you will continue to have access until then. You won't be charged for the next billing cycle after cancellation.",
+        },
+        {
+          question: "Can I change my plan after subscribing?",
+          answer: "Yes! You can upgrade or downgrade your plan at any time through your account settings or the Stripe Customer Portal. Upgrades are applied immediately, giving you access to additional features right away. Downgrades take effect at the end of your current billing period. You can also switch between monthly and annual billing at any time.",
         },
       ],
     },
@@ -77,11 +85,19 @@ export default function FAQPage() {
       questions: [
         {
           question: "How does bank integration work?",
-          answer: "Bank integration is done through Plaid, a secure and reliable platform used by thousands of financial applications. You securely connect your bank accounts, and Spare Finance automatically imports your transactions. This feature is available on BASIC and PREMIUM plans.",
+          answer: "Bank integration is done through Plaid, a secure and reliable platform used by thousands of financial applications. You securely connect your bank accounts by authenticating through Plaid's secure interface. Spare Finance then automatically imports your account information, transactions, and balances. We never store your bank login credentials - all authentication is handled securely by Plaid. This feature is available on BASIC and PREMIUM plans.",
+        },
+        {
+          question: "Is my bank information secure?",
+          answer: "Yes! We use Plaid, which is SOC 2 Type 2 certified and uses bank-level encryption. We never store your bank login credentials (username, password, PIN, or security questions). All bank authentication is handled by Plaid, and we only receive account information, transactions, and balances. You can disconnect your bank account at any time, which stops all data synchronization.",
         },
         {
           question: "Can I import transactions from a CSV file?",
-          answer: "Yes! On BASIC and PREMIUM plans, you can import transactions from CSV files. The system allows you to map your file columns to the correct fields, making it easy to import historical data or data from other systems.",
+          answer: "Yes! On BASIC and PREMIUM plans, you can import transactions from CSV files. The system allows you to map your file columns to the correct fields (date, amount, description, category, etc.), making it easy to import historical data or data from other systems. You can preview the data before importing to ensure accuracy.",
+        },
+        {
+          question: "Can I export my data?",
+          answer: "Yes! On BASIC and PREMIUM plans, you can export all your transactions in CSV format at any time. This allows you to keep a backup of your data, use it in other tools, or for tax purposes. You can export filtered transactions or all transactions.",
         },
         {
           question: "How do budgets work?",
@@ -97,11 +113,23 @@ export default function FAQPage() {
         },
         {
           question: "Can I share my account with family members?",
-          answer: "Yes! On BASIC and PREMIUM plans, you can add family members to your account. This allows multiple people to view and manage shared finances, ideal for couples and families who want to manage their finances together.",
+          answer: "Yes! On BASIC and PREMIUM plans, you can add household members to your account. You can invite family members by email, and each member maintains separate financial data (transactions, accounts, budgets). The account owner can view and manage all household members, while members can manage their own data. This is ideal for couples and families who want to track finances separately while staying organized in one place.",
+        },
+        {
+          question: "What data can household members see?",
+          answer: "Each household member maintains completely separate financial data - their own transactions, accounts, budgets, goals, and investments. The account owner can view all household members' data for management purposes, but members cannot see each other's data unless explicitly shared. This ensures privacy while allowing family financial management.",
         },
         {
           question: "How does automatic categorization work?",
-          answer: "Spare Finance uses artificial intelligence to learn from your previous categorizations and automatically suggest categories for new transactions. The more you use it, the more accurate the system becomes.",
+          answer: "Spare Finance uses artificial intelligence to learn from your previous categorizations and automatically suggest categories for new transactions. The system analyzes your transaction history (up to 12 months) and identifies patterns based on transaction descriptions and amounts. When you create a new transaction or import bank data, the system suggests the most likely category. You can approve or reject these suggestions. The more you use it, the more accurate the system becomes as it learns your spending patterns.",
+        },
+        {
+          question: "Can I disconnect my bank account?",
+          answer: "Yes! You can disconnect your bank account at any time through your account settings. When you disconnect, we will stop syncing new transactions, but historical data that was already imported will remain in your account. You can reconnect the same account later if needed.",
+        },
+        {
+          question: "How do I manage household members?",
+          answer: "On BASIC and PREMIUM plans, you can invite family members by email from the 'Members' section in your account settings. Each member receives an invitation email and can accept to join your household. Each member maintains separate financial data (transactions, accounts, budgets), but you as the account owner can view and manage all members. You can remove members at any time.",
         },
       ],
     },
@@ -133,12 +161,21 @@ export default function FAQPage() {
           answer: "Yes! Spare Finance is available in multiple languages and we offer support in various languages. Our team is prepared to help you in your preferred language.",
         },
         {
-          question: "Can I export my data?",
-          answer: "Yes! On BASIC and PREMIUM plans, you can export all your transactions in CSV format at any time. This allows you to keep a backup of your data or use it in other tools.",
-        },
-        {
           question: "What happens if I delete my account?",
-          answer: "If you delete your account, all your data will be permanently removed from our system within 30 days, in accordance with our privacy policy. This action cannot be undone, so make sure to export your data beforehand if you want to keep it.",
+          answer: (
+            <>
+              If you delete your account, all your data will be permanently removed from our system within 30 days, in accordance with our{" "}
+              <Link 
+                href="/privacy-policy" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-primary hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              . This action cannot be undone, so make sure to export your data beforehand if you want to keep it.
+            </>
+          ),
         },
       ],
     },
@@ -217,9 +254,15 @@ export default function FAQPage() {
                         {faq.question}
                       </AccordionTrigger>
                       <AccordionContent>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          {faq.answer}
-                        </p>
+                        {typeof faq.answer === 'string' ? (
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {faq.answer}
+                          </p>
+                        ) : (
+                          <div className="text-sm text-muted-foreground leading-relaxed">
+                            {faq.answer}
+                          </div>
+                        )}
                       </AccordionContent>
                     </AccordionItem>
                   );
@@ -248,7 +291,7 @@ export default function FAQPage() {
                   </a>
                 </p>
                 <p>
-                  <strong>In-app support:</strong>{" "}
+                  <strong>Support page:</strong>{" "}
                   <Link
                     href="/help-support"
                     className="text-primary hover:underline"

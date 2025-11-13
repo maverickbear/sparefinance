@@ -161,6 +161,7 @@ export async function createTransaction(data: TransactionFormData) {
         subcategoryId: finalSubcategoryId,
         description: data.description || null,
         recurring: data.recurring ?? false,
+        expenseType: data.type === "expense" ? (data.expenseType || null) : null,
         createdAt: now,
         updatedAt: now,
       })
@@ -212,6 +213,17 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
   // Verify ownership before updating
   await requireTransactionOwnership(id);
 
+  // Get current transaction type if we need to validate expenseType
+  let currentType: string | undefined = data.type;
+  if (data.expenseType !== undefined && !currentType) {
+    const { data: currentTransaction } = await supabase
+      .from("Transaction")
+      .select("type")
+      .eq("id", id)
+      .single();
+    currentType = currentTransaction?.type;
+  }
+
   const updateData: Record<string, unknown> = {};
   if (data.date !== undefined) {
     const date = data.date instanceof Date ? data.date : new Date(data.date);
@@ -227,6 +239,11 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
   if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId || null;
   if (data.description !== undefined) updateData.description = data.description || null;
   if (data.recurring !== undefined) updateData.recurring = data.recurring;
+  if (data.expenseType !== undefined) {
+    // Only set expenseType if type is expense, otherwise set to null
+    const finalType = data.type !== undefined ? data.type : currentType;
+    updateData.expenseType = finalType === "expense" ? (data.expenseType || null) : null;
+  }
   updateData.updatedAt = formatTimestamp(new Date());
 
   const { data: transaction, error } = await supabase

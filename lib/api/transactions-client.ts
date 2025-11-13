@@ -17,6 +17,7 @@ export interface Transaction {
   subcategoryId?: string | null;
   description?: string | null;
   recurring?: boolean;
+  expenseType?: "fixed" | "variable" | null; // Only for expense transactions
   suggestedCategoryId?: string | null;
   suggestedSubcategoryId?: string | null;
   plaidMetadata?: PlaidTransactionMetadata | null;
@@ -239,6 +240,7 @@ export async function createTransactionClient(data: TransactionFormData): Promis
       subcategoryId: data.subcategoryId || null,
       description: data.description || null,
       recurring: data.recurring ?? false,
+      expenseType: data.type === "expense" ? (data.expenseType || null) : null,
       createdAt: now,
       updatedAt: now,
     })
@@ -257,6 +259,17 @@ export async function createTransactionClient(data: TransactionFormData): Promis
  * Update a transaction
  */
 export async function updateTransactionClient(id: string, data: Partial<TransactionFormData>): Promise<Transaction> {
+  // Get current transaction type if we need to validate expenseType
+  let currentType: string | undefined = data.type;
+  if (data.expenseType !== undefined && !currentType) {
+    const { data: currentTransaction } = await supabase
+      .from("Transaction")
+      .select("type")
+      .eq("id", id)
+      .single();
+    currentType = currentTransaction?.type;
+  }
+
   const updateData: Record<string, unknown> = {};
   if (data.date !== undefined) {
     const date = data.date instanceof Date ? data.date : new Date(data.date);
@@ -272,6 +285,11 @@ export async function updateTransactionClient(id: string, data: Partial<Transact
   if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId || null;
   if (data.description !== undefined) updateData.description = data.description || null;
   if (data.recurring !== undefined) updateData.recurring = data.recurring;
+  if (data.expenseType !== undefined) {
+    // Only set expenseType if type is expense, otherwise set to null
+    const finalType = data.type !== undefined ? data.type : currentType;
+    updateData.expenseType = finalType === "expense" ? (data.expenseType || null) : null;
+  }
   updateData.updatedAt = formatTimestamp(new Date());
 
   const { data: transaction, error } = await supabase

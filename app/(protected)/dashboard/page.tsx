@@ -16,6 +16,7 @@ const ChartsSection = dynamic(() => import("./charts-section").then(m => ({ defa
 const OnboardingWidget = dynamic(() => import("@/components/dashboard/onboarding-widget").then(m => ({ default: m.OnboardingWidget })), { ssr: true });
 const SavingsDistributionWidget = dynamic(() => import("@/components/dashboard/savings-distribution-widget").then(m => ({ default: m.SavingsDistributionWidget })), { ssr: true });
 const ExpensesPieChartWidget = dynamic(() => import("@/components/dashboard/expenses-pie-chart-widget").then(m => ({ default: m.ExpensesPieChartWidget })), { ssr: true });
+const AIChat = dynamic(() => import("@/components/dashboard/ai-chat").then(m => ({ default: m.AIChat })), { ssr: false });
 
 interface DashboardProps {
   searchParams: Promise<{ month?: string }> | { month?: string };
@@ -71,6 +72,11 @@ async function DashboardContent({ selectedMonthDate }: { selectedMonthDate: Date
         selectedMonthTransactions={data.selectedMonthTransactions}
         goals={data.goals}
       />
+
+      {/* AI Chat Assistant */}
+      <div className="h-[600px]">
+        <AIChat />
+      </div>
     </>
   );
 }

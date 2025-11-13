@@ -97,6 +97,7 @@ export interface User {
   name?: string;
   avatarUrl?: string;
   phoneNumber?: string;
+  dateOfBirth?: string;
   role?: "admin" | "member" | "super_admin";
   createdAt: Date;
   updatedAt: Date;
@@ -382,6 +383,7 @@ function mapUser(data: any): User {
     name: data.name || undefined,
     avatarUrl: data.avatarUrl || undefined,
     phoneNumber: data.phoneNumber || undefined,
+    dateOfBirth: data.dateOfBirth || undefined,
     role: data.role || "admin", // Default to admin if not set
     createdAt: new Date(data.createdAt),
     updatedAt: new Date(data.updatedAt),

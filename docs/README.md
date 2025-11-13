@@ -42,6 +42,9 @@ npm install
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# OpenAI API Key (for AI Chat feature)
+OPENAI_API_KEY=sk-...
 ```
 
 3. Seed the database with sample data:

@@ -14,11 +14,13 @@ import { CategoriesTable } from "@/components/admin/categories-table";
 import { CategoryDialog } from "@/components/admin/category-dialog";
 import { SubcategoriesTable } from "@/components/admin/subcategories-table";
 import { SubcategoryDialog } from "@/components/admin/subcategory-dialog";
-import { Plus, Loader2, Users, Tag, FolderTree, BarChart3 } from "lucide-react";
+import { Plus, Loader2, Users, Tag, FolderTree, BarChart3, Mail, MessageSquare, Star } from "lucide-react";
 import type { AdminUser, PromoCode, SystemGroup, SystemCategory, SystemSubcategory } from "@/lib/api/admin";
 import { PageHeader } from "@/components/common/page-header";
 import { DashboardOverview } from "@/components/admin/dashboard-overview";
 import { FinancialOverview } from "@/components/admin/financial-overview";
+import { ContactFormsTable, ContactForm } from "@/components/admin/contact-forms-table";
+import { FeedbackTable, Feedback } from "@/components/admin/feedback-table";
 
 export default function PortalManagementPage() {
   const router = useRouter();
@@ -35,6 +37,19 @@ export default function PortalManagementPage() {
   const [categories, setCategories] = useState<SystemCategory[]>([]);
   const [subcategories, setSubcategories] = useState<SystemSubcategory[]>([]);
   const [loadingSystemEntities, setLoadingSystemEntities] = useState(false);
+  
+  // Contact forms state
+  const [contactForms, setContactForms] = useState<ContactForm[]>([]);
+  const [loadingContactForms, setLoadingContactForms] = useState(false);
+  
+  // Feedback state
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
+  const [feedbackMetrics, setFeedbackMetrics] = useState<{
+    total: number;
+    averageRating: number;
+    ratingDistribution: { [key: number]: number };
+  } | null>(null);
   
   // Dashboard state
   const [dashboardData, setDashboardData] = useState<{
@@ -63,6 +78,8 @@ export default function PortalManagementPage() {
       loadPlans();
       loadSystemEntities();
       loadDashboard();
+      loadContactForms();
+      loadFeedbacks();
     }
   }, [isSuperAdmin]);
 
@@ -140,6 +157,39 @@ export default function PortalManagementPage() {
       console.error("Error loading dashboard:", error);
     } finally {
       setLoadingDashboard(false);
+    }
+  }
+
+  async function loadContactForms() {
+    try {
+      setLoadingContactForms(true);
+      const response = await fetch("/api/admin/contact-forms");
+      if (!response.ok) {
+        throw new Error("Failed to load contact forms");
+      }
+      const data = await response.json();
+      setContactForms(data.contactForms || []);
+    } catch (error) {
+      console.error("Error loading contact forms:", error);
+    } finally {
+      setLoadingContactForms(false);
+    }
+  }
+
+  async function loadFeedbacks() {
+    try {
+      setLoadingFeedbacks(true);
+      const response = await fetch("/api/admin/feedback");
+      if (!response.ok) {
+        throw new Error("Failed to load feedbacks");
+      }
+      const data = await response.json();
+      setFeedbacks(data.feedbacks || []);
+      setFeedbackMetrics(data.metrics || null);
+    } catch (error) {
+      console.error("Error loading feedbacks:", error);
+    } finally {
+      setLoadingFeedbacks(false);
     }
   }
 
@@ -321,97 +371,87 @@ export default function PortalManagementPage() {
             <FolderTree className="h-4 w-4" />
             System Entities
           </SimpleTabsTrigger>
+          <SimpleTabsTrigger value="contact-forms" className="flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Contact Forms
+          </SimpleTabsTrigger>
+          <SimpleTabsTrigger value="feedback" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Feedback
+          </SimpleTabsTrigger>
         </SimpleTabsList>
 
         <SimpleTabsContent value="dashboard" className="space-y-6">
           <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Overview</CardTitle>
-                <CardDescription>
-                  Key metrics and statistics about the platform
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DashboardOverview
-                  overview={dashboardData?.overview || {
-                    totalUsers: 0,
-                    usersWithoutSubscription: 0,
-                    totalSubscriptions: 0,
-                    activeSubscriptions: 0,
-                    trialingSubscriptions: 0,
-                    cancelledSubscriptions: 0,
-                    pastDueSubscriptions: 0,
-                    churnRisk: 0,
-                  }}
-                  loading={loadingDashboard}
-                />
-              </CardContent>
-            </Card>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold tracking-tight">System Overview</h2>
+              <p className="text-sm text-muted-foreground">
+                Key metrics and statistics about the platform
+              </p>
+            </div>
+            <DashboardOverview
+              overview={dashboardData?.overview || {
+                totalUsers: 0,
+                usersWithoutSubscription: 0,
+                totalSubscriptions: 0,
+                activeSubscriptions: 0,
+                trialingSubscriptions: 0,
+                cancelledSubscriptions: 0,
+                pastDueSubscriptions: 0,
+                churnRisk: 0,
+              }}
+              loading={loadingDashboard}
+            />
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Overview</CardTitle>
-                <CardDescription>
-                  Revenue metrics, MRR, and future revenue projections
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FinancialOverview
-                  financial={dashboardData?.financial || {
-                    mrr: 0,
-                    estimatedFutureMRR: 0,
-                    totalEstimatedMRR: 0,
-                    subscriptionDetails: [],
-                    upcomingTrials: [],
-                  }}
-                  loading={loadingDashboard}
-                />
-              </CardContent>
-            </Card>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold tracking-tight">Financial Overview</h2>
+              <p className="text-sm text-muted-foreground">
+                Revenue metrics, MRR, and future revenue projections
+              </p>
+            </div>
+            <FinancialOverview
+              financial={dashboardData?.financial || {
+                mrr: 0,
+                estimatedFutureMRR: 0,
+                totalEstimatedMRR: 0,
+                subscriptionDetails: [],
+                upcomingTrials: [],
+              }}
+              loading={loadingDashboard}
+            />
           </div>
         </SimpleTabsContent>
 
         <SimpleTabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>
-                View and manage all registered users on the platform.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UsersTable users={users} loading={loading} />
-            </CardContent>
-          </Card>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold tracking-tight">All Users</h2>
+            <p className="text-sm text-muted-foreground">
+              View and manage all registered users on the platform.
+            </p>
+          </div>
+          <UsersTable users={users} loading={loading} />
         </SimpleTabsContent>
 
         <SimpleTabsContent value="promo-codes" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Promo Codes</CardTitle>
-                  <CardDescription>
-                    Create and manage promotional codes for discounts on subscriptions.
-                  </CardDescription>
-                </div>
-                <Button onClick={handleCreatePromoCode}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Promo Code
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <PromoCodesTable
-                promoCodes={promoCodes}
-                loading={false}
-                onEdit={handleEditPromoCode}
-                onDelete={handleDeletePromoCode}
-                onToggleActive={handleTogglePromoCodeActive}
-              />
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold tracking-tight">Promo Codes</h2>
+              <p className="text-sm text-muted-foreground">
+                Create and manage promotional codes for discounts on subscriptions.
+              </p>
+            </div>
+            <Button onClick={handleCreatePromoCode}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Promo Code
+            </Button>
+          </div>
+          <PromoCodesTable
+            promoCodes={promoCodes}
+            loading={false}
+            onEdit={handleEditPromoCode}
+            onDelete={handleDeletePromoCode}
+            onToggleActive={handleTogglePromoCodeActive}
+          />
         </SimpleTabsContent>
 
         <SimpleTabsContent value="system-entities" className="space-y-4">
@@ -505,6 +545,154 @@ export default function PortalManagementPage() {
               </Card>
             </SimpleTabsContent>
           </SimpleTabs>
+        </SimpleTabsContent>
+
+        <SimpleTabsContent value="contact-forms" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Forms</CardTitle>
+              <CardDescription>
+                View and manage contact form submissions from users
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ContactFormsTable
+                contactForms={contactForms}
+                loading={loadingContactForms}
+                onUpdate={loadContactForms}
+              />
+            </CardContent>
+          </Card>
+        </SimpleTabsContent>
+
+        <SimpleTabsContent value="feedback" className="space-y-4">
+          {feedbackMetrics && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Feedback</CardTitle>
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{feedbackMetrics.total}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+                  <Star className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {feedbackMetrics.averageRating.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">out of 5.0</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">5 Star Ratings</CardTitle>
+                  <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {feedbackMetrics.ratingDistribution[5] || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {feedbackMetrics.total > 0
+                      ? `${((feedbackMetrics.ratingDistribution[5] || 0) / feedbackMetrics.total * 100).toFixed(1)}%`
+                      : "0%"} of total
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Low Ratings (1-2)</CardTitle>
+                  <Star className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {(feedbackMetrics.ratingDistribution[1] || 0) + (feedbackMetrics.ratingDistribution[2] || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {feedbackMetrics.total > 0
+                      ? `${(((feedbackMetrics.ratingDistribution[1] || 0) + (feedbackMetrics.ratingDistribution[2] || 0)) / feedbackMetrics.total * 100).toFixed(1)}%`
+                      : "0%"} of total
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rating Distribution</CardTitle>
+              <CardDescription>
+                Breakdown of feedback by rating
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {feedbackMetrics ? (
+                <div className="space-y-3">
+                  {[5, 4, 3, 2, 1].map((rating) => {
+                    const count = feedbackMetrics.ratingDistribution[rating] || 0;
+                    const percentage = feedbackMetrics.total > 0
+                      ? (count / feedbackMetrics.total) * 100
+                      : 0;
+                    return (
+                      <div key={rating} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{rating} Star{rating !== 1 ? 's' : ''}</span>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`h-3 w-3 ${
+                                    star <= rating
+                                      ? "text-yellow-400 fill-current"
+                                      : "text-muted-foreground"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <span className="text-muted-foreground">
+                            {count} ({percentage.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>All Feedback</CardTitle>
+              <CardDescription>
+                View and manage feedback submissions from users
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FeedbackTable
+                feedbacks={feedbacks}
+                loading={loadingFeedbacks}
+              />
+            </CardContent>
+          </Card>
         </SimpleTabsContent>
       </SimpleTabs>
 

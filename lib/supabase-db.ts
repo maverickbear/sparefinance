@@ -225,6 +225,7 @@ export interface Database {
     createdAt: string;
     updatedAt: string;
     recurring: boolean;
+    expenseType: string | null;
     suggestedCategoryId: string | null;
     suggestedSubcategoryId: string | null;
     plaidMetadata: Record<string, unknown> | null;
@@ -238,6 +239,7 @@ export interface Database {
     updatedAt: string;
     role: string;
     phoneNumber: string | null;
+    dateOfBirth: string | null;
   };
   PlaidConnection: {
     id: string;

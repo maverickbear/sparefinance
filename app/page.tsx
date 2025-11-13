@@ -5,6 +5,7 @@ import { TestimonialsSection } from "@/components/landing/testimonials-section";
 import { PricingSection } from "@/components/landing/pricing-section";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { LandingFooter } from "@/components/landing/landing-footer";
+import { getCurrentUser } from "@/lib/api/auth";
 
 export const metadata = {
   title: "Spare Finance - Powerful Tools for Easy Money Management",
@@ -21,10 +22,14 @@ export const metadata = {
  * After login, users are automatically redirected to /dashboard, but they
  * can always return to this landing page if they want to see the site.
  */
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Check authentication status on server to show correct buttons immediately
+  const user = await getCurrentUser();
+  const isAuthenticated = !!user;
+
   return (
     <div className="min-h-screen flex flex-col">
-      <LandingHeader />
+      <LandingHeader isAuthenticated={isAuthenticated} />
       <main className="flex-1">
         <HeroSection />
         <FeaturesSection />

@@ -96,10 +96,12 @@ export default function PrivacyPolicyPage() {
                   To provide our services, we collect and store:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li>Transaction data (amounts, dates, descriptions, categories)</li>
-                  <li>Account information</li>
-                  <li>Budget and goal information</li>
-                  <li>Investment and debt tracking data</li>
+                  <li>Transaction data (amounts, dates, descriptions, categories, subcategories)</li>
+                  <li>Account information (account names, types, balances, limits)</li>
+                  <li>Budget and goal information (monthly budgets, savings goals, progress tracking)</li>
+                  <li>Investment and debt tracking data (securities, holdings, portfolio values, debt balances, payment schedules)</li>
+                  <li>Bank account data (when connected via Plaid): account numbers (masked), transaction history, balances, account types</li>
+                  <li>Category learning data: historical transaction patterns used for AI-powered categorization suggestions</li>
                 </ul>
               </div>
 
@@ -129,6 +131,11 @@ export default function PrivacyPolicyPage() {
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                 <li>Provide, maintain, and improve our services</li>
                 <li>Process transactions and manage your account</li>
+                <li>Sync bank account data through Plaid integration (BASIC and PREMIUM plans)</li>
+                <li>Provide AI-powered category suggestions based on your transaction history</li>
+                <li>Manage household member accounts and permissions (BASIC and PREMIUM plans)</li>
+                <li>Calculate budgets, goals, investments, and debt tracking</li>
+                <li>Generate reports and analytics</li>
                 <li>Send you important updates and notifications</li>
                 <li>Respond to your inquiries and provide customer support</li>
                 <li>Detect, prevent, and address technical issues and security threats</li>
@@ -159,8 +166,10 @@ export default function PrivacyPolicyPage() {
                   </ul>
                 </li>
                 <li>
-                  <strong>Household Members:</strong> If you are part of a household account, your 
-                  financial data may be shared with other household members as configured
+                  <strong>Household Members:</strong> If you are part of a household account (BASIC and PREMIUM plans), 
+                  your financial data may be shared with other household members as configured. Each household member 
+                  maintains separate financial data (transactions, accounts, budgets), but the account owner can view 
+                  and manage all household members. You control which members have access to your household account.
                 </li>
                 <li>
                   <strong>Legal Requirements:</strong> When required by law, court order, or 
@@ -215,11 +224,13 @@ export default function PrivacyPolicyPage() {
                     When you connect your bank account through Plaid:
                   </p>
                   <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                    <li>Plaid securely authenticates your bank credentials</li>
-                    <li>We only receive account information, transaction data, and balances in real-time</li>
-                    <li>We do not have access to your bank login credentials</li>
-                    <li>Plaid uses bank-level encryption and security standards</li>
-                    <li>You can disconnect your bank account at any time through your account settings</li>
+                    <li>Plaid securely authenticates your bank credentials using bank-level security</li>
+                    <li>We only receive account information (account names, types, masked account numbers), transaction data (amounts, dates, descriptions, categories), and balances in real-time</li>
+                    <li>We do not have access to your bank login credentials (username, password, PIN, or security questions)</li>
+                    <li>Plaid uses bank-level encryption and security standards (SOC 2 Type 2 certified)</li>
+                    <li>Transaction data is automatically synced and categorized using our AI-powered categorization system</li>
+                    <li>You can disconnect your bank account at any time through your account settings, which will stop all data synchronization</li>
+                    <li>When you disconnect, we retain historical transaction data that was already imported, but no new data will be collected</li>
                   </ul>
                   <p className="text-sm text-muted-foreground mt-2">
                     For more information about how Plaid handles your financial data, please review 
@@ -241,16 +252,25 @@ export default function PrivacyPolicyPage() {
                 We implement industry-standard security measures to protect your information:
               </p>
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                <li>End-to-end encryption for data transmission</li>
+                <li>End-to-end encryption for data transmission (TLS/SSL)</li>
                 <li>Secure data storage with encryption at rest</li>
+                <li>Row Level Security (RLS) at the database level to ensure data isolation between users</li>
+                <li>Secure authentication via Supabase Auth with password hashing</li>
                 <li>Regular security audits and vulnerability assessments</li>
                 <li>Access controls and authentication mechanisms</li>
                 <li>Compliance with financial data protection regulations</li>
+                <li>Bank credentials are never stored - all bank authentication is handled by Plaid</li>
+                <li>Household member data is isolated and only accessible to authorized members</li>
               </ul>
               <p className="text-sm text-muted-foreground">
                 However, no method of transmission over the Internet or electronic storage is 100% 
                 secure. While we strive to use commercially acceptable means to protect your data, 
                 we cannot guarantee absolute security.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>AI Categorization Data:</strong> Category learning data is stored locally 
+                within your account and is not shared with other users. The AI system analyzes only 
+                your own historical transaction patterns to provide personalized category suggestions.
               </p>
             </CardContent>
           </Card>

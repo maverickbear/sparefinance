@@ -11,6 +11,28 @@ import { useSubscriptionContext } from "@/contexts/subscription-context";
 import { usePathname } from "next/navigation";
 import { logger } from "@/lib/utils/logger";
 
+// Preload profile data hook - loads profile in background when app starts
+function useProfilePreload() {
+  useEffect(() => {
+    // Preload profile data in background when app loads
+    // This ensures profile data is ready when user navigates to settings
+    // The cache in settings/page.tsx will handle this efficiently
+    const preloadProfile = async () => {
+      try {
+        const { getProfileClient } = await import("@/lib/api/profile-client");
+        await getProfileClient();
+      } catch (error) {
+        // Silently fail - data will load when needed
+        console.debug("Profile preload failed:", error);
+      }
+    };
+
+    // Small delay to not block initial page load
+    const timer = setTimeout(preloadProfile, 300);
+    return () => clearTimeout(timer);
+  }, []);
+}
+
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { hasSubscription, checking } = useSubscriptionContext();
@@ -18,6 +40,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   
   // Calculate fixed elements height (header + banner)
   useFixedElementsHeight();
+  
+  // Preload profile data in background
+  useProfilePreload();
   
   // Determine route types
   const isApiRoute = pathname?.startsWith("/api");

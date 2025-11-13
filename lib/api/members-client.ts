@@ -114,6 +114,7 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
 
 /**
  * Get user's role (admin, member, or super_admin)
+ * Optimized: Uses single query to check both owned and member households
  */
 export async function getUserRoleClient(): Promise<"admin" | "member" | "super_admin" | null> {
   const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
@@ -122,39 +123,47 @@ export async function getUserRoleClient(): Promise<"admin" | "member" | "super_a
     return null;
   }
 
-  // First check User table for role (includes super_admin)
-  const { data: userData } = await supabase
-    .from("User")
-    .select("role")
-    .eq("id", authUser.id)
-    .single();
+  // Optimized: Fetch User role and HouseholdMember in parallel
+  const [userResult, householdResult] = await Promise.all([
+    supabase
+      .from("User")
+      .select("role")
+      .eq("id", authUser.id)
+      .single(),
+    // Single query to check both owned and member households
+    supabase
+      .from("HouseholdMember")
+      .select("role, ownerId, memberId, status")
+      .or(`ownerId.eq.${authUser.id},memberId.eq.${authUser.id}`)
+      .limit(2)
+  ]);
 
+  const userData = userResult.data;
+  
+  // Check super_admin first (highest priority)
   if (userData?.role === "super_admin") {
     return "super_admin";
   }
 
-  // Check if user owns a household
-  const { data: ownedHousehold } = await supabase
-    .from("HouseholdMember")
-    .select("role")
-    .eq("ownerId", authUser.id)
-    .eq("memberId", authUser.id)
-    .maybeSingle();
-
+  // Check household membership
+  const households = householdResult.data || [];
+  
+  // Check if user owns a household (ownerId === memberId)
+  const ownedHousehold = households.find(
+    (h: any) => h.ownerId === authUser.id && h.memberId === authUser.id
+  );
+  
   if (ownedHousehold) {
     return ownedHousehold.role as "admin" | "member";
   }
 
-  // Check if user is a member
-  const { data: memberHousehold } = await supabase
-    .from("HouseholdMember")
-    .select("role")
-    .eq("memberId", authUser.id)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (memberHousehold) {
-    return memberHousehold.role as "admin" | "member";
+  // Check if user is an active member
+  const activeMemberHousehold = households.find(
+    (h: any) => h.memberId === authUser.id && h.status === "active"
+  );
+  
+  if (activeMemberHousehold) {
+    return activeMemberHousehold.role as "admin" | "member";
   }
 
   // Fallback to User table role if no household member record exists

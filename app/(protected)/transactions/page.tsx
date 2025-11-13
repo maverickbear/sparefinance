@@ -483,10 +483,17 @@ export default function TransactionsPage() {
           : tx
       ));
 
-      await updateTransactionClient(transactionForCategory.id, {
-        categoryId: categoryId || undefined,
-        subcategoryId: subcategoryId || undefined,
-      });
+      // Build update data - explicitly pass null for subcategoryId if it's null to remove it
+      const updateData: { categoryId?: string | null; subcategoryId?: string | null } = {};
+      if (categoryId !== null) {
+        updateData.categoryId = categoryId;
+      } else {
+        updateData.categoryId = null;
+      }
+      // Always include subcategoryId, even if null, to ensure it gets removed
+      updateData.subcategoryId = subcategoryId;
+
+      await updateTransactionClient(transactionForCategory.id, updateData);
 
       toast({
         title: "Category updated",

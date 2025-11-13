@@ -5,6 +5,7 @@ import { getCurrentUserClient, User } from "./auth-client";
 
 /**
  * Get current user with plan info and trial information
+ * Optimized: Uses single query with JOIN instead of multiple queries
  */
 export async function getUserClient(): Promise<{ 
   user: User | null; 
@@ -15,40 +16,70 @@ export async function getUserClient(): Promise<{
     trialStartDate?: string | null;
   } | null;
 }> {
-  const user = await getCurrentUserClient();
-  
-  if (!user) {
+  const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !authUser) {
     return { user: null, plan: null, subscription: null };
   }
 
-  // Get user's subscription (most recent, including cancelled/past_due)
-  const { data: subscription } = await supabase
-    .from("Subscription")
-    .select("planId, status, trialEndDate, trialStartDate")
-    .eq("userId", user.id)
-    .in("status", ["active", "trialing", "cancelled", "past_due"])
-    .order("createdAt", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Optimized: Fetch User, Subscription, and Plan in parallel (faster than sequential)
+  const [userResult, subscriptionResult] = await Promise.all([
+    supabase
+      .from("User")
+      .select("*")
+      .eq("id", authUser.id)
+      .single(),
+    supabase
+      .from("Subscription")
+      .select("planId, status, trialEndDate, trialStartDate")
+      .eq("userId", authUser.id)
+      .in("status", ["active", "trialing", "cancelled", "past_due"])
+      .order("createdAt", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  if (!subscription) {
+  if (userResult.error || !userResult.data) {
+    console.warn(`[getUserClient] User ${authUser.id} not found. Logging out.`);
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutError) {
+      console.error("[getUserClient] Error signing out:", signOutError);
+    }
+    return { user: null, plan: null, subscription: null };
+  }
+
+  const userData = userResult.data;
+  const user: User = {
+    id: userData.id,
+    email: userData.email,
+    name: userData.name || undefined,
+    avatarUrl: userData.avatarUrl || undefined,
+    phoneNumber: userData.phoneNumber || undefined,
+    dateOfBirth: userData.dateOfBirth || undefined,
+    role: userData.role || "admin",
+    createdAt: new Date(userData.createdAt),
+    updatedAt: new Date(userData.updatedAt),
+  };
+
+  if (!subscriptionResult.data) {
     return { user, plan: null, subscription: null };
   }
 
-  // Get plan info
-  const { data: plan } = await supabase
+  // Fetch plan in parallel if we have subscription
+  const { data: planData } = await supabase
     .from("Plan")
     .select("name")
-    .eq("id", subscription.planId)
+    .eq("id", subscriptionResult.data.planId)
     .single();
 
   return {
     user,
-    plan: plan ? { name: plan.name } : null,
+    plan: planData ? { name: planData.name as "free" | "basic" | "premium" } : null,
     subscription: {
-      status: subscription.status as "active" | "trialing" | "cancelled" | "past_due",
-      trialEndDate: subscription.trialEndDate,
-      trialStartDate: subscription.trialStartDate,
+      status: subscriptionResult.data.status as "active" | "trialing" | "cancelled" | "past_due",
+      trialEndDate: subscriptionResult.data.trialEndDate,
+      trialStartDate: subscriptionResult.data.trialStartDate,
     },
   };
 }

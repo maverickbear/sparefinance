@@ -10,6 +10,7 @@ export const transactionSchema = z.object({
   subcategoryId: z.string().optional(),
   description: z.string().optional(),
   recurring: z.boolean().default(false),
+  expenseType: z.enum(["fixed", "variable"]).optional(), // Only for expense transactions
 }).refine((data) => {
   // If type is transfer, toAccountId is required
   if (data.type === "transfer") {
