@@ -477,9 +477,9 @@ export default function PortalManagementPage() {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                        Create
+                      <Button className="flex items-center justify-center">
+                        <Plus className="h-4 w-4 mr-2" />
+                        <span>Create</span>
                         <ChevronDown className="h-4 w-4 ml-2" />
                       </Button>
                     </DropdownMenuTrigger>

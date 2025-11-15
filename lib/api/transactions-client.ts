@@ -75,7 +75,12 @@ export async function getTransactionsClient(filters?: {
   }
 
   if (filters?.type) {
-    query = query.eq("type", filters.type);
+    if (filters.type === "transfer") {
+      // Transfer transactions have either transferToId or transferFromId set
+      query = query.or("transferToId.not.is.null,transferFromId.not.is.null");
+    } else {
+      query = query.eq("type", filters.type);
+    }
   }
 
   // Note: We don't apply search filter here anymore since descriptions are encrypted

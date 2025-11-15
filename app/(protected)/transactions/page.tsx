@@ -1495,7 +1495,7 @@ export default function TransactionsPage() {
             <SelectValue placeholder="Account" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="all">All Accounts</SelectItem>
             {accounts.map((account) => (
               <SelectItem key={account.id} value={account.id}>
                 {account.name}
@@ -1511,9 +1511,10 @@ export default function TransactionsPage() {
             <SelectValue placeholder="Type" />
           </SelectTrigger>
             <SelectContent>
-            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="expense">Expense</SelectItem>
             <SelectItem value="income">Income</SelectItem>
+            <SelectItem value="transfer">Transfer</SelectItem>
           </SelectContent>
         </Select>
         <div className="relative flex-1 max-w-[200px]">

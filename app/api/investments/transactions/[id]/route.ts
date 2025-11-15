@@ -12,7 +12,7 @@ import { isPlanError } from "@/lib/utils/plan-errors";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
@@ -34,7 +34,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const transactionId = params.id;
+    const { id: transactionId } = await params;
     
     // Handle security creation if needed
     let securityId = body.securityId;
@@ -111,7 +111,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getCurrentUserId();
@@ -132,7 +132,7 @@ export async function DELETE(
       );
     }
 
-    const transactionId = params.id;
+    const { id: transactionId } = await params;
     await deleteInvestmentTransaction(transactionId);
 
     return NextResponse.json({ success: true });

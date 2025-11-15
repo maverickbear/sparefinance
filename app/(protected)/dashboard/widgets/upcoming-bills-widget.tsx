@@ -27,7 +27,7 @@ export function UpcomingBillsWidget({
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Upcoming Transactions</CardTitle>
-        <CardDescription>Recurring transactions in the next days</CardDescription>
+        <CardDescription>Recurring transactions in the next 15 days</CardDescription>
       </CardHeader>
       <CardContent>
         {bills.length === 0 ? (

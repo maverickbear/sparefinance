@@ -417,7 +417,12 @@ export async function getTransactionsInternal(
       filteredQuery = filteredQuery.eq("accountId", filters.accountId);
     }
     if (filters?.type) {
-      filteredQuery = filteredQuery.eq("type", filters.type);
+      if (filters.type === "transfer") {
+        // Transfer transactions have either transferToId or transferFromId set
+        filteredQuery = filteredQuery.or("transferToId.not.is.null,transferFromId.not.is.null");
+      } else {
+        filteredQuery = filteredQuery.eq("type", filters.type);
+      }
     }
     if (filters?.recurring !== undefined) {
       filteredQuery = filteredQuery.eq("recurring", filters.recurring);
@@ -621,7 +626,8 @@ export async function getUpcomingTransactions(limit: number = 5) {
     const supabase = await createServerClient();
   const now = new Date();
   const endDate = new Date(now);
-  endDate.setMonth(endDate.getMonth() + 1); // Look ahead 1 month
+  endDate.setDate(endDate.getDate() + 15); // Look ahead 15 days
+  endDate.setHours(23, 59, 59, 999); // Set to end of day to include all transactions on that day
 
   // Get all recurring transactions (both expenses and incomes)
   const { data: recurringTransactions, error } = await supabase
@@ -696,24 +702,34 @@ export async function getUpcomingTransactions(limit: number = 5) {
     
     // Start with this month, same day
     let nextDate = new Date(today.getFullYear(), today.getMonth(), originalDay);
+    nextDate.setHours(0, 0, 0, 0); // Normalize to start of day
     
     // Handle edge case: if the original day doesn't exist in current month (e.g., Jan 31 -> Feb)
     // Use the last day of the current month
     if (nextDate.getDate() !== originalDay) {
       nextDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      nextDate.setHours(0, 0, 0, 0);
     }
 
     // If the next occurrence is in the past, move to next month
     if (nextDate < today) {
       nextDate = new Date(today.getFullYear(), today.getMonth() + 1, originalDay);
+      nextDate.setHours(0, 0, 0, 0);
       // Handle edge case again for next month
       if (nextDate.getDate() !== originalDay) {
         nextDate = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        nextDate.setHours(0, 0, 0, 0);
       }
     }
 
-    // Only include if it's within the next month
-    if (nextDate <= endDate) {
+    // Only include if it's within the next 15 days
+    // Compare dates properly (both normalized to start of day)
+    const nextDateNormalized = new Date(nextDate);
+    nextDateNormalized.setHours(0, 0, 0, 0);
+    const endDateNormalized = new Date(endDate);
+    endDateNormalized.setHours(23, 59, 59, 999);
+    
+    if (nextDateNormalized <= endDateNormalized) {
       upcoming.push({
         id: tx.id,
         date: nextDate,
@@ -851,7 +867,9 @@ export async function getUpcomingTransactions(limit: number = 5) {
 
   // Sort by date and limit
   upcoming.sort((a, b) => a.date.getTime() - b.date.getTime());
-  return upcoming.slice(0, limit);
+  // Return all transactions within the 15-day window, not just the limit
+  // The limit is applied by the caller if needed
+  return upcoming;
 }
 
 export async function getAccountBalance(accountId: string) {
