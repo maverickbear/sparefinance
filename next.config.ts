@@ -93,7 +93,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Permissions-Policy",
-            value: "camera=(self \"https://cdn.plaid.com\"), microphone=(), geolocation=(), payment=(self)", // Allow camera for Plaid Link card scanning, payment for Stripe Payment Request API
+            value: "camera=(self \"https://cdn.plaid.com\"), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://checkout.stripe.com\")", // Allow camera for Plaid Link card scanning, payment for Stripe Payment Request API
           },
           {
             key: "Content-Security-Policy",

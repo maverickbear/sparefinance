@@ -144,13 +144,6 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
     await checkStatus();
   }
 
-  // Monitor status changes and hide widget when all actions are completed
-  useEffect(() => {
-    if (status && status.completedCount === status.totalCount) {
-      console.log("All onboarding actions completed, hiding widget");
-    }
-  }, [status]);
-
   // Don't render if all actions are completed
   if (status && status.completedCount === status.totalCount) {
     return null;
