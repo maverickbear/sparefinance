@@ -28,12 +28,14 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
     const supabase = await createServerClient();
     
     // Sign up user with Supabase Auth
+    // Use both 'name' and 'full_name' for compatibility with Supabase Auth Display name
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
         data: {
           name: data.name || "",
+          full_name: data.name || "",
         },
       },
     });

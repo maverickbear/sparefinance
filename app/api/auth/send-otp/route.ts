@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (!email) {
       console.error("[SEND-OTP] Email is missing");
       return NextResponse.json(
-        { error: "Email é obrigatório" },
+        { error: "Email is required" },
         { status: 400 }
       );
     }
@@ -38,11 +38,11 @@ export async function POST(request: NextRequest) {
       });
       
       // Provide more helpful error messages
-      let errorMessage = "Falha ao enviar código de verificação";
+      let errorMessage = "Failed to send verification code";
       if (error.message?.includes("rate limit") || error.message?.includes("too many")) {
-        errorMessage = "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.";
+        errorMessage = "Too many attempts. Please wait a few minutes before trying again.";
       } else if (error.message?.includes("not found") || error.message?.includes("user")) {
-        errorMessage = "Usuário não encontrado. Verifique se o email está correto.";
+        errorMessage = "User not found. Please verify that the email is correct.";
       } else {
         errorMessage = error.message || errorMessage;
       }
@@ -56,12 +56,12 @@ export async function POST(request: NextRequest) {
     console.log("[SEND-OTP] OTP sent successfully to:", email);
     return NextResponse.json({ 
       success: true,
-      message: "Código de verificação enviado com sucesso" 
+      message: "Verification code sent successfully" 
     });
   } catch (error) {
     console.error("[SEND-OTP] Unexpected error:", error);
     return NextResponse.json(
-      { error: "Ocorreu um erro inesperado" },
+      { error: "An unexpected error occurred" },
       { status: 500 }
     );
   }

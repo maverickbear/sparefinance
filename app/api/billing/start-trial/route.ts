@@ -112,17 +112,36 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    // Get user name from User table
+    const { data: userData } = await supabase
+      .from("User")
+      .select("name")
+      .eq("id", authUser.id)
+      .single();
+
     if (existingSubscription?.stripeCustomerId) {
       customerId = existingSubscription.stripeCustomerId;
       console.log("[START-TRIAL] Using existing Stripe customer:", customerId);
+      
+      // Update existing customer with current email and name
+      try {
+        await stripe.customers.update(customerId, {
+          email: authUser.email!,
+          name: userData?.name || undefined,
+          metadata: {
+            userId: authUser.id,
+          },
+        });
+        console.log("[START-TRIAL] Updated existing Stripe customer with email and name:", { 
+          customerId, 
+          email: authUser.email, 
+          name: userData?.name 
+        });
+      } catch (updateError) {
+        console.error("[START-TRIAL] Error updating existing Stripe customer:", updateError);
+        // Continue anyway - customer exists, just couldn't update
+      }
     } else {
-      // Get user name from User table
-      const { data: userData } = await supabase
-        .from("User")
-        .select("name")
-        .eq("id", authUser.id)
-        .single();
-
       // Create Stripe customer
       console.log("[START-TRIAL] Creating new Stripe customer for user:", authUser.id);
       const customer = await stripe.customers.create({

@@ -220,17 +220,36 @@ export async function createCheckoutSession(
       hasStripeCustomerId: !!subscription?.stripeCustomerId 
     });
 
+    // Get user name from User table
+    const { data: userData } = await supabase
+      .from("User")
+      .select("name")
+      .eq("id", userId)
+      .single();
+
     if (subscription?.stripeCustomerId) {
       customerId = subscription.stripeCustomerId;
       console.log("[CHECKOUT] Using existing Stripe customer:", customerId);
+      
+      // Update existing customer with current email and name
+      try {
+        await stripe.customers.update(customerId, {
+          email: authUser.email!,
+          name: userData?.name || undefined,
+          metadata: {
+            userId: userId,
+          },
+        });
+        console.log("[CHECKOUT] Updated existing Stripe customer with email and name:", { 
+          customerId, 
+          email: authUser.email, 
+          name: userData?.name 
+        });
+      } catch (updateError) {
+        console.error("[CHECKOUT] Error updating existing Stripe customer:", updateError);
+        // Continue anyway - customer exists, just couldn't update
+      }
     } else {
-      // Get user name from User table
-      const { data: userData } = await supabase
-        .from("User")
-        .select("name")
-        .eq("id", userId)
-        .single();
-
       // Create Stripe customer
       console.log("[CHECKOUT] Creating new Stripe customer for user:", userId);
       const customer = await stripe.customers.create({

@@ -102,8 +102,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update customer metadata with userId
+    // Get user name from User table
+    const { data: userData } = await supabase
+      .from("User")
+      .select("name")
+      .eq("id", authUser.id)
+      .single();
+
+    // Update customer with email, name, and metadata
     await stripe.customers.update(customerId, {
+      email: authUser.email!,
+      name: userData?.name || undefined,
       metadata: {
         userId: authUser.id,
       },

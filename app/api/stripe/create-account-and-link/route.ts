@@ -157,8 +157,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update customer metadata with userId
+    // Update customer with email, name, and metadata
     await stripe.customers.update(customerId, {
+      email: authData.user.email!,
+      name: name || undefined,
       metadata: {
         userId: authData.user.id,
       },

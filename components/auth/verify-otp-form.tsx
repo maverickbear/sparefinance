@@ -20,8 +20,6 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const [codeSent, setCodeSent] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
 
   // Get email from props or search params
   const email = propEmail || searchParams.get("email") || "";
@@ -29,60 +27,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   const interval = (searchParams.get("interval") as "month" | "year") || undefined;
   const fromCheckout = searchParams.get("from_checkout") === "true";
 
-  // Send OTP on mount if not already sent
-  useEffect(() => {
-    if (email && !codeSent) {
-      sendOtpOnMount();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email]);
-
-  async function sendOtpOnMount() {
-    if (!email || codeSent) return;
-    
-    try {
-      setSendingCode(true);
-      setError(null);
-      
-      // Use API route to send OTP (more reliable)
-      const response = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setCodeSent(true);
-        setSuccessMessage("Código de verificação enviado! Verifique sua caixa de entrada.");
-        // Clear success message after 5 seconds
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        // Fallback: try direct Supabase resend
-        const { error: resendError } = await supabase.auth.resend({
-          type: "signup",
-          email,
-        });
-
-        if (!resendError) {
-          setCodeSent(true);
-          setSuccessMessage("Código de verificação enviado! Verifique sua caixa de entrada.");
-          setTimeout(() => setSuccessMessage(null), 5000);
-        } else {
-          console.error("Error sending OTP:", resendError);
-          setError("Não foi possível enviar o código. Tente novamente usando o botão 'Reenviar Código'.");
-        }
-      }
-    } catch (error) {
-      console.error("Error sending OTP on mount:", error);
-      setError("Erro ao enviar código. Tente novamente usando o botão 'Reenviar Código'.");
-    } finally {
-      setSendingCode(false);
-    }
-  }
+  // Note: Supabase automatically sends OTP when email confirmation is enabled
+  // So we don't need to send it automatically on mount
+  // Users can use the "Resend Code" button if they didn't receive it
 
   // Focus first input on mount
   useEffect(() => {
@@ -134,12 +81,12 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
     const otpCode = otp.join("");
     
     if (otpCode.length !== 6) {
-      setError("Por favor, digite o código completo de 6 dígitos");
+      setError("Please enter the complete 6-digit code");
       return;
     }
 
     if (!email) {
-      setError("Email é obrigatório");
+      setError("Email is required");
       return;
     }
 
@@ -155,7 +102,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       });
 
       if (verifyError) {
-        setError(verifyError.message || "Código de verificação inválido. Tente novamente.");
+        setError(verifyError.message || "Invalid verification code. Please try again.");
         // Clear OTP on error
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
@@ -163,14 +110,34 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       }
 
       if (!data.user) {
-        setError("Falha na verificação. Tente novamente.");
+        setError("Verification failed. Please try again.");
         return;
       }
 
       // Check if email is confirmed
       if (!data.user.email_confirmed_at) {
-        setError("Falha na verificação do email. Tente novamente.");
+        setError("Email verification failed. Please try again.");
         return;
+      }
+
+      // Update user_metadata in Supabase Auth with name from User table
+      // This ensures Display name appears correctly in Supabase Auth dashboard
+      try {
+        const updateResponse = await fetch("/api/auth/update-user-metadata", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (updateResponse.ok) {
+          console.log("[OTP] User metadata updated successfully");
+        } else {
+          console.warn("[OTP] Failed to update user metadata (non-critical)");
+        }
+      } catch (error) {
+        console.warn("[OTP] Error updating user metadata (non-critical):", error);
+        // Don't fail verification if metadata update fails
       }
 
       // Success! Handle post-verification flow
@@ -237,7 +204,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       router.push("/dashboard");
     } catch (error) {
       console.error("Error verifying OTP:", error);
-      setError("Ocorreu um erro inesperado. Tente novamente.");
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -246,7 +213,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   // Resend OTP
   async function handleResend() {
     if (!email) {
-      setError("Email é obrigatório");
+      setError("Email is required");
       return;
     }
 
@@ -271,30 +238,15 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         setError(null);
-        setSuccessMessage("Código reenviado com sucesso! Verifique sua caixa de entrada.");
+        setSuccessMessage("Code resent successfully! Please check your inbox.");
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
-        // Fallback: try direct Supabase resend
-        const { error: resendError } = await supabase.auth.resend({
-          type: "signup",
-          email,
-        });
-
-        if (resendError) {
-          setError(resendError.message || "Falha ao reenviar código. Tente novamente.");
-          return;
-        }
-
-        // Success with fallback
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
-        setError(null);
-        setSuccessMessage("Código reenviado com sucesso! Verifique sua caixa de entrada.");
-        setTimeout(() => setSuccessMessage(null), 5000);
+        // If API route fails, show error (don't use fallback to avoid duplicate emails)
+        setError(data.error || "Failed to resend code. Please try again.");
       }
     } catch (error) {
       console.error("Error resending OTP:", error);
-      setError("Falha ao reenviar código. Tente novamente.");
+      setError("Failed to resend code. Please try again.");
     } finally {
       setResending(false);
     }
@@ -320,22 +272,14 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         </div>
       )}
 
-      {sendingCode && (
-        <div className="rounded-[12px] bg-primary/10 border border-primary/20 p-4 flex items-center gap-3">
-          <Loader2 className="w-5 h-5 text-primary animate-spin shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-primary">Enviando código de verificação...</p>
-          </div>
-        </div>
-      )}
 
       <div className="space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">
-            Código de Verificação
+            Verification Code
           </label>
           <p className="text-sm text-muted-foreground">
-            Digite o código de 6 dígitos enviado para <span className="font-medium">{email}</span>
+            Enter the 6-digit code sent to <span className="font-medium">{email}</span>
           </p>
         </div>
 
@@ -367,33 +311,33 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         {loading ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Verificando...
+            Verifying...
           </>
         ) : (
-          "Verificar Email"
+          "Verify Email"
         )}
       </Button>
 
       <div className="text-center space-y-2">
         <p className="text-sm text-muted-foreground">
-          Não recebeu o código?
+          Didn't receive the code?
         </p>
         <Button
           type="button"
           variant="ghost"
           onClick={handleResend}
-          disabled={resending || loading || sendingCode}
+          disabled={resending || loading}
           className="text-sm"
         >
           {resending ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Reenviando...
+              Resending...
             </>
           ) : (
             <>
               <Mail className="w-4 h-4 mr-2" />
-              Reenviar Código
+              Resend Code
             </>
           )}
         </Button>

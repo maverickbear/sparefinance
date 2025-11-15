@@ -75,3 +75,6 @@ schema_only.sql
 
 # Docker
 docker-compose.override.yml
+
+# Email templates (not versioned)
+/email-templates/
