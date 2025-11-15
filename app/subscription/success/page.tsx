@@ -178,10 +178,9 @@ function SuccessContent() {
 
       if (response.ok && result.success) {
         // Account created and subscription linked
-        // Wait a moment for session to be established, then refresh to ensure all data is loaded
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        // Use window.location to force a full page reload and establish session
-        window.location.href = "/dashboard";
+        // Redirect to OTP verification page
+        // The OTP was automatically sent by Supabase when the account was created
+        router.push(`/auth/verify-otp?email=${encodeURIComponent(data.email)}`);
       } else {
         setError(result.error || "Failed to create account. Please try again.");
       }
