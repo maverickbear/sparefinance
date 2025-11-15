@@ -437,13 +437,18 @@ export function DashboardDemo() {
 
             {/* Dashboard Grid */}
             <div className="grid gap-4 md:gap-5 lg:gap-6 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 flex-1 min-h-0 min-w-0">
-              <SavingsGoalsWidget goals={mockGoals} />
-              <NetWorthWidget
-                netWorth={netWorth}
-                totalAssets={totalAssets}
-                totalDebts={totalDebts}
-              />
-              <InvestmentPortfolioWidget savings={savings} demoMode={true} />
+              {/* Savings Goals, Net Worth Snapshot, and Investment Portfolio - side by side, full width */}
+              <div className="col-span-full">
+                <div className="grid gap-4 md:gap-5 lg:gap-6 grid-cols-1 md:grid-cols-3">
+                  <SavingsGoalsWidget goals={mockGoals} />
+                  <NetWorthWidget
+                    netWorth={netWorth}
+                    totalAssets={totalAssets}
+                    totalDebts={totalDebts}
+                  />
+                  <InvestmentPortfolioWidget savings={savings} demoMode={true} />
+                </div>
+              </div>
               <div className="col-span-full">
                 <AlertsInsightsWidget
                   financialHealth={mockFinancialHealth}

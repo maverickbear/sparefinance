@@ -297,22 +297,22 @@ export function FinancialOverviewPage({
 
       {/* Dashboard Grid */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {/* Savings Goals */}
-        <SavingsGoalsWidget
-          goals={goals}
-        />
-
-        {/* Net Worth Snapshot */}
-        <NetWorthWidget
-          netWorth={netWorth}
-          totalAssets={totalAssets}
-          totalDebts={totalDebts}
-        />
-
-        {/* Investment Portfolio */}
-        <InvestmentPortfolioWidget
-          savings={savings}
-        />
+        {/* Savings Goals, Net Worth Snapshot, and Investment Portfolio - side by side, full width */}
+        <div className="col-span-full">
+          <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-3">
+            <SavingsGoalsWidget
+              goals={goals}
+            />
+            <NetWorthWidget
+              netWorth={netWorth}
+              totalAssets={totalAssets}
+              totalDebts={totalDebts}
+            />
+            <InvestmentPortfolioWidget
+              savings={savings}
+            />
+          </div>
+        </div>
 
         {/* Alerts & Insights - full width */}
         <div className="col-span-full">
