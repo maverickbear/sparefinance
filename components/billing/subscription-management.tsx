@@ -70,7 +70,7 @@ export function SubscriptionManagement({
       const data = await response.json();
 
       if (data.url) {
-        window.location.href = data.url;
+        window.open(data.url, '_blank');
       } else {
         toast({
           title: "Error",

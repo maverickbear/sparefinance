@@ -26,7 +26,7 @@ export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: 
       const data = await response.json();
 
       if (data.url) {
-        window.location.href = data.url;
+        window.open(data.url, '_blank');
       } else {
         console.error("Failed to create portal session:", data.error);
       }
