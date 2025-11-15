@@ -861,7 +861,6 @@ async function handleSubscriptionChange(
 
         return;
       }
-    }
   }
 
   // Get plan from price ID
