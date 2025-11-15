@@ -266,39 +266,39 @@ export function FinancialOverviewPage({
         />
       </div>
 
-      {/* Dashboard Grid */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-
-        {/* 6. Budget Status */}
+      {/* Budget Status and Upcoming Transactions - Same Row */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2">
+        {/* Budget Status */}
         <BudgetStatusWidget
           budgets={budgets}
         />
 
-        {/* 7. Upcoming Bills */}
-        <div className="lg:col-span-2">
-          <UpcomingBillsWidget
-            upcomingTransactions={upcomingTransactions}
-          />
-        </div>
+        {/* Upcoming Transactions */}
+        <UpcomingBillsWidget
+          upcomingTransactions={upcomingTransactions}
+        />
+      </div>
 
-        {/* 9. Savings Goals */}
+      {/* Dashboard Grid */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* Savings Goals */}
         <SavingsGoalsWidget
           goals={goals}
         />
 
-        {/* 10. Net Worth Snapshot */}
+        {/* Net Worth Snapshot */}
         <NetWorthWidget
           netWorth={netWorth}
           totalAssets={totalAssets}
           totalDebts={totalDebts}
         />
 
-        {/* 11. Investment Portfolio */}
+        {/* Investment Portfolio */}
         <InvestmentPortfolioWidget
           savings={savings}
         />
 
-        {/* 12. Alerts & Insights - full width */}
+        {/* Alerts & Insights - full width */}
         <div className="col-span-full">
           <AlertsInsightsWidget
             financialHealth={financialHealth}

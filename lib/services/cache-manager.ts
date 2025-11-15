@@ -1,9 +1,11 @@
 /**
  * Cache Manager Service
  * Centralized cache management with consistent tagging and revalidation
+ * Uses Redis when available, falls back to Next.js cache
  */
 
 import { unstable_cache, revalidateTag } from 'next/cache';
+import { cache as redisCache } from './redis';
 
 /**
  * Cache tags for different data types
@@ -196,6 +198,7 @@ export function invalidateDashboardCaches(): void {
 /**
  * Cache wrapper for async functions
  * Automatically handles cache key generation and tag management
+ * Uses Redis when available, falls back to Next.js cache
  */
 export async function withCache<T>(
   fn: () => Promise<T>,
@@ -203,8 +206,25 @@ export async function withCache<T>(
     key: string;
     tags: string[];
     revalidate?: number;
+    useRedis?: boolean; // Force Redis usage if available
   }
 ): Promise<T> {
+  // Try Redis first if enabled
+  if (options.useRedis) {
+    const redisKey = `cache:${options.key}`;
+    const cached = await redisCache.get<T>(redisKey);
+    if (cached !== null) {
+      return cached;
+    }
+
+    // Cache miss - execute function and cache result
+    const result = await fn();
+    const ttl = options.revalidate ?? CACHE_DURATIONS.MEDIUM;
+    await redisCache.set(redisKey, result, ttl);
+    return result;
+  }
+
+  // Fallback to Next.js cache
   return unstable_cache(
     fn,
     [options.key],
@@ -213,5 +233,42 @@ export async function withCache<T>(
       revalidate: options.revalidate ?? CACHE_DURATIONS.MEDIUM,
     }
   )();
+}
+
+/**
+ * Redis-backed cache for dashboard data
+ * Use this for frequently accessed data that benefits from Redis
+ */
+export async function withRedisCache<T>(
+  fn: () => Promise<T>,
+  options: {
+    key: string;
+    ttlSeconds?: number;
+  }
+): Promise<T> {
+  const redisKey = `cache:${options.key}`;
+  
+  // Try to get from Redis
+  const cached = await redisCache.get<T>(redisKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Cache miss - execute function and cache result
+  const result = await fn();
+  const ttl = options.ttlSeconds ?? CACHE_DURATIONS.MEDIUM;
+  await redisCache.set(redisKey, result, ttl);
+  return result;
+}
+
+/**
+ * Invalidate Redis cache by key pattern
+ * Note: Upstash doesn't support pattern matching - use specific keys or tags
+ */
+export async function invalidateRedisCache(pattern: string): Promise<void> {
+  // For pattern-based invalidation, maintain a set of keys per tag
+  // and delete them individually
+  // For now, this is a no-op - implement tag-based invalidation if needed
+  console.warn('[Cache] Pattern-based invalidation not fully supported. Use tag-based invalidation instead.');
 }
 

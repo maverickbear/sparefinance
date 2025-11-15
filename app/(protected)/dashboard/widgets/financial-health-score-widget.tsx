@@ -17,8 +17,16 @@ export function FinancialHealthScoreWidget({
   selectedMonthTransactions,
   lastMonthTransactions,
 }: FinancialHealthScoreWidgetProps) {
+  // Debug: Log financial health data
+  if (typeof window !== 'undefined') {
+    console.log('[FinancialHealthScoreWidget] financialHealth:', financialHealth);
+    console.log('[FinancialHealthScoreWidget] selectedMonthTransactions count:', selectedMonthTransactions?.length || 0);
+  }
+  
   // Check if financial health data is available
-  const hasData = financialHealth && financialHealth.score !== undefined && financialHealth.classification !== "Unknown";
+  // Allow showing data even if classification is "Unknown" as long as we have a score
+  // This handles edge cases where score might be 0 but we still want to show it
+  const hasData = financialHealth && financialHealth.score !== undefined;
   
   const score = financialHealth?.score ?? 0;
   const classification = financialHealth?.classification || "Unknown";

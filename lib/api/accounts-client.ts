@@ -161,7 +161,37 @@ export async function getAccountsClient(): Promise<Account[]> {
       }
     }
     
-    // 3. For accounts without any value, set to 0
+    // 3. For accounts without Questrade or AccountInvestmentValue, calculate from holdings
+    const accountsWithoutValue = investmentAccountIds.filter(
+      accountId => !balances.has(accountId)
+    );
+    
+    if (accountsWithoutValue.length > 0) {
+      try {
+        // Fetch holdings from API to calculate account values
+        const holdingsResponse = await fetch("/api/portfolio/holdings");
+        if (holdingsResponse.ok) {
+          const holdings = await holdingsResponse.json();
+          
+          // Calculate value for each account based on holdings
+          for (const accountId of accountsWithoutValue) {
+            const accountHoldings = holdings.filter((h: any) => h.accountId === accountId);
+            const accountValue = accountHoldings.reduce((sum: number, h: any) => {
+              return sum + (h.marketValue || 0);
+            }, 0);
+            
+            if (accountValue > 0) {
+              balances.set(accountId, accountValue);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching holdings for account values:", error);
+        // Continue without failing - will set to 0 below
+      }
+    }
+    
+    // 4. For accounts without any value, set to 0
     investmentAccounts.forEach(account => {
       if (!balances.has(account.id)) {
         balances.set(account.id, 0);

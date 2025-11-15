@@ -50,13 +50,101 @@ export async function getAccounts() {
     initialBalance: (account as any).initialBalance ?? 0,
     balance: 0, // Will be calculated
   }));
-  
+    
   // Calculate all balances in one efficient pass
   const balances = calculateAccountBalances(
     accountsWithInitialBalance,
     decryptedTransactions as any,
     todayEnd
   );
+
+  // Handle investment accounts separately - calculate from holdings
+  const investmentAccounts = accounts.filter(acc => acc.type === "investment");
+  if (investmentAccounts.length > 0) {
+    const investmentAccountIds = investmentAccounts.map(acc => acc.id);
+    
+    // 1. First, try to get values from InvestmentAccount (Questrade connected accounts)
+    const { data: questradeAccounts } = await supabase
+      .from("InvestmentAccount")
+      .select("accountId, totalEquity, marketValue, cash")
+      .in("accountId", investmentAccountIds)
+      .not("accountId", "is", null);
+    
+    if (questradeAccounts) {
+      for (const questradeAccount of questradeAccounts) {
+        if (questradeAccount.accountId) {
+          const totalEquity = questradeAccount.totalEquity != null 
+            ? Number(questradeAccount.totalEquity) 
+            : null;
+          const marketValue = questradeAccount.marketValue != null 
+            ? Number(questradeAccount.marketValue) 
+            : 0;
+          const cash = questradeAccount.cash != null 
+            ? Number(questradeAccount.cash) 
+            : 0;
+          
+          const accountValue = totalEquity ?? (marketValue + cash);
+          balances.set(questradeAccount.accountId, accountValue);
+        }
+      }
+    }
+    
+    // 2. For accounts without Questrade data, try AccountInvestmentValue (simple investments)
+    const accountsWithoutQuestrade = investmentAccountIds.filter(
+      accountId => !balances.has(accountId)
+    );
+    
+    if (accountsWithoutQuestrade.length > 0) {
+      const { data: investmentValues } = await supabase
+        .from("AccountInvestmentValue")
+        .select("accountId, totalValue")
+        .in("accountId", accountsWithoutQuestrade);
+      
+      if (investmentValues) {
+        for (const investmentValue of investmentValues) {
+          const totalValue = investmentValue.totalValue != null 
+            ? Number(investmentValue.totalValue) 
+            : 0;
+          balances.set(investmentValue.accountId, totalValue);
+        }
+      }
+    }
+    
+    // 3. For accounts without Questrade or AccountInvestmentValue, calculate from holdings
+    const accountsWithoutValue = investmentAccountIds.filter(
+      accountId => !balances.has(accountId)
+    );
+    
+    if (accountsWithoutValue.length > 0) {
+      try {
+        // Import getHoldings to calculate account values from holdings
+        const { getHoldings } = await import("@/lib/api/investments");
+        const holdings = await getHoldings();
+        
+        // Calculate value for each account based on holdings
+        for (const accountId of accountsWithoutValue) {
+          const accountHoldings = holdings.filter((h: any) => h.accountId === accountId);
+          const accountValue = accountHoldings.reduce((sum: number, h: any) => {
+            return sum + (h.marketValue || 0);
+          }, 0);
+          
+          if (accountValue > 0) {
+            balances.set(accountId, accountValue);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching holdings for account values:", error);
+        // Continue without failing - will use 0 for accounts without value
+      }
+    }
+    
+    // 4. For accounts without any value, set to 0
+    investmentAccounts.forEach(account => {
+      if (!balances.has(account.id)) {
+        balances.set(account.id, 0);
+      }
+    });
+  }
 
   // Fetch AccountOwner relationships for all accounts
   const { data: accountOwners } = await supabase

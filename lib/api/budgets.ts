@@ -17,6 +17,7 @@ export interface Budget {
   createdAt?: string;
   updatedAt?: string;
   note?: string | null;
+  isRecurring?: boolean;
   actualSpend?: number;
   percentage?: number;
   status?: "ok" | "warning" | "over";
@@ -45,7 +46,7 @@ export interface Budget {
   }>;
 }
 
-async function getBudgetsInternal(period: Date, accessToken?: string, refreshToken?: string) {
+export async function getBudgetsInternal(period: Date, accessToken?: string, refreshToken?: string) {
     const supabase = await createServerClient(accessToken, refreshToken);
 
   const startOfMonth = new Date(period.getFullYear(), period.getMonth(), 1);
@@ -270,69 +271,134 @@ export async function createBudget(data: {
     throw new Error("macroId is required when creating a grouped budget");
   }
 
-  // Create the budget
-  const budgetData: Record<string, unknown> = {
-    id,
-    period: periodDate,
-    amount: data.amount,
-    userId: user.id,
-    createdAt: now,
-    updatedAt: now,
-  };
+  // Budgets are automatically set as recurring monthly
+  const isRecurring = true;
+
+  // Generate all period dates for the next 13 months (current + 12 future)
+  const periodDates: string[] = [];
+  for (let monthOffset = 0; monthOffset <= 12; monthOffset++) {
+    const targetDate = new Date(data.period.getFullYear(), data.period.getMonth() + monthOffset, 1);
+    periodDates.push(formatTimestamp(targetDate));
+  }
+
+  // Check if budgets already exist for any of these periods (single query)
+  let existingBudgetsQuery = supabase
+    .from("Budget")
+    .select("period")
+    .eq("userId", user.id)
+    .in("period", periodDates);
 
   if (isGrouped) {
-    // Grouped budget: use macroId, categoryId is null
-    budgetData.macroId = data.macroId;
-    budgetData.categoryId = null;
-    budgetData.subcategoryId = null; // Grouped budgets don't have subcategories
+    existingBudgetsQuery = existingBudgetsQuery.eq("macroId", data.macroId).is("categoryId", null);
   } else {
-    // Single category budget: use categoryId
-    // For single category budgets, we DON'T save macroId to avoid conflicts with Budget_period_macroId_key constraint
-    // The macroId is only used for grouped budgets
-    budgetData.categoryId = data.categoryId || data.categoryIds?.[0];
-    budgetData.macroId = null; // Don't save macroId for single category budgets
-    // Use subcategoryId if provided (now we only support single subcategory)
-    budgetData.subcategoryId = data.subcategoryId || (data.subcategoryIds && data.subcategoryIds.length > 0 ? data.subcategoryIds[0] : null);
+    const categoryId = data.categoryId || data.categoryIds?.[0];
+    existingBudgetsQuery = existingBudgetsQuery.eq("categoryId", categoryId);
+    if (data.subcategoryId || (data.subcategoryIds && data.subcategoryIds.length > 0)) {
+      const subcategoryId = data.subcategoryId || data.subcategoryIds[0];
+      existingBudgetsQuery = existingBudgetsQuery.eq("subcategoryId", subcategoryId);
+    } else {
+      existingBudgetsQuery = existingBudgetsQuery.is("subcategoryId", null);
+    }
   }
 
-  const { data: budget, error } = await supabase
-    .from("Budget")
-    .insert(budgetData)
-    .select()
-    .single();
+  const { data: existingBudgets } = await existingBudgetsQuery;
+  const existingPeriods = new Set((existingBudgets || []).map((b: { period: string }) => b.period));
 
-  if (error) {
-    console.error("Supabase error creating budget:", error);
-    // Check if it's a unique constraint violation (budget already exists)
-    if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
-      if (isGrouped) {
-        throw new Error(`Budget already exists for this group in this period`);
-      } else if (data.subcategoryId || (data.subcategoryIds && data.subcategoryIds.length > 0)) {
-        throw new Error(`Budget already exists for this category and subcategory in this period`);
-      } else {
-        throw new Error(`Budget already exists for this category in this period`);
+  // Check if budget already exists for the current month (must not exist)
+  const currentPeriodDate = periodDates[0];
+  if (existingPeriods.has(currentPeriodDate)) {
+    if (isGrouped) {
+      throw new Error(`Budget already exists for this group in this period`);
+    } else if (data.subcategoryId || (data.subcategoryIds && data.subcategoryIds.length > 0)) {
+      throw new Error(`Budget already exists for this category and subcategory in this period`);
+    } else {
+      throw new Error(`Budget already exists for this category in this period`);
+    }
+  }
+
+  // Create budgets for the current month and the next 12 months (skip existing ones)
+  const budgetsToCreate: Array<Record<string, unknown>> = [];
+  const budgetCategoryRelations: Array<{ id: string; budgetId: string; categoryId: string; createdAt: string }> = [];
+
+  for (let monthOffset = 0; monthOffset <= 12; monthOffset++) {
+    const targetDate = new Date(data.period.getFullYear(), data.period.getMonth() + monthOffset, 1);
+    const targetPeriodDate = formatTimestamp(targetDate);
+
+    // Skip if budget already exists for this period
+    if (existingPeriods.has(targetPeriodDate)) {
+      continue;
+    }
+
+    // Create the budget data
+    const budgetData: Record<string, unknown> = {
+      id: monthOffset === 0 ? id : crypto.randomUUID(), // Use provided ID for first month
+      period: targetPeriodDate,
+      amount: data.amount,
+      userId: user.id,
+      createdAt: now,
+      updatedAt: now,
+      isRecurring: isRecurring,
+    };
+
+    if (isGrouped) {
+      // Grouped budget: use macroId, categoryId is null
+      budgetData.macroId = data.macroId;
+      budgetData.categoryId = null;
+      budgetData.subcategoryId = null; // Grouped budgets don't have subcategories
+    } else {
+      // Single category budget: use categoryId
+      // For single category budgets, we DON'T save macroId to avoid conflicts with Budget_period_macroId_key constraint
+      // The macroId is only used for grouped budgets
+      budgetData.categoryId = data.categoryId || data.categoryIds?.[0];
+      budgetData.macroId = null; // Don't save macroId for single category budgets
+      // Use subcategoryId if provided (now we only support single subcategory)
+      budgetData.subcategoryId = data.subcategoryId || (data.subcategoryIds && data.subcategoryIds.length > 0 ? data.subcategoryIds[0] : null);
+    }
+
+    budgetsToCreate.push(budgetData);
+
+    // Prepare BudgetCategory relationships for grouped budgets
+    if (isGrouped && data.categoryIds && data.categoryIds.length > 0) {
+      for (const categoryId of data.categoryIds) {
+        budgetCategoryRelations.push({
+          id: crypto.randomUUID(),
+          budgetId: budgetData.id as string,
+          categoryId,
+          createdAt: now,
+        });
       }
     }
-    throw new Error(`Failed to create budget: ${error.message || JSON.stringify(error)}`);
   }
 
-  // If grouped, create BudgetCategory relationships
-  if (isGrouped && data.categoryIds && data.categoryIds.length > 0) {
-    const budgetCategories = data.categoryIds.map((categoryId) => ({
-      id: crypto.randomUUID(),
-      budgetId: budget.id,
-      categoryId,
-      createdAt: now,
-    }));
+  // Only insert if there are budgets to create
+  if (budgetsToCreate.length === 0) {
+    throw new Error("All budgets for the next 12 months already exist");
+  }
 
+  // Insert all budgets at once
+  const { data: createdBudgets, error } = await supabase
+    .from("Budget")
+    .insert(budgetsToCreate)
+    .select();
+
+  if (error) {
+    console.error("Supabase error creating budgets:", error);
+    throw new Error(`Failed to create budgets: ${error.message || JSON.stringify(error)}`);
+  }
+
+  // If grouped, create BudgetCategory relationships for all created budgets
+  if (isGrouped && budgetCategoryRelations.length > 0) {
     const { error: bcError } = await supabase
       .from("BudgetCategory")
-      .insert(budgetCategories);
+      .insert(budgetCategoryRelations);
 
     if (bcError) {
       console.error("Supabase error creating budget categories:", bcError);
-      // Try to clean up the budget if category creation fails
-      await supabase.from("Budget").delete().eq("id", budget.id);
+      // Try to clean up the budgets if category creation fails
+      if (createdBudgets && createdBudgets.length > 0) {
+        const budgetIds = createdBudgets.map(b => b.id);
+        await supabase.from("Budget").delete().in("id", budgetIds);
+      }
       throw new Error(`Failed to create budget categories: ${bcError.message || JSON.stringify(bcError)}`);
     }
   }
@@ -343,7 +409,8 @@ export async function createBudget(data: {
   const { invalidateBudgetCaches } = await import('@/lib/services/cache-manager');
   invalidateBudgetCaches();
 
-  return budget;
+  // Return the first budget (current month)
+  return createdBudgets?.[0] || null;
 }
 
 export async function updateBudget(id: string, data: { amount: number }) {

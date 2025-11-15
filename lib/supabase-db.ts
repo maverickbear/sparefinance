@@ -46,6 +46,8 @@ export interface Database {
     updatedAt: string;
     macroId: string | null;
     userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
+    subcategoryId: string | null;
+    isRecurring: boolean;
   };
   BudgetCategory: {
     id: string;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SecurityLogger } from "@/lib/utils/security-logging";
+import { rateLimit as redisRateLimit } from "@/lib/services/redis";
 
 /**
  * Rate limiting configuration
@@ -34,8 +35,7 @@ const rateLimitConfigs: Record<string, RateLimitConfig> = {
 };
 
 /**
- * In-memory rate limit store
- * In production, consider using Redis or a similar distributed cache
+ * Fallback in-memory rate limit store (used when Redis is unavailable)
  */
 interface RateLimitEntry {
   count: number;
@@ -60,15 +60,26 @@ function getClientId(request: NextRequest): string {
 }
 
 /**
- * Check if request should be rate limited
+ * Check if request should be rate limited using Redis (with fallback to memory)
  */
-function checkRateLimit(
+async function checkRateLimit(
   clientId: string,
   path: string,
   config: RateLimitConfig
-): { allowed: boolean; remaining: number; resetTime: number } {
+): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
+  const key = `ratelimit:${clientId}:${path}`;
+  
+  // Try Redis first
+  try {
+    const result = await redisRateLimit.check(key, config.maxRequests, config.windowMs);
+    return result;
+  } catch (error) {
+    // Fallback to in-memory store if Redis fails
+    console.warn('[RateLimit] Redis unavailable, using in-memory fallback:', error);
+  }
+
+  // Fallback: In-memory rate limiting
   const now = Date.now();
-  const key = `${clientId}:${path}`;
   const entry = rateLimitStore.get(key);
 
   // Clean up expired entries periodically
@@ -134,7 +145,7 @@ function getRateLimitConfig(pathname: string): RateLimitConfig | null {
   return null;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Only apply rate limiting to API routes
@@ -149,9 +160,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check rate limit
+  // Check rate limit (now async)
   const clientId = getClientId(request);
-  const result = checkRateLimit(clientId, pathname, config);
+  const result = await checkRateLimit(clientId, pathname, config);
 
   if (!result.allowed) {
     // Rate limit exceeded - log security event

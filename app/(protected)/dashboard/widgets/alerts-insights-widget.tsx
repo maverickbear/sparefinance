@@ -184,7 +184,7 @@ export function AlertsInsightsWidget({
             <CardDescription>What deserves your attention right now</CardDescription>
           </div>
           {isMounted && aiAlerts.length > 0 && (
-            <Sparkles className="h-4 w-4 text-primary" title="AI-powered insights" />
+            <Sparkles className="h-4 w-4 text-primary" aria-label="AI-powered insights" />
           )}
         </div>
       </CardHeader>

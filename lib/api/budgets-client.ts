@@ -11,6 +11,7 @@ export interface Budget {
   categoryId?: string | null;
   subcategoryId?: string | null;
   macroId?: string | null;
+  isRecurring?: boolean;
   actualSpend?: number;
   category?: { id: string; name: string; macro?: { id: string; name: string } } | null;
   subcategory?: { id: string; name: string } | null;

@@ -59,7 +59,10 @@ export function ExpensesByCategoryWidget({
 
     // Convert to array and sort by value descending
     const dataArray = Object.entries(expensesByCategory)
-      .map(([name, data]) => ({ name, value: data.value, categoryId: data.categoryId }))
+      .map(([name, data]) => {
+        const typedData = data as { value: number; categoryId: string | null };
+        return { name, value: typedData.value, categoryId: typedData.categoryId };
+      })
       .sort((a, b) => b.value - a.value);
 
     // Calculate total for percentage
@@ -130,13 +133,15 @@ export function ExpensesByCategoryWidget({
             <CardTitle>Expenses by Category</CardTitle>
             <CardDescription>Distribution of total expenses</CardDescription>
           </div>
-          <Tabs value={expenseFilter} onValueChange={(value) => setExpenseFilter(value as ExpenseFilter)}>
-            <TabsList className="h-9">
-              <TabsTrigger value="all" className="text-xs px-3">View All</TabsTrigger>
-              <TabsTrigger value="fixed" className="text-xs px-3">Fixed</TabsTrigger>
-              <TabsTrigger value="variable" className="text-xs px-3">Variable</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div suppressHydrationWarning>
+            <Tabs value={expenseFilter} onValueChange={(value) => setExpenseFilter(value as ExpenseFilter)}>
+              <TabsList className="h-9">
+                <TabsTrigger value="all" className="text-xs px-3">View All</TabsTrigger>
+                <TabsTrigger value="fixed" className="text-xs px-3">Fixed</TabsTrigger>
+                <TabsTrigger value="variable" className="text-xs px-3">Variable</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
