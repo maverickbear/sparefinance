@@ -19,6 +19,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Spare Finance - Personal Finance",
   description: "Track expenses, budgets, and investments",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

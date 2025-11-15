@@ -443,7 +443,7 @@ export function DashboardDemo() {
                 totalAssets={totalAssets}
                 totalDebts={totalDebts}
               />
-              <InvestmentPortfolioWidget savings={savings} />
+              <InvestmentPortfolioWidget savings={savings} demoMode={true} />
               <div className="col-span-full">
                 <AlertsInsightsWidget
                   financialHealth={mockFinancialHealth}
@@ -452,6 +452,7 @@ export function DashboardDemo() {
                   emergencyFundMonths={emergencyFundMonths}
                   selectedMonthTransactions={mockSelectedMonthTransactions}
                   lastMonthTransactions={mockLastMonthTransactions}
+                  demoMode={true}
                 />
               </div>
             </div>

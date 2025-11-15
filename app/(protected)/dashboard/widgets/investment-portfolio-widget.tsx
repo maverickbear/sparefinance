@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 interface InvestmentPortfolioWidgetProps {
   savings: number; // Fallback value if no portfolio data
+  demoMode?: boolean; // If true, skip API calls (for public landing page)
 }
 
 interface PortfolioSummary {
@@ -26,12 +27,19 @@ interface HistoricalDataPoint {
 
 export function InvestmentPortfolioWidget({
   savings,
+  demoMode = false,
 }: InvestmentPortfolioWidgetProps) {
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Skip API calls in demo mode (for public landing page)
+    if (demoMode) {
+      setIsLoading(false);
+      return;
+    }
+
     async function loadPortfolioData() {
       try {
         setIsLoading(true);
@@ -59,7 +67,7 @@ export function InvestmentPortfolioWidget({
     }
 
     loadPortfolioData();
-  }, []);
+  }, [demoMode]);
 
   // Use portfolio data if available, otherwise fallback to savings
   const portfolioValue = portfolioSummary?.totalValue ?? savings;

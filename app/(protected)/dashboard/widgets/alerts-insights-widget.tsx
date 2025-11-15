@@ -13,6 +13,7 @@ interface AlertsInsightsWidgetProps {
   emergencyFundMonths: number;
   selectedMonthTransactions: any[];
   lastMonthTransactions: any[];
+  demoMode?: boolean; // If true, skip API calls (for public landing page)
 }
 
 export function AlertsInsightsWidget({
@@ -22,6 +23,7 @@ export function AlertsInsightsWidget({
   emergencyFundMonths,
   selectedMonthTransactions,
   lastMonthTransactions,
+  demoMode = false,
 }: AlertsInsightsWidgetProps) {
   const [aiAlerts, setAiAlerts] = useState<Array<{
     type: "success" | "warning" | "danger";
@@ -97,7 +99,7 @@ export function AlertsInsightsWidget({
 
   // Fetch AI-generated alerts
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || demoMode) return; // Skip API calls in demo mode
 
     const fetchAiAlerts = async () => {
       setIsLoadingAi(true);
@@ -136,6 +138,7 @@ export function AlertsInsightsWidget({
     }
   }, [
     isMounted,
+    demoMode,
     currentIncome,
     currentExpenses,
     emergencyFundMonths,
