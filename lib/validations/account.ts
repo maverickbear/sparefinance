@@ -15,15 +15,6 @@ export const accountSchema = z.object({
 }, {
   message: "Credit limit is required for credit cards",
   path: ["creditLimit"],
-}).refine((data) => {
-  // Initial balance is required for checking and savings accounts
-  if ((data.type === "checking" || data.type === "savings") && (data.initialBalance === undefined || data.initialBalance === null)) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Initial balance is required for checking and savings accounts",
-  path: ["initialBalance"],
 });
 
 export type AccountFormData = z.infer<typeof accountSchema>;

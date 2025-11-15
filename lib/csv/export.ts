@@ -4,8 +4,19 @@ export function exportTransactionsToCSV(transactions: Transaction[]): string {
   const headers = ["Date", "Type", "Amount", "Account", "Category", "Subcategory", "Description"];
   
   const rows = transactions.map((tx) => {
+    // Format date to readable format (YYYY-MM-DD)
+    let formattedDate = tx.date;
+    try {
+      const date = new Date(tx.date);
+      if (!isNaN(date.getTime())) {
+        formattedDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      }
+    } catch (e) {
+      // Keep original date if parsing fails
+    }
+    
     return [
-      tx.date,
+      formattedDate,
       tx.type,
       tx.amount,
       tx.account?.name || "",

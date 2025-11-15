@@ -138,6 +138,68 @@ export const componentSizes = {
 } as const;
 
 /**
+ * Mobile spacing constants for consistent spacing across mobile UI
+ * These follow iOS Human Interface Guidelines and Material Design recommendations
+ */
+export const mobileSpacing = {
+  // Card padding - consistent across all mobile cards
+  card: {
+    padding: "p-4",
+    paddingX: "px-4",
+    paddingY: "py-4",
+  },
+  
+  // Internal card spacing
+  cardContent: {
+    gap: "space-y-4",
+    gapSmall: "space-y-3",
+  },
+  
+  // Section spacing
+  section: {
+    gap: "gap-4",
+    gapSmall: "gap-3",
+    vertical: "space-y-4",
+    verticalLarge: "space-y-6",
+  },
+  
+  // Container padding
+  container: {
+    padding: "px-4",
+    paddingSmall: "px-3",
+    paddingLarge: "px-6",
+  },
+  
+  // Page spacing
+  page: {
+    paddingTop: "pt-4",
+    paddingBottom: "pb-4",
+    vertical: "space-y-4",
+    verticalLarge: "space-y-6",
+  },
+  
+  // Touch target minimums (iOS HIG: 44x44pt minimum)
+  touchTarget: {
+    minHeight: "min-h-[44px]",
+    minWidth: "min-w-[44px]",
+  },
+  
+  // Icon sizes for mobile
+  icon: {
+    small: "h-4 w-4",
+    medium: "h-5 w-5",
+    large: "h-6 w-6",
+  },
+  
+  // Bottom navigation
+  bottomNav: {
+    height: "h-16",
+    padding: "px-2",
+    gap: "gap-1",
+  },
+} as const;
+
+/**
  * Default size for all components
  */
 export const DEFAULT_SIZE = "medium" as const;

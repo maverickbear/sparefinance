@@ -18,6 +18,8 @@ export async function PATCH(
       description: data.description,
       expectedIncome: data.expectedIncome,
       targetMonths: data.targetMonths,
+      accountId: data.accountId,
+      holdingId: data.holdingId,
     });
     
     return NextResponse.json(goal, { status: 200 });

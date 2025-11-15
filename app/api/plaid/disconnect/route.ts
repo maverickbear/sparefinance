@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
 import { formatTimestamp } from '@/lib/utils/timestamp';
-import { plaidClient } from '@/lib/api/plaid';
+// import { plaidClient } from '@/lib/api/plaid'; // TEMPORARILY DISABLED
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,24 +55,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get access token to remove item from Plaid
-    const { data: connection } = await supabase
-      .from('PlaidConnection')
-      .select('accessToken, itemId')
-      .eq('itemId', account.plaidItemId)
-      .single();
+    // TEMPORARY BYPASS: Skip Plaid API call
+    console.log('[PLAID BYPASS] Disconnecting account (bypassed) for account:', accountId);
+    
+    // Original implementation (commented out):
+    // // Get access token to remove item from Plaid
+    // const { data: connection } = await supabase
+    //   .from('PlaidConnection')
+    //   .select('accessToken, itemId')
+    //   .eq('itemId', account.plaidItemId)
+    //   .single();
 
-    // Remove item from Plaid if connection exists
-    if (connection?.accessToken) {
-      try {
-        await plaidClient.itemRemove({
-          access_token: connection.accessToken,
-        });
-      } catch (error) {
-        console.error('Error removing item from Plaid:', error);
-        // Continue with disconnection even if Plaid removal fails
-      }
-    }
+    // // Remove item from Plaid if connection exists
+    // if (connection?.accessToken) {
+    //   try {
+    //     await plaidClient.itemRemove({
+    //       access_token: connection.accessToken,
+    //     });
+    //   } catch (error) {
+    //     console.error('Error removing item from Plaid:', error);
+    //     // Continue with disconnection even if Plaid removal fails
+    //   }
+    // }
 
     const now = formatTimestamp(new Date());
 

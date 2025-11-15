@@ -29,7 +29,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Goals Overview</CardTitle>
+          <CardTitle className="text-lg font-semibold">Goals Overview</CardTitle>
           <CardDescription>Track your financial goals</CardDescription>
         </CardHeader>
         <CardContent>
@@ -77,11 +77,11 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
   };
 
   return (
-    <Card>
+    <Card className="w-full max-w-full">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Goals Overview</CardTitle>
+            <CardTitle className="text-lg font-semibold">Goals Overview</CardTitle>
             <CardDescription>Track your financial progress</CardDescription>
           </div>
           <Link href="/budgets?tab=goals">

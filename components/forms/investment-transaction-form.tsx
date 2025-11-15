@@ -23,10 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/toast-provider";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, Sparkles } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 import { Label } from "@/components/ui/label";
+import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog as SecurityDialog,
@@ -37,10 +38,29 @@ import {
   DialogTitle as SecurityDialogTitle,
 } from "@/components/ui/dialog";
 
+interface InvestmentTransaction {
+  id: string;
+  accountId: string;
+  securityId: string | null;
+  date: string;
+  type: string;
+  quantity: number | null;
+  price: number | null;
+  fees: number;
+  notes: string | null;
+  security?: {
+    id: string;
+    symbol: string;
+    name: string;
+    class: string;
+  };
+}
+
 interface InvestmentTransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  transaction?: InvestmentTransaction | null;
 }
 
 interface InvestmentAccount {
@@ -94,7 +114,8 @@ function SecurityLogo({ symbol, securityClass, logoUrl }: { symbol: string; secu
 export function InvestmentTransactionForm({ 
   open, 
   onOpenChange, 
-  onSuccess 
+  onSuccess,
+  transaction: editingTransaction
 }: InvestmentTransactionFormProps) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<InvestmentAccount[]>([]);
@@ -118,6 +139,7 @@ export function InvestmentTransactionForm({
   const [isSearchingSecurities, setIsSearchingSecurities] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [shouldShowForm, setShouldShowForm] = useState(false);
+  const [isExtractingInfo, setIsExtractingInfo] = useState(false);
 
   const form = useForm<InvestmentTransactionFormData & { currentPrice?: number; security?: { symbol: string; name: string; class: string } }>({
     resolver: zodResolver(investmentTransactionSchema),
@@ -149,6 +171,33 @@ export function InvestmentTransactionForm({
       setApiSearchResults([]);
     }
   }, [open]);
+
+  // Populate form when editing
+  useEffect(() => {
+    if (open && editingTransaction) {
+      form.reset({
+        date: new Date(editingTransaction.date),
+        type: editingTransaction.type as "buy" | "sell" | "dividend" | "interest",
+        accountId: editingTransaction.accountId,
+        securityId: editingTransaction.securityId || undefined,
+        quantity: editingTransaction.quantity || undefined,
+        price: editingTransaction.price || undefined,
+        fees: editingTransaction.fees || 0,
+        notes: editingTransaction.notes || "",
+      });
+    } else if (open && !editingTransaction) {
+      // Reset to defaults for new transaction
+      form.reset({
+        date: new Date(),
+        type: "buy",
+        quantity: undefined,
+        price: undefined,
+        fees: 0,
+        notes: "",
+        securityId: undefined,
+      });
+    }
+  }, [open, editingTransaction, form]);
 
   async function checkAccountsAndShowForm() {
     try {
@@ -551,20 +600,25 @@ export function InvestmentTransactionForm({
         payload.currentPrice = data.currentPrice;
       }
 
-      const res = await fetch("/api/investments/transactions", {
-        method: "POST",
+      const url = editingTransaction 
+        ? `/api/investments/transactions/${editingTransaction.id}`
+        : "/api/investments/transactions";
+      const method = editingTransaction ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.error || "Failed to create transaction");
+        throw new Error(error.error || `Failed to ${editingTransaction ? "update" : "create"} transaction`);
       }
 
       toast({
         title: "Success",
-        description: "Investment transaction created successfully",
+        description: `Investment transaction ${editingTransaction ? "updated" : "created"} successfully`,
       });
 
       form.reset();
@@ -579,6 +633,95 @@ export function InvestmentTransactionForm({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function extractInfoFromNotes() {
+    const notes = form.watch("notes");
+    if (!notes || notes.trim().length === 0) {
+      toast({
+        title: "No description",
+        description: "Please enter a description in the Notes field first",
+        variant: "default",
+      });
+      return;
+    }
+
+    setIsExtractingInfo(true);
+    try {
+      const response = await fetch("/api/ai/extract-transaction-info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: notes,
+          transactionType: transactionType,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to extract information");
+      }
+
+      const extractedInfo = await response.json();
+
+      // Update form fields with extracted information
+      let updatedFields = 0;
+      
+      if (extractedInfo.quantity !== null && extractedInfo.quantity !== undefined) {
+        if (!form.watch("quantity") || form.watch("quantity") === 0) {
+          form.setValue("quantity", extractedInfo.quantity);
+          updatedFields++;
+        }
+      }
+
+      if (extractedInfo.price !== null && extractedInfo.price !== undefined) {
+        if (!form.watch("price") || form.watch("price") === 0) {
+          form.setValue("price", extractedInfo.price);
+          updatedFields++;
+        }
+      }
+
+      if (extractedInfo.fees !== null && extractedInfo.fees !== undefined) {
+        if (!form.watch("fees") || form.watch("fees") === 0) {
+          form.setValue("fees", extractedInfo.fees);
+          updatedFields++;
+        }
+      }
+
+      if (extractedInfo.symbol) {
+        // Try to find the security by symbol
+        const matchingSecurity = securities.find(
+          (s) => s.symbol.toUpperCase() === extractedInfo.symbol.toUpperCase()
+        );
+        if (matchingSecurity && !form.watch("securityId")) {
+          form.setValue("securityId", matchingSecurity.id);
+          updatedFields++;
+        }
+      }
+
+      if (updatedFields > 0) {
+        toast({
+          title: "Information extracted",
+          description: `Extracted and filled ${updatedFields} field${updatedFields > 1 ? "s" : ""} from the description`,
+          variant: "success",
+        });
+      } else {
+        toast({
+          title: "No new information",
+          description: "Could not extract additional information, or fields are already filled",
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error("Error extracting information:", error);
+      toast({
+        title: "Extraction failed",
+        description: error instanceof Error ? error.message : "Failed to extract information from description",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExtractingInfo(false);
     }
   }
 
@@ -601,9 +744,13 @@ export function InvestmentTransactionForm({
         <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
           <DialogHeader>
-            <DialogTitle>Add Investment Transaction</DialogTitle>
+            <DialogTitle>
+              {editingTransaction ? "Edit Investment Transaction" : "Add Investment Transaction"}
+            </DialogTitle>
             <DialogDescription>
-              Record a buy, sell, dividend, or other investment transaction
+              {editingTransaction 
+                ? "Update the details of this investment transaction"
+                : "Record a buy, sell, dividend, or other investment transaction"}
             </DialogDescription>
           </DialogHeader>
 
@@ -1021,9 +1168,9 @@ export function InvestmentTransactionForm({
                 <Label>Date</Label>
                 <Input
                   type="date"
-                  value={form.watch("date") ? new Date(form.watch("date")).toISOString().split('T')[0] : ''}
+                  value={formatDateInput(form.watch("date"))}
                   onChange={(e) => {
-                    const date = e.target.value ? new Date(e.target.value) : new Date();
+                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
                     form.setValue("date", date);
                   }}
                 />
@@ -1035,12 +1182,37 @@ export function InvestmentTransactionForm({
               </div>
 
               <div className="space-y-1">
-                <Label>Notes</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Notes</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={extractInfoFromNotes}
+                    disabled={isExtractingInfo || !form.watch("notes") || form.watch("notes")?.trim().length === 0}
+                    className="h-7 text-xs"
+                  >
+                    {isExtractingInfo ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Extracting...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Extract Info
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <Textarea
-                  placeholder="Additional notes..."
+                  placeholder="Additional notes... (Use AI to extract quantity, price, fees, and symbol)"
                   {...form.register("notes")}
                   rows={3}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Tip: Write a description and click "Extract Info" to automatically fill fields like quantity, price, fees, and symbol.
+                </p>
               </div>
             </div>
 

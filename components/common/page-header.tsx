@@ -13,9 +13,17 @@ interface PageHeaderProps {
 export function PageHeader({ title, description, children, className }: PageHeaderProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(80); // Default height in pixels
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Set mounted state after hydration
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // Calculate header height dynamically
   useEffect(() => {
+    if (!isMounted) return;
+    
     const updateHeaderHeight = () => {
       const header = document.getElementById('page-header');
       if (header) {
@@ -51,7 +59,7 @@ export function PageHeader({ title, description, children, className }: PageHead
     return () => {
       window.removeEventListener('resize', updateHeaderHeight);
     };
-  }, [title, description, children]);
+  }, [title, description, children, isMounted]);
   
   // Listen to sidebar state changes from localStorage and events
   useEffect(() => {
@@ -87,19 +95,20 @@ export function PageHeader({ title, description, children, className }: PageHead
     <>
       <div 
         id="page-header"
-        style={{ 
+        style={isMounted ? { 
           '--header-height': `${headerHeight}px`,
-        } as React.CSSProperties}
+        } as React.CSSProperties : {}}
         className={cn(
           "fixed left-0 right-0 z-30 bg-card border-b transition-all duration-300",
           "top-[var(--mobile-header-height,4rem)]",
           "lg:top-0",
-          isCollapsed ? "lg:left-16" : "lg:left-64",
+          isMounted && isCollapsed ? "lg:left-16" : "lg:left-64",
           className
         )}
+        suppressHydrationWarning
       >
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 py-4 md:py-6">
+        <div className="container mx-auto px-4 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 py-4 md:py-6">
             <div className="space-y-1">
               <h1 className="text-lg md:text-xl font-semibold">{title}</h1>
               {description && (
@@ -107,7 +116,7 @@ export function PageHeader({ title, description, children, className }: PageHead
               )}
             </div>
             {children && (
-              <div className="flex gap-2">
+              <div className="flex gap-3 flex-wrap">
                 {children}
               </div>
             )}

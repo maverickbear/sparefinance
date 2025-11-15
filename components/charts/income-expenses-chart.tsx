@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { ChartCard } from "./chart-card";
 import { formatMoney } from "@/components/common/money";
@@ -12,6 +13,7 @@ interface MonthlyData {
 
 interface IncomeExpensesChartProps {
   data: MonthlyData[];
+  headerActions?: React.ReactNode;
 }
 
 // Elegant color palette - softer tones
@@ -67,7 +69,7 @@ const CustomLegend = ({ payload }: any) => {
   );
 };
 
-export function IncomeExpensesChart({ data }: IncomeExpensesChartProps) {
+export function IncomeExpensesChart({ data, headerActions }: IncomeExpensesChartProps) {
   const totalIncome = data.reduce((sum, item) => sum + item.income, 0);
   const totalExpenses = data.reduce((sum, item) => sum + item.expenses, 0);
   const netCashFlow = totalIncome - totalExpenses;
@@ -75,12 +77,13 @@ export function IncomeExpensesChart({ data }: IncomeExpensesChartProps) {
   return (
     <ChartCard 
       title="Cash Flow" 
-      description="Income vs Expenses comparison for the last 6 months"
+      description="Income vs Expenses comparison"
       className="overflow-hidden"
+      headerActions={headerActions}
     >
       <div className="mb-4 border-b pb-3">
         <div className="flex items-baseline gap-2">
-          <div className="text-xl font-semibold tracking-tight text-foreground">
+          <div className="text-2xl font-semibold tracking-tight text-foreground">
             {formatMoney(netCashFlow)}
           </div>
           <div className="text-xs font-medium text-muted-foreground">
@@ -88,7 +91,7 @@ export function IncomeExpensesChart({ data }: IncomeExpensesChartProps) {
           </div>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={200}>
         <BarChart 
           data={data} 
           margin={{ top: 10, right: 10, left: 0, bottom: 10 }}

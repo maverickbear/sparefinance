@@ -89,7 +89,7 @@ export function AccountsBreakdownModal({
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Balance</p>
                 <p className={cn(
-                  "text-3xl font-bold",
+                  "text-2xl font-semibold",
                   totalBalance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                 )}>
                   {formatMoney(totalBalance)}
@@ -113,7 +113,7 @@ export function AccountsBreakdownModal({
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground mb-1">Household Total</p>
                   <p className={cn(
-                    "text-xl font-bold",
+                    "text-2xl font-semibold",
                     total >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                   )}>
                     {formatMoney(total)}

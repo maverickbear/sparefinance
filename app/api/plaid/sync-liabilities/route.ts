@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
-import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities';
+// import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities'; // TEMPORARILY DISABLED
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
 
@@ -30,24 +30,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = await createServerClient();
+    // TEMPORARY BYPASS: Return mock result instead of calling Plaid
+    console.log('[PLAID BYPASS] Syncing liabilities (bypassed) for item:', itemId);
+    
+    // Original implementation (commented out):
+    // const supabase = await createServerClient();
 
-    // Get access token for this item
-    const { data: connection } = await supabase
-      .from('PlaidConnection')
-      .select('accessToken')
-      .eq('itemId', itemId)
-      .single();
+    // // Get access token for this item
+    // const { data: connection } = await supabase
+    //   .from('PlaidConnection')
+    //   .select('accessToken')
+    //   .eq('itemId', itemId)
+    //   .single();
 
-    if (!connection?.accessToken) {
-      return NextResponse.json(
-        { error: 'Plaid connection not found' },
-        { status: 404 }
-      );
-    }
+    // if (!connection?.accessToken) {
+    //   return NextResponse.json(
+    //     { error: 'Plaid connection not found' },
+    //     { status: 404 }
+    //   );
+    // }
 
-    // Sync liabilities
-    const result = await syncAccountLiabilities(itemId, connection.accessToken);
+    // // Sync liabilities
+    // const result = await syncAccountLiabilities(itemId, connection.accessToken);
+
+    const result = {
+      synced: 0,
+      skipped: 0,
+      errors: 0,
+    };
 
     return NextResponse.json({
       success: true,

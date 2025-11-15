@@ -1,11 +1,13 @@
 "use server";
 
+import { revalidateTag } from "next/cache";
 import { createServerClient } from "@/lib/supabase-server";
 import { AccountFormData } from "@/lib/validations/account";
 import { getCurrentTimestamp, formatTimestamp } from "@/lib/utils/timestamp";
 import { getAccountBalance } from "./transactions";
 import { guardAccountLimit, throwIfNotAllowed } from "@/lib/api/feature-guard";
 import { requireAccountOwnership } from "@/lib/utils/security";
+import { decryptAmount } from "@/lib/utils/transaction-encryption";
 
 export async function getAccounts() {
     const supabase = await createServerClient();
@@ -21,13 +23,19 @@ export async function getAccounts() {
 
   // Fetch all transactions up to today in one query to avoid N+1 queries
   // Only include transactions with date <= today (exclude future transactions)
-  const today = new Date();
-  today.setHours(23, 59, 59, 999); // End of today
+  // Use a consistent date comparison to avoid timezone issues
+  const now = new Date();
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth();
+  const todayDay = now.getDate();
+  
+  // Create date for end of today in local timezone, then convert to ISO for query
+  const todayEnd = new Date(todayYear, todayMonth, todayDay, 23, 59, 59, 999);
   
   const { data: transactions } = await supabase
     .from("Transaction")
     .select("accountId, type, amount, date")
-    .lte("date", today.toISOString());
+    .lte("date", todayEnd.toISOString());
 
   // Calculate balances in memory
   const balances = new Map<string, number>();
@@ -39,23 +47,41 @@ export async function getAccounts() {
   });
 
   // Calculate balances from transactions (only past and today's transactions)
-  const todayDate = new Date();
-  todayDate.setHours(0, 0, 0, 0);
+  // Compare dates by year, month, day only to avoid timezone issues
+  const todayDate = new Date(todayYear, todayMonth, todayDay);
   
   for (const tx of transactions || []) {
-    // Double-check: only process transactions with date <= today
-    const txDate = new Date(tx.date);
-    txDate.setHours(0, 0, 0, 0);
+    // Parse transaction date and compare only date part (ignore time)
+    const txDateObj = new Date(tx.date);
+    const txYear = txDateObj.getFullYear();
+    const txMonth = txDateObj.getMonth();
+    const txDay = txDateObj.getDate();
+    const txDate = new Date(txYear, txMonth, txDay);
+    
+    // Skip future transactions (date > today)
     if (txDate > todayDate) {
-      continue; // Skip future transactions
+      continue;
     }
     
     const currentBalance = balances.get(tx.accountId) || 0;
     
+    // Decrypt amount if encrypted
+    const decryptedAmount = decryptAmount(tx.amount);
+    
+    // Skip transaction if amount is invalid (null, NaN, or unreasonably large)
+    if (decryptedAmount === null || isNaN(decryptedAmount) || !isFinite(decryptedAmount)) {
+      logger.warn('Skipping transaction with invalid amount:', {
+        accountId: tx.accountId,
+        amount: tx.amount,
+        decryptedAmount,
+      });
+      continue;
+    }
+    
     if (tx.type === "income") {
-      balances.set(tx.accountId, currentBalance + (Number(tx.amount) || 0));
+      balances.set(tx.accountId, currentBalance + decryptedAmount);
     } else if (tx.type === "expense") {
-      balances.set(tx.accountId, currentBalance - (Number(tx.amount) || 0));
+      balances.set(tx.accountId, currentBalance - Math.abs(decryptedAmount));
     }
   }
 
@@ -204,6 +230,10 @@ export async function createAccount(data: AccountFormData) {
     }
   }
 
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('accounts', 'max');
+  revalidateTag('dashboard', 'max');
+
   return account;
 }
 
@@ -296,14 +326,112 @@ export async function updateAccount(id: string, data: Partial<AccountFormData>) 
     }
   }
 
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('accounts', 'max');
+  revalidateTag('dashboard', 'max');
+
   return account;
 }
 
-export async function deleteAccount(id: string) {
+/**
+ * Transfer all transactions from one account to another
+ */
+export async function transferAccountTransactions(
+  fromAccountId: string,
+  toAccountId: string
+): Promise<{ transferred: number }> {
+  const supabase = await createServerClient();
+
+  // Verify ownership of both accounts
+  await requireAccountOwnership(fromAccountId);
+  await requireAccountOwnership(toAccountId);
+
+  // Get all transactions for the source account
+  const { data: transactions, error: fetchError } = await supabase
+    .from("Transaction")
+    .select("id")
+    .eq("accountId", fromAccountId);
+
+  if (fetchError) {
+    console.error("Supabase error fetching transactions:", fetchError);
+    throw new Error(`Failed to fetch transactions: ${fetchError.message || JSON.stringify(fetchError)}`);
+  }
+
+  if (!transactions || transactions.length === 0) {
+    return { transferred: 0 };
+  }
+
+  // Update all transactions to the new account
+  const { error: updateError } = await supabase
+    .from("Transaction")
+    .update({ accountId: toAccountId })
+    .eq("accountId", fromAccountId);
+
+  if (updateError) {
+    console.error("Supabase error transferring transactions:", updateError);
+    throw new Error(`Failed to transfer transactions: ${updateError.message || JSON.stringify(updateError)}`);
+  }
+
+  // Also handle transfer transactions that might reference this account
+  // Update transactions where toAccountId references the account being deleted
+  const { error: transferUpdateError } = await supabase
+    .from("Transaction")
+    .update({ toAccountId: toAccountId })
+    .eq("toAccountId", fromAccountId);
+
+  if (transferUpdateError) {
+    console.error("Supabase error updating transfer transactions:", transferUpdateError);
+    // Don't throw - this is not critical, just log it
+  }
+
+  // Invalidate cache
+  revalidateTag('transactions', 'max');
+  revalidateTag('accounts', 'max');
+  revalidateTag('dashboard', 'max');
+
+  return { transferred: transactions.length };
+}
+
+/**
+ * Check if an account has associated transactions
+ */
+export async function accountHasTransactions(accountId: string): Promise<boolean> {
+  const supabase = await createServerClient();
+
+  // Verify ownership
+  await requireAccountOwnership(accountId);
+
+  const { data, error } = await supabase
+    .from("Transaction")
+    .select("id")
+    .eq("accountId", accountId)
+    .limit(1);
+
+  if (error) {
+    console.error("Supabase error checking transactions:", error);
+    // If we can't check, assume there are transactions to be safe
+    return true;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+
+export async function deleteAccount(id: string, transferToAccountId?: string) {
     const supabase = await createServerClient();
 
   // Verify ownership before deleting
   await requireAccountOwnership(id);
+
+  // If a transfer account is provided, transfer transactions first
+  if (transferToAccountId) {
+    await transferAccountTransactions(id, transferToAccountId);
+  } else {
+    // Check if account has transactions
+    const hasTransactions = await accountHasTransactions(id);
+    if (hasTransactions) {
+      throw new Error("Account has associated transactions. Please select a destination account to transfer them to.");
+    }
+  }
 
   const { error } = await supabase.from("Account").delete().eq("id", id);
 
@@ -311,4 +439,9 @@ export async function deleteAccount(id: string) {
     console.error("Supabase error deleting account:", error);
     throw new Error(`Failed to delete account: ${error.message || JSON.stringify(error)}`);
   }
+
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('accounts', 'max');
+  revalidateTag('dashboard', 'max');
+  revalidateTag('transactions', 'max');
 }

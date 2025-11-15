@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { getPortfolioHoldings } from "@/lib/api/portfolio";
+import { NextRequest, NextResponse } from "next/server";
+import { getHoldings } from "@/lib/api/investments";
 import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
@@ -22,7 +22,11 @@ export async function GET() {
       );
     }
 
-    const holdings = await getPortfolioHoldings();
+    // Get accountId from query params if provided
+    const { searchParams } = new URL(request.url);
+    const accountId = searchParams.get("accountId") || undefined;
+
+    const holdings = await getHoldings(accountId);
     return NextResponse.json(holdings);
   } catch (error) {
     console.error("Error fetching portfolio holdings:", error);

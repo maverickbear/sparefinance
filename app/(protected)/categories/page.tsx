@@ -718,7 +718,54 @@ export default function CategoriesPage() {
         onOpenChange={setIsDialogOpen}
         category={selectedCategory}
         macros={macros}
-        onSuccess={loadData}
+        onSuccess={(updatedCategory) => {
+          if (updatedCategory) {
+            // Update state locally without reloading - use functional update to preserve references
+            setCategories((prev) => {
+              // Check if category already exists
+              const existingIndex = prev.findIndex((c) => c.id === updatedCategory.id);
+              if (existingIndex >= 0) {
+                // Check if category actually changed to avoid unnecessary re-renders
+                const existing = prev[existingIndex];
+                
+                // Compare subcategories more efficiently
+                const subcategoriesChanged = 
+                  (existing.subcategories?.length || 0) !== (updatedCategory.subcategories?.length || 0) ||
+                  (existing.subcategories || []).some((sub, idx) => {
+                    const updatedSub = updatedCategory.subcategories?.[idx];
+                    return !updatedSub || sub.id !== updatedSub.id || sub.name !== updatedSub.name;
+                  });
+                
+                const hasChanged = 
+                  existing.name !== updatedCategory.name ||
+                  existing.macroId !== updatedCategory.macroId ||
+                  subcategoriesChanged;
+                
+                if (!hasChanged) {
+                  // No changes, return same array to prevent re-render
+                  return prev;
+                }
+                
+                // Update existing category - create new array but preserve other references
+                const updated = prev.map((cat, idx) => 
+                  idx === existingIndex ? updatedCategory : cat
+                );
+                return updated;
+              } else {
+                // Add new category - append to existing array
+                return [...prev, updatedCategory];
+              }
+            });
+            
+            // If macro doesn't exist in macros list, fetch it
+            if (updatedCategory.macroId && !macros.find((m) => m.id === updatedCategory.macroId)) {
+              loadData(); // Only reload if macro is missing
+            }
+          } else {
+            // Fallback: reload all data if no category provided
+            loadData();
+          }
+        }}
       />
       <GroupDialog
         open={isGroupDialogOpen}

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ChartCard } from "./chart-card";
 import { formatMoney } from "@/components/common/money";
+import { getCategoryColor } from "@/lib/utils/category-colors";
 
 interface CategoryExpense {
   name: string;
@@ -14,19 +15,6 @@ interface CategoryExpensesChartProps {
   data: CategoryExpense[];
   totalIncome?: number;
 }
-
-const COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // green
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#4949f2", // primary (roxo)
-  "#06b6d4", // cyan
-  "#f97316", // orange
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#6366f1", // indigo
-];
 
 export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpensesChartProps) {
   const router = useRouter();
@@ -43,6 +31,7 @@ export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpense
     percentage: totalIncome > 0 ? (item.value / totalIncome) * 100 : 0,
     // Also keep percentage relative to expenses for bar visualization
     expensePercentage: totalExpenses > 0 ? (item.value / totalExpenses) * 100 : 0,
+    color: getCategoryColor(item.name),
   }));
 
   const handleCategoryClick = (categoryId: string | null | undefined) => {
@@ -75,7 +64,7 @@ export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpense
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <div 
                 className="w-3 h-3 rounded-full flex-shrink-0" 
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                style={{ backgroundColor: item.color }}
               />
               <span className="text-sm font-medium truncate">{item.name}</span>
             </div>
@@ -86,7 +75,7 @@ export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpense
                     className="h-full rounded-full transition-all"
                     style={{ 
                       width: `${Math.min(item.expensePercentage, 100)}%`,
-                      backgroundColor: COLORS[index % COLORS.length]
+                      backgroundColor: item.color
                     }}
                   />
                 </div>

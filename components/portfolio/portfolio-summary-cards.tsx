@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { TrendingUp, TrendingDown, Wallet, BarChart3 } from "lucide-react";
-import { PortfolioSummary } from "@/lib/mock-data/portfolio-mock-data";
+import { PortfolioSummary } from "@/lib/api/portfolio";
 import { cn } from "@/lib/utils";
 
 interface PortfolioSummaryCardsProps {
@@ -11,121 +12,185 @@ interface PortfolioSummaryCardsProps {
 }
 
 export function PortfolioSummaryCards({ summary }: PortfolioSummaryCardsProps) {
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  // Handle scroll for carousel indicators
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const handleScroll = () => {
+      const scrollLeft = carousel.scrollLeft;
+      const firstCard = carousel.querySelector('.snap-start') as HTMLElement;
+      if (!firstCard) return;
+      
+      const cardWidth = firstCard.offsetWidth;
+      const gap = 16; // 1rem = 16px (gap-4)
+      const totalCardWidth = cardWidth + gap;
+      const newIndex = Math.round(scrollLeft / totalCardWidth);
+      setActiveIndex(Math.min(Math.max(newIndex, 0), 3)); // 4 cards total (0-3)
+    };
+
+    carousel.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => carousel.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const cards = [
+    {
+      id: 'totalValue',
+      title: 'Total Portfolio Value',
+      icon: Wallet,
+      iconColor: 'text-blue-600 dark:text-blue-500',
+      value: summary.totalValue,
+      valueColor: summary.totalValue >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+      change: null,
+    },
+    {
+      id: 'dayChange',
+      title: 'Day Change',
+      icon: summary.dayChange >= 0 ? TrendingUp : TrendingDown,
+      iconColor: summary.dayChange >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500',
+      value: summary.dayChange,
+      valueColor: summary.dayChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+      change: (
+        <div
+          className={cn(
+            "text-xs mt-1",
+            summary.dayChangePercent >= 0
+              ? "text-green-600 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {summary.dayChangePercent >= 0 ? "+" : ""}{summary.dayChangePercent.toFixed(2)}%
+        </div>
+      ),
+    },
+    {
+      id: 'totalReturn',
+      title: 'Total Return',
+      icon: summary.totalReturn >= 0 ? TrendingUp : TrendingDown,
+      iconColor: summary.totalReturn >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500',
+      value: summary.totalReturn,
+      valueColor: summary.totalReturn >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+      change: (
+        <div
+          className={cn(
+            "text-xs mt-1",
+            summary.totalReturnPercent >= 0
+              ? "text-green-600 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {summary.totalReturnPercent >= 0 ? "+" : ""}{summary.totalReturnPercent.toFixed(2)}%
+        </div>
+      ),
+    },
+    {
+      id: 'holdings',
+      title: 'Holdings',
+      icon: BarChart3,
+      iconColor: 'text-blue-600 dark:text-blue-500',
+      value: summary.holdingsCount,
+      valueColor: 'text-foreground',
+      change: (
+        <div className="text-xs mt-1 text-muted-foreground">
+          Total positions
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="grid gap-6 md:gap-8 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            Total Portfolio Value
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-blue-600 dark:text-blue-500" />
-            <div className="text-lg md:text-xl font-semibold text-foreground">
-              {formatMoney(summary.totalValue)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            Day Change
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            {summary.dayChange >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-500" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-500" />
-            )}
-            <div
-              className={cn(
-                "text-lg md:text-xl font-semibold",
-                summary.dayChange >= 0
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              )}
-            >
-              {summary.dayChange >= 0 ? "+" : ""}
-              {formatMoney(summary.dayChange)}
-            </div>
-          </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Portfolio Summary</CardTitle>
+      </CardHeader>
+      <CardContent className="!pt-0 md:!pt-0">
+        {/* Mobile Carousel */}
+        <div className="md:hidden">
           <div
-            className={cn(
-              "text-xs mt-1",
-              summary.dayChangePercent >= 0
-                ? "text-green-600 dark:text-green-400"
-                : "text-red-600 dark:text-red-400"
-            )}
+            ref={carouselRef}
+            className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory pb-2 -mx-4 px-4"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {summary.dayChangePercent >= 0 ? "+" : ""}
-            {summary.dayChangePercent.toFixed(2)}%
+            {cards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.id}
+                  className="flex-shrink-0 w-[calc(100vw-6rem)] snap-start flex flex-col p-4 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <Icon className={cn("h-5 w-5", card.iconColor)} />
+                    <div>
+                      <div className="font-semibold text-xs md:text-sm">{card.title}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <div className={cn("font-semibold", card.valueColor)}>
+                      {card.id === 'holdings' ? card.value : formatMoney(card.value)}
+                    </div>
+                    {card.change}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+          {/* Carousel Indicators */}
+          <div className="flex justify-center gap-2 mt-3">
+            {cards.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => {
+                  const carousel = carouselRef.current;
+                  if (carousel) {
+                    const firstCard = carousel.querySelector('.snap-start') as HTMLElement;
+                    if (!firstCard) return;
+                    
+                    const cardWidth = firstCard.offsetWidth;
+                    const gap = 16; // 1rem = 16px (gap-4)
+                    const totalCardWidth = cardWidth + gap;
+                    carousel.scrollTo({ left: index * totalCardWidth, behavior: 'smooth' });
+                  }
+                }}
+                className={cn(
+                  "h-2 rounded-full transition-all",
+                  activeIndex === index
+                    ? "w-6 bg-primary"
+                    : "w-2 bg-muted-foreground/30"
+                )}
+                aria-label={`Go to card ${index + 1}`}
+              />
+            ))}
+          </div>
+        </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            Total Return
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            {summary.totalReturn >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-500" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-500" />
-            )}
-            <div
-              className={cn(
-                "text-lg md:text-xl font-semibold",
-                summary.totalReturn >= 0
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              )}
-            >
-              {summary.totalReturn >= 0 ? "+" : ""}
-              {formatMoney(summary.totalReturn)}
-            </div>
-          </div>
-          <div
-            className={cn(
-              "text-xs mt-1",
-              summary.totalReturnPercent >= 0
-                ? "text-green-600 dark:text-green-400"
-                : "text-red-600 dark:text-red-400"
-            )}
-          >
-            {summary.totalReturnPercent >= 0 ? "+" : ""}
-            {summary.totalReturnPercent.toFixed(2)}%
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            Holdings
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-500" />
-            <div className="text-lg md:text-xl font-semibold text-foreground">
-              {summary.holdingsCount}
-            </div>
-          </div>
-          <div className="text-xs mt-1 text-muted-foreground">
-            Total positions
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        {/* Desktop Grid */}
+        <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {cards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.id} className="flex flex-col p-4 border rounded-lg">
+                <div className="flex items-center gap-3 mb-3">
+                  <Icon className={cn("h-5 w-5", card.iconColor)} />
+                  <div>
+                    <div className="font-semibold text-xs md:text-sm">{card.title}</div>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <div className={cn("font-semibold", card.valueColor)}>
+                    {card.id === 'holdings' ? card.value : formatMoney(card.value)}
+                  </div>
+                  {card.change}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -25,11 +25,13 @@ COMMENT ON SCHEMA "public" IS 'standard public schema';
 
 CREATE OR REPLACE FUNCTION "public"."check_invitation_email_match"("invitation_email" "text") RETURNS boolean
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
     AS $$
 DECLARE
   user_email TEXT;
 BEGIN
   -- Get the authenticated user's email from auth.users
+  -- Using fully qualified schema name for security
   SELECT email INTO user_email
   FROM auth.users
   WHERE id = auth.uid();
@@ -85,7 +87,7 @@ BEGIN
   RETURN EXISTS (
     SELECT 1 FROM "User"
     WHERE id = auth.uid()
-    AND role = 'admin'
+    AND role IN ('admin', 'super_admin')
   );
 END;
 $$;
@@ -172,12 +174,16 @@ CREATE TABLE IF NOT EXISTS "public"."Budget" (
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
     "macroId" "text",
-    "userId" "uuid",
+    "userId" "uuid" NOT NULL,
     "subcategoryId" "text"
 );
 
 
 ALTER TABLE "public"."Budget" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Budget"."userId" IS 'User ID - obrigatório para RLS policies';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."BudgetCategory" (
@@ -202,6 +208,31 @@ CREATE TABLE IF NOT EXISTS "public"."BudgetSubcategory" (
 ALTER TABLE "public"."BudgetSubcategory" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."Candle" (
+    "id" "text" NOT NULL,
+    "securityId" "text" NOT NULL,
+    "symbolId" bigint NOT NULL,
+    "start" timestamp(3) without time zone NOT NULL,
+    "end" timestamp(3) without time zone NOT NULL,
+    "low" numeric(15,4) NOT NULL,
+    "high" numeric(15,4) NOT NULL,
+    "open" numeric(15,4) NOT NULL,
+    "close" numeric(15,4) NOT NULL,
+    "volume" bigint DEFAULT 0 NOT NULL,
+    "VWAP" numeric(15,4),
+    "interval" "text" NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE "public"."Candle" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."Candle" IS 'Stores historical price data (candles) from Questrade';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."Category" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
@@ -213,6 +244,24 @@ CREATE TABLE IF NOT EXISTS "public"."Category" (
 
 
 ALTER TABLE "public"."Category" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."ContactForm" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "userId" "uuid",
+    "name" "text" NOT NULL,
+    "email" "text" NOT NULL,
+    "subject" "text" NOT NULL,
+    "message" "text" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "adminNotes" "text",
+    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "ContactForm_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'read'::"text", 'replied'::"text", 'resolved'::"text"])))
+);
+
+
+ALTER TABLE "public"."ContactForm" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."Debt" (
@@ -240,7 +289,7 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     "paymentFrequency" "text" DEFAULT 'monthly'::"text" NOT NULL,
     "paymentAmount" double precision,
     "accountId" "text",
-    "userId" "uuid",
+    "userId" "uuid" NOT NULL,
     "startDate" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Debt_additionalContributionAmount_check" CHECK (("additionalContributionAmount" >= (0)::double precision)),
     CONSTRAINT "Debt_currentBalance_check" CHECK (("currentBalance" >= (0)::double precision)),
@@ -261,6 +310,59 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
 ALTER TABLE "public"."Debt" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."Debt"."userId" IS 'User ID - obrigatório para RLS policies';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."Execution" (
+    "id" "text" NOT NULL,
+    "accountId" "text" NOT NULL,
+    "questradeExecutionId" bigint NOT NULL,
+    "symbolId" bigint NOT NULL,
+    "symbol" "text" NOT NULL,
+    "quantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "side" "text" NOT NULL,
+    "price" numeric(15,4) NOT NULL,
+    "orderId" bigint NOT NULL,
+    "orderChainId" bigint NOT NULL,
+    "exchangeExecId" "text",
+    "timestamp" timestamp(3) without time zone NOT NULL,
+    "notes" "text",
+    "venue" "text",
+    "totalCost" numeric(15,2) DEFAULT 0 NOT NULL,
+    "orderPlacementCommission" numeric(15,2) DEFAULT 0,
+    "commission" numeric(15,2) DEFAULT 0,
+    "executionFee" numeric(15,2) DEFAULT 0,
+    "secFee" numeric(15,2) DEFAULT 0,
+    "canadianExecutionFee" numeric(15,2) DEFAULT 0,
+    "parentId" bigint,
+    "lastSyncedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE "public"."Execution" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."Execution" IS 'Stores order executions from Questrade';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."Feedback" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "userId" "uuid" NOT NULL,
+    "rating" integer NOT NULL,
+    "feedback" "text",
+    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "Feedback_rating_check" CHECK ((("rating" >= 1) AND ("rating" <= 5)))
+);
+
+
+ALTER TABLE "public"."Feedback" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."Goal" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
@@ -276,7 +378,9 @@ CREATE TABLE IF NOT EXISTS "public"."Goal" (
     "isPaused" boolean DEFAULT false NOT NULL,
     "expectedIncome" double precision,
     "targetMonths" double precision,
-    "userId" "uuid",
+    "userId" "uuid" NOT NULL,
+    "accountId" "text",
+    "holdingId" "text",
     CONSTRAINT "Goal_currentBalance_check" CHECK (("currentBalance" >= (0)::double precision)),
     CONSTRAINT "Goal_priority_check" CHECK (("priority" = ANY (ARRAY['High'::"text", 'Medium'::"text", 'Low'::"text"]))),
     CONSTRAINT "Goal_targetMonths_check" CHECK ((("targetMonths" IS NULL) OR ("targetMonths" > (0)::double precision)))
@@ -284,6 +388,24 @@ CREATE TABLE IF NOT EXISTS "public"."Goal" (
 
 
 ALTER TABLE "public"."Goal" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Goal"."userId" IS 'User ID - obrigatório para RLS policies';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."Group" (
+    "id" "text" NOT NULL,
+    "name" "text" NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "userId" "uuid",
+    "type" "text",
+    CONSTRAINT "Group_type_check" CHECK (("type" = ANY (ARRAY['income'::"text", 'expense'::"text"])))
+);
+
+
+ALTER TABLE "public"."Group" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."HouseholdMember" (
@@ -311,8 +433,8 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
     "type" "text" NOT NULL,
     "accountId" "text",
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
-    "userId" "uuid",
+    "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "userId" "uuid" NOT NULL,
     "questradeAccountNumber" "text",
     "questradeConnectionId" "text",
     "isQuestradeConnected" boolean DEFAULT false,
@@ -327,6 +449,14 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
 
 
 ALTER TABLE "public"."InvestmentAccount" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."updatedAt" IS 'Timestamp de última atualização - atualizado automaticamente';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentAccount"."userId" IS 'User ID - obrigatório para RLS policies';
+
 
 
 COMMENT ON COLUMN "public"."InvestmentAccount"."questradeAccountNumber" IS 'Questrade account number for this investment account';
@@ -389,16 +519,59 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentTransaction" (
 ALTER TABLE "public"."InvestmentTransaction" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."Macro" (
+CREATE TABLE IF NOT EXISTS "public"."Order" (
     "id" "text" NOT NULL,
-    "name" "text" NOT NULL,
+    "accountId" "text" NOT NULL,
+    "questradeOrderId" bigint NOT NULL,
+    "symbolId" bigint NOT NULL,
+    "symbol" "text" NOT NULL,
+    "totalQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "openQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "filledQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "canceledQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
+    "side" "text" NOT NULL,
+    "orderType" "text" NOT NULL,
+    "limitPrice" numeric(15,4),
+    "stopPrice" numeric(15,4),
+    "isAllOrNone" boolean DEFAULT false,
+    "isAnonymous" boolean DEFAULT false,
+    "icebergQuantity" numeric(15,4),
+    "minQuantity" numeric(15,4),
+    "avgExecPrice" numeric(15,4),
+    "lastExecPrice" numeric(15,4),
+    "source" "text",
+    "timeInForce" "text" NOT NULL,
+    "gtdDate" timestamp(3) without time zone,
+    "state" "text" NOT NULL,
+    "clientReasonStr" "text",
+    "chainId" bigint NOT NULL,
+    "creationTime" timestamp(3) without time zone NOT NULL,
+    "updateTime" timestamp(3) without time zone NOT NULL,
+    "notes" "text",
+    "primaryRoute" "text",
+    "secondaryRoute" "text",
+    "orderRoute" "text",
+    "venueHoldingOrder" "text",
+    "comissionCharged" numeric(15,2),
+    "exchangeOrderId" "text",
+    "isSignificantShareHolder" boolean DEFAULT false,
+    "isInsider" boolean DEFAULT false,
+    "isLimitOffsetInTicks" boolean DEFAULT false,
+    "userId" bigint,
+    "placementCommission" numeric(15,2),
+    "strategyType" "text",
+    "triggerStopPrice" numeric(15,4),
+    "lastSyncedAt" timestamp(3) without time zone NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
-    "userId" "uuid"
+    "updatedAt" timestamp(3) without time zone NOT NULL
 );
 
 
-ALTER TABLE "public"."Macro" OWNER TO "postgres";
+ALTER TABLE "public"."Order" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."Order" IS 'Stores orders from Questrade';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."PlaidConnection" (
@@ -489,6 +662,28 @@ COMMENT ON TABLE "public"."Position" IS 'Stores current positions (holdings) fro
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."PromoCode" (
+    "id" "text" NOT NULL,
+    "code" "text" NOT NULL,
+    "discountType" "text" NOT NULL,
+    "discountValue" numeric(10,2) NOT NULL,
+    "duration" "text" NOT NULL,
+    "durationInMonths" integer,
+    "maxRedemptions" integer,
+    "expiresAt" timestamp(3) without time zone,
+    "isActive" boolean DEFAULT true NOT NULL,
+    "stripeCouponId" "text",
+    "planIds" "jsonb" DEFAULT '[]'::"jsonb",
+    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "PromoCode_discountType_check" CHECK (("discountType" = ANY (ARRAY['percent'::"text", 'fixed'::"text"]))),
+    CONSTRAINT "PromoCode_duration_check" CHECK (("duration" = ANY (ARRAY['once'::"text", 'forever'::"text", 'repeating'::"text"])))
+);
+
+
+ALTER TABLE "public"."PromoCode" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."QuestradeConnection" (
     "id" "text" NOT NULL,
     "userId" "uuid" NOT NULL,
@@ -560,16 +755,21 @@ CREATE TABLE IF NOT EXISTS "public"."Subcategory" (
     "categoryId" "text" NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
-    "userId" "uuid"
+    "userId" "uuid",
+    "logo" "text"
 );
 
 
 ALTER TABLE "public"."Subcategory" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."Subcategory"."logo" IS 'URL or path to the logo/image for this subcategory';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."Subscription" (
     "id" "text" NOT NULL,
-    "userId" "uuid" NOT NULL,
+    "userId" "uuid",
     "planId" "text" NOT NULL,
     "status" "text" DEFAULT 'active'::"text" NOT NULL,
     "stripeSubscriptionId" "text",
@@ -578,18 +778,52 @@ CREATE TABLE IF NOT EXISTS "public"."Subscription" (
     "currentPeriodEnd" timestamp(3) without time zone,
     "cancelAtPeriodEnd" boolean DEFAULT false NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL
+    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "trialStartDate" timestamp(3) without time zone,
+    "trialEndDate" timestamp(3) without time zone,
+    "gracePeriodDays" integer DEFAULT 7,
+    "lastUpgradePrompt" timestamp(3) without time zone,
+    "expiredAt" timestamp(3) without time zone,
+    "pendingEmail" "text"
 );
 
 
 ALTER TABLE "public"."Subscription" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."Subscription"."userId" IS 'User ID. NULL if subscription is pending user signup.';
+
+
+
+COMMENT ON COLUMN "public"."Subscription"."trialStartDate" IS 'Start date of the trial period';
+
+
+
+COMMENT ON COLUMN "public"."Subscription"."trialEndDate" IS 'End date of the trial period. After this date, user must subscribe to continue.';
+
+
+
+COMMENT ON COLUMN "public"."Subscription"."gracePeriodDays" IS 'Number of days of grace period after trial expires (default: 7)';
+
+
+
+COMMENT ON COLUMN "public"."Subscription"."lastUpgradePrompt" IS 'Timestamp of last upgrade prompt shown to user';
+
+
+
+COMMENT ON COLUMN "public"."Subscription"."expiredAt" IS 'Timestamp when subscription/trial expired';
+
+
+
+COMMENT ON COLUMN "public"."Subscription"."pendingEmail" IS 'Email address for pending subscriptions waiting to be linked to a user account.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "id" "text" NOT NULL,
     "date" timestamp(3) without time zone NOT NULL,
     "type" "text" NOT NULL,
-    "amount" double precision NOT NULL,
+    "amount" "text" NOT NULL,
     "accountId" "text" NOT NULL,
     "categoryId" "text",
     "subcategoryId" "text",
@@ -603,11 +837,16 @@ CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "userId" "uuid" NOT NULL,
     "suggestedCategoryId" "text",
     "suggestedSubcategoryId" "text",
-    "plaidMetadata" "jsonb"
+    "plaidMetadata" "jsonb",
+    "expenseType" "text"
 );
 
 
 ALTER TABLE "public"."Transaction" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Transaction"."expenseType" IS 'Indicates if expense is fixed or variable. Only applies to expense transactions. Values: "fixed" or "variable"';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."TransactionSync" (
@@ -631,7 +870,8 @@ CREATE TABLE IF NOT EXISTS "public"."User" (
     "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
     "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
     "role" "text" DEFAULT 'admin'::"text" NOT NULL,
-    "phoneNumber" "text"
+    "phoneNumber" "text",
+    "dateOfBirth" "date"
 );
 
 
@@ -678,8 +918,23 @@ ALTER TABLE ONLY "public"."Budget"
 
 
 
+ALTER TABLE ONLY "public"."Candle"
+    ADD CONSTRAINT "Candle_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."Candle"
+    ADD CONSTRAINT "Candle_securityId_start_end_interval_unique" UNIQUE ("securityId", "start", "end", "interval");
+
+
+
 ALTER TABLE ONLY "public"."Category"
     ADD CONSTRAINT "Category_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."ContactForm"
+    ADD CONSTRAINT "ContactForm_pkey" PRIMARY KEY ("id");
 
 
 
@@ -688,8 +943,28 @@ ALTER TABLE ONLY "public"."Debt"
 
 
 
+ALTER TABLE ONLY "public"."Execution"
+    ADD CONSTRAINT "Execution_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."Execution"
+    ADD CONSTRAINT "Execution_questradeExecutionId_accountId_unique" UNIQUE ("questradeExecutionId", "accountId");
+
+
+
+ALTER TABLE ONLY "public"."Feedback"
+    ADD CONSTRAINT "Feedback_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."Goal"
     ADD CONSTRAINT "Goal_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."Group"
+    ADD CONSTRAINT "Group_pkey" PRIMARY KEY ("id");
 
 
 
@@ -713,8 +988,13 @@ ALTER TABLE ONLY "public"."InvestmentTransaction"
 
 
 
-ALTER TABLE ONLY "public"."Macro"
-    ADD CONSTRAINT "Macro_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "public"."Order"
+    ADD CONSTRAINT "Order_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."Order"
+    ADD CONSTRAINT "Order_questradeOrderId_accountId_unique" UNIQUE ("questradeOrderId", "accountId");
 
 
 
@@ -750,6 +1030,21 @@ ALTER TABLE ONLY "public"."Position"
 
 ALTER TABLE ONLY "public"."Position"
     ADD CONSTRAINT "Position_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."PromoCode"
+    ADD CONSTRAINT "PromoCode_code_key" UNIQUE ("code");
+
+
+
+ALTER TABLE ONLY "public"."PromoCode"
+    ADD CONSTRAINT "PromoCode_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."PromoCode"
+    ADD CONSTRAINT "PromoCode_stripeCouponId_key" UNIQUE ("stripeCouponId");
 
 
 
@@ -820,19 +1115,7 @@ CREATE INDEX "AccountOwner_ownerId_idx" ON "public"."AccountOwner" USING "btree"
 
 
 
-CREATE INDEX "Account_isConnected_idx" ON "public"."Account" USING "btree" ("isConnected");
-
-
-
 CREATE INDEX "Account_plaidItemId_idx" ON "public"."Account" USING "btree" ("plaidItemId");
-
-
-
-CREATE INDEX "Account_plaidMask_idx" ON "public"."Account" USING "btree" ("plaidMask");
-
-
-
-CREATE INDEX "Account_plaidVerificationStatus_idx" ON "public"."Account" USING "btree" ("plaidVerificationStatus");
 
 
 
@@ -872,7 +1155,7 @@ CREATE INDEX "Budget_categoryId_period_idx" ON "public"."Budget" USING "btree" (
 
 
 
-CREATE INDEX "Budget_macroId_idx" ON "public"."Budget" USING "btree" ("macroId");
+CREATE INDEX "Budget_macroId_idx" ON "public"."Budget" USING "btree" ("macroId") WHERE ("macroId" IS NOT NULL);
 
 
 
@@ -888,11 +1171,15 @@ CREATE UNIQUE INDEX "Budget_period_macroId_key" ON "public"."Budget" USING "btre
 
 
 
-CREATE INDEX "Budget_subcategoryId_idx" ON "public"."Budget" USING "btree" ("subcategoryId");
+CREATE INDEX "Budget_subcategoryId_idx" ON "public"."Budget" USING "btree" ("subcategoryId") WHERE ("subcategoryId" IS NOT NULL);
 
 
 
-CREATE INDEX "Budget_userId_idx" ON "public"."Budget" USING "btree" ("userId");
+CREATE INDEX "Budget_userId_idx" ON "public"."Budget" USING "btree" ("userId") WHERE ("userId" IS NOT NULL);
+
+
+
+CREATE INDEX "Candle_securityId_start_idx" ON "public"."Candle" USING "btree" ("securityId", "start");
 
 
 
@@ -908,59 +1195,59 @@ CREATE INDEX "Category_userId_idx" ON "public"."Category" USING "btree" ("userId
 
 
 
-CREATE INDEX "Debt_accountId_idx" ON "public"."Debt" USING "btree" ("accountId");
+CREATE INDEX "ContactForm_createdAt_idx" ON "public"."ContactForm" USING "btree" ("createdAt" DESC);
 
 
 
-CREATE INDEX "Debt_firstPaymentDate_idx" ON "public"."Debt" USING "btree" ("firstPaymentDate");
+CREATE INDEX "ContactForm_userId_idx" ON "public"."ContactForm" USING "btree" ("userId");
 
 
 
-CREATE INDEX "Debt_isPaidOff_idx" ON "public"."Debt" USING "btree" ("isPaidOff");
+CREATE INDEX "Debt_accountId_idx" ON "public"."Debt" USING "btree" ("accountId") WHERE ("accountId" IS NOT NULL);
 
 
 
-CREATE INDEX "Debt_isPaused_idx" ON "public"."Debt" USING "btree" ("isPaused");
+CREATE INDEX "Debt_userId_idx" ON "public"."Debt" USING "btree" ("userId") WHERE ("userId" IS NOT NULL);
 
 
 
-CREATE INDEX "Debt_loanType_idx" ON "public"."Debt" USING "btree" ("loanType");
+CREATE INDEX "Execution_accountId_idx" ON "public"."Execution" USING "btree" ("accountId");
 
 
 
-CREATE INDEX "Debt_paymentFrequency_idx" ON "public"."Debt" USING "btree" ("paymentFrequency");
+CREATE INDEX "Feedback_createdAt_idx" ON "public"."Feedback" USING "btree" ("createdAt" DESC);
 
 
 
-CREATE INDEX "Debt_priority_idx" ON "public"."Debt" USING "btree" ("priority");
+CREATE INDEX "Feedback_userId_idx" ON "public"."Feedback" USING "btree" ("userId");
 
 
 
-CREATE INDEX "Debt_userId_idx" ON "public"."Debt" USING "btree" ("userId");
+CREATE INDEX "Goal_accountId_idx" ON "public"."Goal" USING "btree" ("accountId") WHERE ("accountId" IS NOT NULL);
 
 
 
-CREATE INDEX "Goal_isCompleted_idx" ON "public"."Goal" USING "btree" ("isCompleted");
+CREATE INDEX "Goal_userId_idx" ON "public"."Goal" USING "btree" ("userId") WHERE ("userId" IS NOT NULL);
 
 
 
-CREATE INDEX "Goal_isPaused_idx" ON "public"."Goal" USING "btree" ("isPaused");
+CREATE INDEX "Group_name_idx" ON "public"."Group" USING "btree" ("name");
 
 
 
-CREATE INDEX "Goal_priority_idx" ON "public"."Goal" USING "btree" ("priority");
+CREATE UNIQUE INDEX "Group_name_key_system" ON "public"."Group" USING "btree" ("name") WHERE ("userId" IS NULL);
 
 
 
-CREATE INDEX "Goal_userId_idx" ON "public"."Goal" USING "btree" ("userId");
+CREATE UNIQUE INDEX "Group_name_userId_key" ON "public"."Group" USING "btree" ("name", "userId") WHERE ("userId" IS NOT NULL);
+
+
+
+CREATE INDEX "Group_userId_idx" ON "public"."Group" USING "btree" ("userId") WHERE ("userId" IS NOT NULL);
 
 
 
 CREATE INDEX "HouseholdMember_email_idx" ON "public"."HouseholdMember" USING "btree" ("email");
-
-
-
-CREATE INDEX "HouseholdMember_invitationToken_idx" ON "public"."HouseholdMember" USING "btree" ("invitationToken");
 
 
 
@@ -972,27 +1259,19 @@ CREATE INDEX "HouseholdMember_ownerId_idx" ON "public"."HouseholdMember" USING "
 
 
 
-CREATE INDEX "HouseholdMember_role_idx" ON "public"."HouseholdMember" USING "btree" ("role");
-
-
-
 CREATE INDEX "HouseholdMember_status_idx" ON "public"."HouseholdMember" USING "btree" ("status");
 
 
 
-CREATE INDEX "InvestmentAccount_isQuestradeConnected_idx" ON "public"."InvestmentAccount" USING "btree" ("isQuestradeConnected");
+CREATE INDEX "InvestmentAccount_accountId_idx" ON "public"."InvestmentAccount" USING "btree" ("accountId") WHERE ("accountId" IS NOT NULL);
 
 
 
-CREATE INDEX "InvestmentAccount_questradeConnectionId_idx" ON "public"."InvestmentAccount" USING "btree" ("questradeConnectionId");
+CREATE INDEX "InvestmentAccount_questradeConnectionId_idx" ON "public"."InvestmentAccount" USING "btree" ("questradeConnectionId") WHERE ("questradeConnectionId" IS NOT NULL);
 
 
 
-CREATE INDEX "InvestmentAccount_type_idx" ON "public"."InvestmentAccount" USING "btree" ("type");
-
-
-
-CREATE INDEX "InvestmentAccount_userId_idx" ON "public"."InvestmentAccount" USING "btree" ("userId");
+CREATE INDEX "InvestmentAccount_userId_idx" ON "public"."InvestmentAccount" USING "btree" ("userId") WHERE ("userId" IS NOT NULL);
 
 
 
@@ -1008,23 +1287,7 @@ CREATE INDEX "InvestmentTransaction_securityId_idx" ON "public"."InvestmentTrans
 
 
 
-CREATE INDEX "InvestmentTransaction_type_idx" ON "public"."InvestmentTransaction" USING "btree" ("type");
-
-
-
-CREATE INDEX "Macro_name_idx" ON "public"."Macro" USING "btree" ("name");
-
-
-
-CREATE UNIQUE INDEX "Macro_name_key_system" ON "public"."Macro" USING "btree" ("name") WHERE ("userId" IS NULL);
-
-
-
-CREATE UNIQUE INDEX "Macro_name_userId_key" ON "public"."Macro" USING "btree" ("name", "userId") WHERE ("userId" IS NOT NULL);
-
-
-
-CREATE INDEX "Macro_userId_idx" ON "public"."Macro" USING "btree" ("userId");
+CREATE INDEX "Order_accountId_idx" ON "public"."Order" USING "btree" ("accountId");
 
 
 
@@ -1040,39 +1303,11 @@ CREATE INDEX "PlaidLiability_accountId_idx" ON "public"."PlaidLiability" USING "
 
 
 
-CREATE INDEX "PlaidLiability_liabilityType_idx" ON "public"."PlaidLiability" USING "btree" ("liabilityType");
-
-
-
-CREATE INDEX "PlaidLiability_nextPaymentDueDate_idx" ON "public"."PlaidLiability" USING "btree" ("nextPaymentDueDate");
-
-
-
-CREATE INDEX "PlaidLiability_plaidAccountId_idx" ON "public"."PlaidLiability" USING "btree" ("plaidAccountId");
-
-
-
-CREATE INDEX "PlaidLiability_plaidItemId_idx" ON "public"."PlaidLiability" USING "btree" ("plaidItemId");
-
-
-
-CREATE INDEX "Plan_name_idx" ON "public"."Plan" USING "btree" ("name");
-
-
-
-CREATE INDEX "Position_accountId_idx" ON "public"."Position" USING "btree" ("accountId");
-
-
-
 CREATE INDEX "Position_accountId_securityId_idx" ON "public"."Position" USING "btree" ("accountId", "securityId");
 
 
 
 CREATE INDEX "Position_securityId_idx" ON "public"."Position" USING "btree" ("securityId");
-
-
-
-CREATE INDEX "QuestradeConnection_tokenExpiresAt_idx" ON "public"."QuestradeConnection" USING "btree" ("tokenExpiresAt");
 
 
 
@@ -1085,14 +1320,6 @@ CREATE INDEX "SecurityPrice_securityId_date_idx" ON "public"."SecurityPrice" USI
 
 
 CREATE UNIQUE INDEX "SecurityPrice_securityId_date_key" ON "public"."SecurityPrice" USING "btree" ("securityId", "date");
-
-
-
-CREATE INDEX "Security_class_idx" ON "public"."Security" USING "btree" ("class");
-
-
-
-CREATE INDEX "Security_sector_idx" ON "public"."Security" USING "btree" ("sector");
 
 
 
@@ -1112,10 +1339,6 @@ CREATE INDEX "SimpleInvestmentEntry_date_idx" ON "public"."SimpleInvestmentEntry
 
 
 
-CREATE INDEX "SimpleInvestmentEntry_type_idx" ON "public"."SimpleInvestmentEntry" USING "btree" ("type");
-
-
-
 CREATE INDEX "Subcategory_categoryId_idx" ON "public"."Subcategory" USING "btree" ("categoryId");
 
 
@@ -1128,19 +1351,11 @@ CREATE INDEX "Subcategory_userId_idx" ON "public"."Subcategory" USING "btree" ("
 
 
 
-CREATE INDEX "Subscription_planId_idx" ON "public"."Subscription" USING "btree" ("planId");
+CREATE INDEX "Subscription_planId_idx" ON "public"."Subscription" USING "btree" ("planId") WHERE ("planId" IS NOT NULL);
 
 
 
 CREATE INDEX "Subscription_status_idx" ON "public"."Subscription" USING "btree" ("status");
-
-
-
-CREATE INDEX "Subscription_stripeCustomerId_idx" ON "public"."Subscription" USING "btree" ("stripeCustomerId");
-
-
-
-CREATE INDEX "Subscription_stripeSubscriptionId_idx" ON "public"."Subscription" USING "btree" ("stripeSubscriptionId");
 
 
 
@@ -1152,7 +1367,7 @@ CREATE INDEX "TransactionSync_accountId_idx" ON "public"."TransactionSync" USING
 
 
 
-CREATE INDEX "TransactionSync_plaidTransactionId_idx" ON "public"."TransactionSync" USING "btree" ("plaidTransactionId");
+CREATE INDEX "TransactionSync_transactionId_idx" ON "public"."TransactionSync" USING "btree" ("transactionId") WHERE ("transactionId" IS NOT NULL);
 
 
 
@@ -1164,6 +1379,10 @@ CREATE INDEX "Transaction_categoryId_date_idx" ON "public"."Transaction" USING "
 
 
 
+CREATE INDEX "Transaction_date_desc_idx" ON "public"."Transaction" USING "btree" ("date" DESC);
+
+
+
 CREATE INDEX "Transaction_date_idx" ON "public"."Transaction" USING "btree" ("date");
 
 
@@ -1172,19 +1391,11 @@ CREATE INDEX "Transaction_date_type_idx" ON "public"."Transaction" USING "btree"
 
 
 
-CREATE INDEX "Transaction_plaidMetadata_category_idx" ON "public"."Transaction" USING "gin" ((("plaidMetadata" -> 'category'::"text"))) WHERE (("plaidMetadata" -> 'category'::"text") IS NOT NULL);
-
-
-
-CREATE INDEX "Transaction_plaidMetadata_idx" ON "public"."Transaction" USING "gin" ("plaidMetadata");
-
-
-
-CREATE INDEX "Transaction_plaidMetadata_pending_idx" ON "public"."Transaction" USING "btree" (((("plaidMetadata" ->> 'pending'::"text"))::boolean)) WHERE (("plaidMetadata" ->> 'pending'::"text") IS NOT NULL);
-
-
-
 CREATE INDEX "Transaction_recurring_idx" ON "public"."Transaction" USING "btree" ("recurring");
+
+
+
+CREATE INDEX "Transaction_subcategoryId_idx" ON "public"."Transaction" USING "btree" ("subcategoryId") WHERE ("subcategoryId" IS NOT NULL);
 
 
 
@@ -1192,7 +1403,15 @@ CREATE INDEX "Transaction_suggestedCategoryId_idx" ON "public"."Transaction" USI
 
 
 
+CREATE INDEX "Transaction_suggestedSubcategoryId_idx" ON "public"."Transaction" USING "btree" ("suggestedSubcategoryId") WHERE ("suggestedSubcategoryId" IS NOT NULL);
+
+
+
 CREATE INDEX "Transaction_type_idx" ON "public"."Transaction" USING "btree" ("type");
+
+
+
+CREATE INDEX "Transaction_userId_date_desc_idx" ON "public"."Transaction" USING "btree" ("userId", "date" DESC);
 
 
 
@@ -1200,11 +1419,7 @@ CREATE INDEX "Transaction_userId_idx" ON "public"."Transaction" USING "btree" ("
 
 
 
-CREATE INDEX "User_email_idx" ON "public"."User" USING "btree" ("email");
-
-
-
-CREATE INDEX "User_phoneNumber_idx" ON "public"."User" USING "btree" ("phoneNumber") WHERE ("phoneNumber" IS NOT NULL);
+CREATE INDEX "Transaction_userId_type_categoryId_date_idx" ON "public"."Transaction" USING "btree" ("userId", "type", "categoryId", "date") WHERE ("categoryId" IS NOT NULL);
 
 
 
@@ -1213,6 +1428,10 @@ CREATE INDEX "User_role_idx" ON "public"."User" USING "btree" ("role");
 
 
 CREATE OR REPLACE TRIGGER "update_plan_updated_at" BEFORE UPDATE ON "public"."Plan" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "update_promo_code_updated_at" BEFORE UPDATE ON "public"."PromoCode" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
 
@@ -1270,7 +1489,7 @@ ALTER TABLE ONLY "public"."Budget"
 
 
 ALTER TABLE ONLY "public"."Budget"
-    ADD CONSTRAINT "Budget_macroId_fkey" FOREIGN KEY ("macroId") REFERENCES "public"."Macro"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "Budget_macroId_fkey" FOREIGN KEY ("macroId") REFERENCES "public"."Group"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
@@ -1284,13 +1503,23 @@ ALTER TABLE ONLY "public"."Budget"
 
 
 
+ALTER TABLE ONLY "public"."Candle"
+    ADD CONSTRAINT "Candle_securityId_fkey" FOREIGN KEY ("securityId") REFERENCES "public"."Security"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."Category"
-    ADD CONSTRAINT "Category_macroId_fkey" FOREIGN KEY ("macroId") REFERENCES "public"."Macro"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "Category_groupId_fkey" FOREIGN KEY ("macroId") REFERENCES "public"."Group"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."Category"
     ADD CONSTRAINT "Category_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."ContactForm"
+    ADD CONSTRAINT "ContactForm_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE SET NULL;
 
 
 
@@ -1304,8 +1533,28 @@ ALTER TABLE ONLY "public"."Debt"
 
 
 
+ALTER TABLE ONLY "public"."Execution"
+    ADD CONSTRAINT "Execution_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."InvestmentAccount"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."Feedback"
+    ADD CONSTRAINT "Feedback_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."Goal"
+    ADD CONSTRAINT "Goal_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."Goal"
     ADD CONSTRAINT "Goal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."Group"
+    ADD CONSTRAINT "Group_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
 
 
 
@@ -1335,7 +1584,7 @@ ALTER TABLE ONLY "public"."InvestmentAccount"
 
 
 ALTER TABLE ONLY "public"."InvestmentTransaction"
-    ADD CONSTRAINT "InvestmentTransaction_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."InvestmentAccount"("id") ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT "InvestmentTransaction_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 
@@ -1344,8 +1593,8 @@ ALTER TABLE ONLY "public"."InvestmentTransaction"
 
 
 
-ALTER TABLE ONLY "public"."Macro"
-    ADD CONSTRAINT "Macro_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."Order"
+    ADD CONSTRAINT "Order_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."InvestmentAccount"("id") ON DELETE CASCADE;
 
 
 
@@ -1496,13 +1745,31 @@ ALTER TABLE "public"."Budget" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."BudgetCategory" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."BudgetSubcategory" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."Candle" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."Category" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."ContactForm" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."Debt" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."Execution" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."Feedback" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."Goal" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."Group" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."HouseholdMember" ENABLE ROW LEVEL SECURITY;
@@ -1514,7 +1781,7 @@ ALTER TABLE "public"."InvestmentAccount" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."InvestmentTransaction" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."Macro" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."Order" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."PlaidConnection" ENABLE ROW LEVEL SECURITY;
@@ -1531,6 +1798,13 @@ CREATE POLICY "Plans are publicly readable" ON "public"."Plan" FOR SELECT USING 
 
 
 ALTER TABLE "public"."Position" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."PromoCode" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "Public can read active promo codes" ON "public"."PromoCode" FOR SELECT USING ((("isActive" = true) AND (("expiresAt" IS NULL) OR ("expiresAt" > "now"()))));
+
 
 
 ALTER TABLE "public"."QuestradeConnection" ENABLE ROW LEVEL SECURITY;
@@ -1575,6 +1849,48 @@ ALTER TABLE "public"."Subcategory" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."Subscription" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "Super admin can delete promo codes" ON "public"."PromoCode" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "Super admin can insert promo codes" ON "public"."PromoCode" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "Super admin can read promo codes" ON "public"."PromoCode" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "Super admin can update promo codes" ON "public"."PromoCode" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "Super admins can update contact submissions" ON "public"."ContactForm" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "Super admins can view all contact submissions" ON "public"."ContactForm" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "Super admins can view all feedback submissions" ON "public"."Feedback" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
 ALTER TABLE "public"."Transaction" ENABLE ROW LEVEL SECURITY;
 
 
@@ -1596,7 +1912,29 @@ CREATE POLICY "Users can delete account owners" ON "public"."AccountOwner" FOR D
 
 
 
+CREATE POLICY "Users can delete candles for own securities" ON "public"."Candle" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."Security"
+  WHERE (("Security"."id" = "Candle"."securityId") AND (EXISTS ( SELECT 1
+           FROM "public"."Position"
+          WHERE (("Position"."securityId" = "Security"."id") AND (EXISTS ( SELECT 1
+                   FROM "public"."InvestmentAccount"
+                  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))))))))));
+
+
+
+CREATE POLICY "Users can delete executions for own accounts" ON "public"."Execution" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Execution"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can delete household members" ON "public"."HouseholdMember" FOR DELETE USING (("ownerId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can delete orders for own accounts" ON "public"."Order" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Order"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
 
 
 
@@ -1606,13 +1944,23 @@ CREATE POLICY "Users can delete own account investment values" ON "public"."Acco
 
 
 
-CREATE POLICY "Users can delete own accounts" ON "public"."Account" FOR DELETE USING (("userId" = "auth"."uid"()));
+CREATE POLICY "Users can delete own accounts" ON "public"."Account" FOR DELETE USING ((("auth"."uid"() = "userId") OR (EXISTS ( SELECT 1
+   FROM "public"."AccountOwner"
+  WHERE (("AccountOwner"."accountId" = "Account"."id") AND ("AccountOwner"."ownerId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = ANY (ARRAY['admin'::"text", 'super_admin'::"text"])))))));
 
 
 
 CREATE POLICY "Users can delete own budget categories" ON "public"."BudgetCategory" FOR DELETE USING ((EXISTS ( SELECT 1
    FROM "public"."Budget"
   WHERE (("Budget"."id" = "BudgetCategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can delete own budget subcategories" ON "public"."BudgetSubcategory" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."Budget"
+  WHERE (("Budget"."id" = "BudgetSubcategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
 
 
 
@@ -1632,17 +1980,17 @@ CREATE POLICY "Users can delete own goals" ON "public"."Goal" FOR DELETE USING (
 
 
 
+CREATE POLICY "Users can delete own groups" ON "public"."Group" FOR DELETE USING (("userId" = "auth"."uid"()));
+
+
+
 CREATE POLICY "Users can delete own investment accounts" ON "public"."InvestmentAccount" FOR DELETE USING (("userId" = "auth"."uid"()));
 
 
 
 CREATE POLICY "Users can delete own investment transactions" ON "public"."InvestmentTransaction" FOR DELETE USING ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "InvestmentTransaction"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "Users can delete own macros" ON "public"."Macro" FOR DELETE USING (("userId" = "auth"."uid"()));
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "InvestmentTransaction"."accountId") AND ("Account"."userId" = "auth"."uid"()) AND ("Account"."type" = 'investment'::"text")))));
 
 
 
@@ -1688,13 +2036,41 @@ CREATE POLICY "Users can insert TransactionSync for their accounts" ON "public".
 
 
 
-CREATE POLICY "Users can insert account owners" ON "public"."AccountOwner" FOR INSERT WITH CHECK ((("ownerId" = "auth"."uid"()) OR (EXISTS ( SELECT 1
-   FROM "public"."Account"
-  WHERE (("Account"."id" = "AccountOwner"."accountId") AND ("Account"."userId" = "auth"."uid"()))))));
+CREATE POLICY "Users can insert account owners" ON "public"."AccountOwner" FOR INSERT WITH CHECK ((("public"."is_account_owner_by_userid"("accountId") OR "public"."is_account_owner_via_accountowner"("accountId") OR "public"."is_current_user_admin"()) AND (("auth"."uid"() = "ownerId") OR ("public"."is_account_owner_by_userid"("accountId") AND (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE ("User"."id" = "AccountOwner"."ownerId")))) OR (("public"."is_account_owner_via_accountowner"("accountId") AND ((EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "auth"."uid"()) AND ("HouseholdMember"."memberId" = "AccountOwner"."ownerId") AND ("HouseholdMember"."status" = 'active'::"text")))) OR (EXISTS ( SELECT 1
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."ownerId" = "AccountOwner"."ownerId") AND ("HouseholdMember"."memberId" = "auth"."uid"()) AND ("HouseholdMember"."status" = 'active'::"text")))))) OR ("public"."is_current_user_admin"() AND (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE ("User"."id" = "AccountOwner"."ownerId"))))))));
+
+
+
+CREATE POLICY "Users can insert candles for own securities" ON "public"."Candle" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."Security"
+  WHERE (("Security"."id" = "Candle"."securityId") AND (EXISTS ( SELECT 1
+           FROM "public"."Position"
+          WHERE (("Position"."securityId" = "Security"."id") AND (EXISTS ( SELECT 1
+                   FROM "public"."InvestmentAccount"
+                  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))))))))));
+
+
+
+CREATE POLICY "Users can insert executions for own accounts" ON "public"."Execution" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Execution"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
 
 
 
 CREATE POLICY "Users can insert household members" ON "public"."HouseholdMember" FOR INSERT WITH CHECK (("ownerId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can insert orders for own accounts" ON "public"."Order" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Order"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
 
 
 
@@ -1714,6 +2090,12 @@ CREATE POLICY "Users can insert own budget categories" ON "public"."BudgetCatego
 
 
 
+CREATE POLICY "Users can insert own budget subcategories" ON "public"."BudgetSubcategory" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."Budget"
+  WHERE (("Budget"."id" = "BudgetSubcategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can insert own budgets" ON "public"."Budget" FOR INSERT WITH CHECK (("userId" = "auth"."uid"()));
 
 
@@ -1722,11 +2104,23 @@ CREATE POLICY "Users can insert own categories" ON "public"."Category" FOR INSER
 
 
 
+CREATE POLICY "Users can insert own contact submissions" ON "public"."ContactForm" FOR INSERT WITH CHECK ((("auth"."uid"() = "userId") OR ("userId" IS NULL)));
+
+
+
 CREATE POLICY "Users can insert own debts" ON "public"."Debt" FOR INSERT WITH CHECK (("userId" = "auth"."uid"()));
 
 
 
+CREATE POLICY "Users can insert own feedback submissions" ON "public"."Feedback" FOR INSERT WITH CHECK (("auth"."uid"() = "userId"));
+
+
+
 CREATE POLICY "Users can insert own goals" ON "public"."Goal" FOR INSERT WITH CHECK (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can insert own groups" ON "public"."Group" FOR INSERT WITH CHECK ((("userId" IS NULL) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -1735,12 +2129,8 @@ CREATE POLICY "Users can insert own investment accounts" ON "public"."Investment
 
 
 CREATE POLICY "Users can insert own investment transactions" ON "public"."InvestmentTransaction" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "InvestmentTransaction"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "Users can insert own macros" ON "public"."Macro" FOR INSERT WITH CHECK ((("userId" IS NULL) OR ("userId" = "auth"."uid"())));
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "InvestmentTransaction"."accountId") AND ("Account"."userId" = "auth"."uid"()) AND ("Account"."type" = 'investment'::"text")))));
 
 
 
@@ -1800,7 +2190,29 @@ CREATE POLICY "Users can update account owners" ON "public"."AccountOwner" FOR U
 
 
 
+CREATE POLICY "Users can update candles for own securities" ON "public"."Candle" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."Security"
+  WHERE (("Security"."id" = "Candle"."securityId") AND (EXISTS ( SELECT 1
+           FROM "public"."Position"
+          WHERE (("Position"."securityId" = "Security"."id") AND (EXISTS ( SELECT 1
+                   FROM "public"."InvestmentAccount"
+                  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))))))))));
+
+
+
+CREATE POLICY "Users can update executions for own accounts" ON "public"."Execution" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Execution"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can update household members" ON "public"."HouseholdMember" FOR UPDATE USING ((("ownerId" = "auth"."uid"()) OR ("memberId" = "auth"."uid"())));
+
+
+
+CREATE POLICY "Users can update orders for own accounts" ON "public"."Order" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Order"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
 
 
 
@@ -1810,13 +2222,23 @@ CREATE POLICY "Users can update own account investment values" ON "public"."Acco
 
 
 
-CREATE POLICY "Users can update own accounts" ON "public"."Account" FOR UPDATE USING (("userId" = "auth"."uid"()));
+CREATE POLICY "Users can update own accounts" ON "public"."Account" FOR UPDATE USING ((("auth"."uid"() = "userId") OR (EXISTS ( SELECT 1
+   FROM "public"."AccountOwner"
+  WHERE (("AccountOwner"."accountId" = "Account"."id") AND ("AccountOwner"."ownerId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = ANY (ARRAY['admin'::"text", 'super_admin'::"text"])))))));
 
 
 
 CREATE POLICY "Users can update own budget categories" ON "public"."BudgetCategory" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."Budget"
   WHERE (("Budget"."id" = "BudgetCategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can update own budget subcategories" ON "public"."BudgetSubcategory" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."Budget"
+  WHERE (("Budget"."id" = "BudgetSubcategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
 
 
 
@@ -1836,17 +2258,17 @@ CREATE POLICY "Users can update own goals" ON "public"."Goal" FOR UPDATE USING (
 
 
 
+CREATE POLICY "Users can update own groups" ON "public"."Group" FOR UPDATE USING (("userId" = "auth"."uid"()));
+
+
+
 CREATE POLICY "Users can update own investment accounts" ON "public"."InvestmentAccount" FOR UPDATE USING (("userId" = "auth"."uid"()));
 
 
 
 CREATE POLICY "Users can update own investment transactions" ON "public"."InvestmentTransaction" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "InvestmentTransaction"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "Users can update own macros" ON "public"."Macro" FOR UPDATE USING (("userId" = "auth"."uid"()));
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "InvestmentTransaction"."accountId") AND ("Account"."userId" = "auth"."uid"()) AND ("Account"."type" = 'investment'::"text")))));
 
 
 
@@ -1902,7 +2324,29 @@ CREATE POLICY "Users can view account owners" ON "public"."AccountOwner" FOR SEL
 
 
 
+CREATE POLICY "Users can view candles for own securities" ON "public"."Candle" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."Security"
+  WHERE (("Security"."id" = "Candle"."securityId") AND (EXISTS ( SELECT 1
+           FROM "public"."Position"
+          WHERE (("Position"."securityId" = "Security"."id") AND (EXISTS ( SELECT 1
+                   FROM "public"."InvestmentAccount"
+                  WHERE (("InvestmentAccount"."id" = "Position"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))))))))));
+
+
+
+CREATE POLICY "Users can view executions for own accounts" ON "public"."Execution" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Execution"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can view household members" ON "public"."HouseholdMember" FOR SELECT USING ((("ownerId" = "auth"."uid"()) OR ("memberId" = "auth"."uid"())));
+
+
+
+CREATE POLICY "Users can view orders for own accounts" ON "public"."Order" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."InvestmentAccount"
+  WHERE (("InvestmentAccount"."id" = "Order"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
 
 
 
@@ -1922,11 +2366,25 @@ CREATE POLICY "Users can view own budget categories" ON "public"."BudgetCategory
 
 
 
+CREATE POLICY "Users can view own budget subcategories" ON "public"."BudgetSubcategory" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."Budget"
+  WHERE (("Budget"."id" = "BudgetSubcategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
+
+
+
 CREATE POLICY "Users can view own budgets" ON "public"."Budget" FOR SELECT USING (("userId" = "auth"."uid"()));
 
 
 
+CREATE POLICY "Users can view own contact submissions" ON "public"."ContactForm" FOR SELECT USING (("auth"."uid"() = "userId"));
+
+
+
 CREATE POLICY "Users can view own debts" ON "public"."Debt" FOR SELECT USING (("userId" = "auth"."uid"()));
+
+
+
+CREATE POLICY "Users can view own feedback submissions" ON "public"."Feedback" FOR SELECT USING (("auth"."uid"() = "userId"));
 
 
 
@@ -1939,8 +2397,8 @@ CREATE POLICY "Users can view own investment accounts" ON "public"."InvestmentAc
 
 
 CREATE POLICY "Users can view own investment transactions" ON "public"."InvestmentTransaction" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "InvestmentTransaction"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+   FROM "public"."Account"
+  WHERE (("Account"."id" = "InvestmentTransaction"."accountId") AND ("Account"."userId" = "auth"."uid"()) AND ("Account"."type" = 'investment'::"text")))));
 
 
 
@@ -1972,7 +2430,7 @@ CREATE POLICY "Users can view system and own categories" ON "public"."Category" 
 
 
 
-CREATE POLICY "Users can view system and own macros" ON "public"."Macro" FOR SELECT USING ((("userId" IS NULL) OR ("userId" = "auth"."uid"())));
+CREATE POLICY "Users can view system and own groups" ON "public"."Group" FOR SELECT USING ((("userId" IS NULL) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -2073,9 +2531,21 @@ GRANT ALL ON TABLE "public"."BudgetSubcategory" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."Candle" TO "anon";
+GRANT ALL ON TABLE "public"."Candle" TO "authenticated";
+GRANT ALL ON TABLE "public"."Candle" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."Category" TO "anon";
 GRANT ALL ON TABLE "public"."Category" TO "authenticated";
 GRANT ALL ON TABLE "public"."Category" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."ContactForm" TO "anon";
+GRANT ALL ON TABLE "public"."ContactForm" TO "authenticated";
+GRANT ALL ON TABLE "public"."ContactForm" TO "service_role";
 
 
 
@@ -2085,9 +2555,27 @@ GRANT ALL ON TABLE "public"."Debt" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."Execution" TO "anon";
+GRANT ALL ON TABLE "public"."Execution" TO "authenticated";
+GRANT ALL ON TABLE "public"."Execution" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."Feedback" TO "anon";
+GRANT ALL ON TABLE "public"."Feedback" TO "authenticated";
+GRANT ALL ON TABLE "public"."Feedback" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."Goal" TO "anon";
 GRANT ALL ON TABLE "public"."Goal" TO "authenticated";
 GRANT ALL ON TABLE "public"."Goal" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."Group" TO "anon";
+GRANT ALL ON TABLE "public"."Group" TO "authenticated";
+GRANT ALL ON TABLE "public"."Group" TO "service_role";
 
 
 
@@ -2109,9 +2597,9 @@ GRANT ALL ON TABLE "public"."InvestmentTransaction" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."Macro" TO "anon";
-GRANT ALL ON TABLE "public"."Macro" TO "authenticated";
-GRANT ALL ON TABLE "public"."Macro" TO "service_role";
+GRANT ALL ON TABLE "public"."Order" TO "anon";
+GRANT ALL ON TABLE "public"."Order" TO "authenticated";
+GRANT ALL ON TABLE "public"."Order" TO "service_role";
 
 
 
@@ -2136,6 +2624,12 @@ GRANT ALL ON TABLE "public"."Plan" TO "service_role";
 GRANT ALL ON TABLE "public"."Position" TO "anon";
 GRANT ALL ON TABLE "public"."Position" TO "authenticated";
 GRANT ALL ON TABLE "public"."Position" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."PromoCode" TO "anon";
+GRANT ALL ON TABLE "public"."PromoCode" TO "authenticated";
+GRANT ALL ON TABLE "public"."PromoCode" TO "service_role";
 
 
 

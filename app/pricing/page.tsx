@@ -18,8 +18,6 @@ function PricingPageContent() {
   const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
   useEffect(() => {
-    loadCustomerInfo();
-
     // Check for success/cancel from Stripe
     const success = searchParams.get("success");
     const canceled = searchParams.get("canceled");
@@ -27,12 +25,16 @@ function PricingPageContent() {
     if (success) {
       // Redirect to billing page after successful payment
       router.push("/billing?success=true");
+      return;
     } else if (canceled) {
       // Show cancel message
       console.log("Checkout was canceled");
     }
 
-    setLoading(false);
+    // Load customer info and then set loading to false
+    loadCustomerInfo().finally(() => {
+      setLoading(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

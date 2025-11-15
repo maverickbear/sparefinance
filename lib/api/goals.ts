@@ -21,6 +21,8 @@ export interface Goal {
   description?: string | null;
   expectedIncome?: number | null;
   targetMonths?: number | null;
+  accountId?: string | null;
+  holdingId?: string | null;
   createdAt: string;
   updatedAt: string;
   // Calculated fields
@@ -221,14 +223,6 @@ export async function getGoals(): Promise<GoalWithCalculations[]> {
       refreshToken = session.refresh_token;
     }
     
-    // Log token availability (only in development)
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [getGoals] Token check:", {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        hasSession: !!session,
-      });
-    }
   } catch (error: any) {
     // If we can't get tokens (e.g., inside unstable_cache), continue without them
     console.warn("⚠️ [getGoals] Could not get tokens:", error?.message);
@@ -254,6 +248,8 @@ export async function createGoal(data: {
   isPaused?: boolean;
   expectedIncome?: number;
   targetMonths?: number;
+  accountId?: string;
+  holdingId?: string;
 }): Promise<Goal> {
     const supabase = await createServerClient();
 
@@ -305,6 +301,8 @@ export async function createGoal(data: {
     completedAt: isCompleted ? now : null,
     expectedIncome: data.expectedIncome || null,
     targetMonths: data.targetMonths || null,
+    accountId: data.accountId || null,
+    holdingId: data.holdingId || null,
     userId: user.id,
     createdAt: now,
     updatedAt: now,
@@ -322,7 +320,8 @@ export async function createGoal(data: {
   }
 
   // Invalidate cache to ensure fresh data on next fetch
-  revalidateTag('goals', 'page');
+  revalidateTag('goals', 'max');
+  revalidateTag('dashboard', 'max');
 
   return goal;
 }
@@ -342,6 +341,8 @@ export async function updateGoal(
     isPaused?: boolean;
     expectedIncome?: number;
     targetMonths?: number;
+    accountId?: string;
+    holdingId?: string;
   }
 ): Promise<Goal> {
     const supabase = await createServerClient();
@@ -405,6 +406,8 @@ export async function updateGoal(
   if (data.isPaused !== undefined) updateData.isPaused = data.isPaused;
   if (data.expectedIncome !== undefined) updateData.expectedIncome = data.expectedIncome || null;
   if (data.targetMonths !== undefined) updateData.targetMonths = data.targetMonths || null;
+  if (data.accountId !== undefined) updateData.accountId = data.accountId || null;
+  if (data.holdingId !== undefined) updateData.holdingId = data.holdingId || null;
 
   // Update completion status
   updateData.isCompleted = isCompleted;
@@ -427,7 +430,8 @@ export async function updateGoal(
   }
 
   // Invalidate cache to ensure fresh data on next fetch
-  revalidateTag('goals', 'page');
+  revalidateTag('goals', 'max');
+  revalidateTag('dashboard', 'max');
 
   return goal;
 }
@@ -449,7 +453,8 @@ export async function deleteGoal(id: string): Promise<void> {
   }
 
   // Invalidate cache to ensure fresh data on next fetch
-  revalidateTag('goals', 'page');
+  revalidateTag('goals', 'max');
+  revalidateTag('dashboard', 'max');
 }
 
 /**
@@ -499,7 +504,8 @@ export async function addTopUp(id: string, amount: number): Promise<Goal> {
   }
 
   // Invalidate cache to ensure fresh data on next fetch
-  revalidateTag('goals', 'page');
+  revalidateTag('goals', 'max');
+  revalidateTag('dashboard', 'max');
 
   return updatedGoal;
 }
@@ -551,7 +557,8 @@ export async function withdraw(id: string, amount: number): Promise<Goal> {
   }
 
   // Invalidate cache to ensure fresh data on next fetch
-  revalidateTag('goals', 'page');
+  revalidateTag('goals', 'max');
+  revalidateTag('dashboard', 'max');
 
   return updatedGoal;
 }

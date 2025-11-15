@@ -1,9 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createInvestmentTransaction, createSecurity, createSecurityPrice } from "@/lib/api/investments";
+import { 
+  createInvestmentTransaction, 
+  updateInvestmentTransaction,
+  deleteInvestmentTransaction,
+  getInvestmentTransactions,
+  createSecurity, 
+  createSecurityPrice 
+} from "@/lib/api/investments";
 import { InvestmentTransactionFormData } from "@/lib/validations/investment";
 import { ZodError } from "zod";
 import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
 import { isPlanError } from "@/lib/utils/plan-errors";
+
+export async function GET(request: NextRequest) {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user has access to investments
+    const featureGuard = await guardFeatureAccess(userId, "hasInvestments");
+    if (!featureGuard.allowed) {
+      return NextResponse.json(
+        { 
+          error: featureGuard.error?.message || "Investments are not available in your current plan",
+          code: featureGuard.error?.code,
+          planError: featureGuard.error,
+        },
+        { status: 403 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const accountId = searchParams.get("accountId") || undefined;
+    const securityId = searchParams.get("securityId") || undefined;
+    const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined;
+    const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined;
+
+    const transactions = await getInvestmentTransactions({
+      accountId,
+      securityId,
+      startDate,
+      endDate,
+    });
+
+    return NextResponse.json(transactions);
+  } catch (error) {
+    console.error("Error fetching investment transactions:", error);
+    
+    if (isPlanError(error)) {
+      return NextResponse.json(
+        { 
+          error: error.message,
+          code: error.code,
+          planError: error,
+        },
+        { status: 403 }
+      );
+    }
+    
+    const errorMessage = error instanceof Error ? error.message : "Failed to fetch investment transactions";
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

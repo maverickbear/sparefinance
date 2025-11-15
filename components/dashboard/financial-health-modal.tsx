@@ -114,10 +114,10 @@ export function FinancialHealthModal({
           <div className="flex items-center justify-between p-6 rounded-[12px] bg-card">
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline gap-2">
-                <span className={cn("text-6xl font-bold", getScoreColor(data.score))}>
+                <span className={cn("text-2xl font-semibold", getScoreColor(data.score))}>
                   {data.score}
                 </span>
-                <span className="text-lg text-muted-foreground">/100</span>
+                <span className="text-sm text-muted-foreground">/100</span>
               </div>
               <div className={cn(
                 "inline-flex items-center gap-2 px-4 py-2 rounded-full text-base font-semibold w-fit",
@@ -136,7 +136,7 @@ export function FinancialHealthModal({
             <div className="text-right space-y-1">
               <p className="text-sm text-muted-foreground">Net Amount</p>
               <p className={cn(
-                "text-2xl font-bold",
+                "text-2xl font-semibold",
                 data.netAmount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
               )}>
                 {formatMoney(data.netAmount)}
@@ -158,7 +158,7 @@ export function FinancialHealthModal({
                     <span className="text-sm font-medium">Monthly Income</span>
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                <p className="text-2xl font-semibold text-green-600 dark:text-green-400">
                   {formatMoney(data.monthlyIncome)}
                 </p>
                 <p className={`text-xs mt-1 ${
@@ -180,7 +180,7 @@ export function FinancialHealthModal({
                     <span className="text-sm font-medium">Monthly Expenses</span>
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                <p className="text-2xl font-semibold text-red-600 dark:text-red-400">
                   {formatMoney(data.monthlyExpenses)}
                 </p>
                 <p className={`text-xs mt-1 ${

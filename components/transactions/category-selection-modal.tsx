@@ -195,47 +195,55 @@ export function CategorySelectionModal({
         </Select>
       </div>
 
-      {availableCategories.length > 0 && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Category</label>
-          <Select
-            value={selectedCategoryId || undefined}
-            onValueChange={handleCategoryChange}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select category" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableCategories.map((category) => (
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Category</label>
+        <Select
+          value={selectedCategoryId || undefined}
+          onValueChange={handleCategoryChange}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={selectedMacroId ? "Select category" : "Select a group first"} />
+          </SelectTrigger>
+          <SelectContent>
+            {availableCategories.length > 0 ? (
+              availableCategories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.name}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+              ))
+            ) : (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                {selectedMacroId ? "No categories available" : "Select a group first"}
+              </div>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {subcategories.length > 0 && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Subcategory</label>
-          <Select
-            value={selectedSubcategoryId || undefined}
-            onValueChange={setSelectedSubcategoryId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select subcategory (optional)" />
-            </SelectTrigger>
-            <SelectContent>
-              {subcategories.map((subcategory) => (
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Subcategory</label>
+        <Select
+          value={selectedSubcategoryId || undefined}
+          onValueChange={setSelectedSubcategoryId}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder={selectedCategoryId ? "Select subcategory (optional)" : "Select a category first"} />
+          </SelectTrigger>
+          <SelectContent>
+            {subcategories.length > 0 ? (
+              subcategories.map((subcategory) => (
                 <SelectItem key={subcategory.id} value={subcategory.id}>
                   {subcategory.name}
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+              ))
+            ) : (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                {selectedCategoryId ? "No subcategories available" : "Select a category first"}
+              </div>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }

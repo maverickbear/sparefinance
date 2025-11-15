@@ -20,6 +20,7 @@ import {
 import { Loader2, Eye, Star } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils/timestamp";
 
 export interface Feedback {
   id: string;
@@ -49,15 +50,6 @@ export function FeedbackTable({ feedbacks, loading }: FeedbackTableProps) {
     setIsDialogOpen(true);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   const renderStars = (rating: number) => {
     return (
@@ -107,7 +99,7 @@ export function FeedbackTable({ feedbacks, loading }: FeedbackTableProps) {
             ) : (
               feedbacks.map((feedback) => (
                 <TableRow key={feedback.id}>
-                  <TableCell className="text-sm">{formatDate(feedback.createdAt)}</TableCell>
+                  <TableCell className="text-sm">{formatDateTime(feedback.createdAt)}</TableCell>
                   <TableCell>
                     {feedback.User ? (
                       <span className="text-sm">
@@ -145,7 +137,7 @@ export function FeedbackTable({ feedbacks, loading }: FeedbackTableProps) {
           <DialogHeader>
             <DialogTitle>Feedback Details</DialogTitle>
             <DialogDescription>
-              Submitted on {selectedFeedback && formatDate(selectedFeedback.createdAt)}
+              Submitted on {selectedFeedback && formatDateTime(selectedFeedback.createdAt)}
             </DialogDescription>
           </DialogHeader>
 

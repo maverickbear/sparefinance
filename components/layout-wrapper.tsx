@@ -80,7 +80,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  log.log("Render:", {
+  log.debug("Render:", {
     pathname,
     checking,
     hasSubscription,

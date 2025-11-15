@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, createContext, useContext, memo, useMemo, useCallback } from "react";
+import { useState, useEffect, createContext, useContext, memo, useMemo, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { logger } from "@/lib/utils/logger";
-import { LayoutDashboard, Receipt, Target, FolderTree, Wallet, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet } from "lucide-react";
+import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
 import { TrialWidget, calculateTrialDaysRemaining, calculateTrialProgress } from "@/components/billing/trial-widget";
 import { useTheme } from "next-themes";
@@ -116,6 +117,8 @@ function NavComponent({ hasSubscription = true }: NavProps) {
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const log = logger.withPrefix("NAV");
   
@@ -253,6 +256,15 @@ function NavComponent({ hasSubscription = true }: NavProps) {
     };
   }, [hasSubscription]);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Don't render Nav if user doesn't have subscription
   // But all hooks must be called before this return
   if (!hasSubscription) {
@@ -306,17 +318,35 @@ function NavComponent({ hasSubscription = true }: NavProps) {
             "fixed left-0 top-0 z-40 h-screen border-r bg-card transition-all duration-300 hidden lg:block",
             isCollapsed ? "w-16 overflow-visible" : "w-64 overflow-hidden"
           )}
+          onMouseEnter={() => {
+            // Clear any existing timeout
+            if (hoverTimeoutRef.current) {
+              clearTimeout(hoverTimeoutRef.current);
+              hoverTimeoutRef.current = null;
+            }
+            setIsHovered(true);
+          }}
+          onMouseLeave={() => {
+            // Keep button visible for 2 seconds after mouse leaves
+            hoverTimeoutRef.current = setTimeout(() => {
+              setIsHovered(false);
+              hoverTimeoutRef.current = null;
+            }, 2000);
+          }}
         >
           <div className={cn("flex h-full flex-col", isCollapsed && "overflow-visible")}>
             <div
               className={cn(
-                "flex h-16 items-center border-b px-4 relative",
-                isCollapsed ? "justify-center" : "justify-between"
+                "flex h-16 min-h-[64px] items-center border-b px-4 relative justify-center"
               )}
             >
-              {!isCollapsed && (
-                <Link href="/" className="text-xl font-bold">
-                  Spare Finance
+              {isCollapsed ? (
+                <Link href="/" className="flex items-center justify-center w-full h-full">
+                  <Logo variant="icon" color="auto" width={40} height={40} />
+                </Link>
+              ) : (
+                <Link href="/" className="flex items-center justify-center w-full h-full">
+                  <Logo variant="wordmark" color="auto" width={150} height={40} />
                 </Link>
               )}
             </div>
@@ -539,29 +569,32 @@ function NavComponent({ hasSubscription = true }: NavProps) {
           </div>
         </aside>
         {/* Toggle button rendered outside aside to avoid overflow clipping */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "fixed top-4 h-5 w-5 z-[50] bg-card border border-border shadow-sm hidden lg:flex items-center justify-center",
-                isCollapsed ? "left-16" : "left-64"
-              )}
-              style={{ transform: 'translateX(-50%)' }}
-              onClick={() => setIsCollapsed(!isCollapsed)}
-            >
-              {isCollapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronLeft className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side={isCollapsed ? "right" : "bottom"}>
-            {isCollapsed ? "Expand menu" : "Collapse menu"}
-          </TooltipContent>
-        </Tooltip>
+        {isHovered && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "fixed top-4 h-5 w-5 z-[50] bg-card border border-border shadow-sm hidden lg:flex items-center justify-center transition-opacity duration-200",
+                  isCollapsed ? "left-16" : "left-64",
+                  isHovered ? "opacity-100" : "opacity-0"
+                )}
+                style={{ transform: 'translateX(-50%)' }}
+                onClick={() => setIsCollapsed(!isCollapsed)}
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side={isCollapsed ? "right" : "bottom"}>
+              {isCollapsed ? "Expand menu" : "Collapse menu"}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </TooltipProvider>
     </SidebarContext.Provider>
   );

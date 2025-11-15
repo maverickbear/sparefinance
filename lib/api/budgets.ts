@@ -1,9 +1,10 @@
 "use server";
 
-import { unstable_cache } from "next/cache";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { createServerClient } from "@/lib/supabase-server";
 import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
 import { requireBudgetOwnership } from "@/lib/utils/security";
+import { decryptAmount } from "@/lib/utils/transaction-encryption";
 
 export interface Budget {
   id: string;
@@ -130,8 +131,9 @@ async function getBudgetsInternal(period: Date, accessToken?: string, refreshTok
   if (allTransactions) {
     for (const tx of allTransactions) {
       if (tx.categoryId) {
-        // Ensure amount is a positive number (expenses should be positive)
-        const amount = Math.abs(Number(tx.amount) || 0);
+        // Decrypt amount if encrypted, then ensure it's a positive number (expenses should be positive)
+        const decryptedAmount = decryptAmount(tx.amount);
+        const amount = Math.abs(decryptedAmount || 0);
         
         // Add to category total (all transactions in this category)
         const currentCategoryTotal = categorySpendMap.get(tx.categoryId) || 0;
@@ -226,14 +228,6 @@ export async function getBudgets(period: Date) {
       refreshToken = session.refresh_token;
     }
     
-    // Log token availability (only in development)
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [getBudgets] Token check:", {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        hasSession: !!session,
-      });
-    }
   } catch (error: any) {
     // If we can't get tokens (e.g., inside unstable_cache), continue without them
     console.warn("⚠️ [getBudgets] Could not get tokens:", error?.message);
@@ -345,6 +339,10 @@ export async function createBudget(data: {
 
   // Note: subcategoryId is now stored directly in Budget, not in BudgetSubcategory
 
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('budgets', 'max');
+  revalidateTag('dashboard', 'max');
+
   return budget;
 }
 
@@ -371,6 +369,10 @@ export async function updateBudget(id: string, data: { amount: number }) {
     throw new Error(`Failed to update budget: ${error.message || JSON.stringify(error)}`);
   }
 
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('budgets', 'max');
+  revalidateTag('dashboard', 'max');
+
   return budget;
 }
 
@@ -386,4 +388,8 @@ export async function deleteBudget(id: string) {
     console.error("Supabase error deleting budget:", error);
     throw new Error(`Failed to delete budget: ${error.message || JSON.stringify(error)}`);
   }
+
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('budgets', 'max');
+  revalidateTag('dashboard', 'max');
 }

@@ -181,5 +181,25 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Chrome, Safari and Opera */
   }
+
+  /* Infinite carousel animation */
+  @keyframes scroll-infinite {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-scroll-infinite {
+    animation: scroll-infinite 60s linear infinite;
+    display: flex;
+    width: fit-content;
+  }
+
+  .animate-scroll-infinite:hover {
+    animation-play-state: paused;
+  }
 }
 

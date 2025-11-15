@@ -28,8 +28,6 @@ import { supabase } from "@/lib/supabase";
 import { LimitWarning } from "@/components/billing/limit-warning";
 import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
-import { ConnectBankButton } from "@/components/banking/connect-bank-button";
-import { FeatureGuard } from "@/components/common/feature-guard";
 
 interface Account {
   id: string;
@@ -269,8 +267,12 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
         ...(data.type === "credit" && data.creditLimit !== undefined 
           ? { creditLimit: data.creditLimit } 
           : {}),
-        ...((data.type === "checking" || data.type === "savings") && data.initialBalance !== undefined 
-          ? { initialBalance: data.initialBalance } 
+        ...((data.type === "checking" || data.type === "savings")
+          ? { 
+              initialBalance: account 
+                ? (data.initialBalance !== undefined ? data.initialBalance : account.initialBalance ?? 0)
+                : (data.initialBalance ?? 0)
+            } 
           : {}),
       };
 
@@ -383,7 +385,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                   }}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger required>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -416,10 +418,9 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                 <div className="space-y-1">
                   <label className="text-sm font-medium">Initial Balance</label>
                   <DollarAmountInput
-                    value={form.watch("initialBalance") || undefined}
-                    onChange={(value) => form.setValue("initialBalance", value ?? undefined, { shouldValidate: true })}
+                    value={form.watch("initialBalance") ?? undefined}
+                    onChange={(value) => form.setValue("initialBalance", value !== undefined ? value : undefined, { shouldValidate: true })}
                     placeholder="$ 0.00"
-                    required
                   />
                   {form.formState.errors.initialBalance && (
                     <p className="text-sm text-destructive">{form.formState.errors.initialBalance.message}</p>
@@ -477,15 +478,6 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
           </div>
 
           <DialogFooter className="justify-between">
-            <FeatureGuard feature="hasBankIntegration">
-              <ConnectBankButton 
-                variant="outline"
-                onSuccess={() => {
-                  onOpenChange(false);
-                  onSuccess?.();
-                }} 
-              />
-            </FeatureGuard>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel

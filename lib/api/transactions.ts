@@ -4,7 +4,7 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { createServerClient } from "@/lib/supabase-server";
 import { TransactionFormData } from "@/lib/validations/transaction";
-import { formatTimestamp, formatDateStart, formatDateEnd, getCurrentTimestamp } from "@/lib/utils/timestamp";
+import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp } from "@/lib/utils/timestamp";
 import { getDebts } from "@/lib/api/debts";
 import { calculateNextPaymentDates, type DebtForCalculation } from "@/lib/utils/debts";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
@@ -12,6 +12,7 @@ import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/li
 import { requireTransactionOwnership } from "@/lib/utils/security";
 import { suggestCategory } from "@/lib/api/category-learning";
 import { logger } from "@/lib/utils/logger";
+import { encryptDescription, decryptDescription, encryptAmount, decryptAmount } from "@/lib/utils/transaction-encryption";
 
 export async function createTransaction(data: TransactionFormData) {
     const supabase = await createServerClient();
@@ -32,8 +33,10 @@ export async function createTransaction(data: TransactionFormData) {
   const date = data.date instanceof Date ? data.date : new Date(data.date);
   const now = formatTimestamp(new Date());
   
-  // Format date for PostgreSQL timestamp(3) without time zone: YYYY-MM-DD HH:MM:SS
-  const formatDate = formatTimestamp;
+  // Format date for PostgreSQL timestamp(3) without time zone
+  // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+  // This ensures the date is saved exactly as the user selected
+  const formatDate = formatDateOnly;
 
   // Get category suggestion from learning model if no category is provided
   let categorySuggestion = null;
@@ -76,6 +79,10 @@ export async function createTransaction(data: TransactionFormData) {
     const outgoingId = id;
     const incomingId = crypto.randomUUID();
 
+    // Encrypt description and amount for outgoing transaction
+    const encryptedOutgoingDescription = encryptDescription(data.description || `Transfer to account`);
+    const encryptedAmount = encryptAmount(data.amount);
+
     // Create outgoing transaction (from source account)
     const { data: outgoingTransaction, error: outgoingError } = await supabase
       .from("Transaction")
@@ -83,12 +90,12 @@ export async function createTransaction(data: TransactionFormData) {
         id: outgoingId,
         date: transactionDate,
         type: "expense", // Outgoing is an expense from source account
-        amount: data.amount,
+        amount: encryptedAmount,
         accountId: data.accountId,
         userId: user.id,
         categoryId: null,
         subcategoryId: null,
-        description: data.description || `Transfer to account`,
+        description: encryptedOutgoingDescription,
         recurring: data.recurring ?? false,
         transferToId: incomingId, // Link to incoming transaction
         createdAt: now,
@@ -107,6 +114,10 @@ export async function createTransaction(data: TransactionFormData) {
       throw new Error(`Failed to create transfer transaction: ${outgoingError.message || JSON.stringify(outgoingError)}`);
     }
 
+    // Encrypt description and amount for incoming transaction
+    const encryptedIncomingDescription = encryptDescription(data.description || `Transfer from account`);
+    const encryptedIncomingAmount = encryptAmount(data.amount);
+
     // Create incoming transaction (to destination account)
     const { data: incomingTransaction, error: incomingError } = await supabase
       .from("Transaction")
@@ -114,12 +125,12 @@ export async function createTransaction(data: TransactionFormData) {
         id: incomingId,
         date: transactionDate,
         type: "income", // Incoming is an income to destination account
-        amount: data.amount,
+        amount: encryptedIncomingAmount,
         accountId: data.toAccountId,
         userId: user.id,
         categoryId: null,
         subcategoryId: null,
-        description: data.description || `Transfer from account`,
+        description: encryptedIncomingDescription,
         recurring: data.recurring ?? false,
         transferFromId: outgoingId, // Link to outgoing transaction
         createdAt: now,
@@ -141,11 +152,15 @@ export async function createTransaction(data: TransactionFormData) {
     }
 
     // Invalidate cache to ensure dashboard shows updated data
-    revalidateTag('transactions', 'page');
+    revalidateTag('transactions', 'max');
 
     // Return the outgoing transaction as the main one
     return outgoingTransaction;
   }
+
+  // Encrypt description and amount before saving
+  const encryptedDescription = encryptDescription(data.description || null);
+  const encryptedAmount = encryptAmount(data.amount);
 
   // Regular transaction (expense or income)
   const { data: transaction, error } = await supabase
@@ -154,12 +169,12 @@ export async function createTransaction(data: TransactionFormData) {
         id,
         date: transactionDate,
         type: data.type,
-        amount: data.amount,
+        amount: encryptedAmount,
         accountId: data.accountId,
         userId: user.id, // Add userId directly to transaction
         categoryId: finalCategoryId,
         subcategoryId: finalSubcategoryId,
-        description: data.description || null,
+        description: encryptedDescription,
         recurring: data.recurring ?? false,
         expenseType: data.type === "expense" ? (data.expenseType || null) : null,
         createdAt: now,
@@ -202,7 +217,8 @@ export async function createTransaction(data: TransactionFormData) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions', 'page');
+  revalidateTag('transactions', 'max');
+  revalidateTag('dashboard', 'max');
 
   return transaction;
 }
@@ -230,14 +246,15 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     if (isNaN(date.getTime())) {
       throw new Error("Invalid date value");
     }
-    updateData.date = date.toISOString().replace('T', ' ').replace('Z', '').split('.')[0];
+    // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+    updateData.date = formatDateOnly(date);
   }
   if (data.type !== undefined) updateData.type = data.type;
-  if (data.amount !== undefined) updateData.amount = data.amount;
+  if (data.amount !== undefined) updateData.amount = encryptAmount(data.amount);
   if (data.accountId !== undefined) updateData.accountId = data.accountId;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || null;
   if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId || null;
-  if (data.description !== undefined) updateData.description = data.description || null;
+  if (data.description !== undefined) updateData.description = encryptDescription(data.description || null);
   if (data.recurring !== undefined) updateData.recurring = data.recurring;
   if (data.expenseType !== undefined) {
     // Only set expenseType if type is expense, otherwise set to null
@@ -258,7 +275,20 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     throw new Error(`Failed to update transaction: ${error.message || JSON.stringify(error)}`);
   }
 
-  return transaction;
+  if (!transaction) {
+    throw new Error("Transaction not found after update");
+  }
+
+  // Invalidate cache to ensure dashboard shows updated data
+  revalidateTag('transactions', 'max');
+  revalidateTag('dashboard', 'max');
+
+  // Decrypt amount and description before returning
+  return {
+    ...transaction,
+    amount: decryptAmount(transaction.amount),
+    description: decryptDescription(transaction.description),
+  };
 }
 
 export async function deleteTransaction(id: string) {
@@ -286,7 +316,8 @@ export async function deleteTransaction(id: string) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions', 'page');
+  revalidateTag('transactions', 'max');
+  revalidateTag('dashboard', 'max');
 }
 
 export async function deleteMultipleTransactions(ids: string[]) {
@@ -323,7 +354,8 @@ export async function deleteMultipleTransactions(ids: string[]) {
   }
 
   // Invalidate cache to ensure dashboard shows updated data
-  revalidateTag('transactions', 'page');
+  revalidateTag('transactions', 'max');
+  revalidateTag('dashboard', 'max');
 }
 
 export async function getTransactionsInternal(
@@ -335,6 +367,8 @@ export async function getTransactionsInternal(
     type?: string;
     search?: string;
     recurring?: boolean;
+    page?: number;
+    limit?: number;
   },
   accessToken?: string,
   refreshToken?: string
@@ -345,6 +379,13 @@ export async function getTransactionsInternal(
   // Quando fazemos select('*, account:Account(*)'), o Supabase aplica RLS em Account também
   // Se Account RLS bloquear, a transação não aparece mesmo que Transaction RLS permita
   // Solução: Buscar transações primeiro, depois buscar relacionamentos separadamente
+  
+  // For pagination, we need to get the count first
+  // Create a count query to get total number of transactions
+  let countQuery = supabase
+    .from("Transaction")
+    .select("*", { count: 'exact', head: true });
+  
   let query = supabase
     .from("Transaction")
     .select("*")
@@ -352,78 +393,67 @@ export async function getTransactionsInternal(
 
   const log = logger.withPrefix("getTransactionsInternal");
   
-  // Log the date filters being applied
+  // Log the date filters being applied (only in development)
   if (filters?.startDate || filters?.endDate) {
-    log.log("Applying date filters:", {
-      startDate: filters.startDate ? {
-        original: filters.startDate.toISOString(),
-        formatted: formatDateStart(filters.startDate),
-      } : undefined,
-      endDate: filters.endDate ? {
-        original: filters.endDate.toISOString(),
-        formatted: formatDateEnd(filters.endDate),
-      } : undefined,
+    log.debug("Date filters:", {
+      startDate: filters.startDate ? formatDateStart(filters.startDate) : undefined,
+      endDate: filters.endDate ? formatDateEnd(filters.endDate) : undefined,
     });
   }
 
-  if (filters?.startDate) {
-    query = query.gte("date", formatDateStart(filters.startDate));
-  }
+  // Apply filters to both queries
+  const applyFilters = (q: any) => {
+    let filteredQuery = q;
+    if (filters?.startDate) {
+      filteredQuery = filteredQuery.gte("date", formatDateStart(filters.startDate));
+    }
+    if (filters?.endDate) {
+      filteredQuery = filteredQuery.lte("date", formatDateEnd(filters.endDate));
+    }
+    if (filters?.categoryId) {
+      filteredQuery = filteredQuery.eq("categoryId", filters.categoryId);
+    }
+    if (filters?.accountId) {
+      filteredQuery = filteredQuery.eq("accountId", filters.accountId);
+    }
+    if (filters?.type) {
+      filteredQuery = filteredQuery.eq("type", filters.type);
+    }
+    if (filters?.recurring !== undefined) {
+      filteredQuery = filteredQuery.eq("recurring", filters.recurring);
+    }
+    return filteredQuery;
+  };
 
-  if (filters?.endDate) {
-    query = query.lte("date", formatDateEnd(filters.endDate));
-  }
+  // Apply filters to both queries
+  countQuery = applyFilters(countQuery);
+  query = applyFilters(query);
 
-  if (filters?.categoryId) {
-    query = query.eq("categoryId", filters.categoryId);
+  // Apply pagination if provided
+  // Note: If search is active, we need to load all results first, then filter and paginate in memory
+  // This is because descriptions are encrypted and we can't search in the database
+  if (filters?.page !== undefined && filters?.limit !== undefined && !filters?.search) {
+    const page = Math.max(1, filters.page);
+    const limit = Math.max(1, Math.min(100, filters.limit)); // Limit max to 100
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
   }
-
-  if (filters?.accountId) {
-    query = query.eq("accountId", filters.accountId);
-  }
-
-  if (filters?.type) {
-    log.log("Applying type filter:", {
-      type: filters.type,
-    });
-    query = query.eq("type", filters.type);
-  }
-
-  if (filters?.search) {
-    query = query.ilike("description", `%${filters.search}%`);
-  }
-
-  if (filters?.recurring !== undefined) {
-    query = query.eq("recurring", filters.recurring);
-  }
-
-  // Log the final query being executed
-  log.log("Executing query with filters:", {
-    hasStartDate: !!filters?.startDate,
-    hasEndDate: !!filters?.endDate,
-    type: filters?.type,
-    categoryId: filters?.categoryId,
-    accountId: filters?.accountId,
-  });
 
   // Verificar se o usuário está autenticado antes de executar a query
   const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
   
   // Se não estiver autenticado, retornar array vazio (não lançar erro)
   if (authError || !currentUser) {
-    log.log("User not authenticated:", {
-      authError: authError?.message,
-      hasUser: !!currentUser,
-    });
-    return [];
+    log.debug("User not authenticated");
+    return { transactions: [], total: 0 };
   }
 
-  log.log("Authentication check:", {
-    hasUser: !!currentUser,
-    userId: currentUser?.id,
-  });
-
-  const { data, error } = await query;
+  // Execute count query and data query in parallel
+  const [{ count }, { data, error }] = await Promise.all([
+    countQuery,
+    query
+  ]);
 
   if (error) {
     logger.error("Supabase error fetching transactions:", {
@@ -432,151 +462,30 @@ export async function getTransactionsInternal(
       hint: error.hint,
       code: error.code,
       userId: currentUser?.id,
+      queryFilters: filters,
     });
     throw new Error(`Failed to fetch transactions: ${error.message || JSON.stringify(error)}`);
   }
 
-  // Log detalhado sobre o resultado
+  // Log resumido sobre o resultado (apenas em desenvolvimento)
   if (data && data.length > 0) {
-    log.log("Transactions found:", {
+    log.debug("Transactions found:", {
       count: data.length,
-      sampleTransaction: data[0] ? {
-        id: data[0].id,
-        userId: data[0].userId,
-        accountId: data[0].accountId,
-        type: data[0].type,
-        amount: data[0].amount,
-        date: data[0].date,
-      } : null,
-      currentUserId: currentUser?.id,
-      userIdMatch: data[0]?.userId === currentUser?.id,
+      total: count || 0,
+      types: [...new Set(data.map((t: any) => t.type))],
     });
   }
 
   if (!data || data.length === 0) {
-    // Only log in development to reduce noise in production
-    // Log the actual formatted dates being used in the query
-    const logFilters = filters ? {
-      ...filters,
-      startDate: filters.startDate ? formatDateStart(filters.startDate) : undefined,
-      endDate: filters.endDate ? formatDateEnd(filters.endDate) : undefined,
-    } : filters;
-    log.log("No transactions found with filters:", logFilters);
-    
-    // Check if there are ANY transactions in the database (without date filters)
-    // This helps us understand if the problem is with date filtering or if there are no transactions at all
-    // Also check if userId column exists
-      // IMPORTANT: Test RLS by checking auth.uid() directly
-      const { data: { user: testUser } } = await supabase.auth.getUser();
-      log.log("RLS Test - auth.uid() check:", {
-        currentUserId: currentUser?.id,
-        testUserId: testUser?.id,
-        userIdsMatch: currentUser?.id === testUser?.id,
-      });
-
-    const { data: allTransactions, error: allError } = await supabase
-      .from("Transaction")
-      .select("id, date, type, amount, accountId, userId")
-      .limit(10)
-      .order("date", { ascending: false });
-    
-    if (allError) {
-      log.error("Error checking for any transactions:", allError);
-    } else {
-      log.log("Sample of ALL transactions in DB (first 10):", {
-        totalFound: allTransactions?.length || 0,
-        transactions: allTransactions?.map((t: any) => ({
-          id: t.id,
-          date: t.date,
-          dateType: typeof t.date,
-          type: t.type,
-          amount: t.amount,
-          accountId: t.accountId,
-          userId: t.userId, // Check if userId column exists and is populated
-          hasUserId: t.userId !== null && t.userId !== undefined,
-        })) || [],
-        dateRange: allTransactions && allTransactions.length > 0 ? {
-          oldest: allTransactions[allTransactions.length - 1]?.date,
-          newest: allTransactions[0]?.date,
-        } : null,
-      });
-
-      // Check if user has accounts and if transactions belong to those accounts
-      if (allTransactions && allTransactions.length > 0) {
-        const { data: userAccounts, error: accountsError } = await supabase
-          .from("Account")
-          .select("id, userId, name")
-          .limit(10);
-        
-        // Get current user ID
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        // Check AccountOwner for transaction accounts
-        const transactionAccountIds = [...new Set(allTransactions.map((t: any) => t.accountId))];
-        const { data: accountOwners, error: ownersError } = await supabase
-          .from("AccountOwner")
-          .select("accountId, ownerId")
-          .in("accountId", transactionAccountIds);
-        
-        log.log("User accounts check:", {
-          currentUserId: currentUser?.id,
-          accountsFound: userAccounts?.length || 0,
-          accounts: userAccounts || [],
-          accountsError: accountsError,
-          transactionAccountIds: transactionAccountIds,
-          transactionAccounts: allTransactions.map((t: any) => ({
-            transactionId: t.id,
-            accountId: t.accountId,
-            type: t.type,
-            amount: t.amount,
-          })),
-          matchingAccounts: userAccounts?.filter((acc: any) => 
-            allTransactions.some((t: any) => t.accountId === acc.id)
-          ) || [],
-          accountOwners: accountOwners || [],
-          ownersError: ownersError,
-          accountsBelongingToUser: userAccounts?.filter((acc: any) => 
-            acc.userId === currentUser?.id
-          ) || [],
-          accountsWithAccountOwner: accountOwners?.filter((ao: any) => 
-            ao.ownerId === currentUser?.id
-          ) || [],
-        });
-      }
-    }
-    return [];
+    log.debug("No transactions found");
+    return { transactions: [], total: count || 0 };
   }
 
-  // Log detailed transaction information for debugging Monthly Income issue
-  log.log("Found transactions:", {
+  // Log resumido (apenas em desenvolvimento)
+  log.debug("Transactions loaded:", {
     totalCount: data.length,
-    filters: filters ? {
-      startDate: filters.startDate ? formatDateStart(filters.startDate) : undefined,
-      endDate: filters.endDate ? formatDateEnd(filters.endDate) : undefined,
-      type: filters.type,
-    } : "no filters",
-    transactionTypes: [...new Set(data.map((t: any) => t.type))],
     incomeCount: data.filter((t: any) => t.type === "income").length,
     expenseCount: data.filter((t: any) => t.type === "expense").length,
-    incomeTransactions: data.filter((t: any) => t.type === "income").map((t: any) => ({
-      id: t.id,
-      type: t.type,
-      amount: t.amount,
-      amountType: typeof t.amount,
-      date: t.date,
-      description: t.description,
-    })),
-    incomeTotal: data.filter((t: any) => t.type === "income").reduce((sum: number, t: any) => {
-      const amount = Number(t.amount) || 0;
-      return sum + amount;
-    }, 0),
-    sampleTransaction: data[0] ? {
-      id: data[0].id,
-      type: data[0].type,
-      amount: data[0].amount,
-      amountType: typeof data[0].amount,
-      date: data[0].date,
-    } : null,
   });
 
   // Buscar relacionamentos separadamente para evitar problemas de RLS com joins
@@ -620,15 +529,48 @@ export async function getTransactionsInternal(
     });
   }
 
-  // Combinar transações com relacionamentos
-  const transactions = (data || []).map((tx: any) => ({
+  // Combinar transações com relacionamentos e descriptografar descriptions e amounts
+  let transactions = (data || []).map((tx: any) => ({
       ...tx,
+      description: decryptDescription(tx.description),
+      amount: decryptAmount(tx.amount),
       account: accountsMap.get(tx.accountId) || null,
       category: categoriesMap.get(tx.categoryId) || null,
       subcategory: subcategoriesMap.get(tx.subcategoryId) || null,
     }));
 
-  return transactions;
+  // Apply search filter in memory after decrypting descriptions
+  // Note: When search is applied, we need to filter all results, so pagination happens after search
+  // This means if search is used, we need to load all matching transactions first
+  // For better performance with search, consider implementing full-text search in the database
+  let filteredTransactions = transactions;
+  if (filters?.search) {
+    const searchLower = filters.search.toLowerCase();
+    filteredTransactions = transactions.filter((tx: any) => {
+      const description = tx.description || '';
+      return description.toLowerCase().includes(searchLower);
+    });
+  }
+
+  // Apply pagination after search if search was used
+  let paginatedTransactions = filteredTransactions;
+  if (filters?.search && filters?.page !== undefined && filters?.limit !== undefined) {
+    const page = Math.max(1, filters.page);
+    const limit = Math.max(1, Math.min(100, filters.limit)); // Limit max to 100
+    const from = (page - 1) * limit;
+    const to = from + limit;
+    paginatedTransactions = filteredTransactions.slice(from, to);
+  }
+
+  // If search was applied, the total count needs to reflect the filtered results
+  // Since we can't get the count of filtered results from the database (descriptions are encrypted),
+  // we return the filtered count as the total when search is active
+  const totalCount = filters?.search ? filteredTransactions.length : (count || 0);
+
+  return { 
+    transactions: paginatedTransactions, 
+    total: totalCount 
+  };
 }
 
 export async function getTransactions(filters?: {
@@ -639,6 +581,8 @@ export async function getTransactions(filters?: {
   type?: string;
   search?: string;
   recurring?: boolean;
+  page?: number;
+  limit?: number;
 }) {
   // Get tokens from Supabase client directly (not from cookies)
   // This is more reliable because Supabase SSR manages cookies automatically
@@ -653,27 +597,20 @@ export async function getTransactions(filters?: {
       accessToken = session.access_token;
       refreshToken = session.refresh_token;
     }
-    
-      // Log token availability (only in development)
-      logger.log("Token check:", {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        accessTokenLength: accessToken?.length,
-        refreshTokenLength: refreshToken?.length,
-        hasSession: !!session,
-      });
-    } catch (error: any) {
+  } catch (error: any) {
       // If we can't get tokens (e.g., inside unstable_cache), continue without them
       logger.warn("Could not get tokens:", error?.message);
   }
   
-  // Cache for 30 seconds if no search filter (searches should be real-time)
+  // Cache for 10 seconds if no search filter (searches should be real-time)
+  // Cache is invalidated via revalidateTag('transactions') when transactions are created/updated/deleted
+  // Shorter cache time ensures fresh data while maintaining performance
   if (!filters?.search) {
     const cacheKey = `transactions-${filters?.startDate?.toISOString()}-${filters?.endDate?.toISOString()}-${filters?.categoryId || 'all'}-${filters?.accountId || 'all'}-${filters?.type || 'all'}-${filters?.recurring || 'all'}`;
     return unstable_cache(
       async () => getTransactionsInternal(filters, accessToken, refreshToken),
       [cacheKey],
-      { revalidate: 30, tags: ['transactions'] }
+      { revalidate: 10, tags: ['transactions'] }
     )();
   }
   
@@ -686,7 +623,7 @@ export async function getUpcomingTransactions(limit: number = 5) {
   const endDate = new Date(now);
   endDate.setMonth(endDate.getMonth() + 1); // Look ahead 1 month
 
-  // Get all recurring transactions (without joins to avoid RLS issues)
+  // Get all recurring transactions (both expenses and incomes)
   const { data: recurringTransactions, error } = await supabase
     .from("Transaction")
     .select(`
@@ -708,7 +645,7 @@ export async function getUpcomingTransactions(limit: number = 5) {
     return [];
   }
 
-  // Handle relations for recurring transactions
+  // Handle relations for recurring transactions and decrypt descriptions
   const transactions = (recurringTransactions || []).map((tx: any) => {
     let account = null;
     if (tx.account) {
@@ -727,6 +664,8 @@ export async function getUpcomingTransactions(limit: number = 5) {
     
     return {
       ...tx,
+      description: decryptDescription(tx.description),
+      amount: decryptAmount(tx.amount),
       account: account || null,
       category: category || null,
       subcategory: subcategory || null,
@@ -880,8 +819,12 @@ export async function getUpcomingTransactions(limit: number = 5) {
               };
             }
           }
+        } else {
+          // If category mapping is null, log a warning but continue without category
+          logger.warn(`No category mapping found for debt ${debt.id} with loan type ${debt.loanType}`);
         }
       } catch (error) {
+        // Log error but don't break the function - continue without category
         logger.error(`Error fetching category mapping for debt ${debt.id}:`, error);
       }
 
@@ -924,36 +867,59 @@ export async function getAccountBalance(accountId: string) {
   const initialBalance = (account?.initialBalance as number) ?? 0;
 
   // Only include transactions with date <= today (exclude future transactions)
-  const today = new Date();
-  today.setHours(23, 59, 59, 999); // End of today
+  // Use a consistent date comparison to avoid timezone issues
+  const now = new Date();
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth();
+  const todayDay = now.getDate();
+  
+  // Create date for end of today in local timezone, then convert to ISO for query
+  const todayEnd = new Date(todayYear, todayMonth, todayDay, 23, 59, 59, 999);
 
   const { data: transactions, error } = await supabase
     .from("Transaction")
     .select("type, amount, date")
     .eq("accountId", accountId)
-    .lte("date", today.toISOString());
+    .lte("date", todayEnd.toISOString());
 
   if (error) {
     return initialBalance;
   }
 
-  // Double-check: only process transactions with date <= today
-  const todayDate = new Date();
-  todayDate.setHours(0, 0, 0, 0);
+  // Compare dates by year, month, day only to avoid timezone issues
+  const todayDate = new Date(todayYear, todayMonth, todayDay);
 
   let balance = initialBalance;
   for (const tx of transactions || []) {
-    // Skip future transactions
-    const txDate = new Date(tx.date);
-    txDate.setHours(0, 0, 0, 0);
+    // Parse transaction date and compare only date part (ignore time)
+    const txDateObj = new Date(tx.date);
+    const txYear = txDateObj.getFullYear();
+    const txMonth = txDateObj.getMonth();
+    const txDay = txDateObj.getDate();
+    const txDate = new Date(txYear, txMonth, txDay);
+    
+    // Skip future transactions (date > today)
     if (txDate > todayDate) {
       continue;
     }
     
+    // Decrypt amount before using in calculation
+    const amount = decryptAmount(tx.amount);
+    
+    // Skip transaction if amount is invalid (null, NaN, or unreasonably large)
+    if (amount === null || isNaN(amount) || !isFinite(amount)) {
+      logger.warn('Skipping transaction with invalid amount:', {
+        accountId,
+        amount: tx.amount,
+        decryptedAmount: amount,
+      });
+      continue;
+    }
+    
     if (tx.type === "income") {
-      balance += (Number(tx.amount) || 0);
+      balance += amount;
     } else if (tx.type === "expense") {
-      balance -= (Number(tx.amount) || 0);
+      balance -= amount;
     }
   }
 

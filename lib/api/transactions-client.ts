@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
 import { TransactionFormData } from "@/lib/validations/transaction";
 import { formatTimestamp } from "@/lib/utils/timestamp";
+import { encryptDescription, decryptDescription } from "@/lib/utils/transaction-encryption";
 
 import type { PlaidTransactionMetadata } from '@/lib/api/plaid/types';
 
@@ -77,9 +78,11 @@ export async function getTransactionsClient(filters?: {
     query = query.eq("type", filters.type);
   }
 
-  if (filters?.search) {
-    query = query.ilike("description", `%${filters.search}%`);
-  }
+  // Note: We don't apply search filter here anymore since descriptions are encrypted
+  // Search will be done in memory after decrypting descriptions
+  // if (filters?.search) {
+  //   query = query.ilike("description", `%${filters.search}%`);
+  // }
 
   if (filters?.recurring !== undefined) {
     query = query.eq("recurring", filters.recurring);
@@ -195,6 +198,7 @@ export async function getTransactionsClient(filters?: {
     // Ensure all fields are preserved, especially suggestedCategoryId and suggestedSubcategoryId
     return {
       ...tx,
+      description: decryptDescription(tx.description),
       account: account || null,
       category: category || null,
       subcategory: subcategory || null,
@@ -205,6 +209,15 @@ export async function getTransactionsClient(filters?: {
       suggestedSubcategory: suggestedSubcategory || null,
     };
   });
+
+  // Apply search filter in memory after decrypting descriptions
+  if (filters?.search) {
+    const searchLower = filters.search.toLowerCase();
+    return transactions.filter((tx) => {
+      const description = tx.description || '';
+      return description.toLowerCase().includes(searchLower);
+    });
+  }
 
   return transactions;
 }
@@ -222,10 +235,14 @@ export async function createTransactionClient(data: TransactionFormData): Promis
 
   const date = data.date instanceof Date ? data.date : new Date(data.date);
   const now = formatTimestamp(new Date());
-  const formatDate = formatTimestamp;
+  // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+  const formatDate = formatDateOnly;
 
   const id = crypto.randomUUID();
   const transactionDate = formatDate(date);
+
+  // Encrypt description before saving
+  const encryptedDescription = encryptDescription(data.description || null);
 
   const { data: transaction, error } = await supabase
     .from("Transaction")
@@ -238,7 +255,7 @@ export async function createTransactionClient(data: TransactionFormData): Promis
       userId: userId, // Add userId directly to transaction
       categoryId: data.categoryId || null,
       subcategoryId: data.subcategoryId || null,
-      description: data.description || null,
+      description: encryptedDescription,
       recurring: data.recurring ?? false,
       expenseType: data.type === "expense" ? (data.expenseType || null) : null,
       createdAt: now,
@@ -252,7 +269,11 @@ export async function createTransactionClient(data: TransactionFormData): Promis
     throw new Error(`Failed to create transaction: ${error.message || JSON.stringify(error)}`);
   }
 
-  return transaction;
+  // Decrypt description before returning
+  return {
+    ...transaction,
+    description: decryptDescription(transaction.description),
+  };
 }
 
 /**
@@ -283,7 +304,7 @@ export async function updateTransactionClient(id: string, data: Partial<Transact
   if (data.accountId !== undefined) updateData.accountId = data.accountId;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || null;
   if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId || null;
-  if (data.description !== undefined) updateData.description = data.description || null;
+  if (data.description !== undefined) updateData.description = encryptDescription(data.description || null);
   if (data.recurring !== undefined) updateData.recurring = data.recurring;
   if (data.expenseType !== undefined) {
     // Only set expenseType if type is expense, otherwise set to null
@@ -304,7 +325,11 @@ export async function updateTransactionClient(id: string, data: Partial<Transact
     throw new Error(`Failed to update transaction: ${error.message || JSON.stringify(error)}`);
   }
 
-  return transaction;
+  // Decrypt description before returning
+  return {
+    ...transaction,
+    description: decryptDescription(transaction.description),
+  };
 }
 
 /**
@@ -358,5 +383,69 @@ export async function deleteMultipleTransactionsClient(ids: string[]): Promise<v
     
     throw new Error(`Failed to delete ${failures.length} transaction(s): ${errorMessages.join(', ')}`);
   }
+}
+
+/**
+ * Bulk update transaction types
+ * Uses API route to ensure cache invalidation
+ */
+export async function bulkUpdateTransactionTypes(ids: string[], type: "expense" | "income" | "transfer"): Promise<{ success: number; failed: number }> {
+  if (ids.length === 0) {
+    throw new Error("No transaction IDs provided");
+  }
+
+  if (!["expense", "income", "transfer"].includes(type)) {
+    throw new Error("Invalid type. Must be 'expense', 'income', or 'transfer'");
+  }
+
+  const response = await fetch('/api/transactions/bulk-update', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ transactionIds: ids, type }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to bulk update transactions' }));
+    throw new Error(error.error || 'Failed to bulk update transactions');
+  }
+
+  const result = await response.json();
+  return result;
+}
+
+/**
+ * Bulk update transaction categories
+ * Uses API route to ensure cache invalidation
+ */
+export async function bulkUpdateTransactionCategories(
+  ids: string[], 
+  categoryId: string | null, 
+  subcategoryId: string | null = null
+): Promise<{ success: number; failed: number }> {
+  if (ids.length === 0) {
+    throw new Error("No transaction IDs provided");
+  }
+
+  const response = await fetch('/api/transactions/bulk-update', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ 
+      transactionIds: ids, 
+      categoryId: categoryId || null,
+      subcategoryId: subcategoryId || null
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to bulk update transaction categories' }));
+    throw new Error(error.error || 'Failed to bulk update transaction categories');
+  }
+
+  const result = await response.json();
+  return result;
 }
 

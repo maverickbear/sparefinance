@@ -158,8 +158,8 @@ export function DebtCard({
       <CardContent className="p-4">
         <div className="flex flex-col gap-4">
           {/* Header with Progress Ring and Title */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
               <div className="flex-shrink-0">
                 <ProgressRing
                   percentage={debt.progressPct || 0}
@@ -233,7 +233,7 @@ export function DebtCard({
           </div>
 
           {/* Main Metrics */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">Current Balance</p>
               <p className="font-semibold text-base">{formatMoney(debt.currentBalance)}</p>
@@ -276,7 +276,7 @@ export function DebtCard({
           </div>
 
           {/* Additional Info */}
-          <div className="pt-3 border-t grid grid-cols-2 gap-3 text-xs">
+          <div className="pt-4 border-t grid grid-cols-2 gap-4 text-xs">
             <div>
               <p className="text-muted-foreground">Principal Paid</p>
               <p className="font-medium">{formatMoney(debt.principalPaid)}</p>

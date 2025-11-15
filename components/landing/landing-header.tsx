@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Wallet, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUserClient } from "@/lib/api/auth-client";
+import { Logo } from "@/components/common/logo";
+import { useTheme } from "next-themes";
 
 interface LandingHeaderProps {
   isAuthenticated?: boolean;
@@ -15,6 +17,7 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(initialAuth ?? false);
+  const { theme, resolvedTheme } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -71,24 +74,31 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
-            <div className={`p-2 rounded-[12px] transition-colors ${
-              isScrolled 
-                ? "bg-primary/10" 
-                : "bg-white/10 backdrop-blur-sm"
-            }`}>
-              <Wallet className={`w-6 h-6 transition-colors ${
-                isScrolled 
-                  ? "text-primary" 
-                  : "text-white"
-              }`} />
-            </div>
-            <span className={`text-xl font-bold transition-colors ${
-              isScrolled 
-                ? "text-foreground" 
-                : "text-white"
-            }`}>
-              Spare Finance
-            </span>
+            {(() => {
+              // When not scrolled, header is transparent over dark background - use white logo
+              if (!isScrolled) {
+                return (
+                  <Logo 
+                    variant="wordmark" 
+                    color="white" 
+                    width={150} 
+                    height={40}
+                    priority
+                  />
+                );
+              }
+              // When scrolled, check if dark mode - use auto to adapt to theme
+              const isDark = resolvedTheme === "dark" || theme === "dark";
+              return (
+                <Logo 
+                  variant="wordmark" 
+                  color={isDark ? "white" : "purple"} 
+                  width={150} 
+                  height={40}
+                  priority
+                />
+              );
+            })()}
           </Link>
 
           {/* Desktop Navigation */}
@@ -115,7 +125,7 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                 asChild
                 className={isScrolled 
                   ? "bg-primary text-primary-foreground hover:bg-primary/90" 
-                  : "bg-[#a78bfa] text-white hover:bg-[#a78bfa]/90 font-semibold"
+                  : "bg-white text-primary hover:bg-white/90 font-semibold"
                 }
               >
                 <Link href="/dashboard">Dashboard</Link>
@@ -136,7 +146,7 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                 ) : (
                   <Button
                     asChild
-                    className="bg-white text-foreground hover:bg-white/90 font-semibold"
+                    className="bg-white text-primary hover:bg-white/90 font-semibold"
                   >
                     <Link href="#pricing">Get Started</Link>
                   </Button>
@@ -191,7 +201,7 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                   className={`w-full ${
                     isScrolled
                       ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "bg-[#a78bfa] text-white hover:bg-[#a78bfa]/90"
+                      : "bg-white text-primary hover:bg-white/90"
                   }`}
                 >
                   <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)}>
@@ -218,7 +228,7 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                     className={`w-full font-semibold ${
                       isScrolled
                         ? "bg-[#4A4AF2] text-white hover:bg-[#3A3AD2]"
-                        : "bg-white text-foreground hover:bg-white/90"
+                        : "bg-white text-primary hover:bg-white/90"
                     }`}
                   >
                     <Link href="#pricing" onClick={() => setIsMobileMenuOpen(false)}>

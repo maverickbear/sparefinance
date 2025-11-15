@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { differenceInDays, startOfMonth, endOfMonth } from "date-fns";
-import { MoreVertical } from "lucide-react";
+import { MoreVertical, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -217,6 +217,7 @@ export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps
   monthEnd.setHours(23, 59, 59, 999);
 
   const filteredTransactions = normalizedTransactions.filter((tx) => {
+    // Show both expenses and incomes
     const txDate = new Date(tx.date);
     txDate.setHours(0, 0, 0, 0);
     return txDate >= monthStart && txDate <= monthEnd;
@@ -227,7 +228,7 @@ export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps
       <Card className="border-0 p-0 shadow-none">
         <CardHeader className="pb-3 px-0 pt-0">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl font-bold">Upcoming payment</CardTitle>
+            <CardTitle className="text-lg font-semibold">Upcoming payment</CardTitle>
             <Link 
               href="/transactions" 
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -283,7 +284,7 @@ export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps
     <Card className="border-0 p-0 shadow-none">
       <CardHeader className="pb-3 px-0 pt-0">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xl font-bold">Upcoming payment</CardTitle>
+          <CardTitle className="text-lg font-semibold">Upcoming payment</CardTitle>
           <Link 
             href="/transactions" 
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -385,11 +386,15 @@ export function UpcomingTransactions({ transactions }: UpcomingTransactionsProps
                       {getServiceName(tx)}
                     </h3>
                     <p className={cn(
-                      "text-xs font-medium",
+                      "text-xs font-medium flex items-center gap-1",
                       textColor,
                       paid && "line-through"
                     )}>
-                      {tx.type === "expense" ? "-" : tx.type === "income" ? "+" : ""}
+                      {tx.type === "expense" ? (
+                        <ArrowDown className="h-3 w-3" />
+                      ) : tx.type === "income" ? (
+                        <ArrowUp className="h-3 w-3" />
+                      ) : null}
                       {formatMoney(tx.amount)}
                       {tx.type === "expense" && "/mo"}
                     </p>

@@ -82,8 +82,10 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const transferToAccountId = body.transferToAccountId;
     
-    await deleteAccount(id);
+    await deleteAccount(id, transferToAccountId);
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

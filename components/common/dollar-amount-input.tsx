@@ -23,11 +23,11 @@ function formatDisplayValue(value: number | string | undefined | null): string {
 
   const numValue = typeof value === "string" ? parseFloat(value) : Number(value);
 
-  if (isNaN(numValue) || !isFinite(numValue) || numValue === 0) {
+  if (isNaN(numValue) || !isFinite(numValue)) {
     return "";
   }
 
-  // Format with commas for thousands and 2 decimal places
+  // Format with commas for thousands and 2 decimal places (including 0.00)
   return numValue.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -97,7 +97,12 @@ export const DollarAmountInput = React.forwardRef<HTMLInputElement, DollarAmount
   ({ value, onChange, onBlur, className, placeholder = "$ 0.00", ...props }, ref) => {
     const [displayValue, setDisplayValue] = React.useState<string>(() => {
       const formatted = formatDisplayValue(value);
-      return formatted ? `$ ${formatted}` : "";
+      if (formatted !== "") {
+        return `$ ${formatted}`;
+      } else if (value === 0 || value === "0") {
+        return "$ 0.00";
+      }
+      return "";
     });
     const inputRef = React.useRef<HTMLInputElement>(null);
     const [isFocused, setIsFocused] = React.useState(false);
@@ -106,8 +111,12 @@ export const DollarAmountInput = React.forwardRef<HTMLInputElement, DollarAmount
     React.useEffect(() => {
       if (!isFocused) {
         const formatted = formatDisplayValue(value);
-        if (formatted) {
+        if (formatted !== "") {
+          // formatted can be "0.00" when value is 0, which is a valid string
           setDisplayValue(`$ ${formatted}`);
+        } else if (value === 0 || value === "0") {
+          // Explicitly handle 0 value
+          setDisplayValue("$ 0.00");
         } else {
           // Only set to empty if not focused, to allow placeholder to show
           setDisplayValue("");
@@ -194,6 +203,9 @@ export const DollarAmountInput = React.forwardRef<HTMLInputElement, DollarAmount
 
       // Parse the cleaned value
       const parsed = parseInputValue(inputValue);
+      
+      // Explicitly handle "0" case - parseFloat("0") returns 0, which is valid
+      const isZero = cleaned === "0" || cleaned === "-0" || parsed === 0;
 
       // Format in real-time: format integer part with commas while typing
       if (cleaned !== "") {
@@ -346,8 +358,11 @@ export const DollarAmountInput = React.forwardRef<HTMLInputElement, DollarAmount
           }
         }, 0);
         
-        // Parse and send the numeric value for form validation
-        if (parsed !== undefined && !isNaN(parsed) && isFinite(parsed)) {
+        // Parse and send the numeric value for form validation (including 0)
+        if (isZero) {
+          // Explicitly handle "0" case to ensure it's sent as a value
+          onChange?.(0);
+        } else if (parsed !== undefined && !isNaN(parsed) && isFinite(parsed)) {
           onChange?.(parsed);
         }
       } else {
@@ -360,11 +375,16 @@ export const DollarAmountInput = React.forwardRef<HTMLInputElement, DollarAmount
       setIsFocused(false);
       // Ensure final format on blur
       const parsed = parseInputValue(displayValue);
-      if (parsed !== undefined && parsed !== 0) {
-        const formatted = formatDisplayValue(parsed);
+      // Check if the value is 0 (including "0", "0.0", "0.00", etc.)
+      const isZeroValue = parsed === 0 || displayValue.replace(/\$/g, "").replace(/,/g, "").trim() === "0";
+      
+      if (parsed !== undefined || isZeroValue) {
+        // If parsed is 0 or the display value represents 0, format and send 0
+        const valueToFormat = parsed !== undefined ? parsed : 0;
+        const formatted = formatDisplayValue(valueToFormat);
         setDisplayValue(`$ ${formatted}`);
-        // Send raw number without formatting
-        onChange?.(parsed);
+        // Send raw number without formatting (including 0.00)
+        onChange?.(valueToFormat);
       } else {
         setDisplayValue("");
         // Send undefined when empty

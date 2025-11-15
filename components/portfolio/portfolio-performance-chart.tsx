@@ -5,8 +5,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { ChartCard } from "@/components/charts/chart-card";
 import { formatMoney } from "@/components/common/money";
 import { Button } from "@/components/ui/button";
-import { HistoricalDataPoint } from "@/lib/mock-data/portfolio-mock-data";
-import { format, subDays, parseISO } from "date-fns";
+import { HistoricalDataPoint } from "@/lib/api/portfolio";
+import { subDays, parseISO, format } from "date-fns";
+import { formatTransactionDate } from "@/lib/utils/timestamp";
 
 interface PortfolioPerformanceChartProps {
   data: HistoricalDataPoint[];
@@ -19,7 +20,7 @@ const CustomTooltip = ({ active, payload }: any) => {
     return (
       <div className="rounded-lg border bg-background p-3 shadow-sm">
         <div className="font-semibold">
-          {format(parseISO(data.date), "MMM dd, yyyy")}
+          {formatTransactionDate(data.date)}
         </div>
         <div className="text-sm text-muted-foreground">
           Value: {formatMoney(data.value)}
@@ -34,9 +35,14 @@ export function PortfolioPerformanceChart({
   data,
   currentValue,
 }: PortfolioPerformanceChartProps) {
-  const [period, setPeriod] = useState<"1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y">("1D");
+  const [period, setPeriod] = useState<"1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "ALL">("ALL");
 
   const getFilteredData = () => {
+    // If "ALL" is selected, return all data (no filtering)
+    if (period === "ALL") {
+      return data;
+    }
+
     const today = new Date();
     const startOfYear = new Date(today.getFullYear(), 0, 1);
     let cutoffDate: Date;
@@ -170,6 +176,18 @@ export function PortfolioPerformanceChart({
             }`}
           >
             1Y
+          </Button>
+          <Button
+            variant={period === "ALL" ? "default" : "outline"}
+            size="small"
+            onClick={() => setPeriod("ALL")}
+            className={`rounded-full transition-all ${
+              period === "ALL"
+                ? "border-2 border-primary"
+                : ""
+            }`}
+          >
+            ALL
           </Button>
         </div>
       }

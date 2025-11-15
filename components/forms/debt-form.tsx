@@ -22,12 +22,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/components/common/money";
+import { formatTransactionDate, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { PercentageInput } from "@/components/common/percentage-input";
 import { calculateDebtMetrics, convertToMonthlyPayment, convertFromMonthlyPayment, calculateMonthlyPayment, calculatePaymentsFromDate, type DebtForCalculation } from "@/lib/utils/debts";
 import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
+import { getAllCategoriesClient, getMacrosClient } from "@/lib/api/categories-client";
+import type { Category } from "@/lib/api/categories-client";
 
 interface Debt {
   id: string;
@@ -66,6 +69,19 @@ interface DebtFormProps {
   onSuccess?: () => void;
 }
 
+// Helper function to format account type for display
+function formatAccountType(type: string): string {
+  const typeMap: Record<string, string> = {
+    checking: "Checking",
+    savings: "Savings",
+    credit: "Credit Card",
+    cash: "Cash",
+    investment: "Investment",
+    other: "Other",
+  };
+  return typeMap[type.toLowerCase()] || type;
+}
+
 export function DebtForm({
   debt,
   open,
@@ -82,6 +98,9 @@ export function DebtForm({
   const [accounts, setAccounts] = useState<Array<{ id: string; name: string; type: string }>>([]);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [shouldShowForm, setShouldShowForm] = useState(false);
+  const [debtsCategories, setDebtsCategories] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>("");
   
   const isInitialLoad = useRef(false);
   const isDataLoaded = useRef(false);
@@ -133,6 +152,46 @@ export function DebtForm({
   // Helper functions for loan type specific configurations
   const getFieldConfig = () => {
     const type = loanType || "";
+    const typeLower = type.toLowerCase();
+    
+    // Check if it's a credit card (by checking if loanType contains "credit" or "card")
+    const isCreditCard = typeLower.includes("credit") || typeLower.includes("card");
+    
+    // Default configuration
+    const defaultConfig = {
+      showDownPayment: true,
+      downPaymentRequired: false,
+      showTotalMonths: true,
+      totalMonthsRequired: true,
+      showPaymentFrequency: true,
+      paymentFrequencyLocked: false,
+      paymentFrequencyDefault: "monthly",
+      initialAmountLabel: "Original Amount",
+      startDateLabel: "Start Date",
+      firstPaymentDateLabel: "First Payment Date",
+      paymentAmountLabel: "Payment Amount",
+      totalMonthsPresets: [12, 24, 36, 48, 60, 72, 84, 96, 120, 180, 240, 300, 360],
+    };
+    
+    // Credit card configuration
+    if (isCreditCard) {
+      return {
+        showDownPayment: false,
+        downPaymentRequired: false,
+        showTotalMonths: false,
+        totalMonthsRequired: false,
+        showPaymentFrequency: true,
+        paymentFrequencyLocked: true,
+        paymentFrequencyDefault: "monthly",
+        initialAmountLabel: "Current Balance",
+        startDateLabel: "Statement Start Date",
+        firstPaymentDateLabel: "Next Due Date",
+        paymentAmountLabel: "Planned Monthly Payment",
+        totalMonthsPresets: [],
+      };
+    }
+    
+    // Try to match known loan types for presets
     const configs: Record<string, {
       showDownPayment: boolean;
       downPaymentRequired: boolean;
@@ -148,119 +207,53 @@ export function DebtForm({
       totalMonthsPresets: number[];
     }> = {
       mortgage: {
-        showDownPayment: true,
-        downPaymentRequired: false,
-        showTotalMonths: true,
-        totalMonthsRequired: true,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: false,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Original Amount",
-        startDateLabel: "Start Date",
-        firstPaymentDateLabel: "First Payment Date",
-        paymentAmountLabel: "Payment Amount",
+        ...defaultConfig,
         totalMonthsPresets: [300, 360],
       },
       car_loan: {
-        showDownPayment: true,
-        downPaymentRequired: false,
-        showTotalMonths: true,
-        totalMonthsRequired: true,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: false,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Original Amount",
-        startDateLabel: "Start Date",
-        firstPaymentDateLabel: "First Payment Date",
-        paymentAmountLabel: "Payment Amount",
+        ...defaultConfig,
         totalMonthsPresets: [24, 36, 48, 60, 72, 84],
       },
       personal_loan: {
-        showDownPayment: true,
-        downPaymentRequired: false,
-        showTotalMonths: true,
-        totalMonthsRequired: true,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: false,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Original Amount",
-        startDateLabel: "Start Date",
-        firstPaymentDateLabel: "First Payment Date",
-        paymentAmountLabel: "Payment Amount",
+        ...defaultConfig,
         totalMonthsPresets: [12, 24, 36, 48, 60],
       },
-      credit_card: {
-        showDownPayment: false,
-        downPaymentRequired: false,
-        showTotalMonths: false,
-        totalMonthsRequired: false,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: true,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Current Balance",
-        startDateLabel: "Statement Start Date",
-        firstPaymentDateLabel: "Next Due Date",
-        paymentAmountLabel: "Planned Monthly Payment",
-        totalMonthsPresets: [],
-      },
       student_loan: {
-        showDownPayment: true,
-        downPaymentRequired: false,
-        showTotalMonths: true,
-        totalMonthsRequired: true,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: false,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Original Amount",
-        startDateLabel: "Start Date",
-        firstPaymentDateLabel: "First Payment Date",
-        paymentAmountLabel: "Payment Amount",
+        ...defaultConfig,
         totalMonthsPresets: [120, 180, 240, 300, 360],
       },
       business_loan: {
-        showDownPayment: true,
-        downPaymentRequired: false,
-        showTotalMonths: true,
-        totalMonthsRequired: true,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: false,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Original Amount",
-        startDateLabel: "Start Date",
-        firstPaymentDateLabel: "First Payment Date",
-        paymentAmountLabel: "Payment Amount",
+        ...defaultConfig,
         totalMonthsPresets: [12, 24, 36, 48, 60, 72, 84, 96, 120],
       },
-      other: {
-        showDownPayment: true,
-        downPaymentRequired: false,
-        showTotalMonths: true,
-        totalMonthsRequired: true,
-        showPaymentFrequency: true,
-        paymentFrequencyLocked: false,
-        paymentFrequencyDefault: "monthly",
-        initialAmountLabel: "Original Amount",
-        startDateLabel: "Start Date",
-        firstPaymentDateLabel: "First Payment Date",
-        paymentAmountLabel: "Payment Amount",
-        totalMonthsPresets: [12, 24, 36, 48, 60, 72, 84, 96, 120, 180, 240, 300, 360],
-      },
     };
-    return configs[type] || configs.other;
+    
+    // Try to find matching config by checking if type contains known keywords
+    for (const [key, config] of Object.entries(configs)) {
+      if (typeLower.includes(key.replace("_", " ")) || typeLower === key) {
+        return config;
+      }
+    }
+    
+    return defaultConfig;
   };
 
   const fieldConfig = getFieldConfig();
 
   // Set payment frequency to monthly for credit cards
   useEffect(() => {
-    if (loanType === "credit_card" && form.watch("paymentFrequency") !== "monthly") {
+    const typeLower = (loanType || "").toLowerCase();
+    const isCreditCard = typeLower.includes("credit") || typeLower.includes("card");
+    if (isCreditCard && form.watch("paymentFrequency") !== "monthly") {
       form.setValue("paymentFrequency", "monthly", { shouldValidate: false });
     }
   }, [loanType, form]);
 
   // Get total months options based on loan type
   const getTotalMonthsOptions = () => {
-    if (loanType === "credit_card") {
+    const typeLower = (loanType || "").toLowerCase();
+    const isCreditCard = typeLower.includes("credit") || typeLower.includes("card");
+    if (isCreditCard) {
       return [];
     }
     
@@ -543,12 +536,65 @@ export function DebtForm({
     debt,
   ]);
 
-  // Load accounts
+  // Load accounts and debts categories
   useEffect(() => {
     if (open) {
       loadAccounts();
+      loadDebtsCategories();
     }
   }, [open]);
+
+  // Map loanType to category/subcategory when editing a debt and categories are loaded
+  useEffect(() => {
+    if (debt && debt.id && debtsCategories.length > 0 && debt.loanType && !selectedCategoryId) {
+      const loanTypeLower = debt.loanType.toLowerCase().replace(/_/g, " ");
+      // Try to find category or subcategory that matches
+      for (const category of debtsCategories) {
+        if (category.name.toLowerCase() === loanTypeLower) {
+          setSelectedCategoryId(category.id);
+          return;
+        }
+        // Check subcategories
+        if (category.subcategories) {
+          const matchingSub = category.subcategories.find(
+            (sub) => sub.name.toLowerCase() === loanTypeLower
+          );
+          if (matchingSub) {
+            setSelectedCategoryId(category.id);
+            setSelectedSubcategoryId(matchingSub.id);
+            return;
+          }
+        }
+      }
+    }
+  }, [debt, debtsCategories, selectedCategoryId]);
+
+  async function loadDebtsCategories() {
+    try {
+      const [allCategories, macros] = await Promise.all([
+        getAllCategoriesClient(),
+        getMacrosClient(),
+      ]);
+      
+      // Find the "Debts" group
+      const debtsGroup = macros.find((macro) => macro.name.toLowerCase() === "debts");
+      if (!debtsGroup) {
+        console.warn("Debts group not found");
+        setDebtsCategories([]);
+        return;
+      }
+      
+      // Filter categories that belong to the Debts group
+      const debtsCategoriesList = allCategories.filter(
+        (cat) => cat.macroId === debtsGroup.id
+      );
+      
+      setDebtsCategories(debtsCategoriesList);
+    } catch (error) {
+      console.error("Error loading debts categories:", error);
+      setDebtsCategories([]);
+    }
+  }
 
   // Check accounts when opening form for new debt
   useEffect(() => {
@@ -612,6 +658,8 @@ export function DebtForm({
       isDataLoaded.current = false;
       isPaymentAmountManuallyEdited.current = false;
       isPrincipalPaidManuallyEdited.current = false;
+      setSelectedCategoryId("");
+      setSelectedSubcategoryId("");
       form.reset();
       return;
     }
@@ -666,7 +714,7 @@ export function DebtForm({
         downPayment: debt.downPayment ?? 0,
         currentBalance: debt.currentBalance ?? 0,
         interestRate: debt.interestRate ?? 0,
-        totalMonths: debt.totalMonths ?? (debt.loanType === "credit_card" ? null : 0),
+        totalMonths: debt.totalMonths ?? ((debt.loanType?.toLowerCase().includes("credit") || debt.loanType?.toLowerCase().includes("card")) ? null : 0),
         firstPaymentDate: firstPaymentDateValue,
         startDate: startDateValue,
         paymentFrequency: (debt as any).paymentFrequency ?? "monthly",
@@ -710,6 +758,10 @@ export function DebtForm({
           accountId: undefined,
           isPaused: false,
         });
+        
+        // Reset category selections
+        setSelectedCategoryId("");
+        setSelectedSubcategoryId("");
       
       // Mark data as loaded for new debt too
       setTimeout(() => {
@@ -748,7 +800,7 @@ export function DebtForm({
               downPayment: data.downPayment,
               currentBalance: calculatedBalance,
               interestRate: data.interestRate,
-              totalMonths: data.loanType === "credit_card" ? null : data.totalMonths,
+              totalMonths: (data.loanType?.toLowerCase().includes("credit") || data.loanType?.toLowerCase().includes("card")) ? null : data.totalMonths,
               firstPaymentDate: firstPaymentDateValue,
               startDate: startDateValue,
               monthlyPayment: data.monthlyPayment,
@@ -780,7 +832,7 @@ export function DebtForm({
               initialAmount: data.initialAmount,
               downPayment: data.downPayment,
               interestRate: data.interestRate,
-              totalMonths: data.loanType === "credit_card" ? null : data.totalMonths,
+              totalMonths: (data.loanType?.toLowerCase().includes("credit") || data.loanType?.toLowerCase().includes("card")) ? null : data.totalMonths,
               firstPaymentDate: firstPaymentDateValue,
               startDate: startDateValue,
               monthlyPayment: data.monthlyPayment,
@@ -858,35 +910,81 @@ export function DebtForm({
               <h3 className="text-base font-semibold mb-1">Loan Information</h3>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm font-medium">
-                  Loan Type
-                </label>
-                <Select
-                  value={form.watch("loanType") || ""}
-                  onValueChange={(value) =>
-                    form.setValue("loanType", value)
-                  }
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Loan Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mortgage">Mortgage</SelectItem>
-                    <SelectItem value="car_loan">Car Loan</SelectItem>
-                    <SelectItem value="personal_loan">Personal Loan</SelectItem>
-                    <SelectItem value="credit_card">Credit Card</SelectItem>
-                    <SelectItem value="student_loan">Student Loan</SelectItem>
-                    <SelectItem value="business_loan">Business Loan</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.loanType && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.loanType.message}
-                  </p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">
+                    Category
+                  </label>
+                  <Select
+                    value={selectedCategoryId}
+                    onValueChange={(value) => {
+                      setSelectedCategoryId(value);
+                      setSelectedSubcategoryId("");
+                      const category = debtsCategories.find((cat) => cat.id === value);
+                      if (category) {
+                        // Use category name as loanType for now (or we can store categoryId separately)
+                        // For backward compatibility, we'll map to a loanType value
+                        form.setValue("loanType", category.name.toLowerCase().replace(/\s+/g, "_") || "other");
+                      }
+                    }}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {debtsCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.formState.errors.loanType && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.loanType.message}
+                    </p>
+                  )}
+                </div>
+
+                {selectedCategoryId && debtsCategories.find(c => c.id === selectedCategoryId)?.subcategories && debtsCategories.find(c => c.id === selectedCategoryId)!.subcategories!.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">
+                      Subcategory (optional)
+                    </label>
+                    <Select
+                      value={selectedSubcategoryId || undefined}
+                      onValueChange={(value) => {
+                        setSelectedSubcategoryId(value);
+                        const subcategory = debtsCategories
+                          .find((cat) => cat.id === selectedCategoryId)
+                          ?.subcategories?.find((sub) => sub.id === value);
+                        if (subcategory) {
+                          form.setValue("loanType", subcategory.name.toLowerCase().replace(/\s+/g, "_") || "other");
+                        } else {
+                          // If subcategory is cleared, use category name
+                          const category = debtsCategories.find((cat) => cat.id === selectedCategoryId);
+                          if (category) {
+                            form.setValue("loanType", category.name.toLowerCase().replace(/\s+/g, "_") || "other");
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Subcategory (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {debtsCategories
+                          .find((cat) => cat.id === selectedCategoryId)
+                          ?.subcategories?.map((subcategory) => (
+                            <SelectItem key={subcategory.id} value={subcategory.id}>
+                              {subcategory.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
               </div>
 
@@ -1050,7 +1148,7 @@ export function DebtForm({
 
               <div className="space-y-1">
                 <label className="text-sm font-medium">
-                  {fieldConfig.paymentAmountLabel} {loanType === "credit_card" && <span className="text-gray-400 text-[12px]">optional</span>}
+                  {fieldConfig.paymentAmountLabel} {((loanType || "").toLowerCase().includes("credit") || (loanType || "").toLowerCase().includes("card")) && <span className="text-gray-400 text-[12px]">optional</span>}
                 </label>
                 <DollarAmountInput
                   value={form.watch("paymentAmount") || undefined}
@@ -1073,7 +1171,7 @@ export function DebtForm({
                     ))}
                   </p>
                 )}
-                {loanType === "credit_card" && (
+                {((loanType || "").toLowerCase().includes("credit") || (loanType || "").toLowerCase().includes("card")) && (
                   <p className="text-xs text-muted-foreground">
                     Because this is revolving credit, balances and interest can change monthly.
                   </p>
@@ -1104,7 +1202,7 @@ export function DebtForm({
                   <SelectContent>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
-                        {account.name}
+                        {account.name} ({formatAccountType(account.type)})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1122,16 +1220,12 @@ export function DebtForm({
                 </label>
                 <Input
                   type="date"
-                  value={
-                    form.watch("startDate")
-                      ? new Date(form.watch("startDate")!).toISOString().split("T")[0]
-                      : ""
-                  }
+                  value={formatDateInput(form.watch("startDate"))}
                   onChange={(e) => {
-                    const date = e.target.value ? new Date(e.target.value) : new Date();
+                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
                     form.setValue("startDate", date, { shouldValidate: true });
                   }}
-                  required={loanType !== "credit_card"}
+                  required={!((loanType || "").toLowerCase().includes("credit") || (loanType || "").toLowerCase().includes("card"))}
                 />
                 {form.formState.errors.startDate && (
                   <p className="text-xs text-destructive">
@@ -1146,13 +1240,9 @@ export function DebtForm({
                 </label>
                 <Input
                   type="date"
-                  value={
-                    form.watch("firstPaymentDate")
-                      ? new Date(form.watch("firstPaymentDate")!).toISOString().split("T")[0]
-                      : ""
-                  }
+                  value={formatDateInput(form.watch("firstPaymentDate"))}
                   onChange={(e) => {
-                    const date = e.target.value ? new Date(e.target.value) : new Date();
+                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
                     form.setValue("firstPaymentDate", date, { shouldValidate: true });
                   }}
                   required
@@ -1176,7 +1266,7 @@ export function DebtForm({
                         const start = new Date(startDate);
                         const finish = new Date(start);
                         finish.setMonth(finish.getMonth() + totalMonths);
-                        return finish.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        return formatTransactionDate(finish);
                       } catch {
                         return '';
                       }

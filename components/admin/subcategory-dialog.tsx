@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -21,14 +22,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import type { SystemSubcategory } from "@/lib/api/admin";
 
 const subcategorySchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
   categoryId: z.string().min(1, "Category is required"),
-  logo: z.string().url().optional().nullable().or(z.literal("")),
+  logo: z.union([
+    z.string().url("Logo must be a valid URL"),
+    z.literal(""),
+    z.null(),
+  ]).optional(),
 });
 
 type SubcategoryFormData = z.infer<typeof subcategorySchema>;
@@ -49,61 +54,125 @@ export function SubcategoryDialog({
   onSuccess,
 }: SubcategoryDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // For create mode: textarea text with comma-separated subcategory names
+  const [subcategoryNamesText, setSubcategoryNamesText] = useState<string>("");
+  // For create mode: selected categoryId (shared for all subcategories)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
 
   const form = useForm<SubcategoryFormData>({
     resolver: zodResolver(subcategorySchema),
-    defaultValues: subcategory
-      ? {
+    defaultValues: {
+      name: "",
+      categoryId: "",
+      logo: "",
+    },
+  });
+
+  // Reset form when subcategory prop changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      if (subcategory) {
+        // Edit mode: populate form with subcategory data
+        form.reset({
           name: subcategory.name,
           categoryId: subcategory.categoryId,
           logo: subcategory.logo || "",
-        }
-      : {
+        });
+      } else {
+        // Create mode: reset form to empty
+        form.reset({
           name: "",
           categoryId: "",
           logo: "",
-        },
-  });
+        });
+        setSubcategoryNamesText("");
+        setSelectedCategoryId("");
+      }
+    }
+  }, [open, subcategory, form]);
 
-  const onSubmit = async (data: SubcategoryFormData) => {
+  // Reset state when dialog opens/closes
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setSubcategoryNamesText("");
+      setSelectedCategoryId("");
+      form.reset();
+    }
+    onOpenChange(newOpen);
+  };
+
+  // Helper function to parse comma-separated values
+  const parseCommaSeparated = (text: string): string[] => {
+    return text
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate manually for create mode
+    if (!selectedCategoryId) {
+      form.setError("categoryId", { message: "Category is required" });
+      return;
+    }
+
+    // Parse comma-separated values
+    const validNames = parseCommaSeparated(subcategoryNamesText);
+    if (validNames.length === 0) {
+      alert("Please enter at least one subcategory name");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      if (subcategory) {
-        // Update (only name can be updated)
-        const response = await fetch("/api/admin/subcategories", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: subcategory.id,
-            name: data.name,
-            logo: data.logo?.trim() || null,
-          }),
-        });
+      // Create all subcategories
+      const results = await Promise.allSettled(
+        validNames.map((name) =>
+          fetch("/api/admin/subcategories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: name.trim(),
+              categoryId: selectedCategoryId,
+              logo: null,
+            }),
+          })
+        )
+      );
 
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to update subcategory");
-        }
-      } else {
-        // Create
-        const response = await fetch("/api/admin/subcategories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: data.name,
-            categoryId: data.categoryId,
-            logo: data.logo?.trim() || null,
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to create subcategory");
+      // Check for errors
+      const errors: string[] = [];
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const subcategoryName = validNames[i];
+        
+        if (result.status === "rejected") {
+          errors.push(`Failed to create "${subcategoryName}": ${result.reason}`);
+        } else if (!result.value.ok) {
+          try {
+            const errorData = await result.value.json();
+            errors.push(`Failed to create "${subcategoryName}": ${errorData.error || "Unknown error"}`);
+          } catch (parseError) {
+            errors.push(`Failed to create "${subcategoryName}": HTTP ${result.value.status}`);
+          }
         }
       }
 
-      onOpenChange(false);
+      if (errors.length > 0) {
+        const successCount = results.length - errors.length;
+        if (successCount > 0) {
+          alert(`${successCount} subcategor${successCount > 1 ? "ies" : "y"} created successfully.\n\nErrors:\n${errors.join("\n")}`);
+        } else {
+          throw new Error(errors.join("\n"));
+        }
+      }
+
+      handleOpenChange(false);
       form.reset();
+      setSubcategoryNamesText("");
+      setSelectedCategoryId("");
       if (onSuccess) {
         onSuccess();
       }
@@ -115,22 +184,69 @@ export function SubcategoryDialog({
     }
   };
 
+  const onSubmit = async (data: SubcategoryFormData) => {
+    setIsSubmitting(true);
+    try {
+        // Update (only name can be updated)
+        // Handle logo: if empty string, send null; if valid URL, send it; otherwise send null
+        const logoValue = data.logo && data.logo.trim() !== "" ? data.logo.trim() : null;
+        
+        const response = await fetch("/api/admin/subcategories", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+          id: subcategory!.id,
+            name: data.name.trim(),
+            logo: logoValue,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          const errorMessage = errorData.error || `HTTP ${response.status}: Failed to update subcategory`;
+          console.error("Update subcategory error:", errorMessage, errorData);
+          throw new Error(errorMessage);
+        }
+
+        const updatedSubcategory = await response.json();
+        console.log("Subcategory updated successfully:", updatedSubcategory);
+
+      handleOpenChange(false);
+      form.reset();
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error) {
+      console.error("Error saving subcategory:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to save subcategory";
+      alert(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px] sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
           <DialogTitle>
-            {subcategory ? "Edit System Subcategory" : "Create System Subcategory"}
+            {subcategory ? "Edit System Subcategory" : "Create System Subcategories"}
           </DialogTitle>
           <DialogDescription>
             {subcategory
               ? "Update the system subcategory name below."
-              : "Create a new system subcategory that will be available to all users."}
+              : "Create one or more system subcategories separated by commas. They will be available to all users."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+        <form 
+          onSubmit={subcategory ? form.handleSubmit(onSubmit) : handleCreateSubmit} 
+          className="flex flex-col flex-1 overflow-hidden"
+        >
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+          {subcategory ? (
+            // Edit mode: single subcategory form
+            <>
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input
@@ -150,7 +266,17 @@ export function SubcategoryDialog({
             <Label htmlFor="logo">Logo URL (optional)</Label>
             <Input
               id="logo"
-              {...form.register("logo")}
+              {...form.register("logo", {
+                validate: (value) => {
+                  if (!value || value.trim() === "") return true; // Empty is OK
+                  try {
+                    new URL(value);
+                    return true;
+                  } catch {
+                    return "Logo must be a valid URL";
+                  }
+                },
+              })}
               placeholder="https://example.com/logo.png"
             />
             {form.formState.errors.logo && (
@@ -160,12 +286,26 @@ export function SubcategoryDialog({
             )}
           </div>
 
-          {!subcategory && (
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Input
+                  value={availableCategories.find((c) => c.id === subcategory.categoryId)?.name || subcategory.categoryId}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+            </>
+          ) : (
+            // Create mode: textarea with comma-separated values
+            <>
             <div className="space-y-2">
               <Label htmlFor="categoryId">Category</Label>
               <Select
-                value={form.watch("categoryId")}
-                onValueChange={(value) => form.setValue("categoryId", value)}
+                  value={selectedCategoryId}
+                  onValueChange={(value) => {
+                    setSelectedCategoryId(value);
+                    form.setValue("categoryId", value);
+                  }}
                 required
               >
                 <SelectTrigger>
@@ -185,17 +325,22 @@ export function SubcategoryDialog({
                 </p>
               )}
             </div>
-          )}
 
-          {subcategory && (
             <div className="space-y-2">
-              <Label>Category</Label>
-              <Input
-                value={availableCategories.find((c) => c.id === subcategory.categoryId)?.name || subcategory.categoryId}
-                disabled
-                className="bg-muted"
-              />
+                <Label htmlFor="subcategoryNames">Subcategory Names (comma-separated)</Label>
+                <Textarea
+                  id="subcategoryNames"
+                  value={subcategoryNamesText}
+                  onChange={(e) => setSubcategoryNamesText(e.target.value)}
+                  placeholder="e.g., BC Hydro, Fortis BC, Internet"
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter multiple subcategory names separated by commas. Each will be created as a separate subcategory.
+                </p>
             </div>
+            </>
           )}
           </div>
 
@@ -208,7 +353,13 @@ export function SubcategoryDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button 
+              type="submit" 
+              disabled={
+                isSubmitting || 
+                (!subcategory && (!selectedCategoryId || parseCommaSeparated(subcategoryNamesText).length === 0))
+              }
+            >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {subcategory ? "Update" : "Create"}
             </Button>

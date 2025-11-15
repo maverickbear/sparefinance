@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { cn } from "@/lib/utils";
-import { Holding } from "@/lib/mock-data/portfolio-mock-data";
+import { Holding } from "@/lib/api/portfolio";
 
 interface HoldingsMobileCardProps {
   holding: Holding;
@@ -13,9 +13,9 @@ export function HoldingsMobileCard({ holding }: HoldingsMobileCardProps) {
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Header with Symbol and Market Value */}
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-lg font-semibold">{holding.symbol}</span>
@@ -44,7 +44,7 @@ export function HoldingsMobileCard({ holding }: HoldingsMobileCardProps) {
           </div>
 
           {/* Quantity and Prices */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quantity</span>
               <span className="text-sm font-medium">{holding.quantity.toLocaleString()}</span>

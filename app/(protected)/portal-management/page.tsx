@@ -8,13 +8,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { UsersTable } from "@/components/admin/users-table";
 import { PromoCodesTable } from "@/components/admin/promo-codes-table";
 import { PromoCodeDialog } from "@/components/admin/promo-code-dialog";
-import { GroupsTable } from "@/components/admin/groups-table";
+import { UnifiedEntitiesTable } from "@/components/admin/unified-entities-table";
 import { GroupDialog } from "@/components/admin/group-dialog";
-import { CategoriesTable } from "@/components/admin/categories-table";
 import { CategoryDialog } from "@/components/admin/category-dialog";
-import { SubcategoriesTable } from "@/components/admin/subcategories-table";
 import { SubcategoryDialog } from "@/components/admin/subcategory-dialog";
-import { Plus, Loader2, Users, Tag, FolderTree, BarChart3, Mail, MessageSquare, Star } from "lucide-react";
+import { BulkImportDialog } from "@/components/admin/bulk-import-dialog";
+import { Plus, Loader2, Users, Tag, FolderTree, BarChart3, Mail, MessageSquare, Star, Upload, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { AdminUser, PromoCode, SystemGroup, SystemCategory, SystemSubcategory } from "@/lib/api/admin";
 import { PageHeader } from "@/components/common/page-header";
 import { DashboardOverview } from "@/components/admin/dashboard-overview";
@@ -66,6 +71,7 @@ export default function PortalManagementPage() {
   const [editingCategory, setEditingCategory] = useState<SystemCategory | null>(null);
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [editingSubcategory, setEditingSubcategory] = useState<SystemSubcategory | null>(null);
+  const [isBulkImportDialogOpen, setIsBulkImportDialogOpen] = useState(false);
 
   useEffect(() => {
     checkSuperAdmin();
@@ -455,96 +461,61 @@ export default function PortalManagementPage() {
         </SimpleTabsContent>
 
         <SimpleTabsContent value="system-entities" className="space-y-4">
-          <SimpleTabs defaultValue="groups" className="space-y-4">
-            <SimpleTabsList>
-              <SimpleTabsTrigger value="groups">Groups</SimpleTabsTrigger>
-              <SimpleTabsTrigger value="categories">Categories</SimpleTabsTrigger>
-              <SimpleTabsTrigger value="subcategories">Subcategories</SimpleTabsTrigger>
-            </SimpleTabsList>
-
-            <SimpleTabsContent value="groups" className="space-y-4">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>System Groups</CardTitle>
+                  <CardTitle>System Entities</CardTitle>
                       <CardDescription>
-                        Manage system groups that are available to all users.
+                    Manage system groups, categories, and subcategories. Click the expand icons to see categories and subcategories.
                       </CardDescription>
                     </div>
-                    <Button onClick={handleCreateGroup}>
+                <div className="flex items-center gap-2">
+                  <Button onClick={() => setIsBulkImportDialogOpen(true)} variant="outline">
+                    <Upload className="h-4 w-4 mr-2" />
+                    Bulk Import
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button>
                       <Plus className="h-4 w-4 mr-2" />
+                        Create
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleCreateGroup}>
+                        <FolderTree className="h-4 w-4 mr-2" />
                       Create Group
-                    </Button>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleCreateCategory}>
+                        <Tag className="h-4 w-4 mr-2" />
+                        Create Category
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleCreateSubcategory}>
+                        <Tag className="h-4 w-4 mr-2" />
+                        Create Subcategory
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <GroupsTable
+              <UnifiedEntitiesTable
                     groups={groups}
-                    loading={loadingSystemEntities}
-                    onEdit={handleEditGroup}
-                    onDelete={handleDeleteGroup}
-                  />
-                </CardContent>
-              </Card>
-            </SimpleTabsContent>
-
-            <SimpleTabsContent value="categories" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>System Categories</CardTitle>
-                      <CardDescription>
-                        Manage system categories that are available to all users.
-                      </CardDescription>
-                    </div>
-                    <Button onClick={handleCreateCategory}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Category
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CategoriesTable
                     categories={categories}
-                    macros={groups.map((g) => ({ id: g.id, name: g.name }))}
+                subcategories={subcategories}
                     loading={loadingSystemEntities}
-                    onEdit={handleEditCategory}
-                    onDelete={handleDeleteCategory}
+                onEditGroup={handleEditGroup}
+                onDeleteGroup={handleDeleteGroup}
+                onEditCategory={handleEditCategory}
+                onDeleteCategory={handleDeleteCategory}
+                onEditSubcategory={handleEditSubcategory}
+                onDeleteSubcategory={handleDeleteSubcategory}
                   />
                 </CardContent>
               </Card>
-            </SimpleTabsContent>
-
-            <SimpleTabsContent value="subcategories" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>System Subcategories</CardTitle>
-                      <CardDescription>
-                        Manage system subcategories that are available to all users.
-                      </CardDescription>
-                    </div>
-                    <Button onClick={handleCreateSubcategory}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Subcategory
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <SubcategoriesTable
-                    subcategories={subcategories}
-                    categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-                    loading={loadingSystemEntities}
-                    onEdit={handleEditSubcategory}
-                    onDelete={handleDeleteSubcategory}
-                  />
-                </CardContent>
-              </Card>
-            </SimpleTabsContent>
-          </SimpleTabs>
         </SimpleTabsContent>
 
         <SimpleTabsContent value="contact-forms" className="space-y-4">
@@ -750,6 +721,14 @@ export default function PortalManagementPage() {
         }}
         subcategory={editingSubcategory}
         availableCategories={categories.map((c) => ({ id: c.id, name: c.name }))}
+        onSuccess={() => {
+          loadSystemEntities();
+        }}
+      />
+
+      <BulkImportDialog
+        open={isBulkImportDialogOpen}
+        onOpenChange={setIsBulkImportDialogOpen}
         onSuccess={() => {
           loadSystemEntities();
         }}

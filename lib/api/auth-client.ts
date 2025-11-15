@@ -319,6 +319,26 @@ export async function signInClient(data: SignInFormData): Promise<{ user: User |
     return { user: mapUser(userData), error: null };
   } catch (error) {
     console.error("Error in signInClient:", error);
+    
+    // Handle network/connectivity errors specifically
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      // Check if Supabase environment variables are configured
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        return { 
+          user: null, 
+          error: "Configuration error: Supabase credentials are missing. Please check your environment variables." 
+        };
+      }
+      
+      return { 
+        user: null, 
+        error: "Network error: Unable to connect to the authentication server. Please check your internet connection and try again." 
+      };
+    }
+    
     return { user: null, error: error instanceof Error ? error.message : "Failed to sign in" };
   }
 }

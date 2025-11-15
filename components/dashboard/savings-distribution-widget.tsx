@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/components/common/money";
 import { useToast } from "@/components/toast-provider";
 import { topUpGoalClient, type Goal } from "@/lib/api/goals-client";
-import { PiggyBank, ArrowRight, Plus, Loader2, Sparkles, AlertCircle } from "lucide-react";
+import { ArrowRight, Plus, Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -192,16 +192,13 @@ export function SavingsDistributionWidget({
   // If no last month data, show neutral message
   if (!hasLastMonthData) {
     return (
-      <Card>
+      <Card className="w-full max-w-full">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <PiggyBank className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg font-semibold">
-                  Monthly Savings
-                </CardTitle>
-              </div>
+              <CardTitle className="text-lg font-semibold">
+                Monthly Savings
+              </CardTitle>
               <CardDescription className="text-sm">
                 Compare your monthly expenses to see how much you save
               </CardDescription>
@@ -219,20 +216,13 @@ export function SavingsDistributionWidget({
 
   return (
     <>
-      <Card>
+      <Card className="w-full max-w-full">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                {hasSavings ? (
-                  <PiggyBank className="h-5 w-5 text-green-600 dark:text-green-400" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                )}
-                <CardTitle className="text-lg font-semibold">
-                  {hasSavings ? "You Saved!" : "You Could Have Saved"}
-                </CardTitle>
-              </div>
+              <CardTitle className="text-lg font-semibold">
+                {hasSavings ? "You Saved!" : "You Could Have Saved"}
+              </CardTitle>
               <CardDescription className="text-sm">
                 {hasSavings 
                   ? "You spent less this month compared to last month"
@@ -245,7 +235,7 @@ export function SavingsDistributionWidget({
         <CardContent className="space-y-4">
           <div className="flex items-baseline gap-2">
             <span className={cn(
-              "text-3xl font-bold",
+              "text-2xl font-semibold",
               hasSavings 
                 ? "text-green-600 dark:text-green-400"
                 : "text-orange-600 dark:text-orange-400"

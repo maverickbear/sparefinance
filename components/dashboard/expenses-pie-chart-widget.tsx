@@ -4,29 +4,11 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { formatMoney } from "@/components/common/money";
+import { getCategoryColor } from "@/lib/utils/category-colors";
 
 interface ExpensesPieChartWidgetProps {
   selectedMonthTransactions: any[];
 }
-
-const COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // green
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#4949f2", // primary (roxo)
-  "#06b6d4", // cyan
-  "#f97316", // orange
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#6366f1", // indigo
-  "#8b5cf6", // violet
-  "#84cc16", // lime
-  "#f43f5e", // rose
-  "#0ea5e9", // sky
-  "#a855f7", // purple
-  "#22c55e", // emerald
-];
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload }: any) => {
@@ -132,10 +114,11 @@ export function ExpensesPieChartWidget({
     // Calculate total for percentage
     const total = dataArray.reduce((sum, item) => sum + item.value, 0);
 
-    // Add percentage to each item
+    // Add percentage and color to each item
     return dataArray.map((item) => ({
       ...item,
       percentage: total > 0 ? (item.value / total) * 100 : 0,
+      color: getCategoryColor(item.name),
     }));
   }, [selectedMonthTransactions]);
 
@@ -145,7 +128,7 @@ export function ExpensesPieChartWidget({
   );
 
   return (
-    <Card>
+    <Card className="w-full max-w-full">
       <CardHeader className="pb-4">
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-2">
@@ -171,7 +154,7 @@ export function ExpensesPieChartWidget({
         ) : (
           <div className="space-y-4">
             <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-foreground">
+              <span className="text-2xl font-semibold text-foreground">
                 {formatMoney(totalExpenses)}
               </span>
               <span className="text-sm text-muted-foreground">
@@ -186,14 +169,15 @@ export function ExpensesPieChartWidget({
                   cy="50%"
                   labelLine={false}
                   label={false}
-                  outerRadius={100}
+                  outerRadius={120}
+                  innerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
                 >
                   {expensesData.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
+                      fill={entry.color || getCategoryColor(entry.name)}
                     />
                   ))}
                 </Pie>

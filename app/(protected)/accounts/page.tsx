@@ -9,14 +9,27 @@ import { AccountForm } from "@/components/forms/account-form";
 import { TableSkeleton } from "@/components/ui/list-skeleton";
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
-import { ConnectBankButton } from "@/components/banking/connect-bank-button";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { EmptyState } from "@/components/common/empty-state";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Account {
   id: string;
@@ -45,6 +58,10 @@ export default function AccountsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+  const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
+  const [transferToAccountId, setTransferToAccountId] = useState<string>("");
+  const [checkingTransactions, setCheckingTransactions] = useState(false);
 
   useEffect(() => {
     loadAccounts();
@@ -88,8 +105,35 @@ export default function AccountsPage() {
     setIsFormOpen(true);
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!checkWriteAccess()) return;
+    
+    // Check if account has transactions
+    setCheckingTransactions(true);
+    try {
+      const { accountHasTransactionsClient } = await import("@/lib/api/accounts-client");
+      const hasTransactions = await accountHasTransactionsClient(id);
+      
+      if (hasTransactions) {
+        // Open dialog to select destination account
+        setAccountToDelete(id);
+        setTransferToAccountId("");
+        setDeleteAccountDialogOpen(true);
+        setCheckingTransactions(false);
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking transactions:", error);
+      // If we can't check, assume there are transactions to be safe
+      setAccountToDelete(id);
+      setTransferToAccountId("");
+      setDeleteAccountDialogOpen(true);
+      setCheckingTransactions(false);
+      return;
+    }
+    setCheckingTransactions(false);
+
+    // If no transactions, proceed with deletion
     openDialog(
       {
         title: "Delete Account",
@@ -98,41 +142,65 @@ export default function AccountsPage() {
         confirmLabel: "Delete",
       },
       async () => {
-        const accountToDelete = accounts.find(a => a.id === id);
-        
-        // Optimistic update: remove from UI immediately
-        setAccounts(prev => prev.filter(a => a.id !== id));
-        setDeletingId(id);
-
-        try {
-          const { deleteAccountClient } = await import("@/lib/api/accounts-client");
-          await deleteAccountClient(id);
-
-          toast({
-            title: "Account deleted",
-            description: "Your account has been deleted successfully.",
-            variant: "success",
-          });
-          
-          loadAccounts();
-          // Reload limit after deletion
-          loadAccountLimit();
-        } catch (error) {
-          console.error("Error deleting account:", error);
-          // Revert optimistic update on error
-          if (accountToDelete) {
-            setAccounts(prev => [...prev, accountToDelete].sort((a, b) => a.name.localeCompare(b.name)));
-          }
-          toast({
-            title: "Error",
-            description: error instanceof Error ? error.message : "Failed to delete account",
-            variant: "destructive",
-          });
-        } finally {
-          setDeletingId(null);
-        }
+        await performDelete(id);
       }
     );
+  }
+
+  async function performDelete(id: string, transferToId?: string) {
+    const accountToDelete = accounts.find(a => a.id === id);
+    
+    // Optimistic update: remove from UI immediately
+    setAccounts(prev => prev.filter(a => a.id !== id));
+    setDeletingId(id);
+
+    try {
+      const { deleteAccountClient } = await import("@/lib/api/accounts-client");
+      await deleteAccountClient(id, transferToId);
+
+      toast({
+        title: "Account deleted",
+        description: transferToId 
+          ? "Your account has been deleted and all transactions have been transferred."
+          : "Your account has been deleted successfully.",
+        variant: "success",
+      });
+      
+      loadAccounts();
+      // Reload limit after deletion
+      loadAccountLimit();
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      // Revert optimistic update on error
+      if (accountToDelete) {
+        setAccounts(prev => [...prev, accountToDelete].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete account",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+      setDeleteAccountDialogOpen(false);
+      setAccountToDelete(null);
+      setTransferToAccountId("");
+    }
+  }
+
+  async function handleConfirmDeleteWithTransfer() {
+    if (!accountToDelete) return;
+    
+    if (!transferToAccountId) {
+      toast({
+        title: "Account Required",
+        description: "Please select a destination account to transfer transactions to.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await performDelete(accountToDelete, transferToAccountId);
   }
 
   async function handleSync(accountId: string) {
@@ -215,9 +283,6 @@ export default function AccountsPage() {
         description="Manage your accounts and view balances"
       >
         <div className="flex gap-2">
-          <FeatureGuard feature="hasBankIntegration">
-            <ConnectBankButton onSuccess={loadAccounts} />
-          </FeatureGuard>
           {accounts.length > 0 && (
             <Button
               onClick={handleAddAccount}
@@ -241,7 +306,7 @@ export default function AccountsPage() {
           actionIcon={Plus}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {accounts.map((account) => {
             const isCreditCard = account.type === "credit" && account.creditLimit;
             const available = isCreditCard 
@@ -253,30 +318,30 @@ export default function AccountsPage() {
                 key={account.id}
                 className="transition-all flex flex-col"
               >
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                <CardHeader className="pb-3 p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       {account.institutionLogo ? (
                         <img 
                           src={account.institutionLogo} 
                           alt={account.institutionName || 'Bank logo'} 
-                          className="h-8 w-8 rounded object-contain flex-shrink-0"
+                          className="h-6 w-6 rounded object-contain flex-shrink-0"
                         />
                       ) : null}
                       <div className="min-w-0 flex-1">
-                        <CardTitle className="text-base font-semibold truncate">{account.name}</CardTitle>
+                        <CardTitle className="text-sm font-semibold truncate">{account.name}</CardTitle>
                         {account.institutionName && (
-                          <p className="text-xs text-muted-foreground truncate">{account.institutionName}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{account.institutionName}</p>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
                       {account.isConnected && (
                         <>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-7 w-7"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleSync(account.id);
@@ -285,15 +350,15 @@ export default function AccountsPage() {
                             title="Sync transactions"
                           >
                             {syncingId === account.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                              <RefreshCw className="h-4 w-4" />
+                              <RefreshCw className="h-3.5 w-3.5" />
                             )}
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+                            className="h-7 w-7 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDisconnect(account.id);
@@ -302,9 +367,9 @@ export default function AccountsPage() {
                             title="Disconnect account"
                           >
                             {disconnectingId === account.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                              <Unlink className="h-4 w-4" />
+                              <Unlink className="h-3.5 w-3.5" />
                             )}
                           </Button>
                         </>
@@ -312,7 +377,7 @@ export default function AccountsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-7 w-7"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!checkWriteAccess()) return;
@@ -321,12 +386,12 @@ export default function AccountsPage() {
                         }}
                         title="Edit account"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (!checkWriteAccess()) return;
@@ -336,35 +401,35 @@ export default function AccountsPage() {
                         title={account.isConnected ? "Cannot delete connected account. Disconnect first." : "Delete account"}
                       >
                         {deletingId === account.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         )}
                       </Button>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="capitalize">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="capitalize text-[10px] px-1.5 py-0.5">
                       {account.type}
                     </Badge>
                     {account.householdName && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                         {account.householdName}
                       </Badge>
                     )}
                     {account.isConnected && (
-                      <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-xs">
+                      <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-[10px] px-1.5 py-0.5">
                         Connected
                       </Badge>
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4 flex-1">
-                  <div className="space-y-3">
+                <CardContent className="space-y-2 flex-1 p-4 pt-0">
+                  <div className="space-y-2">
                     <div>
-                      <div className="text-xs text-muted-foreground mb-1">Balance</div>
+                      <div className="text-[10px] text-muted-foreground mb-0.5">Balance</div>
                       <div className={cn(
-                        "text-2xl font-bold",
+                        "text-lg font-bold",
                         account.balance >= 0 
                           ? "text-green-600 dark:text-green-400" 
                           : "text-red-600 dark:text-red-400"
@@ -373,17 +438,17 @@ export default function AccountsPage() {
                       </div>
                     </div>
                     {isCreditCard && (
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t">
                         <div>
-                          <div className="text-xs text-muted-foreground mb-1">Credit Limit</div>
-                          <div className="text-sm font-semibold">
+                          <div className="text-[10px] text-muted-foreground mb-0.5">Credit Limit</div>
+                          <div className="text-xs font-semibold">
                             {formatMoney(account.creditLimit!)}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-muted-foreground mb-1">Available</div>
+                          <div className="text-[10px] text-muted-foreground mb-0.5">Available</div>
                           <div className={cn(
-                            "text-sm font-semibold",
+                            "text-xs font-semibold",
                             available !== null && available >= 0
                               ? "text-green-600 dark:text-green-400"
                               : "text-red-600 dark:text-red-400"
@@ -394,8 +459,8 @@ export default function AccountsPage() {
                       </div>
                     )}
                     {account.isConnected && account.lastSyncedAt && (
-                      <div className="text-xs text-muted-foreground pt-2 border-t">
-                        Last synced: {format(new Date(account.lastSyncedAt), 'MMM dd, yyyy HH:mm')}
+                      <div className="text-[10px] text-muted-foreground pt-2 border-t">
+                        Last synced: {format(new Date(account.lastSyncedAt), 'MMM dd, HH:mm')}
                       </div>
                     )}
                   </div>
@@ -421,6 +486,65 @@ export default function AccountsPage() {
         }}
         initialAccountLimit={accountLimit}
       />
+
+      {/* Delete Account with Transfer Dialog */}
+      <Dialog open={deleteAccountDialogOpen} onOpenChange={setDeleteAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+            <DialogDescription>
+              This account has associated transactions. Please select a destination account to transfer all transactions to before deleting.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Transfer transactions to:</label>
+              <Select
+                value={transferToAccountId}
+                onValueChange={setTransferToAccountId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select destination account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts
+                    .filter((account) => account.id !== accountToDelete)
+                    .map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name} ({account.type})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {accounts.filter((account) => account.id !== accountToDelete).length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  You need at least one other account to transfer transactions to. Please create another account first.
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteAccountDialogOpen(false);
+                setAccountToDelete(null);
+                setTransferToAccountId("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteWithTransfer}
+              disabled={!transferToAccountId || accounts.filter((account) => account.id !== accountToDelete).length === 0}
+            >
+              Delete and Transfer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {ConfirmDialog}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { createServerClient } from "@/lib/supabase-server";
 import { InvestmentTransactionFormData, SecurityPriceFormData, InvestmentAccountFormData } from "@/lib/validations/investment";
-import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
+import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly } from "@/lib/utils/timestamp";
 import { mapClassToSector } from "@/lib/utils/portfolio-utils";
 
 export interface Holding {
@@ -109,8 +109,16 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
   const holdingKeyMap = new Map<string, Holding>();
 
   for (const tx of transactions || []) {
+    // Skip transactions without securityId/security, but allow transfer_in/transfer_out
+    // which don't require a security
     if (!tx.securityId || !tx.security) {
-      console.log(`Skipping transaction ${tx.id} - no securityId or security`);
+      // Transfer transactions don't require a security, so this is expected
+      if (tx.type === "transfer_in" || tx.type === "transfer_out") {
+        // Silently skip transfer transactions as they don't affect holdings
+        continue;
+      }
+      // For other transaction types, log a warning
+      console.log(`Skipping transaction ${tx.id} (type: ${tx.type}) - no securityId or security`);
       continue;
     }
 
@@ -198,6 +206,13 @@ export async function getHoldings(accountId?: string): Promise<Holding[]> {
         holding.unrealizedPnLPercent = holding.bookValue > 0 
           ? (holding.unrealizedPnL / holding.bookValue) * 100 
           : 0;
+      } else {
+        // Fallback: use average price if no current price available
+        // This ensures marketValue is calculated even without SecurityPrice entries
+        holding.lastPrice = holding.avgPrice;
+        holding.marketValue = holding.quantity * holding.avgPrice;
+        holding.unrealizedPnL = 0; // No P&L if using book value
+        holding.unrealizedPnLPercent = 0;
       }
     }
   }
@@ -285,7 +300,8 @@ export async function createInvestmentTransaction(data: InvestmentTransactionFor
 
   const id = crypto.randomUUID();
   const date = data.date instanceof Date ? data.date : new Date(data.date);
-  const transactionDate = formatTimestamp(date);
+  // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+  const transactionDate = formatDateOnly(date);
   const now = formatTimestamp(new Date());
 
   const { data: transaction, error } = await supabase
@@ -320,7 +336,8 @@ export async function updateInvestmentTransaction(id: string, data: Partial<Inve
   const updateData: Record<string, unknown> = {};
   if (data.date) {
     const date = data.date instanceof Date ? data.date : new Date(data.date);
-    updateData.date = formatTimestamp(date);
+    // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+    updateData.date = formatDateOnly(date);
   }
   if (data.accountId) updateData.accountId = data.accountId;
   if (data.securityId !== undefined) updateData.securityId = data.securityId || null;

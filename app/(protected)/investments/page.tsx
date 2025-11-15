@@ -6,13 +6,14 @@ import { FeatureGuard } from "@/components/common/feature-guard";
 import { PortfolioSummaryCards } from "@/components/portfolio/portfolio-summary-cards";
 import { Loader2 } from "lucide-react";
 import type { Holding as SupabaseHolding } from "@/lib/api/investments";
-import { convertSupabaseHoldingToHolding, type Holding, type Account, type HistoricalDataPoint } from "@/lib/mock-data/portfolio-mock-data";
+import { convertSupabaseHoldingToHolding, type Holding, type Account, type HistoricalDataPoint } from "@/lib/api/portfolio";
 import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
 import { SimpleTabs, SimpleTabsList, SimpleTabsTrigger, SimpleTabsContent } from "@/components/ui/simple-tabs";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Upload, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
+import { useToast } from "@/components/toast-provider";
 import {
   calculateAssetTypeAllocation,
   calculateSectorAllocation,
@@ -28,7 +29,9 @@ const SectorBreakdown = dynamic(() => import("@/components/portfolio/sector-brea
 const OrdersTabContent = dynamic(() => import("@/components/portfolio/orders-tab-content").then(m => ({ default: m.OrdersTabContent })), { ssr: false });
 const ExecutionsTabContent = dynamic(() => import("@/components/portfolio/executions-tab-content").then(m => ({ default: m.ExecutionsTabContent })), { ssr: false });
 const MarketDataTabContent = dynamic(() => import("@/components/portfolio/market-data-tab-content").then(m => ({ default: m.MarketDataTabContent })), { ssr: false });
+const InvestmentTransactionsTable = dynamic(() => import("@/components/portfolio/investment-transactions-table").then(m => ({ default: m.InvestmentTransactionsTable })), { ssr: false });
 const InvestmentTransactionForm = dynamic(() => import("@/components/forms/investment-transaction-form").then(m => ({ default: m.InvestmentTransactionForm })), { ssr: false });
+const InvestmentCsvImportDialog = dynamic(() => import("@/components/forms/investment-csv-import-dialog").then(m => ({ default: m.InvestmentCsvImportDialog })), { ssr: false });
 
 // Types
 interface PortfolioSummary {
@@ -43,12 +46,15 @@ interface PortfolioSummary {
 
 export default function InvestmentsPage() {
   const { checkWriteAccess } = useWriteGuard();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary | null>(null);
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   
   useEffect(() => {
     loadPortfolioData();
@@ -87,7 +93,7 @@ export default function InvestmentsPage() {
       setPortfolioSummary(summary || defaultSummary);
       setHoldings(
         holdingsData && Array.isArray(holdingsData) && holdingsData.length > 0
-          ? holdingsData.map(convertSupabaseHoldingToHolding)
+          ? await Promise.all(holdingsData.map(convertSupabaseHoldingToHolding))
           : []
       );
       setAccounts(accountsData && Array.isArray(accountsData) ? accountsData : []);
@@ -155,6 +161,53 @@ export default function InvestmentsPage() {
             onSuccess={loadPortfolioData}
           />
           <Button
+            onClick={async () => {
+              if (!checkWriteAccess()) return;
+              setIsUpdatingPrices(true);
+              try {
+                const response = await fetch("/api/investments/prices/update", {
+                  method: "POST",
+                });
+                if (response.ok) {
+                  const result = await response.json();
+                  loadPortfolioData();
+                  toast({
+                    title: "Prices updated",
+                    description: `Updated ${result.updated || 0} security prices${result.errors && result.errors.length > 0 ? `. ${result.errors.length} errors occurred.` : "."}`,
+                    variant: result.errors && result.errors.length > 0 ? "default" : "success",
+                  });
+                } else {
+                  const error = await response.json();
+                  console.error("Error updating prices:", error);
+                  toast({
+                    title: "Error",
+                    description: error.error || "Failed to update prices",
+                    variant: "destructive",
+                  });
+                }
+              } catch (error) {
+                console.error("Error updating prices:", error);
+              } finally {
+                setIsUpdatingPrices(false);
+              }
+            }}
+            variant="outline"
+            disabled={isUpdatingPrices}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isUpdatingPrices ? "animate-spin" : ""}`} />
+            Update Prices
+          </Button>
+          <Button
+            onClick={() => {
+              if (!checkWriteAccess()) return;
+              setShowImportDialog(true);
+            }}
+            variant="outline"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button
             onClick={() => {
               if (!checkWriteAccess()) return;
               setShowTransactionForm(true);
@@ -170,6 +223,7 @@ export default function InvestmentsPage() {
         <SimpleTabs defaultValue="overview" className="w-full">
           <SimpleTabsList>
             <SimpleTabsTrigger value="overview">Overview</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="transactions">Transactions</SimpleTabsTrigger>
             <SimpleTabsTrigger value="orders">Orders</SimpleTabsTrigger>
             <SimpleTabsTrigger value="executions">Executions</SimpleTabsTrigger>
             <SimpleTabsTrigger value="market-data">Market Data</SimpleTabsTrigger>
@@ -206,6 +260,14 @@ export default function InvestmentsPage() {
             )}
           </SimpleTabsContent>
 
+          <SimpleTabsContent value="transactions">
+            <InvestmentTransactionsTable
+              onTransactionChange={() => {
+                loadPortfolioData();
+              }}
+            />
+          </SimpleTabsContent>
+
           <SimpleTabsContent value="orders" className="mt-4">
             <OrdersTabContent />
           </SimpleTabsContent>
@@ -223,6 +285,13 @@ export default function InvestmentsPage() {
       <InvestmentTransactionForm
         open={showTransactionForm}
         onOpenChange={setShowTransactionForm}
+        onSuccess={() => {
+          loadPortfolioData();
+        }}
+      />
+      <InvestmentCsvImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
         onSuccess={() => {
           loadPortfolioData();
         }}

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { logger } from "@/lib/utils/logger";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -43,35 +44,28 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
 
       // Verify the session was set correctly
       if (sessionError) {
-        console.warn("⚠️ [createServerClient] setSession error:", sessionError.message);
+        logger.warn("[createServerClient] setSession error:", sessionError.message);
       }
 
       // Verify user is authenticated
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError || !user) {
-        console.warn("⚠️ [createServerClient] getUser error after setSession:", {
+        logger.warn("[createServerClient] getUser error after setSession:", {
           userError: userError?.message,
           hasUser: !!user,
-          sessionHasUser: !!sessionData?.user,
         });
       } else {
-        // Log success in development
-        if (process.env.NODE_ENV === "development") {
-          console.log("✅ [createServerClient] Successfully authenticated with tokens:", {
-            userId: user.id,
-            hasSession: !!sessionData,
-          });
-        }
+        logger.debug("[createServerClient] Successfully authenticated:", user.id);
       }
     } catch (error: any) {
       // Handle refresh token errors gracefully
       if (error?.message?.includes("refresh_token_not_found") || 
           error?.message?.includes("Invalid refresh token") ||
           error?.message?.includes("JWT expired")) {
-        console.warn("⚠️ [createServerClient] Token error:", error?.message);
+        logger.warn("[createServerClient] Token error:", error?.message);
         // Session will be invalid, but continue with unauthenticated client
       } else {
-        console.warn("⚠️ [createServerClient] Unexpected error:", error?.message);
+        logger.warn("[createServerClient] Unexpected error:", error?.message);
       }
     }
 

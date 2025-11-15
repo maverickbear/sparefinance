@@ -1,28 +1,16 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowUpRight, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { formatMoney } from "@/components/common/money";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/utils/logger";
 
 interface TotalIncomeWidgetProps {
   transactions: any[];
 }
 
 export function TotalIncomeWidget({ transactions }: TotalIncomeWidgetProps) {
-  // Debug: Log transactions received
-  console.log("🔍 [TotalIncomeWidget] Received transactions:", {
-    totalCount: transactions.length,
-    transactionTypes: [...new Set(transactions.map(t => t?.type).filter(Boolean))],
-    incomeCount: transactions.filter((t) => t && t.type === "income").length,
-    sampleTransactions: transactions.slice(0, 5).map(t => ({
-      id: t?.id,
-      type: t?.type,
-      amount: t?.amount,
-      amountType: typeof t?.amount,
-    })),
-  });
-
   // Calculate total income from all income transactions
   // Note: transactions are already filtered by type="income" in the query, but we filter again for safety
   const incomeTransactions = transactions.filter((t) => t && t.type === "income");
@@ -33,31 +21,15 @@ export function TotalIncomeWidget({ transactions }: TotalIncomeWidgetProps) {
       const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
       amount = isNaN(parsed) ? 0 : parsed;
     }
-    const newSum = sum + amount;
-    console.log("🔍 [TotalIncomeWidget] Calculating income:", {
-      id: t.id,
-      type: t.type,
-      amount: t.amount,
-      parsedAmount: amount,
-      currentSum: sum,
-      newSum: newSum,
-    });
-    return newSum;
+    return sum + amount;
   }, 0);
 
   const incomeCount = incomeTransactions.length;
 
-  console.log("🔍 [TotalIncomeWidget] Final calculation:", {
-    totalIncome,
-    incomeCount,
-    transactionsReceived: transactions.length,
-  });
-
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ArrowUpRight className="h-5 w-5 text-green-600 dark:text-green-500" />
+        <CardTitle className="text-lg font-semibold">
           Total Income
         </CardTitle>
         <CardDescription>
@@ -69,7 +41,7 @@ export function TotalIncomeWidget({ transactions }: TotalIncomeWidgetProps) {
           {/* Total Amount */}
           <div className="flex items-baseline gap-2">
             <span className={cn(
-              "text-3xl font-bold",
+              "text-2xl font-semibold",
               totalIncome > 0 
                 ? "text-green-600 dark:text-green-400" 
                 : "text-muted-foreground"

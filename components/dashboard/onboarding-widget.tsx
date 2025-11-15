@@ -39,16 +39,21 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
   const [loading, setLoading] = useState(!initialStatus);
 
   useEffect(() => {
-    // Check if widget was dismissed
-    const dismissed = localStorage.getItem("onboarding-widget-dismissed");
-    if (dismissed === "true") {
-      setIsDismissed(true);
-      return;
-    }
-
     // Load initial status if not provided
     if (!initialStatus) {
       checkStatus();
+    } else {
+      // If we have initial status, check if widget should be shown
+      // Only respect dismissal if onboarding is actually complete
+      const dismissed = localStorage.getItem("onboarding-widget-dismissed");
+      if (dismissed === "true" && initialStatus.completedCount === initialStatus.totalCount) {
+        setIsDismissed(true);
+        return;
+      }
+      // If dismissed but not complete, reset dismissal to show widget again
+      if (dismissed === "true" && initialStatus.completedCount < initialStatus.totalCount) {
+        localStorage.removeItem("onboarding-widget-dismissed");
+      }
     }
   }, [initialStatus]);
 
@@ -61,21 +66,58 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
       ]);
 
       const hasAccount = accounts.length > 0;
+      // Calculate total balance from accounts
+      // The balance should already include initialBalance from getAccountsClient,
+      // but we'll use initialBalance as fallback if balance is missing
       const totalBalance = hasAccount 
-        ? accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0)
+        ? accounts.reduce((sum, acc) => {
+            // Use balance if available, otherwise fall back to initialBalance
+            let accountBalance = 0;
+            if (acc.balance !== undefined && acc.balance !== null) {
+              accountBalance = acc.balance;
+            } else if ((acc as any).initialBalance !== undefined && (acc as any).initialBalance !== null) {
+              accountBalance = (acc as any).initialBalance;
+            }
+            // Debug log to help identify issues
+            if (hasAccount && accounts.length === 1) {
+              console.log("[OnboardingWidget] Account balance calculation:", {
+                accountId: acc.id,
+                accountName: acc.name,
+                balance: acc.balance,
+                initialBalance: (acc as any).initialBalance,
+                calculatedBalance: accountBalance,
+              });
+            }
+            return sum + accountBalance;
+          }, 0)
         : undefined;
       
       const hasCompleteProfile = profile !== null && profile.name !== null && profile.name.trim() !== "";
 
       const completedCount = [hasAccount, hasCompleteProfile].filter(Boolean).length;
 
-      setStatus({
+      const newStatus = {
         hasAccount,
         hasCompleteProfile,
         completedCount,
         totalCount: 2,
         totalBalance,
-      });
+      };
+
+      setStatus(newStatus);
+
+      // If onboarding is complete and was dismissed, keep it dismissed
+      // If onboarding is not complete but was dismissed, reset dismissal
+      const dismissed = localStorage.getItem("onboarding-widget-dismissed");
+      if (dismissed === "true") {
+        if (completedCount === 2) {
+          setIsDismissed(true);
+        } else {
+          // Reset dismissal if not complete
+          localStorage.removeItem("onboarding-widget-dismissed");
+          setIsDismissed(false);
+        }
+      }
     } catch (error) {
       console.error("Error checking onboarding status:", error);
     } finally {
@@ -90,7 +132,9 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
 
   async function handleAccountCreated() {
     setIsAccountFormOpen(false);
-    // Immediately check status after account creation (no delay needed)
+    // Wait a bit for the account to be fully created and balance to be calculated
+    await new Promise(resolve => setTimeout(resolve, 500));
+    // Check status after account creation
     await checkStatus();
   }
 
@@ -107,13 +151,13 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
     }
   }, [status]);
 
-  // Don't render if dismissed
-  if (isDismissed) {
+  // Don't render if all actions are completed
+  if (status && status.completedCount === status.totalCount) {
     return null;
   }
 
-  // Don't render if all actions are completed
-  if (status && status.completedCount === status.totalCount) {
+  // Don't render if dismissed (only if onboarding is complete)
+  if (isDismissed && status && status.completedCount === status.totalCount) {
     return null;
   }
 
@@ -157,12 +201,9 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <CardTitle className="text-lg font-semibold">
-                  Get Started
-                </CardTitle>
-              </div>
+              <CardTitle className="text-lg font-semibold">
+                Get Started
+              </CardTitle>
               <CardDescription className="text-sm">
                 Complete these steps to set up your account
               </CardDescription>

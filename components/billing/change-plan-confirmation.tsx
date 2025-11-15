@@ -233,12 +233,14 @@ export function ChangePlanConfirmationModal({
             )}
             {isDowngrade ? "Confirm Downgrade" : "Confirm Upgrade"}
           </DialogTitle>
+        </DialogHeader>
+        <div className="px-6 pb-4">
           <DialogDescription>
             You are about to {isDowngrade ? "downgrade" : "upgrade"} from{" "}
             {currentPlan.name.charAt(0).toUpperCase() + currentPlan.name.slice(1)} to{" "}
             {targetPlan.name.charAt(0).toUpperCase() + targetPlan.name.slice(1)} plan.
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
           {isDowngrade && (

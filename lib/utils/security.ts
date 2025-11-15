@@ -58,7 +58,7 @@ export async function verifyAccountOwnership(accountId: string): Promise<boolean
 
 /**
  * Verify if the current user owns a transaction
- * Transactions are owned through their account
+ * Transactions are owned directly via userId or through their account
  */
 export async function verifyTransactionOwnership(transactionId: string): Promise<boolean> {
   try {
@@ -69,10 +69,10 @@ export async function verifyTransactionOwnership(transactionId: string): Promise
       return false;
     }
 
-    // Get transaction with account
+    // Get transaction with userId and accountId
     const { data: transaction, error: transactionError } = await supabase
       .from("Transaction")
-      .select("id, accountId")
+      .select("id, userId, accountId")
       .eq("id", transactionId)
       .single();
 
@@ -80,7 +80,12 @@ export async function verifyTransactionOwnership(transactionId: string): Promise
       return false;
     }
 
-    // Verify account ownership
+    // First check: User owns the transaction directly via userId
+    if (transaction.userId === userId) {
+      return true;
+    }
+
+    // Second check: Verify account ownership (fallback for old data or shared accounts)
     return await verifyAccountOwnership(transaction.accountId);
   } catch (error) {
     console.error("Error verifying transaction ownership:", error);

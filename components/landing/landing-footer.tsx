@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Wallet } from "lucide-react";
+import { Logo } from "@/components/common/logo";
 
 export function LandingFooter() {
   return (
@@ -10,11 +10,8 @@ export function LandingFooter() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <Link href="/" className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-primary/10 rounded-[12px]">
-                <Wallet className="w-6 h-6 text-primary" />
-              </div>
-              <span className="text-xl font-bold">Spare Finance</span>
+            <Link href="/" className="flex items-center mb-4">
+              <Logo variant="wordmark" color="auto" height={40} />
             </Link>
             <p className="text-sm text-muted-foreground max-w-md">
               Simple, modern, and designed to put you in control of your future.

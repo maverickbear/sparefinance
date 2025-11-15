@@ -72,7 +72,7 @@ export function ResponsiveTable<T extends Record<string, any>>({
   return (
     <>
       {/* Mobile Card View - shown on screens smaller than lg (1024px) */}
-      <div className="lg:hidden space-y-3">
+      <div className="lg:hidden space-y-4">
         {data.map((row) => {
           const rowKey = getRowKey(row);
           return (
@@ -86,7 +86,7 @@ export function ResponsiveTable<T extends Record<string, any>>({
               onClick={() => onRowClick?.(row)}
             >
               <CardContent className="p-4">
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {mobileColumns.map((column) => {
                     const cellContent = column.cell(row);
                     const label = column.mobileLabel || column.header;

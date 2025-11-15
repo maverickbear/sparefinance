@@ -33,7 +33,7 @@ export async function getUserClient(): Promise<{
       .from("Subscription")
       .select("planId, status, trialEndDate, trialStartDate")
       .eq("userId", authUser.id)
-      .in("status", ["active", "trialing", "cancelled", "past_due"])
+      .in("status", ["active", "trialing", "trial", "cancelled", "past_due"])
       .order("createdAt", { ascending: false })
       .limit(1)
       .maybeSingle(),

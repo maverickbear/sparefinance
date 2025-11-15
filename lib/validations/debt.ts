@@ -2,12 +2,7 @@ import { z } from "zod";
 
 export const debtSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  loanType: z.string().min(1, "Loan type is required").refine(
-    (val) => ["mortgage", "car_loan", "personal_loan", "credit_card", "student_loan", "business_loan", "other"].includes(val),
-    {
-      message: "Loan type must be one of the supported types",
-    }
-  ),
+  loanType: z.string().min(1, "Loan type is required"),
   initialAmount: z.number().positive("Initial amount must be positive"),
   totalMonths: z.number().positive("Total months must be positive").nullable().optional(),
   paymentFrequency: z.enum(["monthly", "biweekly", "weekly", "semimonthly", "daily"], {
@@ -32,7 +27,9 @@ export const debtSchema = z.object({
   isPaused: z.boolean().optional().default(false),
 }).refine((data) => {
   // Credit Card: totalMonths is not required (revolving credit)
-  if (data.loanType === "credit_card") {
+  const loanTypeLower = (data.loanType || "").toLowerCase();
+  const isCreditCard = loanTypeLower.includes("credit") || loanTypeLower.includes("card");
+  if (isCreditCard) {
     return true; // totalMonths can be null/undefined for credit cards
   }
   // All other loan types: totalMonths is required
@@ -42,7 +39,9 @@ export const debtSchema = z.object({
   path: ["totalMonths"],
 }).refine((data) => {
   // Credit Card: paymentFrequency must be monthly
-  if (data.loanType === "credit_card") {
+  const loanTypeLower = (data.loanType || "").toLowerCase();
+  const isCreditCard = loanTypeLower.includes("credit") || loanTypeLower.includes("card");
+  if (isCreditCard) {
     return data.paymentFrequency === "monthly";
   }
   return true;
@@ -51,7 +50,9 @@ export const debtSchema = z.object({
   path: ["paymentFrequency"],
 }).refine((data) => {
   // Credit Card: firstPaymentDate is required (Next Due Date)
-  if (data.loanType === "credit_card") {
+  const loanTypeLower = (data.loanType || "").toLowerCase();
+  const isCreditCard = loanTypeLower.includes("credit") || loanTypeLower.includes("card");
+  if (isCreditCard) {
     return data.firstPaymentDate !== null && data.firstPaymentDate !== undefined;
   }
   // All other loan types: firstPaymentDate is required
@@ -61,7 +62,9 @@ export const debtSchema = z.object({
   path: ["firstPaymentDate"],
 }).refine((data) => {
   // Credit Card: startDate is optional (Statement Start Date)
-  if (data.loanType === "credit_card") {
+  const loanTypeLower = (data.loanType || "").toLowerCase();
+  const isCreditCard = loanTypeLower.includes("credit") || loanTypeLower.includes("card");
+  if (isCreditCard) {
     return true; // startDate is optional for credit cards
   }
   // All other loan types: startDate is required

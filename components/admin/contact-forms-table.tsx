@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Eye, CheckCircle2, MessageSquare, XCircle } from "lucide-react";
+import { formatDateTime } from "@/lib/utils/timestamp";
 
 export interface ContactForm {
   id: string;
@@ -96,16 +97,6 @@ export function ContactFormsTable({ contactForms, loading, onUpdate }: ContactFo
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       pending: "destructive",
@@ -162,7 +153,7 @@ export function ContactFormsTable({ contactForms, loading, onUpdate }: ContactFo
             ) : (
               contactForms.map((contact) => (
                 <TableRow key={contact.id}>
-                  <TableCell className="text-sm">{formatDate(contact.createdAt)}</TableCell>
+                  <TableCell className="text-sm">{formatDateTime(contact.createdAt)}</TableCell>
                   <TableCell className="font-medium">{contact.name}</TableCell>
                   <TableCell>{contact.email}</TableCell>
                   <TableCell className="max-w-xs truncate">{contact.subject}</TableCell>
@@ -198,7 +189,7 @@ export function ContactFormsTable({ contactForms, loading, onUpdate }: ContactFo
           <DialogHeader>
             <DialogTitle>Contact Form Details</DialogTitle>
             <DialogDescription>
-              Submitted on {selectedContact && formatDate(selectedContact.createdAt)}
+              Submitted on {selectedContact && formatDateTime(selectedContact.createdAt)}
             </DialogDescription>
           </DialogHeader>
 

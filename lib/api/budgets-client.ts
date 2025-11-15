@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
+import { decryptAmount } from "@/lib/utils/transaction-encryption";
 
 export interface Budget {
   id: string;
@@ -94,8 +95,9 @@ export async function getBudgetsClient(period: Date): Promise<Budget[]> {
   if (allTransactions) {
     for (const tx of allTransactions) {
       if (tx.categoryId) {
-        // Ensure amount is a positive number (expenses should be positive)
-        const amount = Math.abs(Number(tx.amount) || 0);
+        // Decrypt amount if encrypted, then ensure it's a positive number (expenses should be positive)
+        const decryptedAmount = decryptAmount(tx.amount);
+        const amount = Math.abs(decryptedAmount || 0);
         
         // Add to category total (all transactions in this category)
         const currentCategoryTotal = categorySpendMap.get(tx.categoryId) || 0;

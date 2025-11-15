@@ -62,15 +62,15 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
 
   switch (loanType) {
     case "car_loan": {
-      // Use existing "Car Loan" subcategory under "Vehicle" category
+      // Use existing "Car Loan" subcategory under "Vehicle" category, or create it if it doesn't exist
       const vehicleCategory = findCategory("Vehicle");
       if (!vehicleCategory) {
         console.error("Vehicle category not found");
         return null;
       }
-      const carLoanSub = await findSubcategory("Car Loan", vehicleCategory.id);
+      const carLoanSub = await getOrCreateSubcategory("Car Loan", vehicleCategory.id);
       if (!carLoanSub) {
-        console.error("Car Loan subcategory not found");
+        console.error("Failed to get or create Car Loan subcategory");
         return null;
       }
       return {

@@ -63,8 +63,10 @@ export function ConfirmDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        <div className="py-4">
+          <DialogDescription>{description}</DialogDescription>
+        </div>
         <DialogFooter>
           <Button
             variant="outline"

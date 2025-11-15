@@ -69,6 +69,9 @@ export function GoalForm({
   } | null>(null);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [shouldShowForm, setShouldShowForm] = useState(false);
+  const [accounts, setAccounts] = useState<Array<{ id: string; name: string; type: string; balance: number }>>([]);
+  const [holdings, setHoldings] = useState<Array<{ securityId: string; symbol: string; name: string; marketValue: number }>>([]);
+  const [loadingHoldings, setLoadingHoldings] = useState(false);
 
   const form = useForm<GoalFormData>({
     resolver: zodResolver(goalSchema),
@@ -81,6 +84,8 @@ export function GoalForm({
       description: "",
       expectedIncome: undefined,
       targetMonths: undefined,
+      accountId: undefined,
+      holdingId: undefined,
     },
   });
 
@@ -91,6 +96,8 @@ export function GoalForm({
   const priority = form.watch("priority");
   const expectedIncome = form.watch("expectedIncome");
   const targetMonths = form.watch("targetMonths");
+  const accountId = form.watch("accountId");
+  const holdingId = form.watch("holdingId");
 
   // Calculate forecast when values change
   useEffect(() => {
@@ -194,6 +201,55 @@ export function GoalForm({
     return () => clearTimeout(timeoutId);
   }, [targetAmount, currentBalance, incomePercentage, priority, expectedIncome, targetMonths, open, goal, form]);
 
+  // Load accounts when form opens
+  useEffect(() => {
+    if (open) {
+      loadAccounts();
+    }
+  }, [open]);
+
+  // Load holdings when investment account is selected
+  useEffect(() => {
+    if (accountId) {
+      const selectedAccount = accounts.find(acc => acc.id === accountId);
+      if (selectedAccount?.type === "investment") {
+        loadHoldings(accountId);
+      } else {
+        setHoldings([]);
+        form.setValue("holdingId", undefined);
+        // Update balance for non-investment accounts
+        if (selectedAccount) {
+          form.setValue("currentBalance", selectedAccount.balance || 0, { shouldValidate: false });
+        }
+      }
+    } else {
+      setHoldings([]);
+      form.setValue("holdingId", undefined);
+    }
+  }, [accountId, accounts, form]);
+
+  // Update currentBalance when account, holding, or holdings list changes
+  useEffect(() => {
+    if (accountId) {
+      const selectedAccount = accounts.find(acc => acc.id === accountId);
+      if (!selectedAccount) return;
+
+      if (selectedAccount.type === "investment" && holdingId) {
+        // Get balance from specific holding
+        const selectedHolding = holdings.find(h => h.securityId === holdingId);
+        if (selectedHolding) {
+          form.setValue("currentBalance", selectedHolding.marketValue || 0, { shouldValidate: false });
+        }
+      } else if (selectedAccount.type === "investment" && !holdingId) {
+        // Use account balance for investment account without specific holding
+        form.setValue("currentBalance", selectedAccount.balance || 0, { shouldValidate: false });
+      } else {
+        // Use account balance for savings account
+        form.setValue("currentBalance", selectedAccount.balance || 0, { shouldValidate: false });
+      }
+    }
+  }, [accountId, holdingId, holdings, accounts, form]);
+
   // Load goal data when editing
   useEffect(() => {
     if (open) {
@@ -209,6 +265,8 @@ export function GoalForm({
           description: goal.description || "",
           expectedIncome: goal.expectedIncome ?? undefined,
           targetMonths: goal.targetMonths ?? undefined,
+          accountId: goal.accountId ?? undefined,
+          holdingId: goal.holdingId ?? undefined,
         });
       } else {
         // If creating a new goal, check if there are accounts
@@ -217,8 +275,54 @@ export function GoalForm({
     } else {
       setShouldShowForm(false);
       setShowAccountDialog(false);
+      setHoldings([]);
     }
   }, [open, goal, form]);
+
+  // Load holdings when editing a goal with investment account
+  useEffect(() => {
+    if (open && goal?.accountId && accounts.length > 0) {
+      const selectedAccount = accounts.find(acc => acc.id === goal.accountId);
+      if (selectedAccount?.type === "investment") {
+        loadHoldings(goal.accountId);
+      }
+    }
+  }, [open, goal?.accountId, accounts]);
+
+  async function loadAccounts() {
+    try {
+      const accountsRes = await fetch("/api/accounts");
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json().catch(() => []);
+        // Filter to only investment and savings accounts
+        const filteredAccounts = accountsData.filter((acc: any) => 
+          acc.type === "investment" || acc.type === "savings"
+        );
+        setAccounts(filteredAccounts);
+      }
+    } catch (error) {
+      console.error("Error loading accounts:", error);
+    }
+  }
+
+  async function loadHoldings(accountId: string) {
+    try {
+      setLoadingHoldings(true);
+      const holdingsRes = await fetch(`/api/portfolio/holdings?accountId=${accountId}`);
+      if (holdingsRes.ok) {
+        const holdingsData = await holdingsRes.json().catch(() => []);
+        setHoldings(holdingsData);
+      } else {
+        setHoldings([]);
+      }
+    } catch (error) {
+      console.error("Error loading holdings:", error);
+      setHoldings([]);
+    } finally {
+      setLoadingHoldings(false);
+    }
+  }
+
 
   async function checkAccountsAndShowForm() {
     try {
@@ -241,6 +345,8 @@ export function GoalForm({
             description: "",
             expectedIncome: undefined,
             targetMonths: undefined,
+            accountId: undefined,
+            holdingId: undefined,
           });
         }
       } else {
@@ -281,6 +387,8 @@ export function GoalForm({
             description: data.description || "",
             expectedIncome: data.expectedIncome,
             targetMonths: data.targetMonths,
+            accountId: data.accountId,
+            holdingId: data.holdingId,
           }),
         });
 
@@ -302,6 +410,8 @@ export function GoalForm({
             description: data.description || "",
             expectedIncome: data.expectedIncome,
             targetMonths: data.targetMonths,
+            accountId: data.accountId,
+            holdingId: data.holdingId,
           }),
         });
 
@@ -388,6 +498,64 @@ export function GoalForm({
             )}
           </div>
 
+          <div className="space-y-1">
+            <label className="text-sm font-medium">
+              Track Balance From Account (Optional)
+            </label>
+            <Select
+              value={form.watch("accountId") || undefined}
+              onValueChange={(value) => {
+                form.setValue("accountId", value || undefined, { shouldValidate: true });
+                if (!value) {
+                  form.setValue("holdingId", undefined);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an account (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id}>
+                    {account.name} ({account.type === "investment" ? "Investment" : "Savings"}) - {formatMoney(account.balance)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Select a savings or investment account to automatically track your progress
+            </p>
+          </div>
+
+          {accountId && accounts.find(acc => acc.id === accountId)?.type === "investment" && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium">
+                Track Specific Holding (Optional)
+              </label>
+              <Select
+                value={form.watch("holdingId") || undefined}
+                onValueChange={(value) => {
+                  form.setValue("holdingId", value || undefined, { shouldValidate: true });
+                }}
+                disabled={loadingHoldings}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingHoldings ? "Loading..." : "Select a holding (optional - leave empty for all holdings)"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {holdings.map((holding) => (
+                    <SelectItem key={holding.securityId} value={holding.securityId}>
+                      {holding.symbol} - {holding.name} ({formatMoney(holding.marketValue)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Track progress for a specific holding, or leave empty to track the entire account
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium">
@@ -414,11 +582,16 @@ export function GoalForm({
                 value={form.watch("currentBalance") || undefined}
                 onChange={(value) => form.setValue("currentBalance", value ?? 0, { shouldValidate: true })}
                 placeholder="$ 0.00"
-                required
+                disabled={!!accountId}
               />
               {form.formState.errors.currentBalance && (
                 <p className="text-xs text-destructive">
                   {form.formState.errors.currentBalance.message}
+                </p>
+              )}
+              {accountId && (
+                <p className="text-xs text-muted-foreground">
+                  Balance is automatically updated from the selected account
                 </p>
               )}
             </div>

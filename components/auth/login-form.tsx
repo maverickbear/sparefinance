@@ -6,7 +6,7 @@ import { signInSchema, SignInFormData } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
@@ -70,7 +70,6 @@ async function preloadUserData() {
 
 export function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -107,11 +106,9 @@ export function LoginForm() {
       // This ensures data is ready when user navigates to dashboard
       await preloadUserData();
 
-      // Redirect to dashboard or original destination
+      // Always redirect to dashboard after login
       // Supabase session is automatically managed, so we can use router
-      const redirectParam = searchParams.get("redirect");
-      const redirectTo = redirectParam || "/dashboard";
-      router.push(redirectTo);
+      router.push("/dashboard");
     } catch (error) {
       console.error("Error signing in:", error);
       setError("An unexpected error occurred");

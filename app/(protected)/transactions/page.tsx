@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { logger } from "@/lib/utils/logger";
 import { Button } from "@/components/ui/button";
@@ -19,8 +19,7 @@ const TransactionForm = dynamic(() => import("@/components/forms/transaction-for
 const CsvImportDialog = dynamic(() => import("@/components/forms/csv-import-dialog").then(m => ({ default: m.CsvImportDialog })), { ssr: false });
 const CategorySelectionModal = dynamic(() => import("@/components/transactions/category-selection-modal").then(m => ({ default: m.CategorySelectionModal })), { ssr: false });
 import { formatMoney } from "@/components/common/money";
-import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, Clock, Receipt } from "lucide-react";
-import { EmptyState } from "@/components/common/empty-state";
+import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { TransactionsMobileCard } from "@/components/transactions/transactions-mobile-card";
 import {
   Select,
@@ -30,6 +29,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -38,7 +47,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns/format";
+import { formatTransactionDate, formatShortDate, parseDateWithoutTimezone, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 import { getAccounts } from "@/lib/api/accounts";
 import { getAllCategories } from "@/lib/api/categories";
 import { exportTransactionsToCSV, downloadCSV } from "@/lib/csv/export";
@@ -60,6 +69,99 @@ interface Account {
   type: string;
 }
 
+// Component for category menu item that may have subcategories
+function CategoryMenuItem({
+  category,
+  onSelect,
+  loadSubcategories,
+}: {
+  category: Category;
+  onSelect: (categoryId: string, subcategoryId: string | null) => void;
+  loadSubcategories: (categoryId: string) => Promise<Array<{ id: string; name: string }>>;
+}) {
+  const [subcategories, setSubcategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasChecked, setHasChecked] = useState(false);
+
+  const handleOpenChange = async (open: boolean) => {
+    if (open && !hasChecked && !category.subcategories) {
+      setLoading(true);
+      setHasChecked(true);
+      try {
+        const subcats = await loadSubcategories(category.id);
+        setSubcategories(subcats);
+      } catch (error) {
+        logger.error("Error loading subcategories:", error);
+      } finally {
+        setLoading(false);
+      }
+    } else if (category.subcategories) {
+      setSubcategories(category.subcategories);
+    }
+  };
+
+  const finalSubcategories = subcategories.length > 0 
+    ? subcategories 
+    : (category.subcategories || []);
+  
+  const hasSubcategories = finalSubcategories.length > 0;
+
+  // Always show as submenu if we're loading or if we have subcategories
+  // This ensures the menu structure is consistent
+  if (hasSubcategories || loading || !hasChecked) {
+    return (
+      <DropdownMenuSub onOpenChange={handleOpenChange}>
+        <DropdownMenuSubTrigger className="text-xs">
+          {category.name}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {loading ? (
+            <DropdownMenuItem disabled className="text-xs">
+              Loading...
+            </DropdownMenuItem>
+          ) : hasSubcategories ? (
+            <>
+              <DropdownMenuItem
+                onClick={() => onSelect(category.id, null)}
+                className="text-xs"
+              >
+                No Subcategory
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {finalSubcategories.map((subcategory) => (
+                <DropdownMenuItem
+                  key={subcategory.id}
+                  onClick={() => onSelect(category.id, subcategory.id)}
+                  className="text-xs"
+                >
+                  {subcategory.name}
+                </DropdownMenuItem>
+              ))}
+            </>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => onSelect(category.id, null)}
+              className="text-xs"
+            >
+              No Subcategory
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    );
+  }
+
+  // If we've checked and there are no subcategories, show as simple item
+  return (
+    <DropdownMenuItem
+      onClick={() => onSelect(category.id, null)}
+      className="text-xs"
+    >
+      {category.name}
+    </DropdownMenuItem>
+  );
+}
+
 export default function TransactionsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -67,6 +169,7 @@ export default function TransactionsPage() {
   const { openDialog: openDeleteDialog, ConfirmDialog: DeleteConfirmDialog } = useConfirmDialog();
   const { openDialog: openDeleteMultipleDialog, ConfirmDialog: DeleteMultipleConfirmDialog } = useConfirmDialog();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalTransactions, setTotalTransactions] = useState(0);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -94,63 +197,146 @@ export default function TransactionsPage() {
   const { checkWriteAccess } = useWriteGuard();
 
   const [loading, setLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingMultiple, setDeletingMultiple] = useState(false);
+  const [updatingTypes, setUpdatingTypes] = useState(false);
+  const [updatingCategories, setUpdatingCategories] = useState(false);
   const [processingSuggestionId, setProcessingSuggestionId] = useState<string | null>(null);
   const [suggestionsGenerated, setSuggestionsGenerated] = useState(false);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
+  const [editingDateId, setEditingDateId] = useState<string | null>(null);
+  const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
+  const [editingDateValue, setEditingDateValue] = useState<string>("");
+  const [editingDescriptionValue, setEditingDescriptionValue] = useState<string>("");
+  const [updatingTransactionId, setUpdatingTransactionId] = useState<string | null>(null);
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const loadTransactionsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dateInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const descriptionInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Focus date input when editing starts
+  useEffect(() => {
+    if (editingDateId) {
+      const input = dateInputRefs.current.get(editingDateId);
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+  }, [editingDateId]);
+
+  // Focus description input when editing starts
+  useEffect(() => {
+    if (editingDescriptionId) {
+      const input = descriptionInputRefs.current.get(editingDescriptionId);
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+  }, [editingDescriptionId]);
 
   useEffect(() => {
     loadData();
-    // Set default date range to "All Dates" (no date filter)
     
-    // Read categoryId from URL if present
+    // Read filters from URL if present
     const categoryIdFromUrl = searchParams.get("categoryId");
+    const typeFromUrl = searchParams.get("type");
+    const startDateFromUrl = searchParams.get("startDate");
+    const endDateFromUrl = searchParams.get("endDate");
+    
+    // Determine date range preset if dates are provided
+    let dateRangePreset: typeof dateRange = "all-dates";
+    if (startDateFromUrl && endDateFromUrl) {
+      // Check if it's a single month range
+      const startDate = new Date(startDateFromUrl);
+      const endDate = new Date(endDateFromUrl);
+      const isStartOfMonth = startDate.getDate() === 1;
+      const isEndOfMonth = endDate.getDate() === new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0).getDate();
+      const isSameMonth = startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear();
+      
+      if (isStartOfMonth && isEndOfMonth && isSameMonth) {
+        const now = new Date();
+        const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const urlMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        
+        if (urlMonth.getTime() === currentMonth.getTime()) {
+          dateRangePreset = "this-month";
+        } else {
+          dateRangePreset = "custom";
+        }
+      } else {
+        dateRangePreset = "custom";
+      }
+    }
     
     setFilters(prev => ({
       ...prev,
-      startDate: "",
-      endDate: "",
+      startDate: startDateFromUrl || "",
+      endDate: endDateFromUrl || "",
       categoryId: categoryIdFromUrl || "all",
+      type: typeFromUrl || "all",
     }));
-    setDateRange("all-dates");
+    setDateRange(dateRangePreset);
+    
+    // Set custom date range if dates are provided
+    if (startDateFromUrl && endDateFromUrl) {
+      setCustomDateRange({
+        startDate: startDateFromUrl,
+        endDate: endDateFromUrl,
+      });
+    }
   }, [searchParams]);
 
-  // Debounce search filter
+  // Reset to page 1 when filters change
   useEffect(() => {
-    const timer = setTimeout(async () => {
-      try {
-        setLoading(true);
-        const params = new URLSearchParams();
-        if (filters.startDate) params.append("startDate", filters.startDate);
-        if (filters.endDate) params.append("endDate", filters.endDate);
-        if (filters.accountId && filters.accountId !== "all") params.append("accountId", filters.accountId);
-        if (filters.categoryId && filters.categoryId !== "all") params.append("categoryId", filters.categoryId);
-        if (filters.type && filters.type !== "all") params.append("type", filters.type);
-        if (filters.search) params.append("search", filters.search);
-        if (filters.recurring && filters.recurring !== "all") params.append("recurring", filters.recurring);
-
-        const { getTransactionsClient } = await import("@/lib/api/transactions-client");
-        const transactionFilters: any = {};
-        if (filters.startDate) transactionFilters.startDate = new Date(filters.startDate);
-        if (filters.endDate) transactionFilters.endDate = new Date(filters.endDate);
-        if (filters.accountId && filters.accountId !== "all") transactionFilters.accountId = filters.accountId;
-        if (filters.categoryId && filters.categoryId !== "all") transactionFilters.categoryId = filters.categoryId;
-        if (filters.type && filters.type !== "all") transactionFilters.type = filters.type;
-        if (filters.search) transactionFilters.search = filters.search;
-        if (filters.recurring && filters.recurring !== "all") transactionFilters.recurring = filters.recurring === "true";
-        const data = await getTransactionsClient(transactionFilters);
-        setTransactions(data);
-      } catch (error) {
-        logger.error("Error loading transactions:", error);
-      } finally {
-        setLoading(false);
-      }
-    }, filters.search ? 300 : 0); // Only debounce if search is active
-
-    return () => clearTimeout(timer);
+    setCurrentPage(1);
   }, [filters]);
+
+  // Debounced transaction loading - consolidates all transaction fetching
+  // This handles both filter changes and pagination changes
+  useEffect(() => {
+    // Clear any pending timeout
+    if (loadTransactionsTimeoutRef.current) {
+      clearTimeout(loadTransactionsTimeoutRef.current);
+    }
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Activate search loading if there's a search term
+    const hasSearch = !!filters.search;
+    if (hasSearch) {
+      setSearchLoading(true);
+    } else {
+      // Clear search loading if search is cleared
+      setSearchLoading(false);
+    }
+
+    // Debounce the request (longer delay for search to reduce rapid requests)
+    // No debounce for page changes, only for filter changes
+    const delay = filters.search ? 500 : (Object.keys(filters).some(key => key !== 'search' && filters[key as keyof typeof filters] !== 'all' && filters[key as keyof typeof filters] !== '') ? 200 : 0);
+    loadTransactionsTimeoutRef.current = setTimeout(() => {
+      loadTransactions();
+    }, delay);
+
+    return () => {
+      if (loadTransactionsTimeoutRef.current) {
+        clearTimeout(loadTransactionsTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [filters, currentPage, itemsPerPage]);
 
   function getDateRangeDates(range: string): { startDate: string; endDate: string } | null {
     const today = new Date();
@@ -315,6 +501,15 @@ export default function TransactionsPage() {
   }
 
   async function loadTransactions() {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -326,21 +521,76 @@ export default function TransactionsPage() {
       if (filters.search) params.append("search", filters.search);
       if (filters.recurring && filters.recurring !== "all") params.append("recurring", filters.recurring);
 
-      const { getTransactionsClient } = await import("@/lib/api/transactions-client");
-      const transactionFilters: any = {};
-      if (filters.startDate) transactionFilters.startDate = new Date(filters.startDate);
-      if (filters.endDate) transactionFilters.endDate = new Date(filters.endDate);
-      if (filters.accountId && filters.accountId !== "all") transactionFilters.accountId = filters.accountId;
-      if (filters.categoryId && filters.categoryId !== "all") transactionFilters.categoryId = filters.categoryId;
-      if (filters.type && filters.type !== "all") transactionFilters.type = filters.type;
-      if (filters.search) transactionFilters.search = filters.search;
-      if (filters.recurring && filters.recurring !== "all") transactionFilters.recurring = filters.recurring === "true";
-      const data = await getTransactionsClient(transactionFilters);
-      setTransactions(data);
+      // Add pagination parameters
+      params.append("page", currentPage.toString());
+      params.append("limit", itemsPerPage.toString());
+
+      // Use API route to get transactions (descriptions are decrypted on server)
+      // Add cache busting parameter to ensure fresh data after updates
+      const cacheBuster = `_t=${Date.now()}`;
+      const queryString = params.toString();
+      const url = `/api/transactions${queryString ? `?${queryString}&${cacheBuster}` : `?${cacheBuster}`}`;
+      
+      console.log("[TransactionsPage] Loading transactions from:", url);
+      const response = await fetch(url, {
+        cache: 'no-store', // Force no cache
+        signal: abortController.signal,
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
+
+      // Handle rate limiting (429)
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        const retrySeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
+        toast({
+          title: "Too many requests",
+          description: `Please wait ${retrySeconds} seconds before trying again.`,
+          variant: "destructive",
+        });
+        // Retry after the specified delay
+        setTimeout(() => {
+          if (!abortController.signal.aborted) {
+            loadTransactions();
+          }
+        }, retrySeconds * 1000);
+        return;
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to fetch transactions");
+      }
+
+      // Check if request was aborted
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      const data = await response.json();
+      
+      // Handle both old format (array) and new format (object with transactions and total)
+      if (Array.isArray(data)) {
+        // Backward compatibility: if API returns array, use it directly
+        console.log("[TransactionsPage] Loaded transactions (legacy format):", data.length);
+        setTransactions(data);
+        setTotalTransactions(data.length);
+      } else if (data.transactions && typeof data.total === 'number') {
+        // New format with pagination
+        console.log("[TransactionsPage] Loaded transactions:", data.transactions.length, "of", data.total);
+        setTransactions(data.transactions);
+        setTotalTransactions(data.total);
+      } else {
+        console.error("[TransactionsPage] Unexpected response format:", data);
+        setTransactions([]);
+        setTotalTransactions(0);
+      }
 
       // Generate suggestions for existing transactions without category (only once per page load)
       if (!suggestionsGenerated) {
-        const hasUncategorizedTransactions = data.some(tx => !tx.categoryId && !tx.suggestedCategoryId);
+        const transactionsToCheck = Array.isArray(data) ? data : (data.transactions || []);
+        const hasUncategorizedTransactions = transactionsToCheck.some(tx => !tx.categoryId && !tx.suggestedCategoryId);
         if (hasUncategorizedTransactions) {
           setSuggestionsGenerated(true);
           // Generate suggestions in the background (don't wait for it)
@@ -349,10 +599,13 @@ export default function TransactionsPage() {
             .then(result => {
               if (result.processed > 0) {
                 console.log(`Generated ${result.processed} category suggestions for existing transactions`);
-                // Reload transactions to show the new suggestions
+                // Reload transactions to show the new suggestions after a delay
+                // Use a longer delay to avoid hitting rate limits
                 setTimeout(() => {
-                  loadTransactions();
-                }, 500); // Small delay to ensure database is updated
+                  if (!abortControllerRef.current?.signal.aborted) {
+                    loadTransactions();
+                  }
+                }, 2000); // Increased delay to prevent rate limit issues
               }
             })
             .catch(error => {
@@ -361,9 +614,29 @@ export default function TransactionsPage() {
         }
       }
     } catch (error) {
-      console.error("Error loading transactions:", error);
+      // Don't log aborted requests as errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      logger.error("Error loading transactions:", error);
+      toast({
+        title: "Error loading transactions",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      // Only set loading to false if this request wasn't aborted
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+        // Also clear search loading if there was a search
+        if (filters.search) {
+          setSearchLoading(false);
+        }
+      }
+      // Clear the abort controller reference if this was the active request
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
     }
   }
 
@@ -399,8 +672,8 @@ export default function TransactionsPage() {
           // Refresh router to update dashboard and other pages that depend on transactions
           router.refresh();
           
-          // Não precisa recarregar - a atualização otimista já removeu da lista
-          // O useEffect que monitora os filters vai manter a lista atualizada
+          // Reload transactions to ensure UI is in sync with database
+          loadTransactions();
         } catch (error) {
           console.error("Error deleting transaction:", error);
           // Revert optimistic update on error
@@ -451,6 +724,9 @@ export default function TransactionsPage() {
           
           // Refresh router to update dashboard and other pages that depend on transactions
           router.refresh();
+          
+          // Reload transactions to ensure UI is in sync with database
+          loadTransactions();
         } catch (error) {
           console.error("Error deleting transactions:", error);
           // Revert optimistic update on error
@@ -470,30 +746,190 @@ export default function TransactionsPage() {
     );
   }
 
+  async function handleBulkUpdateType(newType: "expense" | "income" | "transfer") {
+    if (!checkWriteAccess()) {
+      return;
+    }
+
+    const idsToUpdate = Array.from(selectedTransactionIds);
+    if (idsToUpdate.length === 0) return;
+
+    const transactionsToUpdate = transactions.filter(t => idsToUpdate.includes(t.id));
+    
+    // Optimistic update: update type in UI immediately
+    setTransactions(prev => prev.map(tx => 
+      idsToUpdate.includes(tx.id) 
+        ? { ...tx, type: newType }
+        : tx
+    ));
+    setUpdatingTypes(true);
+
+    try {
+      const { bulkUpdateTransactionTypes } = await import("@/lib/api/transactions-client");
+      const result = await bulkUpdateTransactionTypes(idsToUpdate, newType);
+
+      toast({
+        title: "Transactions updated",
+        description: `${result.success} transaction${result.success > 1 ? 's' : ''} updated to ${newType} successfully.`,
+        variant: "success",
+      });
+      
+      // Clear selection
+      setSelectedTransactionIds(new Set());
+      
+      // Refresh router to update dashboard and other pages that depend on transactions
+      router.refresh();
+      
+      // Reload transactions to ensure UI is in sync with database
+      loadTransactions();
+    } catch (error) {
+      console.error("Error updating transaction types:", error);
+      // Revert optimistic update on error
+      setTransactions(prev => prev.map(tx => {
+        const original = transactionsToUpdate.find(t => t.id === tx.id);
+        return original ? original : tx;
+      }));
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update transaction types",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingTypes(false);
+    }
+  }
+
+  async function loadSubcategoriesForBulk(categoryId: string): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const response = await fetch(`/api/categories?categoryId=${categoryId}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data || [];
+      }
+    } catch (error) {
+      logger.error("Error loading subcategories:", error);
+    }
+    return [];
+  }
+
+  async function handleBulkUpdateCategory(categoryId: string | null, subcategoryId: string | null = null) {
+    if (!checkWriteAccess()) {
+      return;
+    }
+
+    const idsToUpdate = Array.from(selectedTransactionIds);
+    if (idsToUpdate.length === 0) return;
+
+    const transactionsToUpdate = transactions.filter(t => idsToUpdate.includes(t.id));
+    
+    // Find the category object to update UI
+    const selectedCategory = categoryId ? categories.find(c => c.id === categoryId) : null;
+    const selectedSubcategory = subcategoryId && selectedCategory 
+      ? selectedCategory.subcategories?.find(s => s.id === subcategoryId) 
+      : null;
+    
+    // Optimistic update: update category in UI immediately
+    setTransactions(prev => prev.map(tx => 
+      idsToUpdate.includes(tx.id) 
+        ? { 
+            ...tx, 
+            categoryId: categoryId || undefined,
+            subcategoryId: subcategoryId || undefined,
+            category: selectedCategory || undefined,
+            subcategory: selectedSubcategory || undefined,
+          }
+        : tx
+    ));
+    setUpdatingCategories(true);
+
+    try {
+      const { bulkUpdateTransactionCategories } = await import("@/lib/api/transactions-client");
+      const result = await bulkUpdateTransactionCategories(idsToUpdate, categoryId, subcategoryId);
+
+      toast({
+        title: "Categories updated",
+        description: `${result.success} transaction${result.success > 1 ? 's' : ''} categor${result.success > 1 ? 'ies' : 'y'} updated successfully.`,
+        variant: "success",
+      });
+      
+      // Clear selection
+      setSelectedTransactionIds(new Set());
+      
+      // Refresh router to update dashboard and other pages that depend on transactions
+      router.refresh();
+      
+      // Reload transactions to ensure UI is in sync with database
+      loadTransactions();
+    } catch (error) {
+      console.error("Error updating transaction categories:", error);
+      // Revert optimistic update on error
+      setTransactions(prev => prev.map(tx => {
+        const original = transactionsToUpdate.find(t => t.id === tx.id);
+        return original ? original : tx;
+      }));
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update transaction categories",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingCategories(false);
+    }
+  }
+
   async function handleCategoryUpdate(categoryId: string | null, subcategoryId: string | null = null) {
     if (!transactionForCategory) return;
+
+    // Store transaction reference before async operations
+    const transactionToUpdate = transactionForCategory;
 
     try {
       const { updateTransactionClient } = await import("@/lib/api/transactions-client");
       
-      // Optimistic update
-      setTransactions(prev => prev.map(tx => 
-        tx.id === transactionForCategory.id 
-          ? { ...tx, categoryId: categoryId || undefined, subcategoryId: subcategoryId || undefined }
-          : tx
-      ));
-
-      // Build update data - explicitly pass null for subcategoryId if it's null to remove it
-      const updateData: { categoryId?: string | null; subcategoryId?: string | null } = {};
+      // Build update data
+      // Note: updateTransactionClient converts empty strings to null for removal
+      const updateData: { categoryId?: string; subcategoryId?: string } = {};
       if (categoryId !== null) {
         updateData.categoryId = categoryId;
       } else {
-        updateData.categoryId = null;
+        // Pass empty string to remove category (will be converted to null by updateTransactionClient)
+        updateData.categoryId = "";
       }
-      // Always include subcategoryId, even if null, to ensure it gets removed
-      updateData.subcategoryId = subcategoryId;
+      // Always include subcategoryId: pass the value if provided, empty string to remove it
+      updateData.subcategoryId = subcategoryId || "";
 
-      await updateTransactionClient(transactionForCategory.id, updateData);
+      await updateTransactionClient(transactionToUpdate.id, updateData);
+
+      // Update category/subcategory names in the transaction without reloading
+      if (categoryId) {
+        const updatedCategory = categories.find(c => c.id === categoryId);
+        if (updatedCategory) {
+          setTransactions(prev => prev.map(tx => 
+            tx.id === transactionToUpdate.id 
+              ? { 
+                  ...tx, 
+                  categoryId: categoryId || undefined, 
+                  subcategoryId: subcategoryId || undefined,
+                  category: updatedCategory,
+                  subcategory: subcategoryId ? updatedCategory.subcategories?.find(s => s.id === subcategoryId) : undefined
+                }
+              : tx
+          ));
+        }
+      } else {
+        // If category is cleared, remove category and subcategory objects
+        setTransactions(prev => prev.map(tx => 
+          tx.id === transactionToUpdate.id 
+            ? { 
+                ...tx, 
+                categoryId: undefined, 
+                subcategoryId: undefined,
+                category: undefined,
+                subcategory: undefined
+              }
+            : tx
+        ));
+      }
 
       toast({
         title: "Category updated",
@@ -504,15 +940,15 @@ export default function TransactionsPage() {
       setIsCategoryModalOpen(false);
       setTransactionForCategory(null);
       
-      // Reload transactions to get updated category/subcategory names
-      loadTransactions();
+      // Don't refresh router here to avoid triggering unnecessary reloads
+      // The dashboard will update on next navigation or manual refresh
     } catch (error) {
       console.error("Error updating category:", error);
       
       // Revert optimistic update
       setTransactions(prev => prev.map(tx => 
-        tx.id === transactionForCategory.id 
-          ? transactionForCategory
+        tx.id === transactionToUpdate.id 
+          ? transactionToUpdate
           : tx
       ));
 
@@ -617,9 +1053,17 @@ export default function TransactionsPage() {
 
   function handleSelectAll(checked: boolean) {
     if (checked) {
-      setSelectedTransactionIds(new Set(transactions.map(tx => tx.id)));
+      setSelectedTransactionIds(prev => {
+        const newSet = new Set(prev);
+        paginatedTransactions.forEach(tx => newSet.add(tx.id));
+        return newSet;
+      });
     } else {
-      setSelectedTransactionIds(new Set());
+      setSelectedTransactionIds(prev => {
+        const newSet = new Set(prev);
+        paginatedTransactions.forEach(tx => newSet.delete(tx.id));
+        return newSet;
+      });
     }
   }
 
@@ -635,8 +1079,24 @@ export default function TransactionsPage() {
     });
   }
 
-  const allSelected = transactions.length > 0 && selectedTransactionIds.size === transactions.length;
-  const someSelected = selectedTransactionIds.size > 0 && selectedTransactionIds.size < transactions.length;
+  // Pagination calculations - now using server-side pagination
+  const totalPages = Math.ceil(totalTransactions / itemsPerPage);
+  
+  // Transactions are already paginated from the server
+  const paginatedTransactions = transactions;
+  
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalTransactions);
+
+  const allSelected = paginatedTransactions.length > 0 && paginatedTransactions.every(tx => selectedTransactionIds.has(tx.id));
+  const someSelected = paginatedTransactions.some(tx => selectedTransactionIds.has(tx.id)) && !allSelected;
+
+  // Adjust current page if it's out of bounds
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   // Clear selection when transactions change (filters applied)
   useEffect(() => {
@@ -647,6 +1107,7 @@ export default function TransactionsPage() {
       return filtered;
     });
   }, [transactions]);
+
 
   // Update indeterminate state of select all checkbox
   useEffect(() => {
@@ -716,6 +1177,175 @@ export default function TransactionsPage() {
     }
   }
 
+  function handleStartEditingDate(transaction: Transaction) {
+    if (!checkWriteAccess()) {
+      return;
+    }
+    // Cancel any ongoing description editing
+    if (editingDescriptionId) {
+      handleCancelEditingDescription();
+    }
+    const dateStr = formatDateInput(transaction.date);
+    setEditingDateId(transaction.id);
+    setEditingDateValue(dateStr);
+  }
+
+  function handleStartEditingDescription(transaction: Transaction) {
+    if (!checkWriteAccess()) {
+      return;
+    }
+    // Cancel any ongoing date editing
+    if (editingDateId) {
+      handleCancelEditingDate();
+    }
+    setEditingDescriptionId(transaction.id);
+    setEditingDescriptionValue(transaction.description || "");
+  }
+
+  function handleCancelEditingDate() {
+    setEditingDateId(null);
+    setEditingDateValue("");
+  }
+
+  function handleCancelEditingDescription() {
+    setEditingDescriptionId(null);
+    setEditingDescriptionValue("");
+  }
+
+  async function handleSaveDate(transactionId: string) {
+    if (!editingDateValue) {
+      handleCancelEditingDate();
+      return;
+    }
+
+    const transaction = transactions.find(tx => tx.id === transactionId);
+    if (!transaction) return;
+
+    // Parse date string (YYYY-MM-DD) as local date to avoid timezone issues
+    const newDate = parseDateInput(editingDateValue);
+    if (isNaN(newDate.getTime())) {
+      toast({
+        title: "Invalid date",
+        description: "Please enter a valid date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdatingTransactionId(transactionId);
+
+    // Optimistic update
+    setTransactions(prev => prev.map(tx => 
+      tx.id === transactionId 
+        ? { ...tx, date: newDate.toISOString() }
+        : tx
+    ));
+
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ date: newDate.toISOString() }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update date");
+      }
+
+      toast({
+        title: "Date updated",
+        description: "The transaction date has been updated successfully.",
+        variant: "success",
+      });
+
+      setEditingDateId(null);
+      setEditingDateValue("");
+      
+      // No need to reload - optimistic update already handled it
+      // Only refresh router to update dashboard
+      router.refresh();
+    } catch (error) {
+      console.error("Error updating date:", error);
+      
+      // Revert optimistic update
+      if (transaction) {
+        setTransactions(prev => prev.map(tx => 
+          tx.id === transactionId ? transaction : tx
+        ));
+      }
+
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update date",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingTransactionId(null);
+    }
+  }
+
+  async function handleSaveDescription(transactionId: string) {
+    const transaction = transactions.find(tx => tx.id === transactionId);
+    if (!transaction) return;
+
+    setUpdatingTransactionId(transactionId);
+
+    // Optimistic update
+    setTransactions(prev => prev.map(tx => 
+      tx.id === transactionId 
+        ? { ...tx, description: editingDescriptionValue }
+        : tx
+    ));
+
+    try {
+      const response = await fetch(`/api/transactions/${transactionId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ description: editingDescriptionValue || null }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update description");
+      }
+
+      toast({
+        title: "Description updated",
+        description: "The transaction description has been updated successfully.",
+        variant: "success",
+      });
+
+      setEditingDescriptionId(null);
+      setEditingDescriptionValue("");
+      
+      // No need to reload - optimistic update already handled it
+      // Only refresh router to update dashboard
+      router.refresh();
+    } catch (error) {
+      console.error("Error updating description:", error);
+      
+      // Revert optimistic update
+      if (transaction) {
+        setTransactions(prev => prev.map(tx => 
+          tx.id === transactionId ? transaction : tx
+        ));
+      }
+
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update description",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingTransactionId(null);
+    }
+  }
+
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -723,58 +1353,135 @@ export default function TransactionsPage() {
         title="Transactions"
         description="Manage your income and expenses"
       >
-        <div className="flex flex-wrap gap-2 justify-center md:justify-end">
+        <div className="flex flex-wrap gap-3 justify-center md:justify-end">
           {selectedTransactionIds.size > 0 && (
-            <Button 
-              variant="destructive" 
-              onClick={handleDeleteMultiple}
-              disabled={deletingMultiple}
-              className="text-xs md:text-sm"
-            >
-              {deletingMultiple ? (
-                <>
-                  <Loader2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2 animate-spin" />
-                  <span className="hidden md:inline">Deleting...</span>
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-                  <span className="hidden md:inline">Delete ({selectedTransactionIds.size})</span>
-                  <span className="md:hidden">Delete {selectedTransactionIds.size}</span>
-                </>
-              )}
-            </Button>
+            <>
+              <Select
+                onValueChange={(value) => {
+                  if (value && ["expense", "income", "transfer"].includes(value)) {
+                    handleBulkUpdateType(value as "expense" | "income" | "transfer");
+                  }
+                }}
+                disabled={updatingTypes || updatingCategories}
+              >
+                <SelectTrigger className="h-9 w-auto min-w-[140px] text-xs">
+                  <SelectValue placeholder={updatingTypes ? "Updating..." : `Change Type (${selectedTransactionIds.size})`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expense">Expense</SelectItem>
+                  <SelectItem value="income">Income</SelectItem>
+                  <SelectItem value="transfer">Transfer</SelectItem>
+                </SelectContent>
+              </Select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    disabled={updatingTypes || updatingCategories}
+                    className="h-9 w-auto min-w-[160px] text-xs"
+                  >
+                    {updatingCategories ? "Updating..." : `Set Category (${selectedTransactionIds.size})`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56 max-h-[400px] overflow-y-auto">
+                  <DropdownMenuItem
+                    onClick={() => handleBulkUpdateCategory(null)}
+                    className="text-xs"
+                  >
+                    Clear Category
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {categories.map((category) => {
+                    const hasSubcategories = category.subcategories && category.subcategories.length > 0;
+                    
+                    // If category has subcategories, show submenu
+                    if (hasSubcategories && category.subcategories) {
+                      return (
+                        <DropdownMenuSub key={category.id}>
+                          <DropdownMenuSubTrigger className="text-xs">
+                            {category.name}
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem
+                              onClick={() => handleBulkUpdateCategory(category.id, null)}
+                              className="text-xs"
+                            >
+                              No Subcategory
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {category.subcategories.map((subcategory) => (
+                              <DropdownMenuItem
+                                key={subcategory.id}
+                                onClick={() => handleBulkUpdateCategory(category.id, subcategory.id)}
+                                className="text-xs"
+                              >
+                                {subcategory.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      );
+                    }
+                    
+                    // If no subcategories, check if we need to load them
+                    return (
+                      <CategoryMenuItem
+                        key={category.id}
+                        category={category}
+                        onSelect={(categoryId, subcategoryId) => {
+                          handleBulkUpdateCategory(categoryId, subcategoryId);
+                        }}
+                        loadSubcategories={loadSubcategoriesForBulk}
+                      />
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteMultiple}
+                disabled={deletingMultiple || updatingTypes || updatingCategories}
+                className="text-xs md:text-sm"
+              >
+                {deletingMultiple ? (
+                  <>
+                    <Loader2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2 animate-spin" />
+                    <span className="hidden md:inline">Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+                    <span className="hidden md:inline">Delete ({selectedTransactionIds.size})</span>
+                    <span className="md:hidden">Delete {selectedTransactionIds.size}</span>
+                  </>
+                )}
+              </Button>
+            </>
           )}
           <Button variant="outline" onClick={() => setIsImportOpen(true)} className="text-xs md:text-sm">
             <Upload className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
             <span className="hidden md:inline">Import CSV</span>
           </Button>
-          {transactions.length > 0 && (
-          <Button variant="outline" onClick={handleExport} className="text-xs md:text-sm">
+          <Button variant="outline" onClick={handleExport} className="text-xs md:text-sm" disabled={transactions.length === 0}>
             <Download className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
             <span className="hidden md:inline">Export CSV</span>
           </Button>
-          )}
-          {transactions.length > 0 && (
-            <Button onClick={() => {
-              // Check if user can perform write operations
-              if (!checkWriteAccess()) {
-                return;
-              }
-              setSelectedTransaction(null);
-              setIsFormOpen(true);
-            }} className="text-xs md:text-sm">
-              <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-              <span className="hidden md:inline">Add Transaction</span>
-            </Button>
-          )}
+          <Button onClick={() => {
+            // Check if user can perform write operations
+            if (!checkWriteAccess()) {
+              return;
+            }
+            setSelectedTransaction(null);
+            setIsFormOpen(true);
+          }} className="text-xs md:text-sm">
+            <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+            <span className="hidden md:inline">Add Transaction</span>
+          </Button>
         </div>
       </PageHeader>
 
-      {/* Filters - Only show when there are transactions or loading */}
-      {(loading || transactions.length > 0) && (
-        <>
-      <div className="flex flex-wrap gap-2 items-center">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
         <DateRangePicker
           value={dateRange}
           dateRange={customDateRange}
@@ -809,12 +1516,19 @@ export default function TransactionsPage() {
             <SelectItem value="income">Income</SelectItem>
           </SelectContent>
         </Select>
-        <Input
-          placeholder="Search..."
-          value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          className="h-9 w-auto min-w-[120px] flex-1 max-w-[200px] text-xs"
-        />
+        <div className="relative flex-1 max-w-[200px]">
+          <Input
+            placeholder="Search..."
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            className="h-9 w-auto min-w-[120px] flex-1 max-w-[200px] text-xs pr-8"
+          />
+          {searchLoading && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </div>
         {(filters.accountId !== "all" || filters.type !== "all" || filters.search || filters.recurring !== "all" || dateRange !== "all-dates" || customDateRange) && (
           <Button 
             variant="ghost" 
@@ -839,7 +1553,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* Category Pills Filters */}
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-3 items-center">
         <Button
           variant={filters.categoryId === "all" ? "default" : "outline"}
           onClick={() => setFilters({ ...filters, categoryId: "all" })}
@@ -893,13 +1607,19 @@ export default function TransactionsPage() {
           </SelectContent>
         </Select>
       </div>
-        </>
-      )}
 
       {/* Mobile Card View */}
-      {!loading && transactions.length > 0 && (
-        <div className="lg:hidden space-y-3">
-          {transactions.map((tx) => {
+      <div className="lg:hidden space-y-4">
+        {loading && !searchLoading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Loading transactions...
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No transactions found
+          </div>
+        ) : (
+          paginatedTransactions.map((tx) => {
             const plaidMeta = tx.plaidMetadata as any;
             return (
               <TransactionsMobileCard
@@ -928,31 +1648,11 @@ export default function TransactionsPage() {
                 processingSuggestion={processingSuggestionId === tx.id}
               />
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
-      {/* Empty State - Show when no transactions and not loading */}
-      {!loading && transactions.length === 0 && (
-          <EmptyState
-            icon={Receipt}
-            title="No transactions yet"
-            description="Start tracking your finances by adding your first transaction or importing from a CSV file."
-            actionLabel="Add Transaction"
-            onAction={() => {
-              // Check if user can perform write operations
-              if (!checkWriteAccess()) {
-                return;
-              }
-              setSelectedTransaction(null);
-              setIsFormOpen(true);
-            }}
-            actionIcon={Plus}
-          />
-      )}
-
-      {/* Desktop/Tablet Table View - Only show when there are transactions or loading */}
-      {(loading || transactions.length > 0) && (
+      {/* Desktop/Tablet Table View */}
       <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -970,20 +1670,25 @@ export default function TransactionsPage() {
               <TableHead className="text-xs md:text-sm hidden md:table-cell">Account</TableHead>
               <TableHead className="text-xs md:text-sm hidden sm:table-cell">Category</TableHead>
               <TableHead className="text-xs md:text-sm hidden lg:table-cell">Description</TableHead>
-              <TableHead className="text-xs md:text-sm hidden xl:table-cell">Status</TableHead>
               <TableHead className="text-right text-xs md:text-sm">Amount</TableHead>
               <TableHead className="text-xs md:text-sm">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {loading && !searchLoading ? (
               <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   Loading transactions...
                 </TableCell>
               </TableRow>
+            ) : transactions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  No transactions found
+                </TableCell>
+              </TableRow>
             ) : (
-              transactions.map((tx) => {
+              paginatedTransactions.map((tx) => {
                 // Debug: log all transactions without category to see if they have suggestions
                 if (!tx.categoryId) {
                   console.log('[TransactionsPage] Transaction without category:', {
@@ -1016,14 +1721,57 @@ export default function TransactionsPage() {
                   />
                 </TableCell>
                 <TableCell className="font-medium text-xs md:text-sm whitespace-nowrap">
-                  <div className="flex flex-col gap-0.5">
-                    <span>{format(new Date(tx.date), "MMM dd, yyyy")}</span>
-                    {authorizedDate && (
-                      <span className="text-[10px] text-muted-foreground">
-                        Auth: {format(new Date(authorizedDate), "MMM dd")}
-                      </span>
-                    )}
-                  </div>
+                  {editingDateId === tx.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        ref={(el) => {
+                          if (el) {
+                            dateInputRefs.current.set(tx.id, el);
+                          } else {
+                            dateInputRefs.current.delete(tx.id);
+                          }
+                        }}
+                        type="date"
+                        value={editingDateValue}
+                        onChange={(e) => setEditingDateValue(e.target.value)}
+                        onBlur={() => {
+                          if (editingDateId === tx.id) {
+                            handleSaveDate(tx.id);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSaveDate(tx.id);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            handleCancelEditingDate();
+                          }
+                        }}
+                        className="h-7 text-xs"
+                        disabled={updatingTransactionId === tx.id}
+                      />
+                      {updatingTransactionId === tx.id && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                  ) : (
+                    <div 
+                      className="flex flex-col gap-0.5 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleStartEditingDate(tx);
+                      }}
+                      title="Click to edit date"
+                    >
+                      <span>{formatTransactionDate(tx.date)}</span>
+                      {authorizedDate && (
+                        <span className="text-[10px] text-muted-foreground">
+                          Auth: {formatShortDate(authorizedDate)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
@@ -1115,24 +1863,53 @@ export default function TransactionsPage() {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-xs md:text-sm hidden lg:table-cell max-w-[150px] truncate">{tx.description || "-"}</TableCell>
-                <TableCell className="text-xs md:text-sm hidden xl:table-cell">
-                  <div className="flex flex-col gap-1">
-                    {isPending && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400">
-                        <Clock className="h-2.5 w-2.5 mr-1" />
-                        Pending
-                      </Badge>
-                    )}
-                    {currencyCode && currencyCode !== "USD" && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
-                        {currencyCode}
-                      </Badge>
-                    )}
-                    {!isPending && (!currencyCode || currencyCode === "USD") && (
-                      <span className="text-muted-foreground text-xs">-</span>
-                    )}
-                  </div>
+                <TableCell className="text-xs md:text-sm hidden lg:table-cell max-w-[150px]">
+                  {editingDescriptionId === tx.id ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        ref={(el) => {
+                          if (el) {
+                            descriptionInputRefs.current.set(tx.id, el);
+                          } else {
+                            descriptionInputRefs.current.delete(tx.id);
+                          }
+                        }}
+                        type="text"
+                        value={editingDescriptionValue}
+                        onChange={(e) => setEditingDescriptionValue(e.target.value)}
+                        onBlur={() => {
+                          if (editingDescriptionId === tx.id) {
+                            handleSaveDescription(tx.id);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSaveDescription(tx.id);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            handleCancelEditingDescription();
+                          }
+                        }}
+                        className="h-7 text-xs"
+                        disabled={updatingTransactionId === tx.id}
+                      />
+                      {updatingTransactionId === tx.id && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+                  ) : (
+                    <span 
+                      className="truncate block cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleStartEditingDescription(tx);
+                      }}
+                      title="Click to edit description"
+                    >
+                      {tx.description || "-"}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className={`text-right font-medium text-xs md:text-sm ${
                   tx.type === "income" ? "text-green-600 dark:text-green-400" :
@@ -1186,13 +1963,166 @@ export default function TransactionsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      {transactions.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Items per page:</span>
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => {
+                setItemsPerPage(Number(value));
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>
+              Showing {startIndex + 1} to {Math.min(endIndex, totalTransactions)} of {totalTransactions} transactions
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+              className="h-9"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Previous</span>
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    disabled={loading}
+                    className="h-9 w-9"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || loading}
+              className="h-9"
+            >
+              <span className="hidden sm:inline mr-1">Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Pagination Controls */}
+      {transactions.length > 0 && (
+        <div className="lg:hidden flex flex-col gap-4 px-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Items per page:</span>
+              <Select
+                value={itemsPerPage.toString()}
+                onValueChange={(value) => {
+                  setItemsPerPage(Number(value));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-9 w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="text-sm text-muted-foreground">
+              {startIndex + 1}-{Math.min(endIndex, totalTransactions)} of {totalTransactions}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1 || loading}
+              className="h-9"
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+            
+            <div className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || loading}
+              className="h-9"
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
       )}
 
       <TransactionForm
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) {
+            // Clear selected transaction when form closes
+            setSelectedTransaction(null);
+          }
+        }}
         transaction={selectedTransaction}
-        onSuccess={loadTransactions}
+        onSuccess={async () => {
+          console.log("[TransactionsPage] onSuccess called, reloading transactions");
+          await loadTransactions();
+          setSelectedTransaction(null);
+        }}
       />
 
       <CsvImportDialog

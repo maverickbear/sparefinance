@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const twelveMonthsAgo = subMonths(currentDate, 12);
 
     const [
-      transactions,
+      transactionsResult,
       accounts,
       budgets,
       goals,
@@ -67,6 +67,11 @@ export async function POST(request: NextRequest) {
       calculateFinancialHealth(currentDate),
       getProfile(),
     ]);
+
+    // Extract transactions array from result
+    const transactions = Array.isArray(transactionsResult)
+      ? transactionsResult
+      : (transactionsResult?.transactions || []);
 
     // Format financial context for AI
     const financialContext = formatFinancialContext({

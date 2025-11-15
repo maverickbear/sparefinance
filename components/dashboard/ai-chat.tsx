@@ -12,17 +12,25 @@ interface Message {
   content: string;
 }
 
-export function AIChat() {
+function AIChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
+  // Only scroll if there are messages and scroll within the container, not the page
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > 0 && messagesContainerRef.current && messagesEndRef.current) {
+      // Scroll within the messages container, not the entire page
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, [messages]);
 
   // Auto-resize textarea
@@ -91,21 +99,14 @@ export function AIChat() {
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-primary/10">
-            <Sparkles className="h-5 w-5 text-primary" />
-          </div>
-          <div className="flex-1">
-            <CardTitle>AI Financial Assistant</CardTitle>
-            <CardDescription>
-              Ask questions about your finances, get insights, and receive personalized advice
-            </CardDescription>
-          </div>
-        </div>
+        <CardTitle className="text-lg font-semibold">AI Financial Assistant</CardTitle>
+        <CardDescription>
+          Ask questions about your finances, get insights, and receive personalized advice
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted-foreground">
               <Bot className="h-12 w-12 mb-4 opacity-50" />
@@ -199,5 +200,38 @@ export function AIChat() {
       </CardContent>
     </Card>
   );
+}
+
+export function AIChat() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Card className="h-full flex flex-col">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Sparkles className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1">
+              <CardTitle className="text-lg font-semibold">AI Financial Assistant</CardTitle>
+              <CardDescription>
+                Ask questions about your finances, get insights, and receive personalized advice
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col min-h-0 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <AIChatContent />;
 }
 

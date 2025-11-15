@@ -52,15 +52,10 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  console.log("[BOTTOM-NAV] Render:", { hasSubscription, pathname });
-
   // Don't render BottomNav if user doesn't have subscription
   if (!hasSubscription) {
-    console.log("[BOTTOM-NAV] Returning null (no subscription)");
     return null;
   }
-
-  console.log("[BOTTOM-NAV] Rendering bottom nav component");
 
   const handleItemClick = (href: string) => {
     if (!hasSubscription) {
@@ -95,13 +90,13 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
                 }
               }}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium transition-colors",
+                "flex flex-col items-center justify-center gap-1 px-2 py-2 min-h-[44px] min-w-[44px] text-xs font-medium transition-colors",
                 !hasSubscription && "opacity-50 cursor-not-allowed",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Icon className={cn("h-5 w-5", active && "text-primary")} />
-              <span className={cn("text-[10px]", active && "text-primary")}>{item.label}</span>
+              <span className={cn("text-[10px] leading-tight", active && "text-primary")}>{item.label}</span>
             </Link>
           );
         })}
@@ -109,10 +104,10 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="flex flex-col items-center justify-center gap-1 h-auto py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+              className="flex flex-col items-center justify-center gap-1 h-auto min-h-[44px] min-w-[44px] py-2 px-2 text-xs font-medium text-muted-foreground hover:text-foreground"
             >
               <MoreHorizontal className="h-5 w-5" />
-              <span className="text-[10px]">More</span>
+              <span className="text-[10px] leading-tight">More</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent

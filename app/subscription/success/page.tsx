@@ -91,6 +91,15 @@ function SuccessContent() {
 
       if (response.ok && data.success) {
         console.log("[SUCCESS] Subscription synced successfully:", data.subscription);
+        
+        // Invalidate client-side cache to force fresh data fetch
+        try {
+          const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
+          invalidateClientSubscriptionCache();
+          console.log("[SUCCESS] Client cache invalidated");
+        } catch (error) {
+          console.error("[SUCCESS] Error invalidating cache:", error);
+        }
       } else {
         console.error("[SUCCESS] Failed to sync subscription:", data.error);
         // Don't fail the page, just log the error
@@ -157,8 +166,19 @@ function SuccessContent() {
     }
   }
 
-  const handleGoToDashboard = () => {
-    router.push("/dashboard");
+  const handleGoToDashboard = async () => {
+    // Invalidate client-side cache before navigating
+    try {
+      const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
+      invalidateClientSubscriptionCache();
+      console.log("[SUCCESS] Cache invalidated before navigating to dashboard");
+    } catch (error) {
+      console.error("[SUCCESS] Error invalidating cache:", error);
+    }
+    
+    // Force a full page reload to ensure cache is cleared and subscription is re-checked
+    // This ensures the layout will fetch fresh subscription data
+    window.location.href = "/dashboard";
   };
 
   const handleGoToBilling = () => {

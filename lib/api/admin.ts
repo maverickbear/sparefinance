@@ -502,6 +502,7 @@ export async function togglePromoCodeActive(id: string, isActive: boolean): Prom
 export interface SystemGroup {
   id: string;
   name: string;
+  type: "income" | "expense" | null;
   createdAt: Date;
   updatedAt: Date;
   userId: null;
@@ -552,6 +553,7 @@ export async function getAllSystemGroups(): Promise<SystemGroup[]> {
     return (groups || []).map((g) => ({
       id: g.id,
       name: g.name,
+      type: g.type as "income" | "expense" | null,
       createdAt: new Date(g.createdAt),
       updatedAt: new Date(g.updatedAt),
       userId: null,
@@ -565,7 +567,7 @@ export async function getAllSystemGroups(): Promise<SystemGroup[]> {
 /**
  * Create a system group (userId IS NULL)
  */
-export async function createSystemGroup(data: { name: string }): Promise<SystemGroup> {
+export async function createSystemGroup(data: { name: string; type?: "income" | "expense" }): Promise<SystemGroup> {
   if (!(await isSuperAdmin())) {
     throw new Error("Unauthorized: Only super_admin can access this function");
   }
@@ -593,6 +595,7 @@ export async function createSystemGroup(data: { name: string }): Promise<SystemG
       .insert({
         id,
         name: data.name,
+        type: data.type || "expense", // Default to expense if not provided
         userId: null, // System group
         createdAt: now,
         updatedAt: now,
@@ -610,6 +613,7 @@ export async function createSystemGroup(data: { name: string }): Promise<SystemG
     return {
       id: group.id,
       name: group.name,
+      type: group.type as "income" | "expense" | null,
       createdAt: new Date(group.createdAt),
       updatedAt: new Date(group.updatedAt),
       userId: null,
@@ -623,7 +627,7 @@ export async function createSystemGroup(data: { name: string }): Promise<SystemG
 /**
  * Update a system group
  */
-export async function updateSystemGroup(id: string, data: { name?: string }): Promise<SystemGroup> {
+export async function updateSystemGroup(id: string, data: { name?: string; type?: "income" | "expense" }): Promise<SystemGroup> {
   if (!(await isSuperAdmin())) {
     throw new Error("Unauthorized: Only super_admin can access this function");
   }
@@ -667,6 +671,9 @@ export async function updateSystemGroup(id: string, data: { name?: string }): Pr
     if (data.name !== undefined) {
       updateData.name = data.name;
     }
+    if (data.type !== undefined) {
+      updateData.type = data.type;
+    }
 
     const { data: group, error } = await supabase
       .from("Group")
@@ -686,6 +693,7 @@ export async function updateSystemGroup(id: string, data: { name?: string }): Pr
     return {
       id: group.id,
       name: group.name,
+      type: group.type as "income" | "expense" | null,
       createdAt: new Date(group.createdAt),
       updatedAt: new Date(group.updatedAt),
       userId: null,
@@ -1293,7 +1301,15 @@ export async function updateSystemSubcategory(id: string, data: { name?: string;
       .single();
 
     if (error) {
-      throw error;
+      console.error("Supabase error updating system subcategory:", error);
+      // Provide more specific error messages
+      if (error.code === "PGRST116") {
+        throw new Error("Subcategory not found or you don't have permission to update it");
+      }
+      if (error.message) {
+        throw new Error(`Database error: ${error.message}`);
+      }
+      throw new Error(`Failed to update subcategory: ${JSON.stringify(error)}`);
     }
 
     // Invalidate cache for all users since system subcategory was updated

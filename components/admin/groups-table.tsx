@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Edit, Trash2, FolderTree } from "lucide-react";
 import type { SystemGroup } from "@/lib/api/admin";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
+import { formatAdminDate } from "@/lib/utils/timestamp";
 
 interface GroupsTableProps {
   groups: SystemGroup[];
@@ -31,14 +32,6 @@ export function GroupsTable({
   const [groups, setGroups] = useState<SystemGroup[]>(initialGroups);
   const [loading, setLoading] = useState(initialLoading);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   const handleDelete = (id: string) => {
     openDialog(
@@ -77,6 +70,7 @@ export function GroupsTable({
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Updated</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -85,7 +79,7 @@ export function GroupsTable({
         <TableBody>
           {groups.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 <div className="flex flex-col items-center gap-2">
                   <FolderTree className="h-8 w-8" />
                   <p>No system groups found</p>
@@ -96,11 +90,20 @@ export function GroupsTable({
             groups.map((group) => (
               <TableRow key={group.id}>
                 <TableCell className="font-medium">{group.name}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {formatDate(group.createdAt)}
+                <TableCell>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    group.type === "income" 
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                      : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                  }`}>
+                    {group.type === "income" ? "Income" : group.type === "expense" ? "Expense" : "N/A"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {formatDate(group.updatedAt)}
+                  {formatAdminDate(group.createdAt)}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatAdminDate(group.updatedAt)}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">

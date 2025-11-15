@@ -4,11 +4,9 @@
 /node_modules
 /.pnp
 .pnp.js
-.yarn/install-state.gz
 
 # testing
 /coverage
-/.nyc_output
 
 # next.js
 /.next/
@@ -18,17 +16,22 @@
 /build
 
 # misc
-.DS_Store
 *.pem
+*.swp
+*.swo
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
 
 # local env files
 .env*.local
 .env
+.env.production
 
 # vercel
 .vercel
@@ -37,6 +40,36 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# jest
-/coverage
-/.jest-cache
+# Supabase local
+supabase/.branches
+supabase/.temp
+supabase/.env
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.iml
+
+# OS
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.AppleDouble
+.LSOverride
+*~
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Database backups (sensitive data)
+*.sql.backup
+full_backup.sql
+schema_only.sql
+
+# Docker
+docker-compose.override.yml

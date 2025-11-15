@@ -11,11 +11,19 @@ export async function PATCH(
     const { id } = await params;
     const data: Partial<TransactionFormData> = await request.json();
     
+    console.log("[PATCH /api/transactions/[id]] Updating transaction:", { id, data });
+    
     const transaction = await updateTransaction(id, data);
+    
+    console.log("[PATCH /api/transactions/[id]] Transaction updated successfully:", { id });
     
     return NextResponse.json(transaction, { status: 200 });
   } catch (error) {
-    console.error("Error updating transaction:", error);
+    console.error("[PATCH /api/transactions/[id]] Error updating transaction:", {
+      error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? error.stack : undefined,
+    });
     
     // Handle validation errors
     if (error instanceof ZodError) {

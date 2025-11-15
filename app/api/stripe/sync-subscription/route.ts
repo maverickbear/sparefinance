@@ -271,6 +271,11 @@ export async function POST(request: NextRequest) {
 
     console.log("[SYNC] Subscription synced successfully:", upsertedSub);
 
+    // Invalidate subscription cache to ensure UI reflects changes immediately
+    const { invalidateSubscriptionCache } = await import("@/lib/api/plans");
+    await invalidateSubscriptionCache(authUser.id);
+    console.log("[SYNC] Subscription cache invalidated for user:", authUser.id);
+
     return NextResponse.json({
       success: true,
       subscription: upsertedSub?.[0],

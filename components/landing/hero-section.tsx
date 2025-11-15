@@ -7,7 +7,7 @@ import { DashboardDemo } from "./demo/dashboard-demo";
 
 export function HeroSection() {
   return (
-    <section id="home" className="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#1A1A8F] via-[#2A2AB8] to-[#4A4AF2] pt-24 md:pt-32">
+    <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#1A1A8F] via-[#2A2AB8] to-[#4A4AF2] pt-24 md:pt-32">
       {/* Background patterns */}
       <div className="absolute inset-0">
         {/* Grid pattern */}
@@ -25,29 +25,29 @@ export function HeroSection() {
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#4A4AF2]/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2"></div>
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="max-w-4xl mx-auto text-center space-y-8">
-          {/* Headline */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight">
-            Take Control of Your Finances. Automatically.
+        <div className="max-w-5xl mx-auto text-center space-y-10 md:space-y-12">
+          {/* Headline - Apple Style */}
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-semibold text-white leading-tight tracking-tight">
+            Take Control of Your<br />Finances. Automatically.
           </h1>
 
-          {/* Sub-headline */}
-          <p className="text-lg sm:text-xl md:text-2xl text-white/80 max-w-2xl mx-auto">
+          {/* Sub-headline - Apple Style */}
+          <p className="text-xl sm:text-2xl md:text-3xl text-white/90 max-w-3xl mx-auto font-light leading-relaxed">
             Connect your bank accounts, track spending, manage budgets, and reach your financial goals—all in one powerful platform. Join thousands who've transformed their financial future.
           </p>
 
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          {/* CTAs - Apple Style */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
             <Button
               asChild
-              className="bg-[#4A4AF2] text-white hover:bg-[#3A3AD2] text-base font-semibold px-8 py-6 h-auto rounded-[12px] shadow-lg hover:shadow-xl transition-all"
+              className="bg-white text-[#1A1A8F] hover:bg-white/90 text-lg font-medium px-8 py-7 h-auto rounded-full transition-all"
             >
               <Link href="#pricing">Get Started</Link>
             </Button>
             <Button
               asChild
               variant="outline"
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-base font-semibold px-8 py-6 h-auto rounded-[12px] backdrop-blur-sm"
+              className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-lg font-medium px-8 py-7 h-auto rounded-full backdrop-blur-sm"
             >
               <Link href="#features">
                 Learn More
@@ -57,9 +57,9 @@ export function HeroSection() {
           </div>
         </div>
 
-        {/* Dashboard preview */}
-        <div className="mt-16 max-w-7xl mx-auto">
-          <div className="relative rounded-t-2xl rounded-bl-none rounded-br-none overflow-hidden shadow-2xl border-t border-l border-r border-white/10 backdrop-blur-sm bg-white/5">
+        {/* Dashboard preview - Apple Style */}
+        <div className="mt-24 md:mt-32 max-w-7xl mx-auto">
+          <div className="relative rounded-3xl overflow-hidden border border-white/10 backdrop-blur-sm bg-white/5">
             <DashboardDemo />
           </div>
         </div>
@@ -67,4 +67,3 @@ export function HeroSection() {
     </section>
   );
 }
-

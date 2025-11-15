@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase-server";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { formatTimestamp, formatDateOnly } from "@/lib/utils/timestamp";
 import {
   calculateDebtMetrics,
   calculatePaymentDistribution,
@@ -221,8 +221,8 @@ export async function createDebt(data: {
     currentBalance: initialBalance,
     interestRate: data.interestRate,
     totalMonths: data.totalMonths,
-    firstPaymentDate: formatTimestamp(new Date(data.firstPaymentDate)),
-    startDate: data.startDate ? formatTimestamp(new Date(data.startDate)) : formatTimestamp(new Date(data.firstPaymentDate)),
+    firstPaymentDate: formatDateOnly(new Date(data.firstPaymentDate)),
+    startDate: data.startDate ? formatDateOnly(new Date(data.startDate)) : formatDateOnly(new Date(data.firstPaymentDate)),
     monthlyPayment: data.monthlyPayment,
     paymentFrequency: data.paymentFrequency ?? "monthly",
     paymentAmount: data.paymentAmount ?? null,
@@ -332,10 +332,12 @@ export async function updateDebt(
   if (data.interestRate !== undefined) updateData.interestRate = data.interestRate;
   if (data.totalMonths !== undefined) updateData.totalMonths = data.totalMonths;
   if (data.firstPaymentDate !== undefined) {
-    updateData.firstPaymentDate = formatTimestamp(new Date(data.firstPaymentDate));
+    // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+    updateData.firstPaymentDate = formatDateOnly(new Date(data.firstPaymentDate));
   }
   if (data.startDate !== undefined) {
-    updateData.startDate = formatTimestamp(new Date(data.startDate));
+    // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+    updateData.startDate = formatDateOnly(new Date(data.startDate));
   }
   if (data.monthlyPayment !== undefined) updateData.monthlyPayment = data.monthlyPayment;
   if (data.paymentFrequency !== undefined) updateData.paymentFrequency = data.paymentFrequency;

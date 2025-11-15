@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -22,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { SystemCategory } from "@/lib/api/admin";
 
 const categorySchema = z.object({
@@ -48,8 +49,8 @@ export function CategoryDialog({
   onSuccess,
 }: CategoryDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // For create mode: array of category names
-  const [categoryNames, setCategoryNames] = useState<string[]>([""]);
+  // For create mode: textarea text with comma-separated category names
+  const [categoryNamesText, setCategoryNamesText] = useState<string>("");
   // For create mode: selected macroId (shared for all categories)
   const [selectedMacroId, setSelectedMacroId] = useState<string>("");
 
@@ -70,27 +71,19 @@ export function CategoryDialog({
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       // Reset when closing
-      setCategoryNames([""]);
+      setCategoryNamesText("");
       setSelectedMacroId("");
       form.reset();
     }
     onOpenChange(newOpen);
   };
 
-  const addCategoryInput = () => {
-    setCategoryNames([...categoryNames, ""]);
-  };
-
-  const removeCategoryInput = (index: number) => {
-    if (categoryNames.length > 1) {
-      setCategoryNames(categoryNames.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateCategoryName = (index: number, value: string) => {
-    const updated = [...categoryNames];
-    updated[index] = value;
-    setCategoryNames(updated);
+  // Helper function to parse comma-separated values
+  const parseCommaSeparated = (text: string): string[] => {
+    return text
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
   };
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -102,10 +95,10 @@ export function CategoryDialog({
       return;
     }
 
-    // Filter out empty names
-    const validNames = categoryNames.filter((name) => name.trim() !== "");
+    // Parse comma-separated values
+    const validNames = parseCommaSeparated(categoryNamesText);
     if (validNames.length === 0) {
-      alert("At least one category name is required");
+      alert("Please enter at least one category name");
       return;
     }
 
@@ -155,7 +148,7 @@ export function CategoryDialog({
 
       handleOpenChange(false);
       form.reset();
-      setCategoryNames([""]);
+      setCategoryNamesText("");
       setSelectedMacroId("");
       if (onSuccess) {
         onSuccess();
@@ -263,7 +256,7 @@ export function CategoryDialog({
                 </div>
               </>
             ) : (
-              // Create mode: multiple categories
+              // Create mode: textarea with comma-separated values
               <>
                 <div className="space-y-2">
                   <Label htmlFor="macroId">Group</Label>
@@ -293,41 +286,19 @@ export function CategoryDialog({
                   )}
                 </div>
 
-                <div className="space-y-3">
-                  <Label>Category Names</Label>
-                  {categoryNames.map((name, index) => (
-                    <div key={index} className="flex gap-2 items-start">
-                      <div className="flex-1 space-y-1">
-                        <Input
-                          value={name}
-                          onChange={(e) => updateCategoryName(index, e.target.value)}
-                          placeholder={`Category ${index + 1} (e.g., Rent)`}
-                        />
-                      </div>
-                      {categoryNames.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-10 shrink-0"
-                          onClick={() => removeCategoryInput(index)}
-                          disabled={isSubmitting}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addCategoryInput}
-                    disabled={isSubmitting}
-                    className="w-full"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add More
-                  </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="categoryNames">Category Names (comma-separated)</Label>
+                  <Textarea
+                    id="categoryNames"
+                    value={categoryNamesText}
+                    onChange={(e) => setCategoryNamesText(e.target.value)}
+                    placeholder="e.g., Rent, Utilities, Home Maintenance"
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter multiple category names separated by commas. Each will be created as a separate category.
+                  </p>
                 </div>
               </>
             )}
@@ -346,7 +317,7 @@ export function CategoryDialog({
               type="submit" 
               disabled={
                 isSubmitting || 
-                (!category && (!selectedMacroId || categoryNames.every(name => name.trim() === "")))
+                (!category && (!selectedMacroId || parseCommaSeparated(categoryNamesText).length === 0))
               }
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

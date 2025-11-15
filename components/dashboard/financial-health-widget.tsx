@@ -86,9 +86,9 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
 
   return (
     <>
-      <Card className="w-full group">
+      <Card className="w-full max-w-full group">
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="text-lg font-semibold">
             Financial Health
           </CardTitle>
           <CardDescription>
@@ -99,7 +99,7 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
           {/* Score Display */}
           <div className="flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
-              <span className={cn("text-4xl font-semibold", getScoreColor(data.score))}>
+              <span className={cn("text-2xl font-semibold", getScoreColor(data.score))}>
                 {data.score}
               </span>
               <span className="text-sm text-muted-foreground">/100</span>
@@ -124,7 +124,7 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
           {/* Cost of Living */}
           <div className="space-y-1 p-3 rounded-[12px] bg-card">
             <p className="text-xs text-muted-foreground">Cost of Living</p>
-            <p className="text-lg font-semibold flex items-center gap-2 text-foreground">
+            <p className="text-2xl font-semibold flex items-center gap-2 text-foreground">
               {formatMoney(data.monthlyExpenses)}
               <span className="text-sm text-muted-foreground">
                 ({data.monthlyIncome > 0 ? ((data.monthlyExpenses / data.monthlyIncome) * 100).toFixed(1) : "0.0"}%)

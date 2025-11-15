@@ -1,4 +1,4 @@
-import { Holding, Account } from "@/lib/mock-data/portfolio-mock-data";
+import { Holding, Account } from "@/lib/api/portfolio";
 
 // Calculate portfolio metrics
 export function calculatePortfolioMetrics(holdings: Holding[]) {

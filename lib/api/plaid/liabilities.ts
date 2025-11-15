@@ -288,7 +288,7 @@ export async function syncAccountLiabilities(
 }
 
 /**
- * Get all liabilities for a user
+ * Get all liabilities for a user (including shared accounts via AccountOwner)
  */
 export async function getUserLiabilities(userId: string): Promise<PlaidLiability[]> {
   try {
@@ -299,25 +299,37 @@ export async function getUserLiabilities(userId: string): Promise<PlaidLiability
 
     const supabase = await createServerClient();
 
-    // Get user's accounts
-    const { data: accounts, error: accountsError } = await supabase
+    // Get all account IDs the user has access to:
+    // 1. Accounts where userId matches directly
+    // 2. Accounts shared via AccountOwner table
+    
+    // First, get accounts where userId matches directly
+    const { data: directAccounts, error: directAccountsError } = await supabase
       .from('Account')
       .select('id')
       .eq('userId', userId);
 
-    if (accountsError) {
-      console.error('Error fetching accounts for liabilities:', accountsError);
-      return [];
+    if (directAccountsError) {
+      console.error('Error fetching direct accounts for liabilities:', directAccountsError);
     }
 
-    if (!accounts || accounts.length === 0) {
+    // Get accounts shared via AccountOwner
+    const { data: sharedAccounts, error: sharedAccountsError } = await supabase
+      .from('AccountOwner')
+      .select('accountId')
+      .eq('ownerId', userId);
+
+    if (sharedAccountsError) {
+      console.error('Error fetching shared accounts for liabilities:', sharedAccountsError);
+    }
+
+    // Combine all account IDs
+    const directAccountIds = (directAccounts || []).map((acc) => acc.id);
+    const sharedAccountIds = (sharedAccounts || []).map((ao) => ao.accountId);
+    const allAccountIds = [...new Set([...directAccountIds, ...sharedAccountIds])];
+
+    if (allAccountIds.length === 0) {
       // No accounts found, return empty array (not an error)
-      return [];
-    }
-
-    const accountIds = accounts.map((acc) => acc.id);
-
-    if (accountIds.length === 0) {
       return [];
     }
 
@@ -325,7 +337,7 @@ export async function getUserLiabilities(userId: string): Promise<PlaidLiability
     const { data: liabilities, error } = await supabase
       .from('PlaidLiability')
       .select('*')
-      .in('accountId', accountIds)
+      .in('accountId', allAccountIds)
       .order('nextPaymentDueDate', { ascending: true, nullsFirst: false });
 
     if (error) {

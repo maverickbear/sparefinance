@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase-server";
-import { getCurrentUserSubscription } from "@/lib/api/plans";
+import { getCurrentUserSubscription, type Subscription } from "@/lib/api/plans";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 import { SubscriptionGuard } from "@/components/subscription-guard";
 import { Suspense } from "react";
+import { logger } from "@/lib/utils/logger";
 
 /**
  * Protected Layout
@@ -24,31 +25,28 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  console.log("[PROTECTED-LAYOUT] Executing");
+  const log = logger.withPrefix("PROTECTED-LAYOUT");
   const supabase = await createServerClient();
   
   // Check authentication
-  console.log("[PROTECTED-LAYOUT] Checking authentication");
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (!user || authError) {
-    console.log("[PROTECTED-LAYOUT] User not authenticated:", { hasUser: !!user, error: authError?.message });
+    log.debug("User not authenticated, redirecting to login");
     // Get current pathname for redirect
     const headersList = await headers();
     const pathname = headersList.get("x-pathname") || headersList.get("referer") || "";
     const redirectUrl = pathname ? `/auth/login?redirect=${encodeURIComponent(pathname)}` : "/auth/login";
-    console.log("[PROTECTED-LAYOUT] Redirecting to:", redirectUrl);
     redirect(redirectUrl);
   }
 
-  console.log("[PROTECTED-LAYOUT] User authenticated:", user.id);
+  log.debug("User authenticated:", user.id);
 
   // Verify user exists in User table
-  console.log("[PROTECTED-LAYOUT] Verifying user exists in User table");
   const { exists, userId } = await verifyUserExists();
   
   if (!exists) {
-    console.log("[PROTECTED-LAYOUT] User does not exist in User table, redirecting to login");
+    log.debug("User does not exist in User table, redirecting to login");
     // Get current pathname for redirect
     const headersList = await headers();
     const pathname = headersList.get("x-pathname") || headersList.get("referer") || "";
@@ -56,58 +54,107 @@ export default async function ProtectedLayout({
     redirect(redirectUrl);
   }
 
-  console.log("[PROTECTED-LAYOUT] User exists in User table:", userId);
+  log.debug("User verified:", userId);
 
   // Check subscription
   let shouldOpenModal = false;
   let reason: "no_subscription" | "trial_expired" | "subscription_inactive" | undefined;
   
   try {
-    console.log("[PROTECTED-LAYOUT] Checking subscription");
-    const subscription = await getCurrentUserSubscription();
-    console.log("[PROTECTED-LAYOUT] Subscription:", subscription);
+    // First, try to get subscription from cache/function
+    let subscription = await getCurrentUserSubscription();
+    
+    // If no subscription found, do a direct database query as fallback
+    // This helps catch cases where cache might be stale or subscription was just created
+    if (!subscription) {
+      log.debug("No subscription from cache, checking database directly...");
+      const { data: directSub, error: directError } = await supabase
+        .from("Subscription")
+        .select("*")
+        .eq("userId", userId)
+        .in("status", ["active", "trialing", "trial", "cancelled", "past_due"])
+        .order("createdAt", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (directError && directError.code !== "PGRST116") {
+        log.error("Error in direct subscription query:", directError);
+      }
+      
+      if (directSub) {
+        log.debug("Found subscription via direct query:", {
+          status: directSub.status,
+          planId: directSub.planId
+        });
+        // Map the direct result to Subscription type
+        subscription = {
+          id: directSub.id,
+          userId: directSub.userId,
+          planId: directSub.planId,
+          status: directSub.status,
+          stripeSubscriptionId: directSub.stripeSubscriptionId,
+          stripeCustomerId: directSub.stripeCustomerId,
+          currentPeriodStart: directSub.currentPeriodStart ? new Date(directSub.currentPeriodStart) : null,
+          currentPeriodEnd: directSub.currentPeriodEnd ? new Date(directSub.currentPeriodEnd) : null,
+          trialStartDate: directSub.trialStartDate ? new Date(directSub.trialStartDate) : null,
+          trialEndDate: directSub.trialEndDate ? new Date(directSub.trialEndDate) : null,
+          cancelAtPeriodEnd: directSub.cancelAtPeriodEnd || false,
+          createdAt: new Date(directSub.createdAt),
+          updatedAt: new Date(directSub.updatedAt),
+        };
+      }
+    }
+    
+    log.debug("Subscription check result:", {
+      hasSubscription: !!subscription,
+      status: subscription?.status || "none",
+      planId: subscription?.planId || "none",
+      userId: subscription?.userId || "none"
+    });
     
     // If no subscription found, user needs to select a plan
     // Note: getCurrentUserSubscription returns null if user has no subscription
     // (not even a free plan, which should be created automatically)
     if (!subscription) {
-      console.log("[PROTECTED-LAYOUT] No subscription found, will redirect to pricing page");
+      log.debug("No subscription found, will redirect to pricing page");
       shouldOpenModal = true;
       reason = "no_subscription";
     } else {
-      // If subscription exists but status is not active or trialing, check if we should open modal
-      // Don't open modal for "expired" or "cancelled" status - allow user to view system
-      if (subscription.status !== "active" && subscription.status !== "trialing") {
-        // Only open modal for "past_due" status, not for "expired" or "cancelled"
+      // Check if subscription status allows access
+      // Accept both "trialing" and "trial" (in case of inconsistency in database)
+      const isActiveStatus = subscription.status === "active";
+      const isTrialingStatus = subscription.status === "trialing" || subscription.status === "trial";
+      
+      log.debug("Subscription status check:", {
+        status: subscription.status,
+        isActiveStatus,
+        isTrialingStatus,
+        allowsAccess: isActiveStatus || isTrialingStatus
+      });
+      
+      // If subscription exists and status is active or trialing, allow access
+      if (isActiveStatus || isTrialingStatus) {
+        log.debug("Subscription is active or trialing, allowing access to dashboard");
+        // Don't open modal - user has valid subscription
+        shouldOpenModal = false;
+      } else {
+        // If subscription exists but status is not active or trialing, check if we should open modal
+        // Don't open modal for "expired" or "cancelled" status - allow user to view system
+        // Only open modal for "past_due" status
         if (subscription.status === "past_due") {
-          console.log("[PROTECTED-LAYOUT] Subscription past_due, will redirect to pricing page");
-        shouldOpenModal = true;
-        reason = "subscription_inactive";
+          log.debug("Subscription past_due, will redirect to pricing page");
+          shouldOpenModal = true;
+          reason = "subscription_inactive";
         } else {
-          // For "expired" or "cancelled", allow access without opening modal
-          console.log("[PROTECTED-LAYOUT] Subscription status:", subscription.status, "- allowing access without opening modal");
-        }
-      } else if (subscription.status === "trialing") {
-        // If trial, allow access even if expired - user can still view the system
-        // We don't block access when trial expires, just allow them to see the system
-        const trialEndDate = subscription.trialEndDate ? new Date(subscription.trialEndDate) : null;
-        const now = new Date();
-        
-        if (trialEndDate && trialEndDate <= now) {
-          console.log("[PROTECTED-LAYOUT] Trial expired, but allowing access to view system");
-          // Don't open modal - allow user to see the system
-        } else {
-          console.log("[PROTECTED-LAYOUT] Trial is still active");
+          log.debug("Subscription has status:", subscription.status, "- allowing access to view system");
+          // Allow access for other statuses (cancelled, expired, etc.) - user can view system
+          shouldOpenModal = false;
         }
       }
     }
-
-    if (!shouldOpenModal) {
-      console.log("[PROTECTED-LAYOUT] User has active subscription, allowing access");
-    }
   } catch (error) {
     // If error checking subscription, open modal
-    console.error("[PROTECTED-LAYOUT] Error checking subscription:", error);
+    log.error("Error checking subscription:", error);
     shouldOpenModal = true;
     reason = "no_subscription";
   }

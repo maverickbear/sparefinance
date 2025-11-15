@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatMoney } from "@/components/common/money";
-import { Holding } from "@/lib/mock-data/portfolio-mock-data";
+import { Holding } from "@/lib/api/portfolio";
 import {
   getUniqueAssetTypes,
   getUniqueSectors,
@@ -183,8 +183,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
               </div>
             </div>
           ) : (
-            sortedHoldings.map((holding) => (
-              <HoldingsMobileCard key={holding.id} holding={holding} />
+            sortedHoldings.map((holding, index) => (
+              <HoldingsMobileCard key={`${holding.id}-${holding.accountId}-${index}`} holding={holding} />
             ))
           )}
         </div>
@@ -229,8 +229,8 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedHoldings.map((holding) => (
-                  <TableRow key={holding.id}>
+                sortedHoldings.map((holding, index) => (
+                  <TableRow key={`${holding.id}-${holding.accountId}-${index}`}>
                     <TableCell className="font-medium text-xs md:text-sm">
                       <div className="flex flex-col gap-0.5">
                         <span className="font-semibold">{holding.symbol}</span>

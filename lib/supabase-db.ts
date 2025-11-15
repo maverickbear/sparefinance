@@ -2,6 +2,7 @@ import { createServerClient } from "./supabase-server";
 
 // Tipos para as tabelas do Supabase
 // Baseado em schema_reference.sql - todas as tabelas e colunas do schema
+// Atualizado após migração 20241201000000_fix_database_issues.sql
 export interface Database {
   Account: {
     id: string;
@@ -44,7 +45,7 @@ export interface Database {
     createdAt: string;
     updatedAt: string;
     macroId: string | null;
-    userId: string | null;
+    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
   };
   BudgetCategory: {
     id: string;
@@ -85,7 +86,7 @@ export interface Database {
     paymentFrequency: string;
     paymentAmount: number | null;
     accountId: string | null;
-    userId: string | null;
+    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
   };
   Goal: {
     id: string;
@@ -102,7 +103,7 @@ export interface Database {
     isPaused: boolean;
     expectedIncome: number | null;
     targetMonths: number | null;
-    userId: string | null;
+    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
   };
   HouseholdMember: {
     id: string;
@@ -125,7 +126,7 @@ export interface Database {
     accountId: string | null;
     createdAt: string;
     updatedAt: string;
-    userId: string | null;
+    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
   };
   InvestmentTransaction: {
     id: string;
@@ -145,6 +146,7 @@ export interface Database {
   Group: {
     id: string;
     name: string;
+    type: "income" | "expense" | null;
     createdAt: string;
     updatedAt: string;
     userId: string | null;

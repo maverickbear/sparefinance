@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
-import { exchangePublicToken } from '@/lib/api/plaid/connect';
-import { syncAccountTransactions } from '@/lib/api/plaid/sync';
-import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities';
+// import { exchangePublicToken } from '@/lib/api/plaid/connect'; // TEMPORARILY DISABLED
+// import { syncAccountTransactions } from '@/lib/api/plaid/sync'; // TEMPORARILY DISABLED
+// import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities'; // TEMPORARILY DISABLED
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
 import { formatTimestamp } from '@/lib/utils/timestamp';
@@ -33,11 +33,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Exchange public token for access token
-    const { itemId, accessToken, accounts } = await exchangePublicToken(
-      publicToken,
-      metadata
-    );
+    // TEMPORARY BYPASS: Return mock data instead of calling Plaid
+    console.log('[PLAID BYPASS] Exchanging public token (bypassed)');
+    const mockItemId = `item-bypass-${Date.now()}`;
+    const mockAccessToken = `access-bypass-${Date.now()}`;
+    const mockAccounts = [
+      {
+        account_id: `acc-bypass-${Date.now()}`,
+        name: metadata.institution?.name || 'Mock Bank Account',
+        type: 'depository',
+        subtype: 'checking',
+        balances: {
+          available: 1000,
+          current: 1000,
+        },
+        mask: '0000',
+        official_name: metadata.institution?.name || 'Mock Bank Account',
+        verification_status: 'automatically_verified',
+      },
+    ];
+
+    // Original implementation (commented out):
+    // const { itemId, accessToken, accounts } = await exchangePublicToken(
+    //   publicToken,
+    //   metadata
+    // );
+    
+    const itemId = mockItemId;
+    const accessToken = mockAccessToken;
+    const accounts = mockAccounts;
 
     const supabase = await createServerClient();
     const now = formatTimestamp(new Date());
@@ -172,50 +196,62 @@ export async function POST(req: NextRequest) {
         });
     }
 
-    // Automatically sync transactions for all created accounts
-    const syncResults = [];
-    for (const accountId of createdAccounts) {
-      try {
-        // Get account details
-        const { data: account } = await supabase
-          .from('Account')
-          .select('plaidAccountId')
-          .eq('id', accountId)
-          .single();
+    // TEMPORARY BYPASS: Skip transaction and liability sync
+    console.log('[PLAID BYPASS] Skipping transaction and liability sync');
+    const syncResults = createdAccounts.map((accountId) => ({
+      accountId,
+      synced: 0,
+      skipped: 0,
+      errors: 0,
+    }));
 
-        if (account?.plaidAccountId) {
-          const syncResult = await syncAccountTransactions(
-            accountId,
-            account.plaidAccountId,
-            accessToken,
-            30 // Sync last 30 days
-          );
-          syncResults.push({
-            accountId,
-            synced: syncResult.synced,
-            skipped: syncResult.skipped,
-            errors: syncResult.errors,
-          });
-        }
-      } catch (error) {
-        console.error(`Error syncing transactions for account ${accountId}:`, error);
-        syncResults.push({
-          accountId,
-          synced: 0,
-          skipped: 0,
-          errors: 1,
-        });
-      }
-    }
+    // Original implementation (commented out):
+    // // Automatically sync transactions for all created accounts
+    // const syncResults = [];
+    // for (const accountId of createdAccounts) {
+    //   try {
+    //     // Get account details
+    //     const { data: account } = await supabase
+    //       .from('Account')
+    //       .select('plaidAccountId')
+    //       .eq('id', accountId)
+    //       .single();
 
-    // Sync liabilities for this item
-    let liabilitySyncResult = null;
-    try {
-      liabilitySyncResult = await syncAccountLiabilities(itemId, accessToken);
-    } catch (error) {
-      console.error('Error syncing liabilities:', error);
-      // Don't fail the whole request if liability sync fails
-    }
+    //     if (account?.plaidAccountId) {
+    //       const syncResult = await syncAccountTransactions(
+    //         accountId,
+    //         account.plaidAccountId,
+    //         accessToken,
+    //         30 // Sync last 30 days
+    //       );
+    //       syncResults.push({
+    //         accountId,
+    //         synced: syncResult.synced,
+    //         skipped: syncResult.skipped,
+    //         errors: syncResult.errors,
+    //       });
+    //     }
+    //   } catch (error) {
+    //     console.error(`Error syncing transactions for account ${accountId}:`, error);
+    //     syncResults.push({
+    //       accountId,
+    //       synced: 0,
+    //       skipped: 0,
+    //       errors: 1,
+    //     });
+    //   }
+    // }
+
+    // // Sync liabilities for this item
+    // let liabilitySyncResult = null;
+    // try {
+    //   liabilitySyncResult = await syncAccountLiabilities(itemId, accessToken);
+    // } catch (error) {
+    //   console.error('Error syncing liabilities:', error);
+    //   // Don't fail the whole request if liability sync fails
+    // }
+    
+    const liabilitySyncResult = null;
 
     return NextResponse.json({
       success: true,

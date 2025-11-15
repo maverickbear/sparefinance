@@ -3,7 +3,11 @@
 import { unstable_cache } from "next/cache";
 import { cookies } from "next/headers";
 import { getTransactionsInternal } from "./transactions";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { getAccounts } from "./accounts";
+import { getDebts } from "./debts";
+import { getUserLiabilities } from "./plaid/liabilities";
+import { logger } from "@/lib/utils/logger";
 
 export interface FinancialHealthData {
   score: number;
@@ -13,6 +17,10 @@ export interface FinancialHealthData {
   netAmount: number;
   savingsRate: number;
   message: string;
+  spendingDiscipline: "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Unknown";
+  debtExposure: "Low" | "Moderate" | "High";
+  emergencyFundMonths: number;
+  lastMonthScore?: number;
   alerts: Array<{
     id: string;
     title: string;
@@ -39,14 +47,10 @@ async function calculateFinancialHealthInternal(
   
   // Get transactions for selected month only (to match the cards at the top)
   // Call internal function directly to avoid reading cookies inside cached function
-  console.log("🔍 [calculateFinancialHealthInternal] Fetching transactions:", {
-    selectedMonth: selectedMonth.toISOString(),
-    selectedMonthEnd: selectedMonthEnd.toISOString(),
-    hasAccessToken: !!accessToken,
-    hasRefreshToken: !!refreshToken,
-  });
+  const log = logger.withPrefix("calculateFinancialHealthInternal");
+  log.debug("Fetching transactions for month:", selectedMonth.toISOString().split('T')[0]);
 
-  const transactions = await getTransactionsInternal(
+  const transactionsResult = await getTransactionsInternal(
     {
       startDate: selectedMonth,
       endDate: selectedMonthEnd,
@@ -55,38 +59,71 @@ async function calculateFinancialHealthInternal(
     refreshToken
   );
   
-  console.log("🔍 [calculateFinancialHealthInternal] Transactions received:", {
+  // Extract transactions array from result
+  const transactions = Array.isArray(transactionsResult)
+    ? transactionsResult
+    : (transactionsResult?.transactions || []);
+  
+  log.debug("Transactions received:", {
     count: transactions.length,
-    transactionTypes: [...new Set(transactions.map(t => t?.type).filter(Boolean))],
-    sampleTransactions: transactions.slice(0, 3).map(t => ({
-      id: t?.id,
-      type: t?.type,
-      amount: t?.amount,
-      date: t?.date,
-    })),
+    incomeCount: transactions.filter(t => t?.type === "income").length,
+    expenseCount: transactions.filter(t => t?.type === "expense").length,
   });
   
   // Only count income and expense transactions
   const monthlyIncome = transactions
     .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    .reduce((sum, t) => {
+      const amount = Number(t.amount) || 0;
+      return sum + Math.abs(amount); // Ensure income is positive
+    }, 0);
   
   const monthlyExpenses = transactions
     .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    .reduce((sum, t) => {
+      const amount = Number(t.amount) || 0;
+      return sum + Math.abs(amount); // Ensure expenses are positive
+    }, 0);
   
   const netAmount = monthlyIncome - monthlyExpenses;
   
-  // Log for debugging
-  console.log("🔍 [calculateFinancialHealthInternal] Financial Health Calculation (Selected Month):", {
+  // Log for debugging (only in development)
+  log.debug("Financial Health Calculation:", {
     month: selectedMonth.toISOString().split('T')[0],
     transactionsCount: transactions.length,
-    incomeTransactions: transactions.filter(t => t.type === "income").length,
-    expenseTransactions: transactions.filter(t => t.type === "expense").length,
     monthlyIncome,
     monthlyExpenses,
     netAmount,
   });
+  
+  // Handle case when there are no transactions
+  if (transactions.length === 0 || (monthlyIncome === 0 && monthlyExpenses === 0)) {
+    return {
+      score: 0,
+      classification: "Unknown" as const,
+      monthlyIncome: 0,
+      monthlyExpenses: 0,
+      netAmount: 0,
+      savingsRate: 0,
+      message: "No transactions found for this month. Add income and expense transactions to calculate your financial health score.",
+      spendingDiscipline: "Unknown" as const,
+      debtExposure: "Low" as const,
+      emergencyFundMonths: 0,
+      alerts: [{
+        id: "no_transactions",
+        title: "No Transactions",
+        description: "You don't have any transactions for this month. Add income and expense transactions to get your financial health score.",
+        severity: "info" as const,
+        action: "Add transactions to see your financial health score.",
+      }],
+      suggestions: [{
+        id: "add_transactions",
+        title: "Add Transactions",
+        description: "Start by adding your income and expense transactions for this month to calculate your financial health score.",
+        impact: "high" as const,
+      }],
+    };
+  }
   
   // Calculate savings rate (net amount as percentage of income)
   // If no income, savings rate is 0 (or negative if expenses > 0)
@@ -175,6 +212,149 @@ async function calculateFinancialHealthInternal(
     score,
     classification,
   });
+
+  // Calculate last month's score
+  let lastMonthScore: number | undefined;
+  try {
+    const lastMonth = subMonths(selectedMonth, 1);
+    const lastMonthEnd = endOfMonth(lastMonth);
+    const lastMonthTransactionsResult = await getTransactionsInternal(
+      {
+        startDate: lastMonth,
+        endDate: lastMonthEnd,
+      },
+      accessToken,
+      refreshToken
+    );
+
+    // Extract transactions array from result
+    const lastMonthTransactions = Array.isArray(lastMonthTransactionsResult)
+      ? lastMonthTransactionsResult
+      : (lastMonthTransactionsResult?.transactions || []);
+
+    const lastMonthIncome = lastMonthTransactions
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => {
+        const amount = Number(t.amount) || 0;
+        return sum + Math.abs(amount);
+      }, 0);
+
+    const lastMonthExpenses = lastMonthTransactions
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => {
+        const amount = Number(t.amount) || 0;
+        return sum + Math.abs(amount);
+      }, 0);
+
+    if (lastMonthIncome > 0 || lastMonthExpenses > 0) {
+      const lastMonthExpenseRatio = lastMonthIncome > 0
+        ? (lastMonthExpenses / lastMonthIncome) * 100
+        : lastMonthExpenses > 0
+        ? 100
+        : 0;
+
+      // Calculate score using same logic
+      if (lastMonthExpenseRatio <= 60) {
+        lastMonthScore = Math.max(91, 100 - (lastMonthExpenseRatio / 60) * 9);
+      } else if (lastMonthExpenseRatio <= 70) {
+        lastMonthScore = Math.max(81, 90 - ((lastMonthExpenseRatio - 60) / 10) * 9);
+      } else if (lastMonthExpenseRatio <= 80) {
+        lastMonthScore = Math.max(71, 80 - ((lastMonthExpenseRatio - 70) / 10) * 9);
+      } else if (lastMonthExpenseRatio <= 90) {
+        lastMonthScore = Math.max(61, 70 - ((lastMonthExpenseRatio - 80) / 10) * 9);
+      } else {
+        lastMonthScore = Math.max(0, 60 - ((lastMonthExpenseRatio - 90) / 10) * 60);
+      }
+      lastMonthScore = Math.round(lastMonthScore);
+    }
+  } catch (error) {
+    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate last month score:", error);
+  }
+
+  // Calculate spending discipline based on savings rate
+  // Excellent: >= 30%, Good: 20-29%, Fair: 10-19%, Poor: 0-9%, Critical: < 0%
+  let spendingDiscipline: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+  if (savingsRate >= 30) {
+    spendingDiscipline = "Excellent";
+  } else if (savingsRate >= 20) {
+    spendingDiscipline = "Good";
+  } else if (savingsRate >= 10) {
+    spendingDiscipline = "Fair";
+  } else if (savingsRate >= 0) {
+    spendingDiscipline = "Poor";
+  } else {
+    spendingDiscipline = "Critical";
+  }
+
+  // Calculate debt exposure
+  let debtExposure: "Low" | "Moderate" | "High" = "Low";
+  try {
+    const { createServerClient } = await import("@/lib/supabase-server");
+    const supabase = await createServerClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+
+    if (userId) {
+      // Get total debts
+      const debts = await getDebts();
+      const liabilities = await getUserLiabilities(userId);
+
+      let totalDebts = 0;
+
+      // Calculate from Debt table (only debts that are not paid off)
+      const debtsTotal = debts
+        .filter((debt) => !debt.isPaidOff)
+        .reduce((sum, debt) => {
+          const balance = debt.currentBalance ?? 0;
+          return sum + Math.abs(Number(balance) || 0);
+        }, 0);
+      totalDebts += debtsTotal;
+
+      // Calculate from PlaidLiabilities
+      const liabilitiesTotal = liabilities.reduce((sum, liability) => {
+        const balance = liability.balance ?? liability.currentBalance ?? null;
+        if (balance == null) return sum;
+        const numValue = typeof balance === 'string' ? parseFloat(balance) : Number(balance);
+        if (!isNaN(numValue) && isFinite(numValue)) {
+          // For debts, we want the absolute value (a balance of -1000 means debt of 1000)
+          // But if it's already positive, use it as-is
+          const debtAmount = numValue < 0 ? Math.abs(numValue) : numValue;
+          return sum + debtAmount;
+        }
+        return sum;
+      }, 0);
+      totalDebts += liabilitiesTotal;
+
+      // Calculate debt-to-income ratio (annual)
+      const annualIncome = monthlyIncome * 12;
+      const debtToIncomeRatio = annualIncome > 0 ? (totalDebts / annualIncome) * 100 : 0;
+
+      // Low: < 20%, Moderate: 20-40%, High: > 40%
+      if (debtToIncomeRatio >= 40) {
+        debtExposure = "High";
+      } else if (debtToIncomeRatio >= 20) {
+        debtExposure = "Moderate";
+      } else {
+        debtExposure = "Low";
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate debt exposure:", error);
+  }
+
+  // Calculate emergency fund months
+  let emergencyFundMonths = 0;
+  try {
+    const accounts = await getAccounts();
+    const totalBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+    
+    // Emergency fund months = total balance / monthly expenses
+    if (monthlyExpenses > 0) {
+      emergencyFundMonths = totalBalance / monthlyExpenses;
+    }
+  } catch (error) {
+    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate emergency fund months:", error);
+  }
   
   return {
     score,
@@ -184,6 +364,10 @@ async function calculateFinancialHealthInternal(
     netAmount,
     savingsRate,
     message,
+    spendingDiscipline,
+    debtExposure,
+    emergencyFundMonths,
+    lastMonthScore,
     alerts,
     suggestions,
   };
@@ -205,26 +389,45 @@ export async function calculateFinancialHealth(selectedDate?: Date): Promise<Fin
       refreshToken = session.refresh_token;
     }
     
-    // Log token availability (only in development)
-    if (process.env.NODE_ENV === "development") {
-      console.log("🔍 [calculateFinancialHealth] Token check:", {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        hasSession: !!session,
-      });
-    }
   } catch (error: any) {
     // If we can't get tokens (e.g., inside unstable_cache), continue without them
     console.warn("⚠️ [calculateFinancialHealth] Could not get tokens:", error?.message);
   }
   
-  const date = selectedDate || new Date();
-  const cacheKey = `financial-health-${date.getFullYear()}-${date.getMonth()}`;
-  return unstable_cache(
-    async () => calculateFinancialHealthInternal(selectedDate, accessToken, refreshToken),
-    [cacheKey],
-    { revalidate: 60, tags: ['financial-health', 'transactions'] }
-  )();
+  // Call directly without cache to avoid authentication issues
+  // The cache was causing problems with token refresh and RLS
+  // TODO: Re-enable cache once we have a better solution for token management
+  try {
+    return await calculateFinancialHealthInternal(selectedDate, accessToken, refreshToken);
+  } catch (error: any) {
+    console.error("❌ [calculateFinancialHealth] Error calculating financial health:", error);
+    // Return a default/empty financial health data instead of throwing
+    // This prevents the entire dashboard from failing
+    const date = selectedDate || new Date();
+    return {
+      score: 0,
+      classification: "Unknown" as const,
+      monthlyIncome: 0,
+      monthlyExpenses: 0,
+      netAmount: 0,
+      savingsRate: 0,
+      message: "Unable to calculate financial health at this time.",
+      spendingDiscipline: "Unknown" as const,
+      debtExposure: "Low" as const,
+      emergencyFundMonths: 0,
+      alerts: [],
+      suggestions: [],
+    };
+  }
+  
+  // Future implementation with cache (disabled for now):
+  // const date = selectedDate || new Date();
+  // const cacheKey = `financial-health-${date.getFullYear()}-${date.getMonth()}`;
+  // return unstable_cache(
+  //   async () => calculateFinancialHealthInternal(selectedDate, accessToken, refreshToken),
+  //   [cacheKey],
+  //   { revalidate: 60, tags: ['financial-health', 'transactions'] }
+  // )();
 }
 
 

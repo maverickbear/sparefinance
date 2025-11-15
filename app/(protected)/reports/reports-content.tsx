@@ -20,12 +20,13 @@ import { PlanFeatures } from "@/lib/validations/plan";
 import { FeatureGuard } from "@/components/common/feature-guard";
 import type { Budget } from "@/lib/api/budgets";
 import type { Transaction } from "@/lib/api/transactions-client";
-import type { DebtWithCalculations } from "@/lib/api/debts";
-import type { GoalWithCalculations } from "@/lib/api/goals";
+import type { Debt } from "@/lib/api/debts-client";
+import type { Goal } from "@/lib/api/goals-client";
 import type { FinancialHealthData } from "@/lib/api/financial-health";
 import type { Account } from "@/lib/api/accounts-client";
-import type { PortfolioSummary, HistoricalDataPoint } from "@/lib/mock-data/portfolio-mock-data";
+import type { PortfolioSummary, HistoricalDataPoint } from "@/lib/api/portfolio";
 import type { Holding } from "@/lib/api/investments";
+import type { ReportPeriod } from "@/components/reports/report-filters";
 import { FinancialOverviewCard } from "@/components/reports/financial-overview-card";
 import { InvestmentPerformanceSection } from "@/components/reports/investment-performance-section";
 import { DebtAnalysisSection } from "@/components/reports/debt-analysis-section";
@@ -42,14 +43,16 @@ interface ReportsContentProps {
   budgets: Budget[];
   currentMonthTransactions: Transaction[];
   historicalTransactions: Transaction[];
-  debts: DebtWithCalculations[];
-  goals: GoalWithCalculations[];
+  debts: Debt[];
+  goals: Goal[];
   financialHealth: FinancialHealthData | null;
   accounts: Account[];
   portfolioSummary: PortfolioSummary | null;
   portfolioHoldings: Holding[];
   portfolioHistorical: HistoricalDataPoint[];
   now: Date;
+  period: ReportPeriod;
+  dateRange: { startDate: Date; endDate: Date };
 }
 
 export function ReportsContent({
@@ -65,6 +68,8 @@ export function ReportsContent({
   portfolioHoldings,
   portfolioHistorical,
   now,
+  period,
+  dateRange,
 }: ReportsContentProps) {
   const currentMonth = startOfMonth(now);
   const lastMonth = subMonths(now, 1);
@@ -79,11 +84,11 @@ export function ReportsContent({
     }
   );
 
-  // Process monthly data for income/expenses chart (last 6 months)
-  const sixMonthsAgo = subMonths(currentMonth, 5);
+  // Process monthly data for income/expenses chart based on selected period
+  // For periods longer than 6 months, show all months; otherwise show the period
   const months = eachMonthOfInterval({
-    start: sixMonthsAgo,
-    end: currentMonth,
+    start: startOfMonth(dateRange.startDate),
+    end: endOfMonth(dateRange.endDate),
   });
 
   const monthlyData = months.map((month) => {
@@ -151,11 +156,17 @@ export function ReportsContent({
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 10);
 
+  const periodDescription = period === "current-month" 
+    ? format(now, "MMMM yyyy")
+    : period === "year-to-date"
+    ? `${format(dateRange.startDate, "yyyy")} (Year to Date)`
+    : `${format(dateRange.startDate, "MMM dd, yyyy")} - ${format(dateRange.endDate, "MMM dd, yyyy")}`;
+
   return (
     <div className="space-y-4 md:space-y-6">
       <PageHeader
         title="Reports"
-        description={`Complete financial overview and analysis for ${format(now, "MMMM yyyy")}`}
+        description={`Complete financial overview and analysis for ${periodDescription}`}
       />
 
       {/* Financial Overview - Always visible */}

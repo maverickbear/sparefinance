@@ -9,17 +9,21 @@ export function FeaturesSection() {
   ];
 
   return (
-    <section id="features" className="pt-20 md:pt-32 bg-background">
+    <section id="features" className="pt-32 md:pt-40 pb-20 md:pb-32 bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {/* Statistics - Apple Style */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 max-w-6xl mx-auto">
           {stats.map((stat, index) => (
             <div key={index} className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <span className="text-3xl md:text-4xl font-bold">{stat.value}</span>
-                <span className="text-2xl text-primary">{stat.icon}</span>
+              <div className="flex flex-col items-center justify-center gap-3 mb-3">
+                <span className="text-5xl md:text-6xl lg:text-7xl font-semibold tracking-tight">
+                  {stat.value}
+                </span>
+                <span className="text-3xl md:text-4xl">{stat.icon}</span>
               </div>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
+              <p className="text-base md:text-lg text-muted-foreground font-light">
+                {stat.label}
+              </p>
             </div>
           ))}
         </div>
@@ -27,4 +31,3 @@ export function FeaturesSection() {
     </section>
   );
 }
-

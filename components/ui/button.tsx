@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { componentSizes, DEFAULT_SIZE, type ButtonSize } from "@/lib/design-system/sizes";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 lg:min-h-0",
   {
     variants: {
       variant: {
@@ -26,27 +26,31 @@ const buttonVariants = cva(
           componentSizes.button.small.paddingX,
           componentSizes.button.small.paddingY,
           componentSizes.button.small.text,
-          componentSizes.button.small.rounded
+          componentSizes.button.small.rounded,
+          "min-h-[44px] lg:min-h-0"
         ),
         medium: cn(
           componentSizes.button.medium.height,
           componentSizes.button.medium.paddingX,
           componentSizes.button.medium.paddingY,
           componentSizes.button.medium.text,
-          componentSizes.button.medium.rounded
+          componentSizes.button.medium.rounded,
+          "min-h-[44px] lg:min-h-0"
         ),
         large: cn(
           componentSizes.button.large.height,
           componentSizes.button.large.paddingX,
           componentSizes.button.large.paddingY,
           componentSizes.button.large.text,
-          componentSizes.button.large.rounded
+          componentSizes.button.large.rounded,
+          "min-h-[44px] lg:min-h-0"
         ),
         icon: cn(
           componentSizes.button.icon.height,
           componentSizes.button.icon.width,
           componentSizes.button.icon.text,
-          componentSizes.button.icon.rounded
+          componentSizes.button.icon.rounded,
+          "min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0"
         ),
       },
     },

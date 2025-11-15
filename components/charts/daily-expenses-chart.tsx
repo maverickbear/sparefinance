@@ -15,7 +15,7 @@ interface DailyExpensesChartProps {
 export function DailyExpensesChart({ data }: DailyExpensesChartProps) {
   return (
     <ChartCard title="Daily Expenses" description="Expenses by day for current month">
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={250}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" />

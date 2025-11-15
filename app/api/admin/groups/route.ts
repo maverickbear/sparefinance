@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name } = body;
+    const { name, type } = body;
 
     if (!name || typeof name !== "string" || name.trim() === "") {
       return NextResponse.json(
@@ -31,7 +31,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const group = await createSystemGroup({ name: name.trim() });
+    if (type && type !== "income" && type !== "expense") {
+      return NextResponse.json(
+        { error: "Type must be either 'income' or 'expense'" },
+        { status: 400 }
+      );
+    }
+
+    const group = await createSystemGroup({ 
+      name: name.trim(),
+      type: type || "expense"
+    });
     return NextResponse.json(group, { status: 201 });
   } catch (error) {
     console.error("Error creating system group:", error);
@@ -45,7 +55,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name } = body;
+    const { id, name, type } = body;
 
     if (!id || typeof id !== "string") {
       return NextResponse.json(
@@ -54,14 +64,29 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (!name || typeof name !== "string" || name.trim() === "") {
+    if (name !== undefined && (typeof name !== "string" || name.trim() === "")) {
       return NextResponse.json(
-        { error: "Name is required and must be a non-empty string" },
+        { error: "Name must be a non-empty string" },
         { status: 400 }
       );
     }
 
-    const group = await updateSystemGroup(id, { name: name.trim() });
+    if (type !== undefined && type !== "income" && type !== "expense") {
+      return NextResponse.json(
+        { error: "Type must be either 'income' or 'expense'" },
+        { status: 400 }
+      );
+    }
+
+    const updateData: { name?: string; type?: "income" | "expense" } = {};
+    if (name !== undefined) {
+      updateData.name = name.trim();
+    }
+    if (type !== undefined) {
+      updateData.type = type;
+    }
+
+    const group = await updateSystemGroup(id, updateData);
     return NextResponse.json(group, { status: 200 });
   } catch (error) {
     console.error("Error updating system group:", error);
