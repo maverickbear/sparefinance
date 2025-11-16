@@ -1,18 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { logger } from "@/lib/utils/logger";
-import type { Subscription, PlanFeatures } from "@/lib/validations/plan";
+import type { Subscription, Plan, PlanFeatures } from "@/lib/validations/plan";
+import { resolvePlanFeatures } from "@/lib/utils/plan-features";
 
-interface SubscriptionData {
-  hasSubscription: boolean;
-  currentPlanId?: string;
-  subscription?: Subscription | null;
-  limits?: PlanFeatures;
-}
-
-interface SubscriptionContextValue extends SubscriptionData {
+interface SubscriptionContextValue {
+  subscription: Subscription | null;
+  plan: Plan | null;
+  limits: PlanFeatures;
   checking: boolean;
   refetch: () => Promise<void>;
   invalidateCache: () => void;
@@ -20,50 +16,14 @@ interface SubscriptionContextValue extends SubscriptionData {
 
 const SubscriptionContext = createContext<SubscriptionContextValue | undefined>(undefined);
 
-// Global cache to prevent duplicate calls across all component instances
-const globalSubscriptionCache = {
-  promise: null as Promise<SubscriptionData> | null,
-  data: null as SubscriptionData | null,
-  timestamp: 0,
-  TTL: 5 * 60 * 1000, // 5 minutes
-};
-
-// localStorage key for persistent cache
-const STORAGE_KEY = 'spare_subscription_cache';
-const STORAGE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// Helper functions for localStorage cache
-function getStoredCache(): { data: SubscriptionData; timestamp: number } | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    const now = Date.now();
-    if (now - parsed.timestamp < STORAGE_TTL) {
-      return parsed;
-    }
-    // Cache expired, remove it
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
-  } catch (error) {
-    // Invalid cache, remove it
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
+interface InitialData {
+  subscription: Subscription | null;
+  plan: Plan | null;
 }
 
-function setStoredCache(data: SubscriptionData): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      data,
-      timestamp: Date.now(),
-    }));
-  } catch (error) {
-    // Ignore localStorage errors (quota exceeded, etc.)
-    console.warn('Failed to store subscription cache:', error);
-  }
+interface SubscriptionProviderProps {
+  children: ReactNode;
+  initialData?: InitialData;
 }
 
 /**
@@ -73,316 +33,136 @@ function setStoredCache(data: SubscriptionData): void {
 export function invalidateClientSubscriptionCache(): void {
   if (typeof window === 'undefined') return;
   
-  // Clear global cache
-  globalSubscriptionCache.data = null;
-  globalSubscriptionCache.timestamp = 0;
-  globalSubscriptionCache.promise = null;
-  
-  // Clear localStorage cache
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch (error) {
-    console.warn('Failed to clear localStorage cache:', error);
-  }
+  // Trigger custom event that the provider will listen to
+  window.dispatchEvent(new CustomEvent('invalidate-subscription-cache'));
   
   logger.withPrefix("SUBSCRIPTION-CONTEXT").log("Client subscription cache invalidated");
 }
 
-export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
+export function SubscriptionProvider({ children, initialData }: SubscriptionProviderProps) {
+  const log = logger.withPrefix("SUBSCRIPTION-CONTEXT");
   
-  // Initialize state from localStorage immediately (synchronous)
-  // Use a function to ensure this only runs once during initialization
-  const getInitialState = () => {
-    if (typeof window === 'undefined') {
-      return { data: { hasSubscription: false }, checking: true, timestamp: 0 };
-    }
-    const cached = getStoredCache();
-    if (cached) {
-      // Initialize global cache immediately
-      if (!globalSubscriptionCache.data) {
-        globalSubscriptionCache.data = cached.data;
-        globalSubscriptionCache.timestamp = cached.timestamp;
-      }
-      return { data: cached.data, checking: false, timestamp: cached.timestamp };
-    }
-    return { data: { hasSubscription: false }, checking: true, timestamp: 0 };
-  };
-
-  const initialState = getInitialState();
-  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData>(initialState.data);
-  const [checking, setChecking] = useState(initialState.checking);
+  // Initialize state from server data if provided
+  const [subscription, setSubscription] = useState<Subscription | null>(
+    initialData?.subscription ?? null
+  );
+  const [plan, setPlan] = useState<Plan | null>(initialData?.plan ?? null);
+  const [limits, setLimits] = useState<PlanFeatures>(
+    resolvePlanFeatures(initialData?.plan ?? null)
+  );
+  const [checking, setChecking] = useState(false);
+  
   const checkingRef = useRef(false);
-  const lastCheckTimeRef = useRef(initialState.timestamp);
-  const initializedRef = useRef(!!initialState.data.hasSubscription || initialState.timestamp > 0);
+  // Track if we have initial data to avoid immediate refetch on mount
+  const hasInitialDataRef = useRef(!!initialData);
+  const lastFetchRef = useRef<number>(initialData ? Date.now() : 0);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const log = useMemo(() => logger.withPrefix("SUBSCRIPTION-CONTEXT"), []);
+  // Update limits when plan changes
+  useEffect(() => {
+    setLimits(resolvePlanFeatures(plan));
+  }, [plan]);
 
-  // Determine if it's a public page
-  const isApiRoute = pathname?.startsWith("/api");
-  const isAuthPage = pathname?.startsWith("/auth");
-  const isAcceptPage = pathname?.startsWith("/members/accept");
-  const isSelectPlanPage = pathname === "/select-plan";
-  const isWelcomePage = pathname === "/welcome";
-  const isLandingPage = pathname === "/";
-  const isPricingPage = pathname === "/pricing";
-  const isPrivacyPolicyPage = pathname === "/privacy-policy";
-  const isTermsOfServicePage = pathname === "/terms-of-service";
-  const isFAQPage = pathname === "/faq";
-  const isPublicPage = isAuthPage || isAcceptPage || isLandingPage || isPricingPage || isPrivacyPolicyPage || isTermsOfServicePage || isFAQPage;
-  const isDashboardRoute = !isPublicPage && !isApiRoute && !isSelectPlanPage && !isWelcomePage;
-
-  const fetchSubscription = useCallback(async (): Promise<SubscriptionData> => {
-    // Check global cache first
-    const now = Date.now();
-    if (globalSubscriptionCache.data && (now - globalSubscriptionCache.timestamp) < globalSubscriptionCache.TTL) {
-      log.log("Using cached subscription data");
-      return globalSubscriptionCache.data;
-    }
-
-    // Check localStorage cache
-    const storedCache = getStoredCache();
-    if (storedCache) {
-      log.log("Using localStorage cached subscription data");
-      // Update global cache from localStorage
-      globalSubscriptionCache.data = storedCache.data;
-      globalSubscriptionCache.timestamp = storedCache.timestamp;
-      return storedCache.data;
-    }
-
-    // If there's an in-flight request, reuse it
-    if (globalSubscriptionCache.promise) {
-      log.log("Reusing in-flight subscription request");
-      return await globalSubscriptionCache.promise;
-    }
-
-    // Create new request
-    log.log("Fetching subscription data");
-    const promise = (async () => {
-      try {
-        // Use default cache - the API route handles cache control
-        // Client-side cache (localStorage + global cache) already handles freshness
-        const response = await fetch("/api/billing/subscription");
-        
-        if (!response.ok) {
-          if (response.status === 401) {
-            log.log("User not authenticated");
-            return { hasSubscription: false };
-          }
-          throw new Error(`Failed to fetch subscription: ${response.status}`);
+  const fetchSubscription = useCallback(async (): Promise<{ subscription: Subscription | null; plan: Plan | null }> => {
+    try {
+      const response = await fetch("/api/billing/subscription");
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          log.log("User not authenticated");
+          return { subscription: null, plan: null };
         }
-
-        const data = await response.json();
-        const result: SubscriptionData = {
-          hasSubscription: !!data.subscription,
-          currentPlanId: data.subscription?.planId,
-          subscription: data.subscription,
-          limits: data.limits,
-        };
-
-        // Update caches
-        globalSubscriptionCache.data = result;
-        globalSubscriptionCache.timestamp = now;
-        globalSubscriptionCache.promise = null;
-        setStoredCache(result);
-
-        return result;
-      } catch (error) {
-        log.error("Error fetching subscription:", error);
-        globalSubscriptionCache.promise = null;
-        return { hasSubscription: false };
+        throw new Error(`Failed to fetch subscription: ${response.status}`);
       }
-    })();
 
-    globalSubscriptionCache.promise = promise;
-    return await promise;
+      const data = await response.json();
+      return {
+        subscription: data.subscription ?? null,
+        plan: data.plan ?? null,
+      };
+    } catch (error) {
+      log.error("Error fetching subscription:", error);
+      return { subscription: null, plan: null };
+    }
   }, [log]);
 
-  const checkSubscription = useCallback(async () => {
-    // Prevent concurrent calls
+  const refetch = useCallback(async () => {
     if (checkingRef.current) {
-      log.log("Already checking, skipping");
+      log.log("Already fetching, skipping");
       return;
     }
 
-    log.log("Starting subscription check");
     checkingRef.current = true;
-    const currentPathname = pathname;
-    const now = Date.now();
-    lastCheckTimeRef.current = now;
+    setChecking(true);
+    lastFetchRef.current = Date.now();
 
     try {
-      const data = await fetchSubscription();
-      
-      setSubscriptionData(data);
-      setChecking(false);
-
-      // Handle redirects based on subscription status
-      if (data.hasSubscription) {
-        if (isSelectPlanPage && pathname === currentPathname) {
-          log.log("User has subscription, redirecting from select-plan to dashboard");
-          router.push("/dashboard");
-        }
-      } else {
-        // No subscription - modal will open automatically via SubscriptionGuard
-        // No need to redirect, just let the ProtectedLayout handle it
-        if (isSelectPlanPage && pathname === currentPathname) {
-          log.log("No subscription, redirecting from select-plan to dashboard (modal will open)");
-          router.push("/dashboard");
-        }
-      }
+      const { subscription: newSubscription, plan: newPlan } = await fetchSubscription();
+      setSubscription(newSubscription);
+      setPlan(newPlan);
     } catch (error) {
-      log.error("Error checking subscription:", error);
-      setSubscriptionData({ hasSubscription: false });
-      setChecking(false);
+      log.error("Error in refetch:", error);
     } finally {
+      setChecking(false);
       checkingRef.current = false;
     }
-  }, [pathname, router, isPublicPage, isSelectPlanPage, isWelcomePage, fetchSubscription, log]);
+  }, [fetchSubscription, log]);
 
+  // Listen for invalidation events
   useEffect(() => {
-    // Skip subscription check for public pages and API routes immediately
-    if (isApiRoute || isPublicPage) {
-      // Don't even log for API routes to reduce noise
-      if (!isApiRoute) {
-        log.log("Skipping subscription check for public page");
-      }
-      setChecking(false);
-      if (isApiRoute) {
-        // For API routes, don't touch subscription data
-        return;
-      }
-      setSubscriptionData({ hasSubscription: false });
-      return;
-    }
+    const handleInvalidate = () => {
+      log.log("Invalidation event received, refetching...");
+      refetch();
+    };
 
-    log.log("useEffect triggered:", {
-      pathname,
-      isPublicPage,
-      lastCheckTime: lastCheckTimeRef.current,
-      timeSinceLastCheck: Date.now() - lastCheckTimeRef.current,
-      hasGlobalCache: !!globalSubscriptionCache.data,
-    });
+    window.addEventListener('invalidate-subscription-cache', handleInvalidate);
+    return () => {
+      window.removeEventListener('invalidate-subscription-cache', handleInvalidate);
+    };
+  }, [refetch, log]);
 
-    // Check if we need to verify subscription based on time, not pathname
-    const now = Date.now();
-    const timeSinceLastCheck = now - lastCheckTimeRef.current;
-    const MIN_CHECK_INTERVAL = 2 * 60 * 1000; // 2 minutes minimum between checks
-    
-    // If we have valid cache and checked recently, skip verification
-    const hasValidCache = globalSubscriptionCache.data && 
-      (now - globalSubscriptionCache.timestamp) < globalSubscriptionCache.TTL;
-    
-    // Also check localStorage cache if global cache is missing or expired
-    if (!hasValidCache) {
-      const storedCache = getStoredCache();
-      if (storedCache) {
-        log.log("Using localStorage cache, updating global cache");
-        globalSubscriptionCache.data = storedCache.data;
-        globalSubscriptionCache.timestamp = storedCache.timestamp;
-        setSubscriptionData(storedCache.data);
-        setChecking(false);
-        initializedRef.current = true;
-        lastCheckTimeRef.current = storedCache.timestamp;
-        return;
-      }
-    }
-    
-    // If we have valid cache and checked recently, skip verification
-    if (hasValidCache && timeSinceLastCheck < MIN_CHECK_INTERVAL && !checkingRef.current) {
-      log.log("Using cached data, skipping check (checked recently)");
-      setSubscriptionData(globalSubscriptionCache.data ?? { hasSubscription: false });
-      setChecking(false);
-      initializedRef.current = true;
-      return;
-    }
-    
-    // If cache is valid but we haven't checked in a while, still use cache but don't block
-    if (hasValidCache && timeSinceLastCheck >= MIN_CHECK_INTERVAL && !checkingRef.current) {
-      log.log("Using cached data (stale but valid), will refresh in background");
-      setSubscriptionData(globalSubscriptionCache.data ?? { hasSubscription: false });
-      setChecking(false);
-      initializedRef.current = true;
-      // Refresh in background without blocking
-      checkSubscription().catch(() => {
-        // Ignore errors in background refresh
-      });
-      return;
-    }
-
-    // For protected routes, check subscription if needed
-    const isProtectedRoute = !isSelectPlanPage && !isWelcomePage;
-    
-    if (isProtectedRoute) {
-      // If we're on a dashboard route, show nav optimistically while checking
-      if (isDashboardRoute) {
-        log.log("Dashboard route detected, showing nav optimistically");
-        // Only update optimistically if we don't have data yet
-        if (!globalSubscriptionCache.data) {
-          setSubscriptionData(prev => ({ ...prev, hasSubscription: true }));
-        }
-        if (!checkingRef.current && !hasValidCache) {
-          setChecking(true);
-        }
-      }
-      
-      // Check subscription if needed (not checking and cache is stale or missing)
-      if (!checkingRef.current && (!hasValidCache || timeSinceLastCheck >= MIN_CHECK_INTERVAL)) {
-        log.log("Checking subscription (cache stale or missing)");
-        checkSubscription();
-        initializedRef.current = true;
-      } else if (hasValidCache) {
-        log.log("Using valid cache, skipping check");
-        setSubscriptionData(globalSubscriptionCache.data ?? { hasSubscription: false });
-        setChecking(false);
-        initializedRef.current = true;
-      } else {
-        log.log("Already checking subscription, skipping");
-        if (!isDashboardRoute) {
-          setChecking(false);
-        }
-      }
-    } else {
-      // For select-plan and welcome pages, we still check subscription but don't block
-      if (!checkingRef.current && (!hasValidCache || timeSinceLastCheck >= MIN_CHECK_INTERVAL)) {
-        log.log("Checking subscription for select-plan/welcome page");
-        checkSubscription();
-        initializedRef.current = true;
-      } else if (hasValidCache) {
-        log.log("Using valid cache, skipping check");
-        setSubscriptionData(globalSubscriptionCache.data ?? { hasSubscription: false });
-        setChecking(false);
-        initializedRef.current = true;
-      } else {
-        log.log("Already checking, skipping");
-        setChecking(false);
-      }
-    }
-  }, [pathname, isApiRoute, isPublicPage, isSelectPlanPage, isWelcomePage, isDashboardRoute, checkSubscription, log]);
-
-  // Initialize hasSubscription optimistically for dashboard routes
+  // Set up polling every 5 minutes
+  // Only starts polling if we have initial data (from SSR) or have fetched before
+  // Does NOT do immediate refetch on mount if we already have initialData
   useEffect(() => {
-    if (isDashboardRoute && !checkingRef.current) {
-      setSubscriptionData(prev => ({ ...prev, hasSubscription: true }));
+    // If we don't have initial data and haven't fetched, don't poll
+    if (!hasInitialDataRef.current && lastFetchRef.current === 0) {
+      return;
     }
-  }, [isDashboardRoute]);
+
+    const POLLING_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+    // Start polling interval - first refetch will happen after 5 minutes
+    // (not immediately on mount if we have initialData)
+    const interval = setInterval(() => {
+      const timeSinceLastFetch = Date.now() - lastFetchRef.current;
+      // Only poll if it's been at least 5 minutes since last fetch
+      if (timeSinceLastFetch >= POLLING_INTERVAL) {
+        log.log("Polling interval reached, refetching...");
+        refetch();
+      }
+    }, POLLING_INTERVAL);
+
+    pollingIntervalRef.current = interval;
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [refetch, log]);
 
   const invalidateCache = useCallback(() => {
     invalidateClientSubscriptionCache();
-    // Force a refetch by resetting state
-    setSubscriptionData({ hasSubscription: false });
-    setChecking(true);
-    // Trigger a new check
-    checkSubscription();
-  }, [checkSubscription]);
+    // refetch will be triggered by the event listener
+  }, []);
 
   return (
     <SubscriptionContext.Provider
       value={{
-        ...subscriptionData,
+        subscription,
+        plan,
+        limits,
         checking,
-        refetch: checkSubscription,
+        refetch,
         invalidateCache,
       }}
     >
@@ -398,4 +178,3 @@ export function useSubscriptionContext() {
   }
   return context;
 }
-

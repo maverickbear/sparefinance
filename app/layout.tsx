@@ -5,7 +5,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
-import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { PlanLimitsProvider } from "@/contexts/plan-limits-context";
 
 const inter = Inter({ 
@@ -41,12 +40,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ToastProvider>
-            <SubscriptionProvider>
-              <PlanLimitsProvider>
-                <LayoutWrapper>{children}</LayoutWrapper>
-                <KBarWrapper />
-              </PlanLimitsProvider>
-            </SubscriptionProvider>
+            <PlanLimitsProvider>
+              <LayoutWrapper>{children}</LayoutWrapper>
+              <KBarWrapper />
+            </PlanLimitsProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

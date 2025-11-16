@@ -35,7 +35,17 @@ function useProfilePreload() {
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { hasSubscription, checking } = useSubscriptionContext();
+  // Try to get subscription context, but handle case where it might not be available (public pages)
+  let subscription = null;
+  let checking = false;
+  try {
+    const context = useSubscriptionContext();
+    subscription = context.subscription;
+    checking = context.checking;
+  } catch {
+    // SubscriptionProvider not available (public pages)
+  }
+  const hasSubscription = !!subscription;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // Calculate fixed elements height (header + banner)

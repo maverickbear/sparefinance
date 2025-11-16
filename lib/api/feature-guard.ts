@@ -47,6 +47,9 @@ export async function guardFeatureAccess(
 
 /**
  * Guard transaction limit - validates if user can create a new transaction
+ * Now uses user_monthly_usage table for fast limit checking (no COUNT(*) queries)
+ * This function only READS from user_monthly_usage - it does NOT update counters
+ * Counter updates are handled by SQL functions that create transactions atomically
  */
 export async function guardTransactionLimit(
   userId: string,
@@ -63,27 +66,47 @@ export async function guardTransactionLimit(
 
     const supabase = await createServerClient();
     
-    // Get start and end of month
+    // Calculate month_date (first day of month) - work directly with date, no toISOString()
     const checkMonth = month || new Date();
-    const startOfMonth = new Date(checkMonth.getFullYear(), checkMonth.getMonth(), 1);
-    const endOfMonth = new Date(checkMonth.getFullYear(), checkMonth.getMonth() + 1, 0, 23, 59, 59);
+    const monthDate = new Date(checkMonth.getFullYear(), checkMonth.getMonth(), 1);
+    const monthDateStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}-${String(monthDate.getDate()).padStart(2, '0')}`;
 
-    // Count transactions for the month
-    const { count, error } = await supabase
-      .from("Transaction")
-      .select("*", { count: "exact", head: true })
-      .gte("date", startOfMonth.toISOString())
-      .lte("date", endOfMonth.toISOString());
+    // Read from user_monthly_usage (fast lookup, no COUNT)
+    const { data: usage, error } = await supabase
+      .from("user_monthly_usage")
+      .select("transactions_count")
+      .eq("user_id", userId)
+      .eq("month_date", monthDateStr)
+      .single();
 
-    if (error) {
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
       console.error("Error checking transaction limit:", error);
-      return {
-        allowed: false,
-        error: createPlanError(PlanErrorCode.TRANSACTION_LIMIT_REACHED),
-      };
+      // Fallback: if table doesn't exist or error, do COUNT for historical data
+      const { count } = await supabase
+        .from("Transaction")
+        .select("*", { count: "exact", head: true })
+        .eq("userId", userId)
+        .gte("date", monthDateStr)
+        .lte("date", `${checkMonth.getFullYear()}-${String(checkMonth.getMonth() + 1).padStart(2, '0')}-${new Date(checkMonth.getFullYear(), checkMonth.getMonth() + 1, 0).getDate()}`);
+      
+      const current = count || 0;
+      const allowed = current < limits.maxTransactions;
+      
+      if (!allowed) {
+        return {
+          allowed: false,
+          error: createPlanError(PlanErrorCode.TRANSACTION_LIMIT_REACHED, {
+            limit: limits.maxTransactions,
+            current,
+            currentPlan: plan?.name,
+          }),
+        };
+      }
+      
+      return { allowed: true };
     }
 
-    const current = count || 0;
+    const current = usage?.transactions_count || 0;
     const allowed = current < limits.maxTransactions;
     
     if (!allowed) {

@@ -35,6 +35,18 @@ import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 
+/**
+ * Converts a Date object to YYYY-MM-DD string format
+ * This ensures we send date-only strings to the backend, avoiding timezone issues
+ * that can occur with toISOString() which includes time and timezone
+ */
+function toDateOnlyString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 interface TransactionFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -419,11 +431,12 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       const url = transaction ? `/api/transactions/${transaction.id}` : "/api/transactions";
       const method = transaction ? "PATCH" : "POST";
       
-      // Serialize data for API - convert Date to ISO string
+      // Serialize data for API - convert Date to YYYY-MM-DD string (not ISO timestamp)
+      // This avoids timezone issues since Transaction.date is now a 'date' type in PostgreSQL
       // Remove expenseType if type is not expense (to avoid sending null)
       const payload: any = {
         ...data,
-        date: data.date instanceof Date ? data.date.toISOString() : data.date,
+        date: data.date instanceof Date ? toDateOnlyString(data.date) : data.date,
       };
       
       // Only include expenseType if type is expense

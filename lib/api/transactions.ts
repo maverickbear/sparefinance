@@ -10,9 +10,10 @@ import { calculateNextPaymentDates, type DebtForCalculation } from "@/lib/utils/
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
 import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/lib/api/feature-guard";
 import { requireTransactionOwnership } from "@/lib/utils/security";
-import { suggestCategory } from "@/lib/api/category-learning";
+import { suggestCategory, updateCategoryLearning } from "@/lib/api/category-learning";
 import { logger } from "@/lib/utils/logger";
-import { encryptDescription, decryptDescription, encryptAmount, decryptAmount } from "@/lib/utils/transaction-encryption";
+import { encryptDescription, decryptDescription, encryptAmount, decryptAmount, normalizeDescription } from "@/lib/utils/transaction-encryption";
+import { checkPlanLimits } from "@/lib/api/plans";
 
 export async function createTransaction(data: TransactionFormData) {
     const supabase = await createServerClient();
@@ -25,18 +26,25 @@ export async function createTransaction(data: TransactionFormData) {
   
   const userId = user.id;
 
-  // Check transaction limit before creating
+  // Check transaction limit before creating (still check here for early validation)
   const limitGuard = await guardTransactionLimit(userId, data.date instanceof Date ? data.date : new Date(data.date));
   await throwIfNotAllowed(limitGuard);
+
+  // Get plan limits for SQL function
+  const { limits } = await checkPlanLimits(userId);
 
   // Ensure date is a Date object
   const date = data.date instanceof Date ? data.date : new Date(data.date);
   const now = formatTimestamp(new Date());
   
-  // Format date for PostgreSQL timestamp(3) without time zone
-  // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
-  // This ensures the date is saved exactly as the user selected
-  const formatDate = formatDateOnly;
+  // Format date for PostgreSQL date type (YYYY-MM-DD)
+  const transactionDate = formatDateOnly(date);
+
+  // Prepare auxiliary fields
+  const encryptedDescription = encryptDescription(data.description || null);
+  const encryptedAmount = encryptAmount(data.amount);
+  const descriptionSearch = normalizeDescription(data.description);
+  const amountNumeric = data.amount;
 
   // Get category suggestion from learning model if no category is provided
   let categorySuggestion = null;
@@ -66,7 +74,6 @@ export async function createTransaction(data: TransactionFormData) {
 
   // Generate UUID for transaction
   const id = crypto.randomUUID();
-  const transactionDate = formatDate(date);
 
   // Use provided category if available, otherwise null (don't auto-categorize even with high confidence)
   // We'll always show suggestions for user approval/rejection
@@ -74,124 +81,99 @@ export async function createTransaction(data: TransactionFormData) {
   const finalCategoryId = data.type === "transfer" ? null : (data.categoryId || null);
   const finalSubcategoryId = data.type === "transfer" ? null : (data.subcategoryId || null);
 
-  // For transfers, create two linked transactions: one outgoing and one incoming
+  // For transfers, use SQL function for atomic creation
   if (data.type === "transfer" && data.toAccountId) {
-    const outgoingId = id;
-    const incomingId = crypto.randomUUID();
+    const { data: transferResult, error: transferError } = await supabase.rpc(
+      'create_transfer_with_limit',
+      {
+        p_user_id: userId,
+        p_from_account_id: data.accountId,
+        p_to_account_id: data.toAccountId,
+        p_amount: encryptedAmount,
+        p_amount_numeric: amountNumeric,
+        p_date: transactionDate,
+        p_description: encryptedDescription,
+        p_description_search: descriptionSearch,
+        p_recurring: data.recurring ?? false,
+        p_max_transactions: limits.maxTransactions,
+      }
+    );
 
-    // Encrypt description and amount for outgoing transaction
-    const encryptedOutgoingDescription = encryptDescription(data.description || `Transfer to account`);
-    const encryptedAmount = encryptAmount(data.amount);
-
-    // Create outgoing transaction (from source account)
-    const { data: outgoingTransaction, error: outgoingError } = await supabase
-      .from("Transaction")
-      .insert({
-        id: outgoingId,
-        date: transactionDate,
-        type: "expense", // Outgoing is an expense from source account
-        amount: encryptedAmount,
-        accountId: data.accountId,
-        userId: user.id,
-        categoryId: null,
-        subcategoryId: null,
-        description: encryptedOutgoingDescription,
-        recurring: data.recurring ?? false,
-        transferToId: incomingId, // Link to incoming transaction
-        createdAt: now,
-        updatedAt: now,
-      })
-      .select()
-      .single();
-
-    if (outgoingError) {
-      logger.error("Supabase error creating outgoing transfer transaction:", {
-        message: outgoingError.message,
-        details: outgoingError.details,
-        hint: outgoingError.hint,
-        code: outgoingError.code,
-      });
-      throw new Error(`Failed to create transfer transaction: ${outgoingError.message || JSON.stringify(outgoingError)}`);
+    if (transferError) {
+      logger.error("Error creating transfer via SQL function:", transferError);
+      throw new Error(`Failed to create transfer transaction: ${transferError.message || JSON.stringify(transferError)}`);
     }
 
-    // Encrypt description and amount for incoming transaction
-    const encryptedIncomingDescription = encryptDescription(data.description || `Transfer from account`);
-    const encryptedIncomingAmount = encryptAmount(data.amount);
-
-    // Create incoming transaction (to destination account)
-    const { data: incomingTransaction, error: incomingError } = await supabase
+    // Fetch the created outgoing transaction to return
+    // transferResult is a jsonb object, so we need to access it correctly
+    const result = Array.isArray(transferResult) ? transferResult[0] : transferResult;
+    const outgoingId = result?.outgoing_id;
+    if (!outgoingId) {
+      throw new Error("Failed to get outgoing transaction ID from transfer function");
+    }
+    
+    const { data: outgoingTransaction, error: fetchError } = await supabase
       .from("Transaction")
-      .insert({
-        id: incomingId,
-        date: transactionDate,
-        type: "income", // Incoming is an income to destination account
-        amount: encryptedIncomingAmount,
-        accountId: data.toAccountId,
-        userId: user.id,
-        categoryId: null,
-        subcategoryId: null,
-        description: encryptedIncomingDescription,
-        recurring: data.recurring ?? false,
-        transferFromId: outgoingId, // Link to outgoing transaction
-        createdAt: now,
-        updatedAt: now,
-      })
-      .select()
+      .select("*")
+      .eq("id", outgoingId)
       .single();
 
-    if (incomingError) {
-      // If incoming transaction fails, try to delete the outgoing one
-      await supabase.from("Transaction").delete().eq("id", outgoingId);
-      logger.error("Supabase error creating incoming transfer transaction:", {
-        message: incomingError.message,
-        details: incomingError.details,
-        hint: incomingError.hint,
-        code: incomingError.code,
-      });
-      throw new Error(`Failed to create transfer transaction: ${incomingError.message || JSON.stringify(incomingError)}`);
+    if (fetchError || !outgoingTransaction) {
+      logger.error("Error fetching created transfer transaction:", fetchError);
+      throw new Error("Failed to fetch created transfer transaction");
     }
 
     // Invalidate cache to ensure dashboard shows updated data
     const { invalidateTransactionCaches } = await import('@/lib/services/cache-manager');
     invalidateTransactionCaches();
 
+    // Update category_learning if category was provided (shouldn't happen for transfers, but just in case)
+    if (finalCategoryId) {
+      await updateCategoryLearning(userId, descriptionSearch, data.type, finalCategoryId, finalSubcategoryId, data.amount);
+    }
+
     // Return the outgoing transaction as the main one
     return outgoingTransaction;
   }
 
-  // Encrypt description and amount before saving
-  const encryptedDescription = encryptDescription(data.description || null);
-  const encryptedAmount = encryptAmount(data.amount);
+  // Regular transaction (expense or income) - use SQL function for atomic creation
+  const { data: transactionResult, error: transactionError } = await supabase.rpc(
+    'create_transaction_with_limit',
+    {
+      p_id: id,
+      p_date: transactionDate,
+      p_type: data.type,
+      p_amount: encryptedAmount,
+      p_amount_numeric: amountNumeric,
+      p_account_id: data.accountId,
+      p_user_id: userId,
+      p_category_id: finalCategoryId,
+      p_subcategory_id: finalSubcategoryId,
+      p_description: encryptedDescription,
+      p_description_search: descriptionSearch,
+      p_recurring: data.recurring ?? false,
+      p_expense_type: data.type === "expense" ? (data.expenseType || null) : null,
+      p_created_at: now,
+      p_updated_at: now,
+      p_max_transactions: limits.maxTransactions,
+    }
+  );
 
-  // Regular transaction (expense or income)
-  const { data: transaction, error } = await supabase
+  if (transactionError) {
+    logger.error("Error creating transaction via SQL function:", transactionError);
+    throw new Error(`Failed to create transaction: ${transactionError.message || JSON.stringify(transactionError)}`);
+  }
+
+  // Fetch the created transaction
+  const { data: transaction, error: fetchError } = await supabase
     .from("Transaction")
-      .insert({
-        id,
-        date: transactionDate,
-        type: data.type,
-        amount: encryptedAmount,
-        accountId: data.accountId,
-        userId: user.id, // Add userId directly to transaction
-        categoryId: finalCategoryId,
-        subcategoryId: finalSubcategoryId,
-        description: encryptedDescription,
-        recurring: data.recurring ?? false,
-        expenseType: data.type === "expense" ? (data.expenseType || null) : null,
-        createdAt: now,
-        updatedAt: now,
-      })
-    .select()
+    .select("*")
+    .eq("id", id)
     .single();
 
-  if (error) {
-    logger.error("Supabase error creating transaction:", {
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    });
-    throw new Error(`Failed to create transaction: ${error.message || JSON.stringify(error)}`);
+  if (fetchError || !transaction) {
+    logger.error("Error fetching created transaction:", fetchError);
+    throw new Error("Failed to fetch created transaction");
   }
 
   // If we have a suggestion (any confidence level), save it for user approval/rejection
@@ -215,6 +197,11 @@ export async function createTransaction(data: TransactionFormData) {
         matchCount: categorySuggestion.matchCount,
       });
     }
+  }
+
+  // Update category_learning when category is confirmed
+  if (finalCategoryId) {
+    await updateCategoryLearning(userId, descriptionSearch, data.type, finalCategoryId, finalSubcategoryId, data.amount);
   }
 
   // Invalidate cache to ensure dashboard shows updated data
@@ -247,15 +234,23 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     if (isNaN(date.getTime())) {
       throw new Error("Invalid date value");
     }
-    // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
+    // Use formatDateOnly to save only the date (YYYY-MM-DD) - now date type, not timestamp
     updateData.date = formatDateOnly(date);
   }
   if (data.type !== undefined) updateData.type = data.type;
-  if (data.amount !== undefined) updateData.amount = encryptAmount(data.amount);
+  if (data.amount !== undefined) {
+    updateData.amount = encryptAmount(data.amount);
+    // Also update amount_numeric when amount changes
+    updateData.amount_numeric = data.amount;
+  }
   if (data.accountId !== undefined) updateData.accountId = data.accountId;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || null;
   if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId || null;
-  if (data.description !== undefined) updateData.description = encryptDescription(data.description || null);
+  if (data.description !== undefined) {
+    updateData.description = encryptDescription(data.description || null);
+    // Also update description_search when description changes
+    updateData.description_search = normalizeDescription(data.description);
+  }
   if (data.recurring !== undefined) updateData.recurring = data.recurring;
   if (data.expenseType !== undefined) {
     // Only set expenseType if type is expense, otherwise set to null
@@ -280,14 +275,47 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     throw new Error("Transaction not found after update");
   }
 
+  // Update category_learning if categoryId changed
+  if (data.categoryId !== undefined) {
+    // Get current transaction to compare
+    const { data: currentTransaction } = await supabase
+      .from("Transaction")
+      .select("description, type, amount_numeric, userId")
+      .eq("id", id)
+      .single();
+    
+    if (currentTransaction) {
+      const desc = decryptDescription(currentTransaction.description || transaction.description);
+      const normalizedDesc = normalizeDescription(desc);
+      const txAmount = currentTransaction.amount_numeric || decryptAmount(transaction.amount) || 0;
+      const txType = transaction.type;
+      
+      if (data.categoryId) {
+        await updateCategoryLearning(
+          currentTransaction.userId || (transaction as any).userId,
+          normalizedDesc,
+          txType,
+          data.categoryId,
+          data.subcategoryId || null,
+          txAmount
+        );
+      }
+    }
+  }
+
   // Invalidate cache to ensure dashboard shows updated data
   const { invalidateTransactionCaches } = await import('@/lib/services/cache-manager');
   invalidateTransactionCaches();
 
-  // Decrypt amount and description before returning
+  // Return transaction with decrypted fields
+  // Prefer amount_numeric if available, otherwise decrypt amount
+  const finalAmount = transaction.amount_numeric !== null && transaction.amount_numeric !== undefined
+    ? transaction.amount_numeric
+    : decryptAmount(transaction.amount);
+  
   return {
     ...transaction,
-    amount: decryptAmount(transaction.amount),
+    amount: finalAmount,
     description: decryptDescription(transaction.description),
   };
 }
@@ -420,6 +448,12 @@ export async function getTransactionsInternal(
     if (filters?.recurring !== undefined) {
       filteredQuery = filteredQuery.eq("recurring", filters.recurring);
     }
+    // Use description_search for search (much faster than decrypting everything)
+    if (filters?.search) {
+      const normalizedSearch = normalizeDescription(filters.search);
+      // Use ILIKE for case-insensitive search on normalized description_search
+      filteredQuery = filteredQuery.ilike("description_search", `%${normalizedSearch}%`);
+    }
     return filteredQuery;
   };
 
@@ -428,9 +462,8 @@ export async function getTransactionsInternal(
   query = applyFilters(query);
 
   // Apply pagination if provided
-  // Note: If search is active, we need to load all results first, then filter and paginate in memory
-  // This is because descriptions are encrypted and we can't search in the database
-  if (filters?.page !== undefined && filters?.limit !== undefined && !filters?.search) {
+  // Now that we use description_search, we can paginate in the database even with search
+  if (filters?.page !== undefined && filters?.limit !== undefined) {
     const page = Math.max(1, filters.page);
     const limit = Math.max(1, Math.min(100, filters.limit)); // Limit max to 100
     const from = (page - 1) * limit;
@@ -509,44 +542,33 @@ export async function getTransactionsInternal(
     });
   }
 
-  // Combinar transações com relacionamentos e descriptografar descriptions e amounts
-  // Use batch decryption for better performance
-  const { decryptTransactionsBatch } = await import("@/lib/utils/transaction-encryption");
+  // Combine transactions with relationships
+  // Use amount_numeric if available, otherwise decrypt amount
+  // Decrypt description (description_search is only for search, not display)
+  const { decryptDescription } = await import("@/lib/utils/transaction-encryption");
   
-  let transactions = decryptTransactionsBatch(data || []).map((tx: any) => ({
+  let transactions = (data || []).map((tx: any) => {
+    // Use amount_numeric if available, otherwise decrypt amount
+    const amount = tx.amount_numeric !== null && tx.amount_numeric !== undefined
+      ? tx.amount_numeric
+      : decryptAmount(tx.amount);
+    
+    return {
       ...tx,
+      amount: amount,
+      description: decryptDescription(tx.description),
       account: accountsMap.get(tx.accountId) || null,
       category: categoriesMap.get(tx.categoryId) || null,
       subcategory: subcategoriesMap.get(tx.subcategoryId) || null,
-    }));
+    };
+  });
 
-  // Apply search filter in memory after decrypting descriptions
-  // Note: When search is applied, we need to filter all results, so pagination happens after search
-  // This means if search is used, we need to load all matching transactions first
-  // For better performance with search, consider implementing full-text search in the database
-  let filteredTransactions = transactions;
-  if (filters?.search) {
-    const searchLower = filters.search.toLowerCase();
-    filteredTransactions = transactions.filter((tx: any) => {
-      const description = tx.description || '';
-      return description.toLowerCase().includes(searchLower);
-    });
-  }
-
-  // Apply pagination after search if search was used
-  let paginatedTransactions = filteredTransactions;
-  if (filters?.search && filters?.page !== undefined && filters?.limit !== undefined) {
-    const page = Math.max(1, filters.page);
-    const limit = Math.max(1, Math.min(100, filters.limit)); // Limit max to 100
-    const from = (page - 1) * limit;
-    const to = from + limit;
-    paginatedTransactions = filteredTransactions.slice(from, to);
-  }
-
-  // If search was applied, the total count needs to reflect the filtered results
-  // Since we can't get the count of filtered results from the database (descriptions are encrypted),
-  // we return the filtered count as the total when search is active
-  const totalCount = filters?.search ? filteredTransactions.length : (count || 0);
+  // Search is now done in the database using description_search, so no need to filter in memory
+  // Pagination is also done in the database
+  const paginatedTransactions = transactions;
+  
+  // Total count from database (search filtering is done in SQL)
+  const totalCount = count || 0;
 
   return { 
     transactions: paginatedTransactions, 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, AlertTriangle, AlertCircle, Sparkles } from "lucide-react";
+import { CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
 import { calculateTotalExpenses } from "../utils/transaction-helpers";
 
 interface AlertsInsightsWidgetProps {
@@ -13,7 +13,7 @@ interface AlertsInsightsWidgetProps {
   emergencyFundMonths: number;
   selectedMonthTransactions: any[];
   lastMonthTransactions: any[];
-  demoMode?: boolean; // If true, skip API calls (for public landing page)
+  demoMode?: boolean; // Reserved for future use
 }
 
 export function AlertsInsightsWidget({
@@ -25,16 +25,8 @@ export function AlertsInsightsWidget({
   lastMonthTransactions,
   demoMode = false,
 }: AlertsInsightsWidgetProps) {
-  const [aiAlerts, setAiAlerts] = useState<Array<{
-    type: "success" | "warning" | "danger";
-    badge: string;
-    text: string;
-  }>>([]);
-  const [isLoadingAi, setIsLoadingAi] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  // Generate basic alerts as fallback
-  const basicAlerts = useMemo(() => {
+  // Generate alerts
+  const alerts = useMemo(() => {
     const alertsList: Array<{
       type: "success" | "warning" | "danger";
       badge: string;
@@ -83,79 +75,7 @@ export function AlertsInsightsWidget({
       }
     }
 
-    return alertsList;
-  }, [
-    currentIncome,
-    currentExpenses,
-    emergencyFundMonths,
-    selectedMonthTransactions,
-    lastMonthTransactions,
-  ]);
-
-  // Set mounted state after hydration to prevent hydration errors
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Fetch AI-generated alerts
-  useEffect(() => {
-    if (!isMounted || demoMode) return; // Skip API calls in demo mode
-
-    const fetchAiAlerts = async () => {
-      setIsLoadingAi(true);
-      try {
-        const response = await fetch("/api/ai/alerts", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            currentIncome,
-            currentExpenses,
-            emergencyFundMonths,
-            selectedMonthTransactions,
-            lastMonthTransactions,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.alerts && Array.isArray(data.alerts)) {
-            setAiAlerts(data.alerts);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching AI alerts:", error);
-        // Silently fail and use basic alerts
-      } finally {
-        setIsLoadingAi(false);
-      }
-    };
-
-    // Only fetch if we have valid data
-    if (currentIncome > 0 || currentExpenses > 0) {
-      fetchAiAlerts();
-    }
-  }, [
-    isMounted,
-    demoMode,
-    currentIncome,
-    currentExpenses,
-    emergencyFundMonths,
-    selectedMonthTransactions,
-    lastMonthTransactions,
-  ]);
-
-  // Combine AI alerts with basic alerts, prioritizing AI alerts
-  const alerts = useMemo(() => {
-    // Use AI alerts if available, otherwise fallback to basic alerts
-    const alertsToUse = aiAlerts.length > 0 ? aiAlerts : basicAlerts.map(a => ({
-      type: a.type,
-      badge: a.badge,
-      text: a.text,
-    }));
-
-    return alertsToUse.map((alert) => {
+    return alertsList.map((alert) => {
       let icon: React.ReactNode;
       switch (alert.type) {
         case "success":
@@ -176,27 +96,24 @@ export function AlertsInsightsWidget({
         icon,
       };
     });
-  }, [aiAlerts, basicAlerts]);
+  }, [
+    currentIncome,
+    currentExpenses,
+    emergencyFundMonths,
+    selectedMonthTransactions,
+    lastMonthTransactions,
+  ]);
 
   return (
     <Card className="h-full">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Alerts & Insights</CardTitle>
-            <CardDescription>What deserves your attention right now</CardDescription>
-          </div>
-          {isMounted && aiAlerts.length > 0 && (
-            <Sparkles className="h-4 w-4 text-primary" aria-label="AI-powered insights" />
-          )}
+        <div>
+          <CardTitle>Alerts & Insights</CardTitle>
+          <CardDescription>What deserves your attention right now</CardDescription>
         </div>
       </CardHeader>
       <CardContent>
-        {isLoadingAi && alerts.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">Generating personalized insights...</p>
-          </div>
-        ) : alerts.length === 0 ? (
+        {alerts.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">No alerts at this time</p>
           </div>

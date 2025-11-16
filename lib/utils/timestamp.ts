@@ -17,41 +17,46 @@ export function formatTimestamp(date: Date): string {
 }
 
 /**
- * Format a Date to PostgreSQL timestamp(3) without time zone format
- * For dates only (sets time to 00:00:00 in local timezone)
+ * Format a Date to PostgreSQL date type format (YYYY-MM-DD)
+ * For dates only (no time component)
  * This ensures the date is saved exactly as the user selected, without timezone conversion
- * Example: "2024-01-02 00:00:00"
+ * Example: "2024-01-02"
+ * 
+ * Note: Changed from timestamp format to date format to fix timezone bugs
  */
 export function formatDateOnly(date: Date): string {
   // Use local date components to ensure we save the exact date the user selected
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day} 00:00:00`;
+  return `${year}-${month}-${day}`;
 }
 
 /**
  * Format a Date for PostgreSQL queries (start of day)
  * Uses local date components to avoid timezone shifts
- * Example: "2024-01-01 00:00:00"
+ * Returns date only (YYYY-MM-DD) since Transaction.date is now date type
+ * Example: "2024-01-01"
  */
 export function formatDateStart(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day} 00:00:00`;
+  return `${year}-${month}-${day}`;
 }
 
 /**
  * Format a Date for PostgreSQL queries (end of day)
  * Uses local date components to avoid timezone shifts
- * Example: "2024-01-01 23:59:59"
+ * Returns date only (YYYY-MM-DD) since Transaction.date is now date type
+ * For date type, end of day is the same as start of day
+ * Example: "2024-01-01"
  */
 export function formatDateEnd(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day} 23:59:59`;
+  return `${year}-${month}-${day}`;
 }
 
 /**

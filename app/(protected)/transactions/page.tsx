@@ -538,12 +538,13 @@ export default function TransactionsPage() {
       params.append("limit", itemsPerPage.toString());
 
       // Use API route to get transactions (descriptions are decrypted on server)
-      // Removed cache busting to allow browser caching for better performance
+      // Add cache busting timestamp to force fresh data after deletions
       const queryString = params.toString();
-      const url = `/api/transactions${queryString ? `?${queryString}` : ''}`;
+      const url = `/api/transactions${queryString ? `?${queryString}` : ''}${queryString ? '&' : '?'}_t=${Date.now()}`;
       
       const response = await fetch(url, {
-        // Use default cache strategy - API route already handles cache control
+        // Force fresh fetch - cache is invalidated server-side but browser may still cache
+        cache: 'no-store',
         signal: abortController.signal,
       });
 
@@ -687,11 +688,13 @@ export default function TransactionsPage() {
             variant: "success",
           });
           
-          // Refresh router to update dashboard and other pages that depend on transactions
-          router.refresh();
+          // Reload transactions immediately to ensure UI is in sync with database
+          // This bypasses any browser cache by using cache: 'no-store'
+          await loadTransactions();
           
-          // Reload transactions to ensure UI is in sync with database
-          loadTransactions();
+          // Refresh router to update dashboard and other pages that depend on transactions
+          // Do this after loadTransactions to ensure we have fresh data
+          router.refresh();
         } catch (error) {
           console.error("Error deleting transaction:", error);
           // Revert optimistic update on error
@@ -740,11 +743,13 @@ export default function TransactionsPage() {
             variant: "success",
           });
           
-          // Refresh router to update dashboard and other pages that depend on transactions
-          router.refresh();
+          // Reload transactions immediately to ensure UI is in sync with database
+          // This bypasses any browser cache by using cache: 'no-store'
+          await loadTransactions();
           
-          // Reload transactions to ensure UI is in sync with database
-          loadTransactions();
+          // Refresh router to update dashboard and other pages that depend on transactions
+          // Do this after loadTransactions to ensure we have fresh data
+          router.refresh();
         } catch (error) {
           console.error("Error deleting transactions:", error);
           // Revert optimistic update on error

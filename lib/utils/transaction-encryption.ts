@@ -7,6 +7,27 @@ import { encrypt, decrypt } from './encryption';
 import { logger } from './logger';
 
 /**
+ * Normalize transaction description for matching and search
+ * - Convert to lowercase
+ * - Remove special characters
+ * - Trim and normalize whitespace
+ * This function must be used consistently across:
+ * - Backfill scripts
+ * - createTransaction
+ * - updateTransaction
+ * - category_learning
+ */
+export function normalizeDescription(description: string | null | undefined): string {
+  if (!description) return "";
+  
+  return description
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
  * Encrypt a transaction description before saving to database
  */
 export function encryptDescription(description: string | null): string | null {

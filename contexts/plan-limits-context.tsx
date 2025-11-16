@@ -3,6 +3,7 @@
 import { createContext, useContext, ReactNode } from "react";
 import { PlanFeatures } from "@/lib/validations/plan";
 import { useSubscriptionContext } from "./subscription-context";
+import { resolvePlanFeatures } from "@/lib/utils/plan-features";
 import { logger } from "@/lib/utils/logger";
 
 interface PlanLimitsContextValue {
@@ -27,12 +28,18 @@ const defaultLimits: PlanFeatures = {
 };
 
 export function PlanLimitsProvider({ children }: { children: ReactNode }) {
-  // Use subscription context instead of making separate API calls
-  const { limits: subscriptionLimits, checking } = useSubscriptionContext();
-
-  // Use limits from subscription context if available, otherwise use defaults
-  // Ensure type safety by casting to PlanFeatures
-  const limits: PlanFeatures = (subscriptionLimits as PlanFeatures) || defaultLimits;
+  // Try to use subscription context, fallback to defaults if not available (public pages)
+  let limits: PlanFeatures = defaultLimits;
+  let checking = false;
+  
+  try {
+    const context = useSubscriptionContext();
+    // Use resolvePlanFeatures to ensure all fields are defined (consistency with server/client)
+    limits = resolvePlanFeatures(context.plan);
+    checking = context.checking;
+  } catch {
+    // SubscriptionProvider not available (public pages), use defaults
+  }
 
   return (
     <PlanLimitsContext.Provider

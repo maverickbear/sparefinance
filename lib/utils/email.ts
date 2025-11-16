@@ -36,21 +36,33 @@ export interface WelcomeEmailData {
 }
 
 export async function sendInvitationEmail(data: InvitationEmailData): Promise<void> {
+  console.log("[EMAIL] sendInvitationEmail called with:", {
+    to: data.to,
+    memberName: data.memberName,
+    ownerName: data.ownerName,
+    ownerEmail: data.ownerEmail,
+    hasToken: !!data.invitationToken,
+  });
+
   const resend = getResend();
   
   if (!resend) {
-    console.warn("RESEND_API_KEY not configured. Email will not be sent.");
+    console.warn("[EMAIL] ❌ RESEND_API_KEY not configured. Email will not be sent.");
     return;
   }
 
   const appUrl = data.appUrl || process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/";
   const invitationLink = `${appUrl}/members/accept?token=${data.invitationToken}`;
 
+  console.log("[EMAIL] Invitation link generated:", invitationLink);
+
   // Always use noreply@sparefinance.com as the default sender
   const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@sparefinance.com";
   
   // Ensure we're using noreply@sparefinance.com instead of onboarding@resend.dev
   const finalFromEmail = fromEmail === "onboarding@resend.dev" ? "noreply@sparefinance.com" : fromEmail;
+
+  console.log("[EMAIL] Sending email from:", finalFromEmail, "to:", data.to);
 
   try {
     const result = await resend.emails.send({
@@ -62,6 +74,7 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
         ownerName: data.ownerName,
         ownerEmail: data.ownerEmail,
         invitationLink,
+        memberEmail: data.to,
       }),
     });
 
@@ -91,10 +104,12 @@ You can manually share this link with the invited member.
 Once verified, emails will be sent from: ${finalFromEmail}
         `);
       } else {
-        console.error("Resend API error:", result.error);
+        console.error("[EMAIL] ❌ Resend API error:", result.error);
+        console.error("[EMAIL] Error details:", JSON.stringify(result.error, null, 2));
       }
     } else {
-      console.log("✅ Invitation email sent successfully to:", data.to);
+      console.log("[EMAIL] ✅ Invitation email sent successfully to:", data.to);
+      console.log("[EMAIL] Email ID:", result.data?.id);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -122,7 +137,10 @@ You can manually share this link with the invited member.
 Once verified, emails will be sent from: ${fromEmail}
       `);
     } else {
-      console.error("Error sending invitation email:", error);
+      console.error("[EMAIL] ❌ Error sending invitation email:", error);
+      if (error instanceof Error) {
+        console.error("[EMAIL] Error stack:", error.stack);
+      }
     }
     // Don't throw - we don't want email failures to break the invitation flow
     // The invitation is still created in the database
@@ -134,8 +152,29 @@ function getInvitationEmailTemplate(data: {
   ownerName: string;
   ownerEmail: string;
   invitationLink: string;
+  memberEmail?: string;
 }): string {
-  return `
+  try {
+    const templatePath = path.join(process.cwd(), 'email-templates/household-invitation.html');
+    console.log("[EMAIL] Loading template from:", templatePath);
+    
+    let html = fs.readFileSync(templatePath, 'utf-8');
+    console.log("[EMAIL] Template loaded successfully, length:", html.length);
+    
+    // Replace template variables
+    html = html.replace(/\{\{ \.MemberName \}\}/g, data.memberName || "there");
+    html = html.replace(/\{\{ \.OwnerName \}\}/g, data.ownerName || "Um usuário");
+    html = html.replace(/\{\{ \.OwnerEmail \}\}/g, data.ownerEmail || "");
+    html = html.replace(/\{\{ \.InvitationLink \}\}/g, data.invitationLink);
+    html = html.replace(/\{\{ \.MemberEmail \}\}/g, data.memberEmail || "");
+    html = html.replace(/\{\{ \.Year \}\}/g, new Date().getFullYear().toString());
+    
+    console.log("[EMAIL] Template variables replaced successfully");
+    return html;
+  } catch (error) {
+    console.error("[EMAIL] ❌ Error loading invitation email template:", error);
+    // Fallback to inline template if file read fails
+    return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -208,7 +247,8 @@ function getInvitationEmailTemplate(data: {
   </table>
 </body>
 </html>
-  `.trim();
+    `.trim();
+  }
 }
 
 export async function sendCheckoutPendingEmail(data: CheckoutPendingEmailData): Promise<void> {

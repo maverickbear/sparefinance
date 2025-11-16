@@ -29,6 +29,15 @@ function WelcomeContent() {
 
       if (response.ok && data.success) {
         console.log("[WELCOME] Subscription synced successfully:", data.subscription);
+        
+        // Invalidate client-side cache to force fresh data fetch
+        try {
+          const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
+          invalidateClientSubscriptionCache();
+          console.log("[WELCOME] Client cache invalidated");
+        } catch (error) {
+          console.error("[WELCOME] Error invalidating cache:", error);
+        }
       } else {
         console.error("[WELCOME] Failed to sync subscription:", data.error);
         // Don't fail the page, just log the error

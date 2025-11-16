@@ -51,23 +51,33 @@ export function isValidTransaction(transaction: any): boolean {
 
 /**
  * Calculates total income from transactions
+ * Excludes transfers to avoid double-counting (transfers create both income and expense entries)
  * @param transactions - Array of transactions
  * @returns Total income amount
  */
 export function calculateTotalIncome(transactions: TransactionWithRelations[]): number {
   return transactions
-    .filter((t) => t && t.type === 'income' && isValidTransaction(t))
+    .filter((t) => {
+      // Exclude transfers (transactions with transferFromId or transferToId)
+      const isTransfer = !!(t as any).transferFromId || !!(t as any).transferToId;
+      return t && t.type === 'income' && !isTransfer && isValidTransaction(t);
+    })
     .reduce((sum, t) => sum + parseAmount(t.amount), 0);
 }
 
 /**
  * Calculates total expenses from transactions
+ * Excludes transfers to avoid double-counting (transfers create both income and expense entries)
  * @param transactions - Array of transactions
  * @returns Total expenses amount (always positive)
  */
 export function calculateTotalExpenses(transactions: TransactionWithRelations[]): number {
   return transactions
-    .filter((t) => t && t.type === 'expense' && isValidTransaction(t))
+    .filter((t) => {
+      // Exclude transfers (transactions with transferFromId or transferToId)
+      const isTransfer = !!(t as any).transferFromId || !!(t as any).transferToId;
+      return t && t.type === 'expense' && !isTransfer && isValidTransaction(t);
+    })
     .reduce((sum, t) => {
       const amount = parseAmount(t.amount);
       return sum + Math.abs(amount);
@@ -116,6 +126,7 @@ export function calculateExpenseRatio(income: number, expenses: number): number 
 
 /**
  * Groups transactions by category and calculates totals
+ * Excludes transfers to avoid double-counting
  * @param transactions - Array of transactions (should be filtered to expenses)
  * @returns Object with category names as keys and totals as values
  */
@@ -123,7 +134,11 @@ export function groupExpensesByCategory(
   transactions: TransactionWithRelations[]
 ): Record<string, number> {
   return transactions
-    .filter((t) => t && t.type === 'expense' && isValidTransaction(t))
+    .filter((t) => {
+      // Exclude transfers (transactions with transferFromId or transferToId)
+      const isTransfer = !!(t as any).transferFromId || !!(t as any).transferToId;
+      return t && t.type === 'expense' && !isTransfer && isValidTransaction(t);
+    })
     .reduce((acc, t) => {
       const categoryName = t.category?.name || 'Uncategorized';
       const amount = parseAmount(t.amount);

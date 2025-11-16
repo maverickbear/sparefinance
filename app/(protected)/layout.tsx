@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createServerClient } from "@/lib/supabase-server";
-import { getCurrentUserSubscription, type Subscription } from "@/lib/api/plans";
+import { getCurrentUserSubscription, getPlanById, type Subscription, type Plan } from "@/lib/api/plans";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 import { SubscriptionGuard } from "@/components/subscription-guard";
+import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { Suspense } from "react";
 import { logger } from "@/lib/utils/logger";
 
@@ -51,14 +52,19 @@ export default async function ProtectedLayout({
   }
 
   // Check subscription - use cached function which already has internal caching
-  // Removed direct database query fallback to improve performance
-  // The cache in getCurrentUserSubscription is sufficient and will refresh when needed
   let shouldOpenModal = false;
   let reason: "no_subscription" | "trial_expired" | "subscription_inactive" | undefined;
+  let subscription: Subscription | null = null;
+  let plan: Plan | null = null;
   
   try {
     // Get subscription from cache/function (already has internal caching)
-    const subscription = await getCurrentUserSubscription();
+    subscription = await getCurrentUserSubscription();
+    
+    // If subscription exists, get the plan
+    if (subscription) {
+      plan = await getPlanById(subscription.planId);
+    }
     
     // If no subscription found, user needs to select a plan
     if (!subscription) {
@@ -91,12 +97,12 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <>
+    <SubscriptionProvider initialData={{ subscription, plan }}>
       <Suspense fallback={null}>
         <SubscriptionGuard shouldOpenModal={shouldOpenModal} reason={reason} />
       </Suspense>
       {children}
-    </>
+    </SubscriptionProvider>
   );
 }
 

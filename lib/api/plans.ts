@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase-server";
 import { Plan, PlanFeatures, Subscription } from "@/lib/validations/plan";
 import { getOwnerIdForMember, isHouseholdMember } from "./members";
 import { logger } from "@/lib/utils/logger";
+import { getDefaultFeatures } from "@/lib/utils/plan-features";
 
 // Re-export types for convenience
 export type { Subscription, Plan, PlanFeatures };
@@ -451,19 +452,8 @@ function mapSubscription(data: any): Subscription {
   };
 }
 
-function getDefaultFeatures(): PlanFeatures {
-  return {
-    maxTransactions: 50,
-    maxAccounts: 2,
-    hasInvestments: false,
-    hasAdvancedReports: false,
-    hasCsvExport: false,
-    hasDebts: true,
-    hasGoals: true,
-    hasBankIntegration: false,
-    hasHousehold: false,
-  };
-}
+// Note: getDefaultFeatures and resolvePlanFeatures are in @/lib/utils/plan-features
+// They are not re-exported here because "use server" files can only export async functions
 
 export interface UserPlanInfo {
   name: "basic" | "premium";
