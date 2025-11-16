@@ -110,9 +110,6 @@ package-lock.json.backup
 # Symbolic links (created during organization)
 .eslintrc.json
 .prettierrc
-sentry.client.config.ts
-sentry.server.config.ts
-sentry.edge.config.ts
 docker-compose.yml
 
 # IDE / Editor (additional)
