@@ -292,7 +292,7 @@ async function calculateFinancialHealthInternal(
   let debtExposure: "Low" | "Moderate" | "High" = "Low";
   try {
     const { createServerClient } = await import("@/lib/supabase-server");
-    const supabase = await createServerClient();
+    const supabase = await createServerClient(accessToken, refreshToken);
     const { data: { user } } = await supabase.auth.getUser();
     const userId = user?.id;
 
@@ -347,7 +347,7 @@ async function calculateFinancialHealthInternal(
   // Calculate emergency fund months
   let emergencyFundMonths = 0;
   try {
-    const accounts = await getAccounts();
+    const accounts = await getAccounts(accessToken, refreshToken);
     const totalBalance = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     
     // Emergency fund months = total balance / monthly expenses

@@ -131,12 +131,12 @@ export function createCachedFunction<TArgs extends any[], TResult>(
 
 /**
  * Invalidate cache by tags
- * Note: revalidateTag is async in Next.js 15+, but we keep it sync for compatibility
+ * Note: revalidateTag requires 2 arguments in Next.js 16+ (tag and profile)
  */
 export function invalidateCache(...tags: string[]): void {
   tags.forEach(tag => {
     try {
-      revalidateTag(tag);
+      revalidateTag(tag, 'max');
     } catch (error) {
       // If revalidateTag fails (e.g., in edge runtime), log but don't throw
       console.warn(`[Cache] Failed to revalidate tag ${tag}:`, error);
