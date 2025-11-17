@@ -32,7 +32,7 @@
 ### 📊 Financial Dashboard
 - **Real-time Overview**: Track income, expenses, and net worth
 - **Interactive Charts**: Beautiful visualizations with Recharts
-- **Financial Health Score**: AI-powered insights
+- **Spare Score**: AI-powered insights
 - **Month Selector**: Navigate through historical data
 - **Customizable Widgets**: Modular dashboard components
 

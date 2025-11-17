@@ -7,9 +7,12 @@ import { useTheme } from "next-themes";
 import { Menu, LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, Settings, LogOut, CreditCard, PiggyBank, Users, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/common/logo";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
@@ -310,10 +313,15 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       id="mobile-header"
       style={{ '--mobile-header-height': '3rem' } as React.CSSProperties}
     >
-      <div className="flex h-12 items-center justify-between px-4 border-b">
-        <h1 className="text-base font-semibold min-h-[44px] flex items-center">
-          {getPageTitle()}
-        </h1>
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-3 min-h-[44px]">
+          <Link href="/dashboard" prefetch={true} className="p-0 flex items-center">
+            <Logo variant="icon" color="auto" width={32} height={32} />
+          </Link>
+          <h1 className="text-base font-semibold p-0 flex items-center">
+            {getPageTitle()}
+          </h1>
+        </div>
         
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
@@ -327,6 +335,9 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-80 p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Navigation Menu</SheetTitle>
+            </SheetHeader>
             <div className="flex flex-col h-screen overflow-y-auto">
               <nav className="flex-1 space-y-6 px-3 py-4">
                 {navSections.map((section) => (
@@ -456,7 +467,7 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
                         <Link href="/terms-of-service" prefetch={true} target="_blank" rel="noopener noreferrer" className="cursor-pointer" onClick={handleNavClick}>
                           <FileTextIcon className="mr-2 h-4 w-4" />
                           <span>Terms of Service</span>
-                        </Link>
+        </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem

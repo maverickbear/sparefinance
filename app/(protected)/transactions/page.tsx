@@ -1676,11 +1676,11 @@ export default function TransactionsPage() {
             <SimpleTabsTrigger value="transfer" className="text-xs">Transfer</SimpleTabsTrigger>
           </SimpleTabsList>
         </SimpleTabs>
-      </div>
+            </div>
 
       {/* Floating Filter Button - Mobile only */}
       <div className="lg:hidden fixed bottom-24 right-4 z-[60]">
-        <Button
+          <Button 
           onClick={() => setIsFiltersModalOpen(true)}
           className="h-14 w-14 rounded-full shadow-lg"
           size="icon"
@@ -1704,8 +1704,8 @@ export default function TransactionsPage() {
             style={{ 
               opacity: Math.min(pullDistance / 60, 1),
               transform: `translateY(${Math.min(pullDistance, 60)}px)`
-            }}
-          >
+          }}
+        >
             {isRefreshing ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1715,8 +1715,8 @@ export default function TransactionsPage() {
               <div className="text-sm text-muted-foreground">Release to refresh</div>
             ) : (
               <div className="text-sm text-muted-foreground">Pull to refresh</div>
-            )}
-          </div>
+                    )}
+                  </div>
         )}
         
         {loading && !searchLoading && currentPage === 1 && !isRefreshing ? (

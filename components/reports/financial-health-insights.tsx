@@ -54,7 +54,7 @@ export function FinancialHealthInsights({ financialHealth }: FinancialHealthInsi
         <CardHeader>
           <CardTitle className="text-lg md:text-xl flex items-center gap-2">
             <Lightbulb className="h-5 w-5" />
-            Financial Health Insights
+            Spare Score Insights
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -133,7 +133,7 @@ export function FinancialHealthInsights({ financialHealth }: FinancialHealthInsi
               <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-3" />
               <p className="text-sm font-medium">Great job!</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Your financial health looks good. Keep up the excellent work!
+                Your Spare Score looks good. Keep up the excellent work!
               </p>
             </div>
           )}

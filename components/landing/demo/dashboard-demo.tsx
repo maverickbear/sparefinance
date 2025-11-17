@@ -37,7 +37,6 @@ import { UpcomingBillsWidget } from "@/app/(protected)/dashboard/widgets/upcomin
 import { SavingsGoalsWidget } from "@/app/(protected)/dashboard/widgets/savings-goals-widget";
 import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
 import { InvestmentPortfolioWidget } from "@/app/(protected)/dashboard/widgets/investment-portfolio-widget";
-import { AlertsInsightsWidget } from "@/app/(protected)/dashboard/widgets/alerts-insights-widget";
 
 const navSections = [
   {
@@ -105,7 +104,7 @@ const mockFinancialHealth = {
   monthlyExpenses: 3500,
   netAmount: 4500,
   savingsRate: 56.25,
-  message: "Your financial health is excellent! Keep up the great work.",
+  message: "Your Spare Score is excellent! Keep up the great work.",
   spendingDiscipline: "Excellent" as const,
   debtExposure: "Low" as const,
   emergencyFundMonths: 8.5,
@@ -374,7 +373,7 @@ export function DashboardDemo() {
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold">Financial Overview</h1>
                 <p className="text-sm md:text-base text-muted-foreground">
-                  Track your financial health: cash flow, spending, bills, buffers, risk and long-term planning.
+                  Track your Spare Score: cash flow, spending, bills, buffers, risk and long-term planning.
                 </p>
               </div>
             </div>
@@ -391,7 +390,7 @@ export function DashboardDemo() {
               />
             </div>
 
-            {/* Top Widgets - Financial Health Score and Expenses by Category side by side */}
+            {/* Top Widgets - Spare Score and Expenses by Category side by side */}
             <div className="grid gap-4 md:gap-5 lg:gap-6 grid-cols-1 lg:grid-cols-2 flex-shrink-0 min-w-0">
               <div className="min-w-0">
                 <FinancialHealthScoreWidget
@@ -449,17 +448,6 @@ export function DashboardDemo() {
                   <InvestmentPortfolioWidget savings={savings} demoMode={true} />
                 </div>
               </div>
-              <div className="col-span-full">
-                <AlertsInsightsWidget
-                  financialHealth={mockFinancialHealth}
-                  currentIncome={currentIncome}
-                  currentExpenses={currentExpenses}
-                  emergencyFundMonths={emergencyFundMonths}
-                  selectedMonthTransactions={mockSelectedMonthTransactions}
-                  lastMonthTransactions={mockLastMonthTransactions}
-                  demoMode={true}
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -489,7 +477,7 @@ export function DashboardDemo() {
             lastMonthExpense={lastMonthExpenses}
           />
 
-          {/* Financial Health Score */}
+          {/* Spare Score */}
           <FinancialHealthScoreWidget
             financialHealth={mockFinancialHealth}
             selectedMonthTransactions={mockSelectedMonthTransactions}

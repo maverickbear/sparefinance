@@ -140,7 +140,7 @@ const fakeGoals = [
 const fakeFinancialHealth = {
   score: 85,
   classification: "Good" as "Excellent" | "Good" | "Fair" | "Poor" | "Critical",
-  message: "Your financial health is in good shape. Keep up the good work!",
+  message: "Your Spare Score is in good shape. Keep up the good work!",
   monthlyIncome: 5200,
   monthlyExpenses: 3750,
   netAmount: 1450,
@@ -408,7 +408,7 @@ export function FullDashboardDemo() {
               })}
             </div>
 
-            {/* Cash Flow and Financial Health */}
+            {/* Cash Flow and Spare Score */}
             <div className="grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-2" style={{ pointerEvents: "none" }}>
               <IncomeExpensesChart data={fakeMonthlyData} />
               <FinancialHealthWidget data={fakeFinancialHealth} />

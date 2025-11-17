@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/components/common/money";
+import { Lightbulb } from "lucide-react";
 import type { FinancialHealthData } from "@/lib/api/financial-health";
+import { SpareScoreInsightsModal } from "./spare-score-insights-modal";
 
 interface FinancialHealthScoreWidgetProps {
   financialHealth: FinancialHealthData | null;
@@ -17,10 +20,33 @@ export function FinancialHealthScoreWidget({
   selectedMonthTransactions,
   lastMonthTransactions,
 }: FinancialHealthScoreWidgetProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   // Check if financial health data is available
   // Allow showing data even if classification is "Unknown" as long as we have a score
   // This handles edge cases where score might be 0 but we still want to show it
   const hasData = financialHealth && financialHealth.score !== undefined;
+  
+  // Calculate current income and expenses for the modal
+  const currentIncome = useMemo(() => {
+    return selectedMonthTransactions
+      .filter((t) => t && t.type === "income")
+      .reduce((sum, t) => {
+        const amount = Number(t.amount) || 0;
+        return sum + Math.abs(amount);
+      }, 0);
+  }, [selectedMonthTransactions]);
+
+  const currentExpenses = useMemo(() => {
+    return selectedMonthTransactions
+      .filter((t) => t && t.type === "expense")
+      .reduce((sum, t) => {
+        const amount = Number(t.amount) || 0;
+        return sum + Math.abs(amount);
+      }, 0);
+  }, [selectedMonthTransactions]);
+
+  const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 0;
   
   const score = financialHealth?.score ?? 0;
   const classification = financialHealth?.classification || "Unknown";
@@ -38,23 +64,28 @@ export function FinancialHealthScoreWidget({
 
   const scoreChangeText = scoreChange !== null
     ? scoreChange >= 0 ? `+${scoreChange.toFixed(0)} pts` : `${scoreChange.toFixed(0)} pts`
-    : "N/A";
+    : null;
 
-  // Calculate circumference for donut chart
-  const radius = 75;
-  const circumference = 2 * Math.PI * radius;
-  const strokeWidth = 12;
-  const svgSize = 180;
-  const center = svgSize / 2;
-  const percentage = score / 100;
-  const offset = circumference * (1 - percentage);
+  // Get classification text
+  const getClassificationText = (score: number) => {
+    if (score >= 80) return "Excellent";
+    if (score >= 60) return "Good";
+    if (score >= 40) return "Fair";
+    if (score >= 20) return "Poor";
+    return "Critical";
+  };
+
+  // Horizontal gauge dimensions
+  const gaugeWidth = 100; // percentage based
+  const gaugeHeight = 8;
+  const scaleMarkers = [0, 20, 40, 60, 80, 100];
+  
+  // Calculate indicator position (0-100 to percentage)
+  const indicatorPosition = score;
 
   // Get spending discipline from financial health (now calculated)
   const spendingDiscipline = financialHealth?.spendingDiscipline || "Unknown";
   const debtExposure = financialHealth?.debtExposure || "Low";
-  
-  // Get emergency fund months from financial health (now calculated)
-  const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 0;
 
   const getSpendingDisciplineColor = (discipline: string) => {
     switch (discipline) {
@@ -78,25 +109,20 @@ export function FinancialHealthScoreWidget({
     if (score >= 60) return "text-yellow-500";
     return "text-red-500";
   };
-
-  const getStrokeColor = (score: number) => {
-    if (score >= 80) return "#22c55e";
-    if (score >= 60) return "#eab308";
-    return "#ef4444";
-  };
+  
 
   // Show error state if no data available
   if (!hasData) {
     return (
       <Card className="h-full">
         <CardHeader>
-          <CardTitle>Financial Health Score</CardTitle>
+          <CardTitle>Spare Score</CardTitle>
           <CardDescription>Combined view of spending, savings and debt</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <p className="text-sm text-muted-foreground mb-2">
-              {financialHealth?.message || "Unable to calculate financial health at this time."}
+              {financialHealth?.message || "Unable to calculate Spare Score at this time."}
             </p>
             <p className="text-xs text-muted-foreground">
               Make sure you have transactions for this month.
@@ -108,89 +134,81 @@ export function FinancialHealthScoreWidget({
   }
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Financial Health Score</CardTitle>
-        <CardDescription>Combined view of spending, savings and debt</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6">
-          {/* Donut Chart */}
-          <div className="relative flex-shrink-0 w-[140px] h-[140px] md:w-[180px] md:h-[180px]">
-            <svg
-              className="transform -rotate-90 w-full h-full"
-              viewBox={`0 0 ${svgSize} ${svgSize}`}
-            >
-              {/* Background circle */}
-              <circle
-                cx={center}
-                cy={center}
-                r={radius}
-                fill="none"
-                stroke="hsl(var(--muted))"
-                strokeWidth={strokeWidth}
-              />
-              {/* Progress circle */}
-              <circle
-                cx={center}
-                cy={center}
-                r={radius}
-                fill="none"
-                stroke={getStrokeColor(score)}
-                strokeWidth={strokeWidth}
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                strokeLinecap="round"
-                className="transition-all duration-300"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className={cn("text-2xl md:text-3xl font-bold", getScoreColor(score))}>
-                {score}
-              </div>
-              <div className="text-xs text-muted-foreground">of 100</div>
+    <>
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Spare Score</CardTitle>
+          <CardDescription>Combined view of spending, savings and debt</CardDescription>
+        </CardHeader>
+        <CardContent>
+        <div className="space-y-6">
+          {/* Score Display */}
+          <div>
+            <div className={cn("text-5xl lg:text-6xl font-bold tabular-nums leading-none", getScoreColor(score))}>
+              {score}
+            </div>
+            <div className="text-base font-medium text-foreground mt-2">
+              {getClassificationText(score)}
             </div>
           </div>
 
-          {/* Metrics List */}
-          <div className="flex-1 space-y-2 md:space-y-3 min-w-0 w-full">
-            <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-border">
-              <span className="text-xs md:text-sm text-muted-foreground">Change vs last month</span>
-              <span className={cn(
-                "text-xs md:text-sm font-semibold",
-                scoreChange !== null
-                  ? scoreChange >= 0 ? "text-green-500" : "text-red-500"
-                  : "text-muted-foreground"
-              )}>
-                {scoreChangeText}
-              </span>
+          {/* Horizontal Gauge */}
+          <div className="relative">
+            {/* Indicator pointer - above bar */}
+            <div 
+              className="absolute -top-2 -translate-x-1/2 transition-all duration-500 z-10"
+              style={{ left: `${indicatorPosition}%` }}
+            >
+              <svg width="14" height="10" viewBox="0 0 14 10" className="text-foreground drop-shadow-sm">
+                <path d="M7 10L0 0h14L7 10z" fill="currentColor" />
+              </svg>
             </div>
-            <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-border">
-              <span className="text-xs md:text-sm text-muted-foreground">Spending discipline</span>
-              <span className={cn("text-xs md:text-sm font-semibold", getSpendingDisciplineColor(spendingDiscipline))}>
-                {spendingDiscipline}
-              </span>
+            
+            {/* Gradient bar */}
+            <div className="relative h-4 rounded-lg overflow-hidden border border-border/50">
+              <div className="absolute inset-0" style={{
+                background: 'linear-gradient(to right, #fb923c 0%, #fbbf24 25%, #60a5fa 50%, #34d399 75%, #22c55e 100%)'
+              }}></div>
             </div>
-            <div className="flex items-center justify-between py-1.5 md:py-2 border-b border-border">
-              <span className="text-xs md:text-sm text-muted-foreground">Debt exposure</span>
-              <span className={cn(
-                "text-xs md:text-sm font-semibold",
-                debtExposure === "Low" ? "text-green-500" :
-                debtExposure === "Moderate" ? "text-yellow-500" : "text-red-500"
-              )}>
-                {debtExposure}
-              </span>
+            
+            {/* Scale markers */}
+            <div className="relative mt-2">
+              <div className="flex justify-between">
+                {scaleMarkers.map((marker) => (
+                  <span key={marker} className="text-xs text-muted-foreground font-medium">
+                    {marker}
+                  </span>
+                ))}
+              </div>
             </div>
-            <div className="flex items-center justify-between py-1.5 md:py-2">
-              <span className="text-xs md:text-sm text-muted-foreground">Emergency fund</span>
-              <span className="text-xs md:text-sm font-semibold text-foreground">
-                {emergencyFundMonths.toFixed(1)} months
-              </span>
-            </div>
+          </div>
+
+          {/* Insights Button */}
+          <div className="pt-4 border-t border-border">
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => setIsModalOpen(true)}
+            >
+              <Lightbulb className="h-4 w-4" />
+              <span>View Insights & Actions</span>
+            </Button>
           </div>
         </div>
       </CardContent>
     </Card>
+
+    <SpareScoreInsightsModal
+      open={isModalOpen}
+      onOpenChange={setIsModalOpen}
+      financialHealth={financialHealth}
+      currentIncome={currentIncome}
+      currentExpenses={currentExpenses}
+      emergencyFundMonths={emergencyFundMonths}
+      selectedMonthTransactions={selectedMonthTransactions}
+      lastMonthTransactions={lastMonthTransactions}
+    />
+    </>
   );
 }
 

@@ -118,7 +118,7 @@ function AIChatContent() {
                 <li>"How much did I spend this month?"</li>
                 <li>"What are my biggest expenses?"</li>
                 <li>"How am I doing with my budgets?"</li>
-                <li>"What's my financial health score?"</li>
+                <li>"What's my Spare Score?"</li>
               </ul>
             </div>
           ) : (

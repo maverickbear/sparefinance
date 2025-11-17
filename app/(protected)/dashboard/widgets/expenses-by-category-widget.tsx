@@ -129,7 +129,7 @@ export function ExpensesByCategoryWidget({
     <Card className="h-full">
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
+          <div className="flex-1 space-y-1.5">
             <CardTitle>Expenses by Category</CardTitle>
             <CardDescription>Distribution of total expenses</CardDescription>
           </div>
@@ -148,9 +148,9 @@ export function ExpensesByCategoryWidget({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-4 md:gap-6">
+        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6">
           {/* Donut Chart */}
-          <div className="relative flex-shrink-0 w-[140px] h-[140px] md:w-[180px] md:h-[180px]">
+          <div className="relative flex-shrink-0 w-[140px] h-[140px] lg:w-[180px] lg:h-[180px]">
             <svg
               className="transform -rotate-90 w-full h-full"
               viewBox={`0 0 ${svgSize} ${svgSize}`}
@@ -182,7 +182,7 @@ export function ExpensesByCategoryWidget({
               ))}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-xl md:text-2xl font-bold text-foreground tabular-nums">
+              <div className="text-xl lg:text-2xl font-bold text-foreground tabular-nums">
                 {formatMoneyCompact(totalExpenses)}
               </div>
               <div className="text-xs text-muted-foreground">Total</div>
@@ -203,15 +203,15 @@ export function ExpensesByCategoryWidget({
                       className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-xs md:text-sm font-medium text-foreground truncate">
+                    <span className="text-xs lg:text-sm font-medium text-foreground truncate">
                       {item.name}
                     </span>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <span className="text-xs md:text-sm font-semibold text-foreground tabular-nums">
+                    <span className="text-xs lg:text-sm font-semibold text-foreground tabular-nums">
                       {formatMoneyCompact(item.value)}
                     </span>
-                    <span className="text-[10px] md:text-xs text-muted-foreground ml-1">
+                    <span className="text-[10px] lg:text-xs text-muted-foreground ml-1">
                       {item.percentage.toFixed(1)}%
                     </span>
                   </div>

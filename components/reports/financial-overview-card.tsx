@@ -203,12 +203,12 @@ export function FinancialOverviewCard({
           </div>
         </div>
 
-        {/* Financial Health Score */}
+        {/* Spare Score */}
         {financialHealth && (
           <div className="mt-6 pt-6 border-t">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Financial Health Score</p>
+                <p className="text-sm font-medium">Spare Score</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {financialHealth.message}
                 </p>

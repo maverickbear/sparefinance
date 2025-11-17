@@ -5,6 +5,7 @@ import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
 import { eachMonthOfInterval } from "date-fns/eachMonthOfInterval";
 import { subMonths } from "date-fns/subMonths";
+import { calculateTotalIncome, calculateTotalExpenses } from "@/lib/services/transaction-calculations";
 
 interface CashFlowSectionProps {
   chartTransactions: any[];
@@ -32,13 +33,10 @@ export function CashFlowSection({
       return txDate >= monthStart && txDate <= monthEnd;
     });
 
-    const income = monthTransactions
-      .filter((t) => t.type === "income")
-      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-    const expenses = monthTransactions
-      .filter((t) => t.type === "expense")
-      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    // Use centralized calculation functions to ensure consistency
+    // These functions exclude transfers and validate transactions
+    const income = calculateTotalIncome(monthTransactions);
+    const expenses = calculateTotalExpenses(monthTransactions);
 
     return {
       month: format(month, "MMM"),
@@ -57,13 +55,9 @@ export function CashFlowSection({
     return txDate >= lastMonthStart && txDate <= lastMonthEnd;
   });
 
-  const lastMonthIncome = lastMonthTransactions
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-  const lastMonthExpenses = lastMonthTransactions
-    .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  // Use centralized calculation functions to ensure consistency
+  const lastMonthIncome = calculateTotalIncome(lastMonthTransactions);
+  const lastMonthExpenses = calculateTotalExpenses(lastMonthTransactions);
 
   return (
     <div className="grid gap-4 md:gap-5 grid-cols-1 md:grid-cols-2 min-w-0">

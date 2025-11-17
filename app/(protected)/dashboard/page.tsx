@@ -74,7 +74,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       <DashboardUpdateChecker />
       <PageHeader
         title="Financial Overview"
-        description="Track your financial health: cash flow, spending, bills, buffers, risk and long-term planning."
+        description="Track your Spare Score: cash flow, spending, bills, buffers, risk and long-term planning."
       >
         <MonthSelector />
       </PageHeader>

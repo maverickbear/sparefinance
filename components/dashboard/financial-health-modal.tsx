@@ -102,7 +102,7 @@ export function FinancialHealthModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-4xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
         <DialogHeader>
-          <DialogTitle className="text-2xl">Financial Health Analysis</DialogTitle>
+          <DialogTitle className="text-2xl">Spare Score Analysis</DialogTitle>
           <DialogDescription>
             Monthly Income vs Monthly Expenses comparison and recommendations
           </DialogDescription>

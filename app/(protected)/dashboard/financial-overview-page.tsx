@@ -28,13 +28,6 @@ const ExpensesByCategoryWidget = dynamic(
   }
 );
 
-const CashOnHandWidget = dynamic(
-  () => import("./widgets/cash-on-hand-widget").then(m => ({ default: m.CashOnHandWidget })),
-  { 
-    ssr: true,
-    loading: () => <CardSkeleton />
-  }
-);
 
 const BudgetStatusWidget = dynamic(
   () => import("./widgets/budget-status-widget").then(m => ({ default: m.BudgetStatusWidget })),
@@ -76,13 +69,6 @@ const InvestmentPortfolioWidget = dynamic(
   }
 );
 
-const AlertsInsightsWidget = dynamic(
-  () => import("./widgets/alerts-insights-widget").then(m => ({ default: m.AlertsInsightsWidget })),
-  { 
-    ssr: true,
-    loading: () => <CardSkeleton />
-  }
-);
 
 
 interface FinancialOverviewPageProps {
@@ -234,12 +220,6 @@ export function FinancialOverviewPage({
   const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 
     (totalBalance > 0 ? (totalBalance / monthlyExpenses) : 0);
 
-  // Calculate checking vs savings
-  const checkingAccounts = accounts.filter((acc: any) => acc.type === 'checking' || acc.type === 'depository');
-  const savingsAccounts = accounts.filter((acc: any) => acc.type === 'savings');
-  
-  const checkingBalance = checkingAccounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
-  const savingsBalance = savingsAccounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -253,8 +233,8 @@ export function FinancialOverviewPage({
         lastMonthExpense={lastMonthExpenses}
       />
 
-      {/* Top Widgets - Financial Health Score and Expenses by Category side by side */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2">
+      {/* Top Widgets - Spare Score and Expenses by Category side by side */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
         <FinancialHealthScoreWidget
           financialHealth={financialHealth}
           selectedMonthTransactions={selectedMonthTransactions}
@@ -266,24 +246,14 @@ export function FinancialOverviewPage({
         />
       </div>
 
-      {/* Cash Flow and Cash on Hand - Same Row */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2">
-        {/* Cash Flow Timeline */}
-        <CashFlowTimelineWidget
-          chartTransactions={chartTransactions}
-          selectedMonthDate={selectedMonthDate}
-        />
-
-        {/* Cash on Hand */}
-        <CashOnHandWidget
-          totalBalance={totalBalance}
-          checkingBalance={checkingBalance}
-          savingsBalance={savingsBalance}
-        />
-      </div>
+      {/* Cash Flow Timeline */}
+      <CashFlowTimelineWidget
+        chartTransactions={chartTransactions}
+        selectedMonthDate={selectedMonthDate}
+      />
 
       {/* Budget Status and Upcoming Transactions - Same Row */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Budget Status */}
         <BudgetStatusWidget
           budgets={budgets}
@@ -314,17 +284,6 @@ export function FinancialOverviewPage({
           </div>
         </div>
 
-        {/* Alerts & Insights - full width */}
-        <div className="col-span-full">
-          <AlertsInsightsWidget
-            financialHealth={financialHealth}
-            currentIncome={currentIncome}
-            currentExpenses={currentExpenses}
-            emergencyFundMonths={emergencyFundMonths}
-            selectedMonthTransactions={selectedMonthTransactions}
-            lastMonthTransactions={lastMonthTransactions}
-          />
-        </div>
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ export function TooltipContent({ children, className, side = "bottom" }: Tooltip
     top: "absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-primary",
     bottom: "absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-primary",
     left: "absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-l-4 border-transparent border-l-primary",
-    right: "absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-l-4 border-transparent border-l-primary",
+    right: "absolute left-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-primary",
   };
 
   return (
@@ -65,7 +65,6 @@ export function TooltipContent({ children, className, side = "bottom" }: Tooltip
       )}
     >
       {children}
-      <span className={arrowClasses[side]}></span>
     </span>
   );
 }

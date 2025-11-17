@@ -192,9 +192,9 @@ function formatFinancialContext(data: {
     lines.push("");
   }
 
-  // Financial Health Summary
+  // Spare Score Summary
   if (financialHealth) {
-    lines.push(`## Financial Health Summary`);
+    lines.push(`## Spare Score Summary`);
     lines.push(`Score: ${financialHealth.score}/100 (${financialHealth.classification})`);
     lines.push(`Monthly Income: $${financialHealth.monthlyIncome.toFixed(2)}`);
     lines.push(`Monthly Expenses: $${financialHealth.monthlyExpenses.toFixed(2)}`);

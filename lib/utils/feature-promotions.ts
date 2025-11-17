@@ -40,7 +40,7 @@ export const featurePromotions: Record<string, FeaturePromotion> = {
   },
   "Advanced Reports": {
     headline: "Make smarter financial decisions",
-    subheadline: "Deep insights into your spending patterns, income trends, and financial health",
+    subheadline: "Deep insights into your spending patterns, income trends, and Spare Score",
     benefits: [
       {
         title: "Detailed analytics",

@@ -291,7 +291,7 @@ async function loadDashboardDataInternal(
         monthlyExpenses: 0,
         netAmount: 0,
         savingsRate: 0,
-        message: "Unable to calculate financial health at this time. Please try refreshing the page.",
+        message: "Unable to calculate Spare Score at this time. Please try refreshing the page.",
         spendingDiscipline: "Unknown" as const,
         debtExposure: "Low" as const,
         emergencyFundMonths: 0,

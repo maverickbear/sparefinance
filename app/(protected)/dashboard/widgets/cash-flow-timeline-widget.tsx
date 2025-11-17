@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { startOfMonth, endOfMonth, eachMonthOfInterval, subMonths } from "date-fns";
 import { IncomeExpensesChart } from "@/components/charts/income-expenses-chart";
-import { parseTransactionAmount } from "../utils/transaction-helpers";
+import { calculateTotalIncome, calculateTotalExpenses } from "../utils/transaction-helpers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type PeriodOption = "1M" | "3M" | "6M" | "12M";
@@ -61,13 +61,10 @@ export function CashFlowTimelineWidget({
         return txDate >= monthStart && txDate <= monthEnd;
       });
 
-      const income = monthTransactions
-        .filter((t) => t.type === "income")
-        .reduce((sum, t) => sum + parseTransactionAmount(t.amount), 0);
-
-      const expenses = monthTransactions
-        .filter((t) => t.type === "expense")
-        .reduce((sum, t) => sum + Math.abs(parseTransactionAmount(t.amount)), 0);
+      // Use centralized calculation functions to ensure consistency
+      // These functions exclude transfers and validate transactions
+      const income = calculateTotalIncome(monthTransactions);
+      const expenses = calculateTotalExpenses(monthTransactions);
 
       return {
         month: format(month, "MMM"),
