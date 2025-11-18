@@ -787,7 +787,7 @@ export async function getAllSystemCategories(): Promise<SystemCategory[]> {
     return (categories || []).map((cat) => ({
       id: cat.id,
       name: cat.name,
-      macroId: cat.macroId,
+      macroId: cat.groupId, // Backward compatibility: map groupId to macroId
       createdAt: new Date(cat.createdAt),
       updatedAt: new Date(cat.updatedAt),
       userId: null,
@@ -847,7 +847,7 @@ export async function createSystemCategory(data: { name: string; macroId: string
       .from("Category")
       .select("id")
       .eq("name", data.name)
-      .eq("macroId", data.macroId)
+      .eq("groupId", data.macroId)
       .is("userId", null)
       .single();
 
@@ -863,7 +863,7 @@ export async function createSystemCategory(data: { name: string; macroId: string
       .insert({
         id,
         name: data.name,
-        macroId: data.macroId,
+        groupId: data.macroId,
         userId: null, // System category
         createdAt: now,
         updatedAt: now,
@@ -885,7 +885,7 @@ export async function createSystemCategory(data: { name: string; macroId: string
     return {
       id: category.id,
       name: category.name,
-      macroId: category.macroId,
+      macroId: category.groupId, // Backward compatibility: map groupId to macroId
       createdAt: new Date(category.createdAt),
       updatedAt: new Date(category.updatedAt),
       userId: null,
@@ -924,7 +924,7 @@ export async function updateSystemCategory(
     // Verify it's a system category
     const { data: existing, error: checkError } = await supabase
       .from("Category")
-      .select("id, userId, macroId")
+      .select("id, userId, groupId")
       .eq("id", id)
       .single();
 
@@ -946,7 +946,7 @@ export async function updateSystemCategory(
         .from("Category")
         .select("id")
         .eq("name", data.name)
-        .eq("macroId", existing.macroId)
+        .eq("groupId", existing.groupId)
         .is("userId", null)
         .neq("id", id)
         .single();
@@ -979,7 +979,7 @@ export async function updateSystemCategory(
           .from("Category")
           .select("id")
           .eq("name", data.name)
-          .eq("macroId", data.macroId)
+          .eq("groupId", data.macroId)
           .is("userId", null)
           .neq("id", id)
           .single();
@@ -989,7 +989,7 @@ export async function updateSystemCategory(
         }
       }
 
-      updateData.macroId = data.macroId;
+      updateData.groupId = data.macroId;
     }
 
     const { data: category, error } = await supabase
@@ -1014,7 +1014,7 @@ export async function updateSystemCategory(
     return {
       id: category.id,
       name: category.name,
-      macroId: category.macroId,
+      macroId: category.groupId, // Backward compatibility: map groupId to macroId
       createdAt: new Date(category.createdAt),
       updatedAt: new Date(category.updatedAt),
       userId: null,

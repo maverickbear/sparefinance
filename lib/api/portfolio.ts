@@ -329,8 +329,8 @@ export async function invalidatePortfolioCache(userId?: string): Promise<void> {
   
   // Also invalidate Next.js cache
   const { revalidateTag } = await import("next/cache");
-  revalidateTag('investments');
-  revalidateTag('portfolio');
+  revalidateTag('investments', 'layout');
+  revalidateTag('portfolio', 'layout');
   
   if (process.env.NODE_ENV === "development") {
     console.log("[Portfolio Cache] Invalidated cache for user:", targetUserId);

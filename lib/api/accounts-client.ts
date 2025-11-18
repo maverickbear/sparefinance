@@ -112,7 +112,18 @@ export async function getAccountsClient(): Promise<Account[]> {
       continue;
     }
     
-    if (tx.type === "income") {
+    // Handle transfers separately - they move money between accounts
+    if (tx.type === "transfer") {
+      // For outgoing transfer (has transferToId), subtract from source account
+      if ((tx as any).transferToId) {
+        balances.set(tx.accountId, currentBalance - Math.abs(decryptedAmount));
+      }
+      // For incoming transfer (has transferFromId), add to destination account
+      // Note: The incoming transfer will be processed separately with its own accountId
+      if ((tx as any).transferFromId) {
+        balances.set(tx.accountId, currentBalance + decryptedAmount);
+      }
+    } else if (tx.type === "income") {
       balances.set(tx.accountId, currentBalance + decryptedAmount);
     } else if (tx.type === "expense") {
       balances.set(tx.accountId, currentBalance - Math.abs(decryptedAmount));

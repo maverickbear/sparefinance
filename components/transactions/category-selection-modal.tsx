@@ -81,11 +81,11 @@ export function CategorySelectionModal({
         if (transaction.categoryId) {
           const category = categories.find(c => c.id === transaction.categoryId);
           if (category) {
-            setSelectedMacroId(category.macroId || "");
+            setSelectedMacroId(category.groupId || "");
             
             // Load categories for the macro
-            if (category.macroId) {
-              await loadCategoriesForMacro(category.macroId);
+            if (category.groupId) {
+              await loadCategoriesForMacro(category.groupId);
             }
             
             // Load subcategories if category is selected

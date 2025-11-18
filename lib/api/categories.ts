@@ -281,11 +281,11 @@ export async function getAllCategories() {
     .select(`
       id,
       name,
-      macroId,
+      groupId,
       userId,
       createdAt,
       updatedAt,
-      macro:Group(*),
+      group:Group(*),
       subcategories:Subcategory(*)
     `)
     .or(`userId.is.null,userId.eq.${authUser.id}`)

@@ -707,8 +707,8 @@ export async function getTransactionsInternal(
     }
     if (filters?.type) {
       if (filters.type === "transfer") {
-        // Transfer transactions have either transferToId or transferFromId set
-        filteredQuery = filteredQuery.or("transferToId.not.is.null,transferFromId.not.is.null");
+        // Transfer transactions: either have type 'transfer' OR have transferToId/transferFromId set (for backward compatibility)
+        filteredQuery = filteredQuery.or("type.eq.transfer,transferToId.not.is.null,transferFromId.not.is.null");
       } else {
         filteredQuery = filteredQuery.eq("type", filters.type);
       }
@@ -995,8 +995,8 @@ export async function getUpcomingTransactions(limit: number = 5) {
           id: `recurring-${tx.id}-${nextDate.toISOString()}`,
           date: nextDate,
           type: tx.type,
-          amount: decryptAmount(tx.amount),
-          description: decryptDescription(tx.description),
+          amount: decryptAmount(tx.amount) ?? 0,
+          description: decryptDescription(tx.description) ?? undefined,
           account: account || null,
           category: category || null,
           subcategory: subcategory || null,

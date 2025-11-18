@@ -23,9 +23,11 @@ export async function POST(request: NextRequest) {
       categoryId: body.categoryId,
       subcategoryId: body.subcategoryId,
       macroId: body.macroId,
+      groupId: body.groupId,
       categoryIds: body.categoryIds,
       subcategoryIds: body.subcategoryIds,
       amount: body.amount,
+      isRecurring: body.isRecurring, // If false, creates only 1 budget instead of 13
     });
     
     return NextResponse.json(budget, { status: 201 });

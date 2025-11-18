@@ -142,7 +142,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           <div className="flex justify-between items-center">
             <span>Investments</span>
             <div className="flex items-center gap-2">
-              {(limits.hasInvestments === true || limits.hasInvestments === "true") ? (
+              {(limits.hasInvestments === true || String(limits.hasInvestments) === "true") ? (
                 <Badge variant="default" className="text-xs">Enabled</Badge>
               ) : (
                 <>
@@ -157,7 +157,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           <div className="flex justify-between items-center">
             <span>Advanced Reports</span>
             <div className="flex items-center gap-2">
-              {(limits.hasAdvancedReports === true || limits.hasAdvancedReports === "true") ? (
+              {(limits.hasAdvancedReports === true || String(limits.hasAdvancedReports) === "true") ? (
                 <Badge variant="default" className="text-xs">Enabled</Badge>
               ) : (
                 <>
@@ -172,7 +172,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           <div className="flex justify-between items-center">
             <span>CSV Export</span>
             <div className="flex items-center gap-2">
-              {(limits.hasCsvExport === true || limits.hasCsvExport === "true") ? (
+              {(limits.hasCsvExport === true || String(limits.hasCsvExport) === "true") ? (
                 <Badge variant="default" className="text-xs">Enabled</Badge>
               ) : (
                 <>
@@ -187,7 +187,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           <div className="flex justify-between items-center">
             <span>CSV Import</span>
             <div className="flex items-center gap-2">
-              {(limits.hasCsvImport === true || limits.hasCsvImport === "true") ? (
+              {(limits.hasCsvImport === true || String(limits.hasCsvImport) === "true") ? (
                 <Badge variant="default" className="text-xs">Enabled</Badge>
               ) : (
                 <>
@@ -202,7 +202,7 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           <div className="flex justify-between items-center">
             <span>Budgets</span>
             <div className="flex items-center gap-2">
-              {(limits.hasBudgets === true || limits.hasBudgets === "true") ? (
+              {(limits.hasBudgets === true || String(limits.hasBudgets) === "true") ? (
                 <Badge variant="default" className="text-xs">Enabled</Badge>
               ) : (
                 <>

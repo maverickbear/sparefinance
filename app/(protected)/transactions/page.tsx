@@ -1131,7 +1131,7 @@ export default function TransactionsPage() {
     // Check if user has access to CSV export
     // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
     // Safety check: convert string "true" to boolean (defensive programming)
-    const hasAccess = limits.hasCsvExport === true || limits.hasCsvExport === "true";
+    const hasAccess = limits.hasCsvExport === true || String(limits.hasCsvExport) === "true";
     
     if (!hasAccess) {
       toast({
@@ -1674,10 +1674,10 @@ export default function TransactionsPage() {
           className="w-full"
         >
           <SimpleTabsList className="w-full">
-            <SimpleTabsTrigger value="all" className="text-xs">All</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="expense" className="text-xs">Expense</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="income" className="text-xs">Income</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="transfer" className="text-xs">Transfer</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="all">All</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="expense">Expense</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="income">Income</SimpleTabsTrigger>
+            <SimpleTabsTrigger value="transfer">Transfer</SimpleTabsTrigger>
           </SimpleTabsList>
         </SimpleTabs>
             </div>

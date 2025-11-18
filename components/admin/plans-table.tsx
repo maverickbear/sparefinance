@@ -99,10 +99,10 @@ export function PlansTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  {formatMoney(plan.priceMonthly, "CAD")}
+                  {formatMoney(plan.priceMonthly)}
                 </TableCell>
                 <TableCell>
-                  {formatMoney(plan.priceYearly, "CAD")}
+                  {formatMoney(plan.priceYearly)}
                 </TableCell>
                 <TableCell>
                   <div className="space-y-1">
@@ -130,7 +130,7 @@ export function PlansTable({
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="small"
                     onClick={() => onEdit(plan)}
                   >
                     <Edit className="h-4 w-4 mr-2" />

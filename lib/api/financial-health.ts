@@ -64,16 +64,24 @@ async function calculateFinancialHealthInternal(
     ? transactionsResult
     : (transactionsResult?.transactions || []);
   
-  // Only count income and expense transactions
+  // Only count income and expense transactions (exclude transfers)
   const monthlyIncome = transactions
-    .filter((t) => t.type === "income")
+    .filter((t) => {
+      // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+      const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+      return t.type === "income" && !isTransfer;
+    })
     .reduce((sum, t) => {
       const amount = Number(t.amount) || 0;
       return sum + Math.abs(amount); // Ensure income is positive
     }, 0);
   
   const monthlyExpenses = transactions
-    .filter((t) => t.type === "expense")
+    .filter((t) => {
+      // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+      const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+      return t.type === "expense" && !isTransfer;
+    })
     .reduce((sum, t) => {
       const amount = Number(t.amount) || 0;
       return sum + Math.abs(amount); // Ensure expenses are positive
@@ -230,14 +238,22 @@ async function calculateFinancialHealthInternal(
       : (lastMonthTransactionsResult?.transactions || []);
 
     const lastMonthIncome = lastMonthTransactions
-      .filter((t) => t.type === "income")
+      .filter((t) => {
+        // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+        const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+        return t.type === "income" && !isTransfer;
+      })
       .reduce((sum, t) => {
         const amount = Number(t.amount) || 0;
         return sum + Math.abs(amount);
       }, 0);
 
     const lastMonthExpenses = lastMonthTransactions
-      .filter((t) => t.type === "expense")
+      .filter((t) => {
+        // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+        const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+        return t.type === "expense" && !isTransfer;
+      })
       .reduce((sum, t) => {
         const amount = Number(t.amount) || 0;
         return sum + Math.abs(amount);

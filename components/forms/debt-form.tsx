@@ -607,7 +607,7 @@ export function DebtForm({
       
       // Filter categories that belong to the Debts group
       const debtsCategoriesList = allCategories.filter(
-        (cat) => cat.macroId === debtsGroup.id
+        (cat) => cat.groupId === debtsGroup.id
       );
       
       setDebtsCategories(debtsCategoriesList);

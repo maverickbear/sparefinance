@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { formatMoney } from "@/components/common/money";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { ArrowDown, ArrowUp, ArrowRight } from "lucide-react";
 
 interface RecurringPayment {
   id: string;
@@ -66,6 +67,19 @@ export function RecurringPaymentsWidget({
         return "Transfer";
       default:
         return type;
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "expense":
+        return <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />;
+      case "income":
+        return <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />;
+      case "transfer":
+        return <ArrowRight className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+      default:
+        return null;
     }
   };
 

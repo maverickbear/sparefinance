@@ -146,7 +146,7 @@ export default function CategoriesPage() {
     
     // Add macros that have at least one user-created category
     userCategoriesWithFilteredSubcategories.forEach((category) => {
-      const macroId = category.macroId;
+      const macroId = category.groupId;
       if (!macroId) return;
       if (!userMacroIds.has(macroId)) {
         // Find the macro (could be system macro or user macro)
@@ -163,7 +163,7 @@ export default function CategoriesPage() {
     
     // Add system categories to their respective groups
     systemCategories.forEach((category) => {
-      const macroId = category.macroId;
+      const macroId = category.groupId;
       if (!macroId) return;
       const group = systemGroupsMap.get(macroId);
       if (group) {
@@ -172,7 +172,7 @@ export default function CategoriesPage() {
         }
       } else {
         systemGroupsMap.set(macroId, {
-          macro: category.macro || { id: macroId, name: "Unknown" },
+          macro: category.group || { id: macroId, name: "Unknown" },
           categories: [category],
         });
       }
@@ -180,7 +180,7 @@ export default function CategoriesPage() {
     
     // Add user categories to their respective groups (only groups that exist in userGroupsMap)
     userCategoriesWithFilteredSubcategories.forEach((category) => {
-      const macroId = category.macroId;
+      const macroId = category.groupId;
       if (!macroId) return;
       const group = userGroupsMap.get(macroId);
       if (group) {
@@ -742,7 +742,7 @@ export default function CategoriesPage() {
                 
                 const hasChanged = 
                   existing.name !== updatedCategory.name ||
-                  existing.macroId !== updatedCategory.macroId ||
+                  existing.groupId !== updatedCategory.groupId ||
                   subcategoriesChanged;
                 
                 if (!hasChanged) {
@@ -762,7 +762,7 @@ export default function CategoriesPage() {
             });
             
             // If macro doesn't exist in macros list, fetch it
-            if (updatedCategory.macroId && !macros.find((m) => m.id === updatedCategory.macroId)) {
+            if (updatedCategory.groupId && !macros.find((m) => m.id === updatedCategory.groupId)) {
               loadData(); // Only reload if macro is missing
             }
           } else {

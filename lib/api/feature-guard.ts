@@ -61,7 +61,7 @@ export async function guardTransactionLimit(
 ): Promise<GuardResult> {
   try {
     // Get subscription data using unified API
-    const { limits } = await getUserSubscriptionData(userId);
+    const { limits, plan } = await getUserSubscriptionData(userId);
     
     // Unlimited transactions
     if (limits.maxTransactions === -1) {

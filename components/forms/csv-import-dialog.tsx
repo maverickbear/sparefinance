@@ -389,7 +389,7 @@ export function CsvImportDialog({
   // Check if user has access to CSV import
   // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
   // Safety check: convert string "true" to boolean (defensive programming)
-  const hasCsvAccess = limits.hasCsvImport === true || limits.hasCsvImport === "true";
+  const hasCsvAccess = limits.hasCsvImport === true || String(limits.hasCsvImport) === "true";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

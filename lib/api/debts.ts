@@ -38,6 +38,8 @@ export interface Debt {
   isPaidOff: boolean;
   isPaused: boolean;
   paidOffAt?: string | null;
+  status?: string;
+  nextDueDate?: string | null;
   createdAt: string;
   updatedAt: string;
   // Calculated fields

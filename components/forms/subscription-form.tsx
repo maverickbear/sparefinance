@@ -65,7 +65,7 @@ export function SubscriptionForm({
   const getComboboxGroups = (): ComboboxGroup[] => {
     // Filter categories to only include those from "Subscriptions" group
     const subscriptionsCategories = allCategories.filter((category) => {
-      const groupName = category.macro?.name?.toLowerCase() || "";
+      const groupName = category.group?.name?.toLowerCase() || "";
       return groupName === "subscriptions" || groupName === "subscription";
     });
     
@@ -88,7 +88,7 @@ export function SubscriptionForm({
     
     // Filter categories to only include those from "Subscriptions" group
     const subscriptionsCategories = allCategories.filter((category) => {
-      const groupName = category.macro?.name?.toLowerCase() || "";
+      const groupName = category.group?.name?.toLowerCase() || "";
       return groupName === "subscriptions" || groupName === "subscription";
     });
     
@@ -112,7 +112,7 @@ export function SubscriptionForm({
     
     return grouped;
   };
-  const [billingFrequency, setBillingFrequency] = useState<"monthly" | "yearly">("monthly");
+  const [billingFrequency, setBillingFrequency] = useState<"monthly" | "weekly" | "biweekly" | "semimonthly" | "daily">("monthly");
 
   const form = useForm<UserServiceSubscriptionFormData>({
     defaultValues: {
@@ -427,7 +427,7 @@ export function SubscriptionForm({
                   <SelectContent>
                     {allCategories
                       .filter((category) => {
-                        const groupName = category.macro?.name?.toLowerCase() || "";
+                        const groupName = category.group?.name?.toLowerCase() || "";
                         return groupName === "subscriptions" || groupName === "subscription";
                       })
                       .map((category) => (
@@ -461,7 +461,7 @@ export function SubscriptionForm({
               <label className="text-sm font-medium">Amount</label>
               <DollarAmountInput
                 value={form.watch("amount")}
-                onChange={(value) => form.setValue("amount", value)}
+                onChange={(value) => form.setValue("amount", value ?? 0)}
               />
             </div>
 
@@ -492,7 +492,7 @@ export function SubscriptionForm({
               <Tabs
                 value={form.watch("billingFrequency")}
                 onValueChange={(value) => {
-                  form.setValue("billingFrequency", value as "monthly" | "yearly");
+                  form.setValue("billingFrequency", value as "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily");
                 }}
                 className="w-full"
               >

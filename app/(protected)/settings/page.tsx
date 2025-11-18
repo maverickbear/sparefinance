@@ -594,7 +594,7 @@ function BillingModuleContent() {
   const [limits, setLimits] = useState<PlanFeatures | null>(null);
   const [transactionLimit, setTransactionLimit] = useState<LimitCheckResult | null>(null);
   const [accountLimit, setAccountLimit] = useState<LimitCheckResult | null>(null);
-  const [interval, setInterval] = useState<"month" | "year" | null>(null);
+  const [billingInterval, setBillingInterval] = useState<"month" | "year" | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -649,7 +649,7 @@ function BillingModuleContent() {
         setLimits(cached.limits);
         setTransactionLimit(cached.transactionLimit);
         setAccountLimit(cached.accountLimit);
-        setInterval(cached.interval);
+        setBillingInterval(cached.interval);
         setHasLoaded(true);
         return;
       }
@@ -663,7 +663,7 @@ function BillingModuleContent() {
           setLimits(result.limits);
           setTransactionLimit(result.transactionLimit);
           setAccountLimit(result.accountLimit);
-          setInterval(result.interval);
+          setBillingInterval(result.interval);
           setHasLoaded(true);
           return;
         } catch (error) {
@@ -736,7 +736,7 @@ function BillingModuleContent() {
       setLimits(result.limits);
       setTransactionLimit(result.transactionLimit);
       setAccountLimit(result.accountLimit);
-      setInterval(result.interval);
+      setBillingInterval(result.interval);
       setHasLoaded(true);
     } catch (error) {
       console.error("Error loading billing data:", error);
@@ -816,7 +816,7 @@ function BillingModuleContent() {
       <SubscriptionManagement
         subscription={subscription}
         plan={plan}
-        interval={interval}
+        interval={billingInterval}
         onSubscriptionUpdated={() => {
           // Invalidate cache when subscription is updated
           billingDataCache.data = null;

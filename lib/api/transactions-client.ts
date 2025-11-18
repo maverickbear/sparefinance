@@ -76,8 +76,8 @@ export async function getTransactionsClient(filters?: {
 
   if (filters?.type) {
     if (filters.type === "transfer") {
-      // Transfer transactions have either transferToId or transferFromId set
-      query = query.or("transferToId.not.is.null,transferFromId.not.is.null");
+      // Transfer transactions: either have type 'transfer' OR have transferToId/transferFromId set (for backward compatibility)
+      query = query.or("type.eq.transfer,transferToId.not.is.null,transferFromId.not.is.null");
     } else {
       query = query.eq("type", filters.type);
     }

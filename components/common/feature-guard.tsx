@@ -56,7 +56,7 @@ export function FeatureGuard({
   // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
   // Safety check: convert string "true" to boolean (defensive programming)
   const featureValue = limits[feature];
-  const hasAccess = featureValue === true || featureValue === "true";
+  const hasAccess = featureValue === true || String(featureValue) === "true";
 
   if (!hasAccess) {
     if (fallback) {

@@ -12,7 +12,7 @@
 
 import { createServerClient } from "@/lib/supabase-server";
 import { Plan, PlanFeatures, Subscription } from "@/lib/validations/plan";
-import { getOwnerIdForMember, isHouseholdMember } from "./members";
+import { getOwnerIdForMember, isHouseholdMember } from "@/lib/api/members";
 import { logger } from "@/lib/utils/logger";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 

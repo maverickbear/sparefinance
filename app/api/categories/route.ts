@@ -41,16 +41,19 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, macroId } = body;
+    const { name, macroId, groupId } = body;
 
-    if (!name || !macroId) {
+    // Support both macroId (deprecated) and groupId for backward compatibility
+    const finalGroupId = groupId || macroId;
+
+    if (!name || !finalGroupId) {
       return NextResponse.json(
-        { error: "Name and macroId are required" },
+        { error: "Name and groupId (or macroId) are required" },
         { status: 400 }
       );
     }
 
-    const category = await createCategory({ name, macroId });
+    const category = await createCategory({ name, groupId: finalGroupId, macroId });
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
     console.error("Error creating category:", error);

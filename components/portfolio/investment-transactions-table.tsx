@@ -416,7 +416,7 @@ export function InvestmentTransactionsTable({
                   </span>
                   <Button
                     variant="destructive"
-                    size="sm"
+                    size="small"
                     onClick={() => setShowDeleteMultipleDialog(true)}
                     disabled={deletingMultiple}
                   >

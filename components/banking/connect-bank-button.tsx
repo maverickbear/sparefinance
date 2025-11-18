@@ -15,7 +15,7 @@ interface ConnectBankButtonProps {
 
 export function ConnectBankButton({ onSuccess, variant = "default" }: ConnectBankButtonProps) {
   const { toast } = useToast();
-  const { limits, checking: limitsLoading } = useSubscription();
+  const { limits, plan, checking: limitsLoading } = useSubscription();
   const [isLoading, setIsLoading] = useState(false);
 
   // TEMPORARY BYPASS: Simulate bank connection without using Plaid Link
@@ -141,7 +141,7 @@ export function ConnectBankButton({ onSuccess, variant = "default" }: ConnectBan
   // Check if user has access to bank integration
   // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
   // Safety check: convert string "true" to boolean (defensive programming)
-  const hasAccess = limits.hasBankIntegration === true || limits.hasBankIntegration === "true";
+  const hasAccess = limits.hasBankIntegration === true || String(limits.hasBankIntegration) === "true";
   
   if (!hasAccess) {
     return (

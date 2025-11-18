@@ -49,8 +49,145 @@ export interface Budget {
   macro?: { id: string; name: string } | null;
 }
 
+/**
+ * Creates future budgets from recurring budgets if they don't exist yet
+ * This is called automatically when viewing future months
+ */
+async function ensureRecurringBudgetsForPeriod(
+  period: Date,
+  supabase: any
+): Promise<void> {
+  const targetPeriod = new Date(period.getFullYear(), period.getMonth(), 1);
+  const targetPeriodStr = formatTimestamp(targetPeriod);
+  
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  // Find the most recent recurring budget for each category/group/subcategory combination
+  // We need to get the latest budget for each unique combination
+  const { data: allRecurringBudgets } = await supabase
+    .from("Budget")
+    .select("*")
+    .eq("userId", user.id)
+    .eq("isRecurring", true)
+    .lt("period", targetPeriodStr)
+    .order("period", { ascending: false });
+
+  if (!allRecurringBudgets || allRecurringBudgets.length === 0) {
+    return;
+  }
+
+  // Group by unique key and get the most recent one for each
+  const recurringBudgetsMap = new Map<string, any>();
+  for (const budget of allRecurringBudgets) {
+    const key = budget.groupId 
+      ? `group:${budget.groupId}` 
+      : budget.subcategoryId 
+        ? `cat:${budget.categoryId}:sub:${budget.subcategoryId}` 
+        : `cat:${budget.categoryId}`;
+    
+    // Only keep the most recent budget for each key
+    if (!recurringBudgetsMap.has(key)) {
+      recurringBudgetsMap.set(key, budget);
+    }
+  }
+
+  const recurringBudgets = Array.from(recurringBudgetsMap.values());
+
+  // Check which budgets already exist for the target period
+  const { data: existingBudgets } = await supabase
+    .from("Budget")
+    .select("id, categoryId, subcategoryId, groupId")
+    .eq("userId", user.id)
+    .eq("period", targetPeriodStr);
+
+  const existingKeys = new Set(
+    (existingBudgets || []).map((b: any) => 
+      b.groupId ? `group:${b.groupId}` : 
+      b.subcategoryId ? `cat:${b.categoryId}:sub:${b.subcategoryId}` : 
+      `cat:${b.categoryId}`
+    )
+  );
+
+  // Create missing budgets for this period
+  const budgetsToCreate: Array<Record<string, unknown>> = [];
+  const budgetCategoryRelations: Array<{ id: string; budgetId: string; categoryId: string; createdAt: string }> = [];
+  const now = formatTimestamp(new Date());
+
+  for (const recurringBudget of recurringBudgets as any[]) {
+    const key = recurringBudget.groupId 
+      ? `group:${recurringBudget.groupId}` 
+      : recurringBudget.subcategoryId 
+        ? `cat:${recurringBudget.categoryId}:sub:${recurringBudget.subcategoryId}` 
+        : `cat:${recurringBudget.categoryId}`;
+
+    // Skip if budget already exists for this period
+    if (existingKeys.has(key)) {
+      continue;
+    }
+
+    const budgetId = crypto.randomUUID();
+    const budgetData: Record<string, unknown> = {
+      id: budgetId,
+      period: targetPeriodStr,
+      amount: recurringBudget.amount,
+      userId: user.id,
+      categoryId: recurringBudget.categoryId,
+      subcategoryId: recurringBudget.subcategoryId,
+      groupId: recurringBudget.groupId,
+      isRecurring: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    budgetsToCreate.push(budgetData);
+
+    // If it's a grouped budget, we need to get the BudgetCategory relations
+    if (recurringBudget.groupId) {
+      const { data: budgetCategories } = await supabase
+        .from("BudgetCategory")
+        .select("categoryId")
+        .eq("budgetId", recurringBudget.id);
+
+      if (budgetCategories) {
+        for (const bc of budgetCategories) {
+          budgetCategoryRelations.push({
+            id: crypto.randomUUID(),
+            budgetId,
+            categoryId: bc.categoryId,
+            createdAt: now,
+          });
+        }
+      }
+    }
+  }
+
+  // Insert budgets if any
+  if (budgetsToCreate.length > 0) {
+    const { error } = await supabase
+      .from("Budget")
+      .insert(budgetsToCreate);
+
+    if (error) {
+      console.error("Error creating recurring budgets:", error);
+      return;
+    }
+
+    // Create BudgetCategory relations for grouped budgets
+    if (budgetCategoryRelations.length > 0) {
+      await supabase
+        .from("BudgetCategory")
+        .insert(budgetCategoryRelations);
+    }
+  }
+}
+
 export async function getBudgetsInternal(period: Date, accessToken?: string, refreshToken?: string) {
     const supabase = await createServerClient(accessToken, refreshToken);
+
+  // Ensure recurring budgets exist for this period (creates them on-demand)
+  await ensureRecurringBudgetsForPeriod(period, supabase);
 
   const startOfMonth = new Date(period.getFullYear(), period.getMonth(), 1);
   const endOfMonth = new Date(period.getFullYear(), period.getMonth() + 1, 0, 23, 59, 59);
@@ -69,11 +206,6 @@ export async function getBudgetsInternal(period: Date, accessToken?: string, ref
       ),
       budgetCategories:BudgetCategory(
         category:Category(
-          *
-        )
-      ),
-      budgetSubcategories:BudgetSubcategory(
-        subcategory:Subcategory(
           *
         )
       )
@@ -266,6 +398,8 @@ export async function createBudget(data: {
   amount: number;
   // Deprecated: Use groupId instead
   macroId?: string;
+  // If false, creates only the budget for the specified period (default: true)
+  isRecurring?: boolean;
 }) {
     const supabase = await createServerClient();
 
@@ -290,12 +424,16 @@ export async function createBudget(data: {
     throw new Error("groupId is required when creating a grouped budget");
   }
 
-  // Budgets are automatically set as recurring monthly
-  const isRecurring = true;
+  // Budgets are automatically set as recurring monthly (unless explicitly set to false)
+  // By default, create only 1 budget with isRecurring=true, which can be used to generate future budgets on-demand
+  const isRecurring = data.isRecurring !== false; // Default to true if not specified
 
-  // Generate all period dates for the next 13 months (current + 12 future)
+  // Always create only 1 budget (the flag isRecurring indicates it should be replicated for future months)
+  // Future budgets can be created on-demand when viewing future months
   const periodDates: string[] = [];
-  for (let monthOffset = 0; monthOffset <= 12; monthOffset++) {
+  const monthsToCreate = 1; // Always create only 1 budget
+  
+  for (let monthOffset = 0; monthOffset < monthsToCreate; monthOffset++) {
     const targetDate = new Date(data.period.getFullYear(), data.period.getMonth() + monthOffset, 1);
     periodDates.push(formatTimestamp(targetDate));
   }
@@ -335,11 +473,11 @@ export async function createBudget(data: {
     }
   }
 
-  // Create budgets for the current month and the next 12 months (skip existing ones)
+  // Create budgets for the specified period(s) (skip existing ones)
   const budgetsToCreate: Array<Record<string, unknown>> = [];
   const budgetCategoryRelations: Array<{ id: string; budgetId: string; categoryId: string; createdAt: string }> = [];
 
-  for (let monthOffset = 0; monthOffset <= 12; monthOffset++) {
+  for (let monthOffset = 0; monthOffset < monthsToCreate; monthOffset++) {
     const targetDate = new Date(data.period.getFullYear(), data.period.getMonth() + monthOffset, 1);
     const targetPeriodDate = formatTimestamp(targetDate);
 
@@ -391,7 +529,10 @@ export async function createBudget(data: {
 
   // Only insert if there are budgets to create
   if (budgetsToCreate.length === 0) {
-    throw new Error("All budgets for the next 12 months already exist");
+    const errorMessage = isRecurring 
+      ? "All budgets for the next 12 months already exist"
+      : "Budget already exists for this period";
+    throw new Error(errorMessage);
   }
 
   // Insert all budgets at once

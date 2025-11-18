@@ -221,24 +221,24 @@ BEGIN
   v_outgoing_description := COALESCE(p_description, 'Transfer to account');
   v_incoming_description := COALESCE(p_description, 'Transfer from account');
   
-  -- Create outgoing transaction (expense from source account)
+  -- Create outgoing transaction (transfer from source account)
   INSERT INTO "Transaction" (
     "id", "date", "type", "amount", "amount_numeric", "accountId", "userId",
     "categoryId", "subcategoryId", "description", "description_search",
     "recurring", "transferToId", "createdAt", "updatedAt"
   ) VALUES (
-    v_outgoing_id, p_date, 'expense', p_amount, p_amount_numeric, p_from_account_id, p_user_id,
+    v_outgoing_id, p_date, 'transfer', p_amount, p_amount_numeric, p_from_account_id, p_user_id,
     NULL, NULL, v_outgoing_description, p_description_search,
     p_recurring, v_incoming_id, v_now, v_now
   );
   
-  -- Create incoming transaction (income to destination account)
+  -- Create incoming transaction (transfer to destination account)
   INSERT INTO "Transaction" (
     "id", "date", "type", "amount", "amount_numeric", "accountId", "userId",
     "categoryId", "subcategoryId", "description", "description_search",
     "recurring", "transferFromId", "createdAt", "updatedAt"
   ) VALUES (
-    v_incoming_id, p_date, 'income', p_amount, p_amount_numeric, p_to_account_id, p_user_id,
+    v_incoming_id, p_date, 'transfer', p_amount, p_amount_numeric, p_to_account_id, p_user_id,
     NULL, NULL, v_incoming_description, p_description_search,
     p_recurring, v_outgoing_id, v_now, v_now
   );

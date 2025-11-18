@@ -14,7 +14,7 @@ export interface UserServiceSubscription {
   subcategoryId?: string | null;
   amount: number;
   description?: string | null;
-  billingFrequency: "monthly" | "yearly";
+  billingFrequency: "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily";
   billingDay?: number | null;
   accountId: string;
   isActive: boolean;
@@ -31,7 +31,7 @@ export interface UserServiceSubscriptionFormData {
   subcategoryId?: string | null;
   amount: number;
   description?: string | null;
-  billingFrequency: "monthly" | "yearly";
+  billingFrequency: "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily";
   billingDay?: number | null;
   accountId: string;
   firstBillingDate: Date | string;

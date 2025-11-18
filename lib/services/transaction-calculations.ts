@@ -58,8 +58,8 @@ export function isValidTransaction(transaction: any): boolean {
 export function calculateTotalIncome(transactions: TransactionWithRelations[]): number {
   return transactions
     .filter((t) => {
-      // Exclude transfers (transactions with transferFromId or transferToId)
-      const isTransfer = !!(t as any).transferFromId || !!(t as any).transferToId;
+      // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+      const isTransfer = t.type === 'transfer' || !!(t as any).transferFromId || !!(t as any).transferToId;
       return t && t.type === 'income' && !isTransfer && isValidTransaction(t);
     })
     .reduce((sum, t) => sum + parseAmount(t.amount), 0);
@@ -74,8 +74,8 @@ export function calculateTotalIncome(transactions: TransactionWithRelations[]): 
 export function calculateTotalExpenses(transactions: TransactionWithRelations[]): number {
   return transactions
     .filter((t) => {
-      // Exclude transfers (transactions with transferFromId or transferToId)
-      const isTransfer = !!(t as any).transferFromId || !!(t as any).transferToId;
+      // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+      const isTransfer = t.type === 'transfer' || !!(t as any).transferFromId || !!(t as any).transferToId;
       return t && t.type === 'expense' && !isTransfer && isValidTransaction(t);
     })
     .reduce((sum, t) => {
@@ -135,8 +135,8 @@ export function groupExpensesByCategory(
 ): Record<string, number> {
   return transactions
     .filter((t) => {
-      // Exclude transfers (transactions with transferFromId or transferToId)
-      const isTransfer = !!(t as any).transferFromId || !!(t as any).transferToId;
+      // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
+      const isTransfer = t.type === 'transfer' || !!(t as any).transferFromId || !!(t as any).transferToId;
       return t && t.type === 'expense' && !isTransfer && isValidTransaction(t);
     })
     .reduce((acc, t) => {
@@ -169,11 +169,24 @@ export function groupByAccount(
         acc[accountId] = 0;
       }
       
-      // Add income, subtract expenses
-      if (t.type === 'income') {
-        acc[accountId] += amount;
-      } else if (t.type === 'expense') {
-        acc[accountId] -= Math.abs(amount);
+      // Handle transfers separately - they move money between accounts
+      if (t.type === 'transfer') {
+        // For outgoing transfer (has transferToId), subtract from source account
+        if ((t as any).transferToId) {
+          acc[accountId] -= Math.abs(amount);
+        }
+        // For incoming transfer (has transferFromId), add to destination account
+        // Note: The incoming transfer will be processed separately with its own accountId
+        if ((t as any).transferFromId) {
+          acc[accountId] += amount;
+        }
+      } else {
+        // Add income, subtract expenses
+        if (t.type === 'income') {
+          acc[accountId] += amount;
+        } else if (t.type === 'expense') {
+          acc[accountId] -= Math.abs(amount);
+        }
       }
       
       return acc;
@@ -216,6 +229,11 @@ export function calculateNetBalanceChange(
   return transactions
     .filter((t) => isValidTransaction(t))
     .reduce((sum, t) => {
+      // Skip transfers - they don't affect net balance (money just moves between accounts)
+      if (t.type === 'transfer') {
+        return sum;
+      }
+      
       const amount = parseAmount(t.amount);
       
       if (t.type === 'income') {

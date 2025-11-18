@@ -50,7 +50,18 @@ export function calculateAccountBalances(
 
     const currentBalance = balances.get(tx.accountId) || 0;
 
-    if (tx.type === 'income') {
+    // Handle transfers separately - they move money between accounts
+    if (tx.type === 'transfer') {
+      // For outgoing transfer (has transferToId), subtract from source account
+      if ((tx as any).transferToId) {
+        balances.set(tx.accountId, currentBalance - Math.abs(amount));
+      }
+      // For incoming transfer (has transferFromId), add to destination account
+      // Note: The incoming transfer will be processed separately with its own accountId
+      if ((tx as any).transferFromId) {
+        balances.set(tx.accountId, currentBalance + amount);
+      }
+    } else if (tx.type === 'income') {
       balances.set(tx.accountId, currentBalance + amount);
     } else if (tx.type === 'expense') {
       balances.set(tx.accountId, currentBalance - Math.abs(amount));
@@ -98,7 +109,17 @@ export function calculateSingleAccountBalance(
       continue;
     }
 
-    if (tx.type === 'income') {
+    // Handle transfers separately - they move money between accounts
+    if (tx.type === 'transfer') {
+      // For outgoing transfer (has transferToId), subtract from source account
+      if ((tx as any).transferToId) {
+        balance -= Math.abs(amount);
+      }
+      // For incoming transfer (has transferFromId), add to destination account
+      if ((tx as any).transferFromId) {
+        balance += amount;
+      }
+    } else if (tx.type === 'income') {
       balance += amount;
     } else if (tx.type === 'expense') {
       balance -= Math.abs(amount);
@@ -139,6 +160,11 @@ export function calculateBalanceChange(
   return transactions.reduce((sum, tx) => {
     const amount = parseAmount(tx.amount);
     if (!amount || !isFinite(amount)) {
+      return sum;
+    }
+
+    // Skip transfers - they don't affect net balance (money just moves between accounts)
+    if (tx.type === 'transfer') {
       return sum;
     }
 

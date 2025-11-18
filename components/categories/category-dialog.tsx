@@ -99,7 +99,7 @@ export function CategoryDialog({
     defaultValues: category
       ? {
           name: category.name,
-          macroId: category.macroId || "",
+          macroId: category.groupId || "",
         }
       : {
           name: "",
@@ -161,7 +161,7 @@ export function CategoryDialog({
         category
           ? {
               name: category.name,
-              macroId: category.macroId || "",
+              macroId: category.groupId || "",
             }
           : {
               name: "",
@@ -207,11 +207,11 @@ export function CategoryDialog({
             const formattedCategory: Category = {
               id: updatedCategory.id,
               name: updatedCategory.name,
-              macroId: updatedCategory.macroId,
+              groupId: updatedCategory.groupId,
               userId: updatedCategory.userId,
-              macro: Array.isArray(updatedCategory.macro) 
-                ? (updatedCategory.macro.length > 0 ? updatedCategory.macro[0] : null)
-                : updatedCategory.macro,
+              group: Array.isArray(updatedCategory.group) 
+                ? (updatedCategory.group.length > 0 ? updatedCategory.group[0] : null)
+                : updatedCategory.group,
               subcategories: updatedCategory.subcategories || [],
             };
             onSuccess?.(formattedCategory);
@@ -279,11 +279,11 @@ export function CategoryDialog({
       const formattedCategory: Category = {
         id: savedCategory.id,
         name: savedCategory.name,
-        macroId: savedCategory.macroId,
+        groupId: savedCategory.groupId,
         userId: savedCategory.userId,
-        macro: Array.isArray(savedCategory.macro) 
-          ? (savedCategory.macro.length > 0 ? savedCategory.macro[0] : null)
-          : savedCategory.macro,
+        group: Array.isArray(savedCategory.group) 
+          ? (savedCategory.group.length > 0 ? savedCategory.group[0] : null)
+          : savedCategory.group,
         subcategories: savedCategory.subcategories || [],
       };
 
@@ -357,11 +357,11 @@ export function CategoryDialog({
               const formattedCategory: Category = {
                 id: updatedCategory.id,
                 name: updatedCategory.name,
-                macroId: updatedCategory.macroId,
+                groupId: updatedCategory.groupId,
                 userId: updatedCategory.userId,
-                macro: Array.isArray(updatedCategory.macro) 
-                  ? (updatedCategory.macro.length > 0 ? updatedCategory.macro[0] : null)
-                  : updatedCategory.macro,
+                group: Array.isArray(updatedCategory.group) 
+                  ? (updatedCategory.group.length > 0 ? updatedCategory.group[0] : null)
+                  : updatedCategory.group,
                 subcategories: updatedCategory.subcategories || [],
               };
               onSuccess?.(formattedCategory);
@@ -576,7 +576,7 @@ export function CategoryDialog({
             name: subcat.name,
             categoryId: cat.id,
             categoryName: cat.name,
-            groupName: cat.macro?.name,
+            groupName: cat.group?.name,
           });
         }
       });
@@ -595,7 +595,7 @@ export function CategoryDialog({
       setSearchQuery("");
       setSearchOpen(false);
     } else if (type === "category") {
-      form.setValue("macroId", item.macroId || "");
+      form.setValue("macroId", item.groupId || "");
       form.setValue("name", item.name);
       setSearchQuery("");
       setSearchOpen(false);
@@ -603,7 +603,7 @@ export function CategoryDialog({
       // Find the category for this subcategory
       const parentCategory = allCategories.find((cat) => cat.id === item.categoryId);
       if (parentCategory) {
-        form.setValue("macroId", parentCategory.macroId || "");
+        form.setValue("macroId", parentCategory.groupId || "");
         form.setValue("name", parentCategory.name);
         setSearchQuery("");
         setSearchOpen(false);
@@ -699,7 +699,7 @@ export function CategoryDialog({
                             <div className="flex flex-col">
                               <span className="font-medium">{cat.name}</span>
                               <span className="text-xs text-muted-foreground">
-                                {cat.macro?.name || "Category"}
+                                {cat.group?.name || "Category"}
                               </span>
                             </div>
                           </CommandItem>
