@@ -11,7 +11,7 @@ import { createServiceRoleClient } from "@/lib/supabase-server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, email, name } = body;
+    const { userId, email, name, avatarUrl } = body;
 
     if (!userId || !email) {
       return NextResponse.json(
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         email: email,
         name: name || null,
+        avatarUrl: avatarUrl || null,
         role: "admin", // Owners who sign up directly are admins
       })
       .select()

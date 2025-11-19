@@ -9,6 +9,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { GoogleSignInButton } from "./google-signin-button";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -76,6 +77,30 @@ function LoginFormContent() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [invitationInfo, setInvitationInfo] = useState<{ email: string; ownerName: string } | null>(null);
+
+  // Check for OAuth errors in URL params
+  useEffect(() => {
+    const oauthError = searchParams.get("error");
+    const errorDescription = searchParams.get("error_description");
+    
+    if (oauthError === "oauth_cancelled") {
+      setError("Sign in with Google was cancelled. Please try again.");
+    } else if (oauthError === "oauth_error") {
+      setError(errorDescription || "An error occurred during sign in with Google. Please try again.");
+    } else if (oauthError === "pending_invitation") {
+      setError(errorDescription || "This email has a pending household invitation. Please accept the invitation from your email or use the invitation link to create your account.");
+    } else if (oauthError === "exchange_failed" || oauthError === "no_code" || oauthError === "unexpected_error") {
+      setError("Failed to complete sign in. Please try again.");
+    }
+    
+    // Clean up URL params after showing error
+    if (oauthError) {
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete("error");
+      newUrl.searchParams.delete("error_description");
+      window.history.replaceState({}, "", newUrl.toString());
+    }
+  }, [searchParams]);
 
   // Load invitation info if token is present
   useEffect(() => {
@@ -198,6 +223,20 @@ function LoginFormContent() {
           </p>
         </div>
       )}
+      
+      <GoogleSignInButton variant="signin" />
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Or
+          </span>
+        </div>
+      </div>
+
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         {error && (
           <div className="rounded-[12px] bg-destructive/10 border border-destructive/20 p-4 flex items-start gap-3">
@@ -233,9 +272,17 @@ function LoginFormContent() {
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="password" className="text-sm font-medium text-foreground">
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="text-sm font-medium text-foreground">
+              Password
+            </label>
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm text-primary hover:underline font-medium transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
@@ -282,17 +329,6 @@ function LoginFormContent() {
           )}
         </Button>
       </form>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or
-          </span>
-        </div>
-      </div>
 
       <p className="text-center text-sm text-muted-foreground">
         Don't have an account?{" "}

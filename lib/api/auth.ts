@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase-server";
-import { SignUpFormData, SignInFormData } from "@/lib/validations/auth";
+import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData } from "@/lib/validations/auth";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { cookies } from "next/headers";
@@ -316,6 +316,58 @@ export async function updateProfile(data: { name?: string; avatarUrl?: string; p
   } catch (error) {
     console.error("Error in updateProfile:", error);
     return { user: null, error: error instanceof Error ? error.message : "Failed to update profile" };
+  }
+}
+
+export async function requestPasswordReset(data: ForgotPasswordFormData): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerClient();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com";
+    const redirectTo = `${appUrl}/auth/reset-password`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo,
+    });
+
+    if (error) {
+      // Don't reveal if email exists or not for security
+      // Always return success message to prevent email enumeration
+      console.error("Error requesting password reset:", error);
+      return { error: null }; // Return success even on error to prevent enumeration
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error in requestPasswordReset:", error);
+    // Return success to prevent email enumeration
+    return { error: null };
+  }
+}
+
+export async function resetPassword(data: ResetPasswordFormData): Promise<{ error: string | null }> {
+  try {
+    // Validate password against HIBP before attempting reset
+    const passwordValidation = await validatePasswordAgainstHIBP(data.password);
+    if (!passwordValidation.isValid) {
+      return { error: passwordValidation.error || "Invalid password" };
+    }
+
+    const supabase = await createServerClient();
+    
+    // Update user password
+    const { error } = await supabase.auth.updateUser({
+      password: data.password,
+    });
+
+    if (error) {
+      const errorMessage = getAuthErrorMessage(error, "Failed to reset password");
+      return { error: errorMessage };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error in resetPassword:", error);
+    return { error: error instanceof Error ? error.message : "Failed to reset password" };
   }
 }
 

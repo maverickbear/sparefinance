@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { GoogleSignInButton } from "./google-signin-button";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -228,6 +229,19 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
 
   return (
     <div className="space-y-6">
+      <GoogleSignInButton variant="signup" />
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Or
+          </span>
+        </div>
+      </div>
+
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
         {error && (
           <div className="rounded-[12px] bg-destructive/10 border border-destructive/20 p-4 flex items-start gap-3">
@@ -335,17 +349,6 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
           )}
         </Button>
       </form>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or
-          </span>
-        </div>
-      </div>
 
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}

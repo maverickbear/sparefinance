@@ -1,7 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { SignUpFormData, SignInFormData } from "@/lib/validations/auth";
+import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData } from "@/lib/validations/auth";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 
 /**
@@ -455,6 +455,278 @@ export async function getCurrentUserClient(): Promise<User | null> {
   } catch (error) {
     console.error("Error in getCurrentUserClient:", error);
     return null;
+  }
+}
+
+/**
+ * Client-side request password reset function
+ * Sends password reset email via Supabase
+ */
+export async function requestPasswordResetClient(data: ForgotPasswordFormData): Promise<{ error: string | null }> {
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+    const redirectTo = `${appUrl}/auth/reset-password`;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo,
+    });
+
+    if (error) {
+      // Don't reveal if email exists or not for security
+      // Always return success message to prevent email enumeration
+      console.error("Error requesting password reset:", error);
+      return { error: null }; // Return success even on error to prevent enumeration
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error in requestPasswordResetClient:", error);
+    // Return success to prevent email enumeration
+    return { error: null };
+  }
+}
+
+/**
+ * Client-side reset password function
+ * Updates user password after validating with HIBP
+ */
+export async function resetPasswordClient(data: ResetPasswordFormData): Promise<{ error: string | null }> {
+  try {
+    // Validate password against HIBP before attempting reset
+    const passwordValidation = await validatePasswordAgainstHIBPClient(data.password);
+    if (!passwordValidation.isValid) {
+      return { error: passwordValidation.error || "Invalid password" };
+    }
+
+    // Update user password
+    const { error } = await supabase.auth.updateUser({
+      password: data.password,
+    });
+
+    if (error) {
+      const errorMessage = getAuthErrorMessage(error, "Failed to reset password");
+      return { error: errorMessage };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error in resetPasswordClient:", error);
+    return { error: error instanceof Error ? error.message : "Failed to reset password" };
+  }
+}
+
+/**
+ * Sign in with Google OAuth
+ * Initiates OAuth flow and redirects to Google
+ */
+export async function signInWithGoogle(): Promise<{ error: string | null }> {
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+    const redirectTo = `${appUrl}/auth/callback`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
+      },
+    });
+
+    if (error) {
+      console.error("Error initiating Google OAuth:", error);
+      return { error: error.message || "Failed to sign in with Google" };
+    }
+
+    // The redirect will happen automatically, so we return success
+    return { error: null };
+  } catch (error) {
+    console.error("Error in signInWithGoogle:", error);
+    return { error: error instanceof Error ? error.message : "Failed to sign in with Google" };
+  }
+}
+
+/**
+ * Create user profile from OAuth authentication
+ * This is called after OAuth callback to ensure user profile exists
+ */
+export async function createUserProfileFromOAuth(): Promise<{ user: User | null; error: string | null; isNewUser: boolean }> {
+  try {
+    // Get the authenticated user from Supabase
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      return { user: null, error: "Not authenticated", isNewUser: false };
+    }
+
+    // Check if email has a pending invitation
+    try {
+      const checkResponse = await fetch(`/api/members/invite/check-pending?email=${encodeURIComponent(authUser.email || "")}`);
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        if (checkData.hasPendingInvitation) {
+          return { 
+            user: null, 
+            error: "This email has a pending household invitation. Please accept the invitation from your email or use the invitation link to create your account.",
+            isNewUser: false
+          };
+        }
+      }
+    } catch (checkError) {
+      // If check fails, continue (don't block)
+      console.error("Error checking pending invitation:", checkError);
+    }
+
+    // Extract user data from OAuth metadata
+    const name = authUser.user_metadata?.full_name || authUser.user_metadata?.name || null;
+    const avatarUrl = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || null;
+
+    // Check if user profile already exists
+    let { data: userData } = await supabase
+      .from("User")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    const isNewUser = !userData;
+
+    if (!userData) {
+      // Create user profile using API route (bypasses RLS)
+      try {
+        const createResponse = await fetch("/api/auth/create-user-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: authUser.id,
+            email: authUser.email,
+            name: name,
+            avatarUrl: avatarUrl,
+          }),
+        });
+
+        const createData = await createResponse.json();
+
+        if (createResponse.ok && createData.user) {
+          console.log("[OAUTH] ✅ User profile created via API route");
+          userData = createData.user;
+        } else {
+          // Fallback: try to fetch existing user (might have been created by a trigger)
+          console.warn("[OAUTH] API route failed, checking if user already exists:", createData.error || "Unknown error");
+          
+          const { data: existingUser } = await supabase
+            .from("User")
+            .select("*")
+            .eq("id", authUser.id)
+            .maybeSingle();
+          
+          if (existingUser) {
+            console.log("[OAUTH] User profile already exists, using existing profile");
+            userData = existingUser;
+          } else {
+            return { user: null, error: "Failed to create user profile", isNewUser: true };
+          }
+        }
+      } catch (apiError) {
+        console.error("[OAUTH] ❌ Error calling create-user-profile API:", apiError);
+        
+        // Fallback: try to fetch existing user
+        const { data: existingUser } = await supabase
+          .from("User")
+          .select("*")
+          .eq("id", authUser.id)
+          .maybeSingle();
+        
+        if (existingUser) {
+          console.log("[OAUTH] User profile already exists (fallback), using existing profile");
+          userData = existingUser;
+        } else {
+          return { user: null, error: "Failed to create user profile", isNewUser: true };
+        }
+      }
+
+      // Create household member record for the owner (owner is also a household member of themselves)
+      if (userData) {
+        try {
+          const createResponse = await fetch("/api/auth/create-household-member", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ownerId: userData.id,
+              memberId: userData.id,
+              email: authUser.email!,
+              name: name,
+            }),
+          });
+
+          const createData = await createResponse.json();
+
+          if (createResponse.ok && createData.success) {
+            console.log("[OAUTH] ✅ Household member created via API route");
+          } else {
+            console.warn("[OAUTH] ❌ API route failed for household member:", createData.error || "Unknown error");
+          }
+        } catch (apiError) {
+          console.error("[OAUTH] ❌ Error calling create-household-member API:", apiError);
+        }
+      }
+    } else {
+      // User already exists - update avatar if available and not set
+      if (avatarUrl && !userData.avatarUrl) {
+        try {
+          const { data: updatedUser } = await supabase
+            .from("User")
+            .update({ avatarUrl: avatarUrl })
+            .eq("id", authUser.id)
+            .select()
+            .single();
+          
+          if (updatedUser) {
+            userData = updatedUser;
+          }
+        } catch (updateError) {
+          console.warn("[OAUTH] Error updating avatar:", updateError);
+        }
+      }
+    }
+
+    // Check if there's a pending subscription for this email and link it automatically
+    if (userData && authUser.email) {
+      try {
+        // Wait a bit for the user record to be fully created
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Try to link any pending subscription
+        const linkResponse = await fetch("/api/stripe/link-subscription", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: authUser.email }),
+        });
+
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          if (linkData.success) {
+            console.log("[OAUTH] Pending subscription linked automatically:", authUser.email);
+          }
+        }
+        // If linking fails, it's OK - user can still use the app normally
+      } catch (error) {
+        console.error("[OAUTH] Error linking pending subscription:", error);
+        // Don't fail if linking fails
+      }
+    }
+
+    return { user: userData ? mapUser(userData) : null, error: null, isNewUser };
+  } catch (error) {
+    console.error("Error in createUserProfileFromOAuth:", error);
+    return { user: null, error: error instanceof Error ? error.message : "Failed to create user profile", isNewUser: false };
   }
 }
 
