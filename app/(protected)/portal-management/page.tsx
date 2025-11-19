@@ -15,7 +15,7 @@ import { GroupDialog } from "@/components/admin/group-dialog";
 import { CategoryDialog } from "@/components/admin/category-dialog";
 import { SubcategoryDialog } from "@/components/admin/subcategory-dialog";
 import { BulkImportDialog } from "@/components/admin/bulk-import-dialog";
-import { Plus, Loader2, Users, Tag, FolderTree, BarChart3, Mail, MessageSquare, Star, Upload, ChevronDown, Search } from "lucide-react";
+import { Plus, Loader2, Users, Tag, FolderTree, BarChart3, Mail, Star, Upload, ChevronDown, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -765,7 +765,6 @@ export default function PortalManagementPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Feedback</CardTitle>
-                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{feedbackMetrics.total}</div>
@@ -774,7 +773,6 @@ export default function PortalManagementPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
-                    <Star className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
@@ -786,7 +784,6 @@ export default function PortalManagementPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">5 Star Ratings</CardTitle>
-                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
@@ -802,7 +799,6 @@ export default function PortalManagementPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Low Ratings (1-2)</CardTitle>
-                    <Star className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">

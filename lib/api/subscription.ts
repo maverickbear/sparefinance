@@ -357,15 +357,6 @@ export async function checkTransactionLimit(userId: string, month: Date = new Da
   try {
     const { limits, plan } = await getUserSubscriptionData(userId);
     
-    // Unlimited transactions
-    if (limits.maxTransactions === -1) {
-      return {
-        allowed: true,
-        limit: -1,
-        current: 0,
-      };
-    }
-
     const supabase = await createServerClient();
     
     // Get start and end of month
@@ -384,8 +375,9 @@ export async function checkTransactionLimit(userId: string, month: Date = new Da
 
     let current = 0;
     
-    if (usageError && usageError.code !== 'PGRST116') {
-      // Fallback to COUNT if table doesn't exist or error
+    // If no usage data found (null) or error (except not found), fallback to COUNT
+    if (!usage || (usageError && usageError.code !== 'PGRST116')) {
+      // Fallback to COUNT if table doesn't have data or has error
       const { count, error } = await supabase
         .from("Transaction")
         .select("*", { count: "exact", head: true })
@@ -396,7 +388,7 @@ export async function checkTransactionLimit(userId: string, month: Date = new Da
       if (error) {
         logger.error("Error checking transaction limit:", error);
         return {
-          allowed: false,
+          allowed: limits.maxTransactions === -1 ? true : false,
           limit: limits.maxTransactions,
           current: 0,
           message: "Error checking limit",
@@ -405,7 +397,16 @@ export async function checkTransactionLimit(userId: string, month: Date = new Da
 
       current = count || 0;
     } else {
-      current = usage?.transactions_count || 0;
+      current = usage.transactions_count || 0;
+    }
+
+    // Unlimited transactions - always allowed, but show actual count
+    if (limits.maxTransactions === -1) {
+      return {
+        allowed: true,
+        limit: -1,
+        current,
+      };
     }
 
     const allowed = current < limits.maxTransactions;
@@ -434,15 +435,6 @@ export async function checkAccountLimit(userId: string): Promise<LimitCheckResul
   try {
     const { limits } = await getUserSubscriptionData(userId);
     
-    // Unlimited accounts
-    if (limits.maxAccounts === -1) {
-      return {
-        allowed: true,
-        limit: -1,
-        current: 0,
-      };
-    }
-
     const supabase = await createServerClient();
     
     // Count accounts where user is owner via userId OR via AccountOwner
@@ -496,6 +488,15 @@ export async function checkAccountLimit(userId: string): Promise<LimitCheckResul
       totalCount: count,
       limit: limits.maxAccounts,
     });
+
+    // Unlimited accounts - always allowed, but show actual count
+    if (limits.maxAccounts === -1) {
+      return {
+        allowed: true,
+        limit: -1,
+        current: count,
+      };
+    }
 
     const allowed = count < limits.maxAccounts;
 

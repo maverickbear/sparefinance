@@ -109,6 +109,7 @@ export function InvestmentPortfolioWidget({
   const { limits, checking: limitsLoading } = useSubscription();
   const [portfolioSummary, setPortfolioSummary] = useState<PortfolioSummary | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[]>([]);
+  const [assetMix, setAssetMix] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
   // Check if user has access to investments feature
@@ -126,10 +127,12 @@ export function InvestmentPortfolioWidget({
       try {
         setIsLoading(true);
         
-        // Fetch portfolio summary and historical data in parallel
-        const [summaryRes, historicalRes] = await Promise.all([
+        // Fetch portfolio summary, historical data, holdings, and accounts in parallel
+        const [summaryRes, historicalRes, holdingsRes, accountsRes] = await Promise.all([
           fetch("/api/portfolio/summary").catch(() => null),
           fetch("/api/portfolio/historical?days=30").catch(() => null),
+          fetch("/api/portfolio/holdings").catch(() => null),
+          fetch("/api/portfolio/accounts").catch(() => null),
         ]);
 
         if (summaryRes?.ok) {
@@ -141,6 +144,97 @@ export function InvestmentPortfolioWidget({
           const historical = await historicalRes.json();
           setHistoricalData(Array.isArray(historical) ? historical : []);
         }
+
+        // Calculate asset mix from holdings and accounts
+        let assetTypes = new Set<string>();
+        let accountTypes = new Set<string>();
+
+        if (holdingsRes?.ok) {
+          const holdings = await holdingsRes.json();
+          if (Array.isArray(holdings)) {
+            holdings.forEach((holding: any) => {
+              if (holding.assetType) {
+                // Map asset types to display names
+                const assetTypeMap: Record<string, string> = {
+                  "Stock": "Stocks",
+                  "ETF": "ETFs",
+                  "Crypto": "Crypto",
+                  "Fund": "Funds",
+                  "Bond": "Bonds",
+                  "Option": "Options",
+                };
+                const displayName = assetTypeMap[holding.assetType] || holding.assetType;
+                assetTypes.add(displayName);
+              }
+            });
+          }
+        }
+
+        if (accountsRes?.ok) {
+          const accounts = await accountsRes.json();
+          if (Array.isArray(accounts)) {
+            accounts.forEach((account: any) => {
+              if (account.type) {
+                // Map account types to display names
+                const accountTypeMap: Record<string, string> = {
+                  "401k": "401(k)",
+                  "403b": "403(b)",
+                  "ira": "IRA",
+                  "roth_ira": "Roth IRA",
+                  "sep_ira": "SEP IRA",
+                  "brokerage": "Brokerage",
+                  "taxable": "Taxable",
+                  "retirement": "Retirement",
+                };
+                const displayName = accountTypeMap[account.type.toLowerCase()] || account.type;
+                accountTypes.add(displayName);
+              }
+            });
+          }
+        }
+
+        // Also fetch InvestmentAccount types directly if available
+        try {
+          const investmentAccountsRes = await fetch("/api/questrade/data").catch(() => null);
+          if (investmentAccountsRes?.ok) {
+            const data = await investmentAccountsRes.json();
+            if (data.accounts && Array.isArray(data.accounts)) {
+              data.accounts.forEach((account: any) => {
+                if (account.type) {
+                  const accountTypeMap: Record<string, string> = {
+                    "401k": "401(k)",
+                    "403b": "403(b)",
+                    "ira": "IRA",
+                    "roth_ira": "Roth IRA",
+                    "sep_ira": "SEP IRA",
+                    "brokerage": "Brokerage",
+                    "taxable": "Taxable",
+                    "retirement": "Retirement",
+                  };
+                  const displayName = accountTypeMap[account.type.toLowerCase()] || account.type;
+                  accountTypes.add(displayName);
+                }
+              });
+            }
+          }
+        } catch (error) {
+          // Silently fail - we already have account types from the accounts API
+        }
+
+        // Build mix string
+        const mixParts: string[] = [];
+        if (assetTypes.size > 0) {
+          mixParts.push(Array.from(assetTypes).join(" · "));
+        }
+        if (accountTypes.size > 0) {
+          mixParts.push(Array.from(accountTypes).join(" · "));
+        }
+        
+        const mix = mixParts.length > 0 
+          ? mixParts.join(" · ")
+          : "No investments yet";
+        
+        setAssetMix(mix);
       } catch (error) {
         console.error("Error loading portfolio data:", error);
       } finally {
@@ -182,9 +276,6 @@ export function InvestmentPortfolioWidget({
         }).join(" ");
       })();
 
-  // Determine asset mix from holdings count (simplified)
-  const hasHoldings = portfolioSummary?.holdingsCount ? portfolioSummary.holdingsCount > 0 : false;
-  const assetMix = hasHoldings ? "ETFs · Stocks · 401(k) · IRA" : "No investments yet";
 
   // Show loading state while checking limits or loading data
   if (limitsLoading || isLoading) {
@@ -290,7 +381,7 @@ export function InvestmentPortfolioWidget({
           )}
 
           <div className="text-xs text-muted-foreground pt-2">
-            <span className="text-muted-foreground">Mix:</span> {assetMix}
+            <span className="text-muted-foreground">Mix:</span> {assetMix || "No investments yet"}
           </div>
         </div>
       </CardContent>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, CreditCard, TrendingUp, AlertTriangle, UserX, Calendar, Wrench, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
@@ -121,9 +121,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Wrench className="h-5 w-5 text-primary" />
-              </div>
               <div>
                 <CardTitle>Maintenance Mode</CardTitle>
                 <CardDescription>
@@ -150,7 +147,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.totalUsers}</div>
@@ -163,7 +159,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.activeSubscriptions}</div>
@@ -176,7 +171,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Trialing</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.trialingSubscriptions}</div>
@@ -189,7 +183,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Subscriptions</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.totalSubscriptions}</div>
@@ -204,7 +197,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cancelled</CardTitle>
-            <UserX className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.cancelledSubscriptions}</div>
@@ -217,7 +209,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Past Due</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.pastDueSubscriptions}</div>
@@ -230,7 +221,6 @@ export function DashboardOverview({ overview, loading }: DashboardOverviewProps)
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Churn Risk</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{overview.churnRisk}</div>

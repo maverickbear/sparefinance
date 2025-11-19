@@ -267,10 +267,6 @@ export default function GoalsPage() {
     return 0;
   });
 
-  // Calculate total allocation
-  const activeGoals = goals.filter((g) => !g.isCompleted);
-  const totalAllocation = activeGoals.reduce((sum, g) => sum + (g.incomePercentage || 0), 0);
-
   return (
     <FeatureGuard feature="hasGoals" featureName="Goals Tracking" requiredPlan="essential">
       <div>
@@ -293,29 +289,6 @@ export default function GoalsPage() {
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
-        {goals.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex gap-4 items-center">
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
-              <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="progress">Progress</SelectItem>
-                <SelectItem value="eta">ETA</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="text-sm">
-            <span className="text-muted-foreground">Total Allocation: </span>
-            <span className={`font-semibold ${totalAllocation > 100 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
-              {totalAllocation.toFixed(1)}%
-            </span>
-          </div>
-        </div>
-      )}
-
       <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
         {loading && !hasLoaded ? (
           <div className="col-span-full text-center py-8 text-muted-foreground">
