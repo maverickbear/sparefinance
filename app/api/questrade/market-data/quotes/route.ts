@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         accessToken = refreshed.access_token;
 
         // Update connection with new tokens
-        const encrypted = encryptTokens(
+        const { encryptedAccessToken, encryptedRefreshToken } = encryptTokens(
           refreshed.access_token,
           refreshed.refresh_token
         );
@@ -82,8 +82,8 @@ export async function GET(request: NextRequest) {
         await supabase
           .from("QuestradeConnection")
           .update({
-            accessToken: encrypted.accessToken,
-            refreshToken: encrypted.refreshToken,
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken,
             tokenExpiresAt: newExpiresAt.toISOString(),
           })
           .eq("id", connection.id);
