@@ -49,8 +49,11 @@ export async function getUserSubscriptions(): Promise<UserServiceSubscription[]>
   // Get current user
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
+    logger.warn("[getUserSubscriptions] User not authenticated:", authError?.message);
     return [];
   }
+
+  logger.info(`[getUserSubscriptions] Fetching subscriptions for user: ${user.id}`);
 
   const { data, error } = await supabase
     .from("UserServiceSubscription")
@@ -59,13 +62,31 @@ export async function getUserSubscriptions(): Promise<UserServiceSubscription[]>
     .order("createdAt", { ascending: false });
 
   if (error) {
-    logger.error("Supabase error fetching subscriptions:", error);
+    logger.error("[getUserSubscriptions] Supabase error fetching subscriptions:", {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      userId: user.id
+    });
     return [];
   }
 
+  logger.info(`[getUserSubscriptions] Query executed successfully. Raw data:`, {
+    dataLength: data?.length || 0,
+    hasData: !!data,
+    userId: user.id
+  });
+
   if (!data || data.length === 0) {
+    logger.info(`[getUserSubscriptions] No subscriptions found for user: ${user.id}`);
     return [];
   }
+
+  logger.info(`[getUserSubscriptions] Found ${data.length} subscription(s) for user: ${user.id}`, {
+    subscriptionIds: data.map(s => s.id),
+    serviceNames: data.map(s => s.serviceName)
+  });
 
   // Enrich with related data
   const enrichedSubscriptions = await Promise.all(
@@ -94,6 +115,7 @@ export async function getUserSubscriptions(): Promise<UserServiceSubscription[]>
     })
   );
 
+  logger.info(`[getUserSubscriptions] Returning ${enrichedSubscriptions.length} enriched subscription(s)`);
   return enrichedSubscriptions;
 }
 
@@ -129,6 +151,13 @@ export async function createUserSubscription(
     }
   }
 
+  // Get active household ID
+  const { getActiveHouseholdId } = await import("@/lib/utils/household");
+  const householdId = await getActiveHouseholdId(user.id);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const id = crypto.randomUUID();
   const now = formatTimestamp(new Date());
   const firstBillingDate = formatDateOnly(new Date(data.firstBillingDate));
@@ -136,6 +165,7 @@ export async function createUserSubscription(
   const subscriptionData = {
     id,
     userId: user.id,
+    householdId: householdId, // Add householdId for household-based architecture
     serviceName: data.serviceName.trim(),
     subcategoryId: subcategoryId || null,
     amount: data.amount,

@@ -2,10 +2,8 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { formatMoney } from "@/components/common/money";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { ArrowDown, ArrowUp, ArrowRight } from "lucide-react";
+import { formatMoney, formatMoneyCompact } from "@/components/common/money";
+import { getCategoryColor } from "@/lib/utils/category-colors";
 
 interface RecurringPayment {
   id: string;
@@ -23,109 +21,95 @@ interface RecurringPayment {
 
 interface RecurringPaymentsWidgetProps {
   recurringPayments: RecurringPayment[];
+  monthlyIncome?: number;
 }
 
 export function RecurringPaymentsWidget({
   recurringPayments,
+  monthlyIncome = 0,
 }: RecurringPaymentsWidgetProps) {
-  // Sort by type first (expense, income, transfer), then by description
-  const sortedPayments = useMemo(() => {
-    return [...recurringPayments].sort((a, b) => {
-      // First sort by type: expense, income, transfer
-      const typeOrder = { expense: 0, income: 1, transfer: 2 };
-      const typeDiff = (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
-      if (typeDiff !== 0) return typeDiff;
-      
-      // Then sort by description
-      const descA = a.description || a.subcategory?.name || a.category?.name || "";
-      const descB = b.description || b.subcategory?.name || b.category?.name || "";
-      return descA.localeCompare(descB);
-    });
+  // Filter only expense recurring payments for the donut chart
+  const expenseRecurringPayments = useMemo(() => {
+    return recurringPayments.filter((p) => p.type === "expense");
   }, [recurringPayments]);
 
+  // Process data for donut chart - group by category/description
+  const donutData = useMemo(() => {
+    if (expenseRecurringPayments.length === 0) return [];
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "expense":
-        return "text-red-600 dark:text-red-400";
-      case "income":
-        return "text-green-600 dark:text-green-400";
-      case "transfer":
-        return "text-blue-600 dark:text-blue-400";
-      default:
-        return "text-muted-foreground";
-    }
-  };
+    // Group by category name or description
+    const grouped = expenseRecurringPayments.reduce((acc, payment) => {
+      const categoryName = 
+        payment.subcategory?.name ||
+        payment.category?.name ||
+        payment.description ||
+        "Other";
+      const amount = Math.abs(payment.amount || 0);
+      
+      if (amount <= 0) return acc;
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case "expense":
-        return "Expense";
-      case "income":
-        return "Income";
-      case "transfer":
-        return "Transfer";
-      default:
-        return type;
-    }
-  };
+      if (!acc[categoryName]) {
+        acc[categoryName] = { value: 0, categoryId: payment.category?.id || null };
+      }
+      acc[categoryName].value += amount;
+      return acc;
+    }, {} as Record<string, { value: number; categoryId: string | null }>);
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "expense":
-        return <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />;
-      case "income":
-        return <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />;
-      case "transfer":
-        return <ArrowRight className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
-      default:
-        return null;
-    }
-  };
+    // Convert to array and sort by value descending
+    const dataArray = Object.entries(grouped)
+      .map(([name, data]) => ({
+        name,
+        value: data.value,
+        categoryId: data.categoryId,
+      }))
+      .sort((a, b) => b.value - a.value);
 
-  const getCategoryName = (payment: RecurringPayment) => {
-    return (
-      payment.subcategory?.name ||
-      payment.category?.name ||
-      payment.description ||
-      "No category"
-    );
-  };
+    // Calculate total for percentage
+    const total = dataArray.reduce((sum, item) => sum + item.value, 0);
 
-  const getAccountName = (payment: RecurringPayment) => {
-    return payment.account?.name || "Unspecified account";
-  };
+    // Add percentage and color to each item
+    return dataArray.map((item) => ({
+      ...item,
+      percentage: total > 0 ? (item.value / total) * 100 : 0,
+      incomePercentage: monthlyIncome > 0 ? (item.value / monthlyIncome) * 100 : 0,
+      color: getCategoryColor(item.name),
+    }));
+  }, [expenseRecurringPayments, monthlyIncome]);
 
-  const getToAccountName = (payment: RecurringPayment) => {
-    // For transfers, check toAccount first, then try to infer from transferToId/transferFromId
-    if (payment.toAccount?.name) {
-      return payment.toAccount.name;
-    }
-    // If it's a transfer but we don't have toAccount info, show generic message
-    if (payment.type === "transfer" && (payment.transferToId || payment.transferFromId)) {
-      return "Destination account";
-    }
-    return "Unspecified account";
-  };
+  const totalRecurringExpenses = donutData.reduce((sum, item) => sum + item.value, 0);
 
-  // Group by type
-  const expenses = sortedPayments.filter((p) => p.type === "expense");
-  const incomes = sortedPayments.filter((p) => p.type === "income");
-  const transfers = sortedPayments.filter((p) => p.type === "transfer");
+  // Calculate donut chart segments
+  const radius = 75;
+  const circumference = 2 * Math.PI * radius;
+  const strokeWidth = 12;
+  const svgSize = 180;
+  const center = svgSize / 2;
+  let accumulatedLength = 0;
 
-  if (sortedPayments.length === 0) {
+  const segments = donutData.map((item) => {
+    const segmentLength = (item.percentage / 100) * circumference;
+    const offset = -accumulatedLength;
+    accumulatedLength += segmentLength;
+    return {
+      ...item,
+      offset,
+      segmentLength,
+    };
+  });
+
+  if (expenseRecurringPayments.length === 0) {
     return (
       <Card className="h-full">
         <CardHeader>
           <CardTitle>
             Recurring Payments
           </CardTitle>
-          <CardDescription>Transactions that repeat automatically</CardDescription>
+          <CardDescription>Expense transactions that repeat automatically</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <p className="text-sm text-muted-foreground">
-              No recurring payments found
+              No expense recurring payments found
             </p>
           </div>
         </CardContent>
@@ -142,174 +126,101 @@ export function RecurringPaymentsWidget({
               Recurring Payments
             </CardTitle>
             <CardDescription>
-              {sortedPayments.length}{" "}
-              {sortedPayments.length === 1
-                ? "recurring transaction"
-                : "recurring transactions"}
+              {expenseRecurringPayments.length}{" "}
+              {expenseRecurringPayments.length === 1
+                ? "expense recurring payment"
+                : "expense recurring payments"}
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4 max-h-[600px] overflow-y-auto">
-          {/* Expenses Section */}
-          {expenses.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2">
-                Expenses ({expenses.length})
-              </h3>
-              <div className="space-y-2">
-                {expenses.map((payment) => {
-                  const amount = Math.abs(payment.amount || 0);
-                  const date = payment.date instanceof Date ? payment.date : new Date(payment.date);
-
-                  return (
-                    <div
-                      key={payment.id}
-                      className={cn(
-                        "flex items-start justify-between gap-3 p-3 rounded-lg border",
-                        "bg-card hover:bg-accent/50 transition-colors"
-                      )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {getCategoryName(payment)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="truncate">{getAccountName(payment)}</span>
-                          {payment.description && (
-                            <>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="truncate">{payment.description}</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Last occurrence: {format(date, "MM/dd/yyyy")}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-base font-semibold tabular-nums text-red-600 dark:text-red-400">
-                          -{formatMoney(amount)}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {getTypeLabel(payment.type)}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+        {/* Donut Chart Section - Only show if there are expense recurring payments */}
+        {expenseRecurringPayments.length > 0 ? (
+          <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6">
+            {/* Donut Chart */}
+            <div className="relative flex-shrink-0 w-[140px] h-[140px] lg:w-[180px] lg:h-[180px]">
+              <svg
+                className="transform -rotate-90 w-full h-full"
+                viewBox={`0 0 ${svgSize} ${svgSize}`}
+              >
+                {/* Background circle */}
+                <circle
+                  cx={center}
+                  cy={center}
+                  r={radius}
+                  fill="none"
+                  stroke="hsl(var(--muted))"
+                  strokeWidth={strokeWidth}
+                />
+                {/* Segments */}
+                {segments.map((segment, index) => (
+                  <circle
+                    key={index}
+                    cx={center}
+                    cy={center}
+                    r={radius}
+                    fill="none"
+                    stroke={segment.color}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={`${segment.segmentLength} ${circumference - segment.segmentLength}`}
+                    strokeDashoffset={segment.offset}
+                    strokeLinecap="round"
+                    className="transition-all duration-300 hover:opacity-80"
+                  />
+                ))}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="text-xl lg:text-2xl font-bold text-foreground tabular-nums">
+                  {formatMoneyCompact(totalRecurringExpenses)}
+                </div>
+                <div className="text-xs text-muted-foreground">Total</div>
               </div>
             </div>
-          )}
 
-          {/* Incomes Section */}
-          {incomes.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2">
-                Incomes ({incomes.length})
-              </h3>
-              <div className="space-y-2">
-                {incomes.map((payment) => {
-                  const amount = Math.abs(payment.amount || 0);
-                  const date = payment.date instanceof Date ? payment.date : new Date(payment.date);
-
-                  return (
-                    <div
-                      key={payment.id}
-                      className={cn(
-                        "flex items-start justify-between gap-3 p-3 rounded-lg border",
-                        "bg-card hover:bg-accent/50 transition-colors"
-                      )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {getCategoryName(payment)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="truncate">{getAccountName(payment)}</span>
-                          {payment.description && (
-                            <>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="truncate">{payment.description}</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Last occurrence: {format(date, "MM/dd/yyyy")}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-base font-semibold tabular-nums text-green-600 dark:text-green-400">
-                          +{formatMoney(amount)}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {getTypeLabel(payment.type)}
-                        </div>
-                      </div>
+            {/* Legend */}
+            <div className="flex-1 space-y-1 min-w-0 w-full">
+              {donutData.slice(0, 7).map((item, index) => {
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between gap-2 py-1 px-1.5 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <div
+                        className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-xs lg:text-sm font-medium text-foreground truncate">
+                        {item.name}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Transfers Section */}
-          {transfers.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-foreground mb-2">
-                Transfers ({transfers.length})
-              </h3>
-              <div className="space-y-2">
-                {transfers.map((payment) => {
-                  const amount = Math.abs(payment.amount || 0);
-                  const date = payment.date instanceof Date ? payment.date : new Date(payment.date);
-
-                  return (
-                    <div
-                      key={payment.id}
-                      className={cn(
-                        "flex items-start justify-between gap-3 p-3 rounded-lg border",
-                        "bg-card hover:bg-accent/50 transition-colors"
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs lg:text-sm font-semibold text-foreground tabular-nums">
+                        {formatMoneyCompact(item.value)}
+                      </span>
+                      <span className="text-[10px] lg:text-xs text-muted-foreground ml-1">
+                        {item.percentage.toFixed(1)}%
+                      </span>
+                      {monthlyIncome > 0 && (
+                        <span className="text-[10px] lg:text-xs text-muted-foreground ml-1">
+                          ({item.incomePercentage.toFixed(1)}% of income)
+                        </span>
                       )}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {getTypeIcon(payment.type)}
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {payment.description || "Transfer"}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="truncate">
-                            {getAccountName(payment)} → {getToAccountName(payment)}
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Last occurrence: {format(date, "MM/dd/yyyy")}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-base font-semibold tabular-nums text-blue-600 dark:text-blue-400">
-                          {formatMoney(amount)}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {getTypeLabel(payment.type)}
-                        </div>
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-sm text-muted-foreground">
+              No expense recurring payments found
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
-

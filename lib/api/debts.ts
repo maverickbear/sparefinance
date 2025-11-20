@@ -64,7 +64,14 @@ export interface DebtWithCalculations extends Debt {
  * Get all debts with calculated metrics
  */
 export async function getDebts(): Promise<DebtWithCalculations[]> {
-    const supabase = await createServerClient();
+  const supabase = await createServerClient();
+
+  // Verify user is authenticated (required for RLS policies)
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    console.warn("getDebts: User not authenticated");
+    return [];
+  }
 
   const { data: debts, error } = await supabase
     .from("Debt")
@@ -214,6 +221,13 @@ export async function createDebt(data: {
   const initialBalance = data.initialAmount - downPayment;
   const isPaidOff = initialBalance <= 0;
 
+  // Get active household ID
+  const { getActiveHouseholdId } = await import("@/lib/utils/household");
+  const householdId = await getActiveHouseholdId(user.id);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const id = crypto.randomUUID();
   const now = formatTimestamp(new Date());
 
@@ -239,6 +253,7 @@ export async function createDebt(data: {
     description: data.description ?? null,
     accountId: data.accountId || null,
     userId: user.id,
+    householdId: householdId, // Add householdId for household-based architecture
     isPaidOff,
     isPaused: data.isPaused ?? false,
     paidOffAt: isPaidOff ? now : null,

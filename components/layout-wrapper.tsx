@@ -3,8 +3,6 @@
 import { Nav } from "@/components/nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileHeader } from "@/components/mobile-header";
-import { MobileBanner } from "@/components/mobile-banner";
-import { DesktopHeader } from "@/components/desktop-header";
 import { useFixedElementsHeight } from "@/hooks/use-fixed-elements-height";
 import { useEffect, useState } from "react";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
@@ -171,8 +169,6 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       >
         {/* Headers - Fixed Top */}
         <MobileHeader hasSubscription={showNav} />
-        <MobileBanner hasSubscription={showNav} />
-        <DesktopHeader hasSubscription={showNav} />
         
         {/* Content Container - Scrollable */}
         <main

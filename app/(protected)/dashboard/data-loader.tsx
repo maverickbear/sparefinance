@@ -9,6 +9,7 @@ import { checkOnboardingStatus, type OnboardingStatus } from "@/lib/api/onboardi
 import { getUserLiabilities } from "@/lib/api/plaid/liabilities";
 import { getDebts } from "@/lib/api/debts";
 import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getUserSubscriptions } from "@/lib/api/user-subscriptions";
 import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
 import { subMonths } from "date-fns/subMonths";
@@ -29,6 +30,7 @@ interface DashboardData {
   liabilities: any[];
   debts: any[];
   recurringPayments: any[];
+  subscriptions: any[];
   onboardingStatus: OnboardingStatus | null;
 }
 
@@ -265,6 +267,7 @@ async function loadDashboardDataInternal(
     liabilities,
     debts,
     recurringPaymentsResult,
+    subscriptions,
   ] = await Promise.all([
     getTransactionsInternal({ startDate: selectedMonth, endDate: selectedMonthEnd }, accessToken, refreshToken).catch((error) => {
       logger.error("Error fetching selected month transactions:", error);
@@ -325,6 +328,18 @@ async function loadDashboardDataInternal(
       logger.error("Error fetching recurring payments:", error);
       return { transactions: [], total: 0 };
     }),
+    getUserSubscriptions()
+      .then((subs) => {
+        logger.info(`[Dashboard] Loaded ${subs.length} subscription(s) for dashboard`);
+        if (subs.length > 0) {
+          logger.info(`[Dashboard] Subscription details:`, subs.map(s => ({ id: s.id, name: s.serviceName, active: s.isActive })));
+        }
+        return subs;
+      })
+      .catch((error) => {
+        logger.error("[Dashboard] Error fetching subscriptions:", error);
+        return [];
+      }),
   ]);
 
   // Calculate onboarding status using already-fetched accounts (avoid duplicate query)
@@ -386,6 +401,7 @@ async function loadDashboardDataInternal(
     liabilities,
     debts,
     recurringPayments,
+    subscriptions,
     onboardingStatus,
   };
 }
@@ -438,6 +454,7 @@ export async function loadDashboardData(selectedMonthDate: Date): Promise<Dashbo
           CACHE_TAGS.ACCOUNTS,
           CACHE_TAGS.BUDGETS,
           CACHE_TAGS.GOALS,
+          CACHE_TAGS.SUBSCRIPTIONS,
         ],
         revalidate: CACHE_DURATIONS.SHORT, // 10 seconds for fresh data
       }

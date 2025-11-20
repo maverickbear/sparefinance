@@ -5,7 +5,8 @@ import {
   checkTransactionLimit, 
   checkAccountLimit, 
   checkFeatureAccess,
-  getUserSubscriptionData 
+  getUserSubscriptionData,
+  canUserWrite
 } from "./subscription";
 import { PlanFeatures } from "@/lib/validations/plan";
 import { PlanErrorCode, createPlanError, type PlanError } from "@/lib/utils/plan-errors";
@@ -26,6 +27,12 @@ export async function guardFeatureAccess(
   feature: keyof PlanFeatures
 ): Promise<GuardResult> {
   try {
+    // First check if user can write at all
+    const writeGuard = await guardWriteAccess(userId);
+    if (!writeGuard.allowed) {
+      return writeGuard;
+    }
+    
     const hasAccess = await checkFeatureAccess(userId, feature);
     
     if (!hasAccess) {
@@ -50,6 +57,33 @@ export async function guardFeatureAccess(
 }
 
 /**
+ * Guard write access - validates if user can perform write operations
+ * This should be called before any write operation to ensure user has active subscription
+ */
+export async function guardWriteAccess(userId: string): Promise<GuardResult> {
+  try {
+    const canWrite = await canUserWrite(userId);
+    
+    if (!canWrite) {
+      return {
+        allowed: false,
+        error: createPlanError(PlanErrorCode.SUBSCRIPTION_INACTIVE, {
+          message: "Your subscription is not active. Please renew your subscription to continue using this feature.",
+        }),
+      };
+    }
+    
+    return { allowed: true };
+  } catch (error) {
+    console.error("Error in guardWriteAccess:", error);
+    return {
+      allowed: false,
+      error: createPlanError(PlanErrorCode.SUBSCRIPTION_INACTIVE),
+    };
+  }
+}
+
+/**
  * Guard transaction limit - validates if user can create a new transaction
  * Now uses user_monthly_usage table for fast limit checking (no COUNT(*) queries)
  * This function only READS from user_monthly_usage - it does NOT update counters
@@ -60,6 +94,12 @@ export async function guardTransactionLimit(
   month?: Date
 ): Promise<GuardResult> {
   try {
+    // First check if user can write at all
+    const writeGuard = await guardWriteAccess(userId);
+    if (!writeGuard.allowed) {
+      return writeGuard;
+    }
+    
     // Get subscription data using unified API
     const { limits, plan } = await getUserSubscriptionData(userId);
     
@@ -139,6 +179,12 @@ export async function guardTransactionLimit(
  */
 export async function guardAccountLimit(userId: string): Promise<GuardResult> {
   try {
+    // First check if user can write at all
+    const writeGuard = await guardWriteAccess(userId);
+    if (!writeGuard.allowed) {
+      return writeGuard;
+    }
+    
     // Get subscription data using unified API
     const { limits, plan } = await getUserSubscriptionData(userId);
     
@@ -149,20 +195,43 @@ export async function guardAccountLimit(userId: string): Promise<GuardResult> {
 
     const supabase = await createServerClient();
     
-    // Count current accounts
-    const { count, error } = await supabase
-      .from("Account")
-      .select("*", { count: "exact", head: true });
+    // Count current accounts for this user
+    // Note: This should match the logic in checkAccountLimit
+    const { data: accountOwners } = await supabase
+      .from("AccountOwner")
+      .select("accountId")
+      .eq("ownerId", userId);
 
-    if (error) {
-      console.error("Error checking account limit:", error);
-      return {
-        allowed: false,
-        error: createPlanError(PlanErrorCode.ACCOUNT_LIMIT_REACHED),
-      };
+    const ownedAccountIds = accountOwners?.map(ao => ao.accountId) || [];
+    const accountIds = new Set<string>();
+    
+    // Get accounts with userId = userId
+    const { data: directAccounts, error: directError } = await supabase
+      .from("Account")
+      .select("id")
+      .eq("userId", userId);
+
+    if (directError) {
+      console.error("Error fetching direct accounts:", directError);
+    } else {
+      directAccounts?.forEach(acc => accountIds.add(acc.id));
     }
 
-    const current = count || 0;
+    // Get accounts owned via AccountOwner
+    if (ownedAccountIds.length > 0) {
+      const { data: ownedAccounts, error: ownedError } = await supabase
+        .from("Account")
+        .select("id")
+        .in("id", ownedAccountIds);
+
+      if (ownedError) {
+        console.error("Error fetching owned accounts:", ownedError);
+      } else {
+        ownedAccounts?.forEach(acc => accountIds.add(acc.id));
+      }
+    }
+
+    const current = accountIds.size;
     const allowed = current < limits.maxAccounts;
     
     if (!allowed) {

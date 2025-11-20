@@ -1,7 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData } from "@/lib/validations/auth";
+import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData, ChangePasswordFormData } from "@/lib/validations/auth";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 
 /**
@@ -336,38 +336,66 @@ export async function signInClient(data: SignInFormData): Promise<{ user: User |
 
       userData = newUser;
 
-      // Create household member record for the owner (owner is also a household member of themselves)
-      const invitationToken = crypto.randomUUID();
+      // Create personal group for the new user
       const now = new Date().toISOString();
       
-      // Check if household member already exists (should not happen, but safety check)
-      const { data: existingMember } = await supabase
-        .from("HouseholdMember")
+      // Check if personal household already exists
+      const { data: existingHousehold } = await supabase
+        .from("Household")
         .select("id")
-        .eq("ownerId", userData.id)
-        .eq("memberId", userData.id)
+        .eq("createdBy", userData.id)
+        .eq("type", "personal")
         .maybeSingle();
 
-      if (!existingMember) {
-        const { error: householdMemberError } = await supabase
-          .from("HouseholdMember")
+      if (!existingHousehold) {
+        // Create personal household
+        const { data: household, error: householdError } = await supabase
+          .from("Household")
           .insert({
-            ownerId: userData.id,
-            memberId: userData.id,
-            email: authData.user.email!,
-            name: authData.user.user_metadata?.name || null,
-            role: "admin", // Owner is admin
-            status: "active", // Owner is immediately active
-            invitationToken: invitationToken,
-            invitedAt: now,
-            acceptedAt: now, // Owner accepts immediately
+            name: userData.name || userData.email || "Minha Conta",
+            type: "personal",
+            createdBy: userData.id,
             createdAt: now,
+            updatedAt: now,
+            settings: {},
+          })
+          .select()
+          .single();
+
+        if (householdError || !household) {
+          console.error("Error creating personal household:", householdError);
+          // Don't fail signin if household creation fails, but log it
+        } else {
+          // Create HouseholdMemberNew (owner role, active, default)
+          const { error: memberError } = await supabase
+            .from("HouseholdMemberNew")
+            .insert({
+              householdId: household.id,
+              userId: userData.id,
+              role: "owner",
+              status: "active",
+              isDefault: true,
+              joinedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            });
+
+          if (memberError) {
+            console.error("Error creating household member:", memberError);
+          } else {
+            // Set as active household
+            const { error: activeError } = await supabase
+              .from("UserActiveHousehold")
+              .insert({
+                userId: userData.id,
+                householdId: household.id,
             updatedAt: now,
           });
 
-        if (householdMemberError) {
-          console.error("Error creating household member record:", householdMemberError);
-          // Don't fail signin if household member creation fails, but log it
+            if (activeError) {
+              console.error("Error setting active household:", activeError);
+            }
+          }
         }
       }
 
@@ -512,6 +540,52 @@ export async function resetPasswordClient(data: ResetPasswordFormData): Promise<
   } catch (error) {
     console.error("Error in resetPasswordClient:", error);
     return { error: error instanceof Error ? error.message : "Failed to reset password" };
+  }
+}
+
+/**
+ * Client-side change password function
+ * Changes user password after verifying current password and validating new password with HIBP
+ */
+export async function changePasswordClient(data: ChangePasswordFormData): Promise<{ error: string | null }> {
+  try {
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return { error: "Not authenticated" };
+    }
+
+    // Verify current password by attempting to sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: data.currentPassword,
+    });
+
+    if (signInError) {
+      return { error: "Current password is incorrect" };
+    }
+
+    // Validate new password against HIBP
+    const passwordValidation = await validatePasswordAgainstHIBPClient(data.newPassword);
+    if (!passwordValidation.isValid) {
+      return { error: passwordValidation.error || "Invalid password" };
+    }
+
+    // Update user password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: data.newPassword,
+    });
+
+    if (updateError) {
+      const errorMessage = getAuthErrorMessage(updateError, "Failed to change password");
+      return { error: errorMessage };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error in changePasswordClient:", error);
+    return { error: error instanceof Error ? error.message : "Failed to change password" };
   }
 }
 

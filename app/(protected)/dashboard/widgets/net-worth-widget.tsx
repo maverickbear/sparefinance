@@ -166,21 +166,6 @@ export function NetWorthWidget({
               </LineChart>
             </ResponsiveContainer>
           </div>
-
-          <div className="space-y-2 pt-2 border-t border-border">
-            <div className="flex items-center justify-between py-1">
-              <span className="text-sm text-muted-foreground">Assets</span>
-              <span className="text-sm font-semibold text-foreground tabular-nums text-green-500">
-                {formatMoneyCompact(totalAssets)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between py-1">
-              <span className="text-sm text-muted-foreground">Debts</span>
-              <span className="text-sm font-semibold text-foreground tabular-nums text-red-500">
-                {formatMoneyCompact(totalDebts)}
-              </span>
-            </div>
-          </div>
         </div>
       </CardContent>
     </Card>

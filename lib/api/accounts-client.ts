@@ -346,6 +346,13 @@ export async function createAccountClient(data: AccountFormData): Promise<Accoun
     ? data.ownerIds 
     : [user.id];
 
+  // Get active household ID
+  const { getActiveHouseholdId } = await import("@/lib/utils/household");
+  const householdId = await getActiveHouseholdId(user.id);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const { data: account, error } = await supabase
     .from("Account")
     .insert({
@@ -356,6 +363,7 @@ export async function createAccountClient(data: AccountFormData): Promise<Accoun
       initialBalance: (data.type === "checking" || data.type === "savings") ? (data.initialBalance ?? 0) : null,
       dueDayOfMonth: data.type === "credit" ? (data.dueDayOfMonth ?? null) : null,
       userId: user.id,
+      householdId: householdId, // Add householdId for household-based architecture
       createdAt: now,
       updatedAt: now,
     })

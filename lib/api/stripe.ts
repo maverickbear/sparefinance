@@ -960,10 +960,50 @@ async function handleSubscriptionChange(
     .eq("id", subscriptionId)
     .maybeSingle();
 
+  // Get active household ID for the user (if user exists)
+  let householdId: string | null = null;
+  if (userId) {
+    try {
+      // Try to get from UserActiveHousehold first
+      const { data: activeHousehold } = await supabase
+        .from("UserActiveHousehold")
+        .select("householdId")
+        .eq("userId", userId)
+        .maybeSingle();
+      
+      if (activeHousehold?.householdId) {
+        householdId = activeHousehold.householdId;
+      } else {
+        // Fallback to default (personal) household
+        const { data: defaultMember } = await supabase
+          .from("HouseholdMemberNew")
+          .select("householdId")
+          .eq("userId", userId)
+          .eq("isDefault", true)
+          .eq("status", "active")
+          .maybeSingle();
+        
+        if (defaultMember?.householdId) {
+          householdId = defaultMember.householdId;
+        }
+      }
+      
+      if (householdId) {
+        console.log("[WEBHOOK:SUBSCRIPTION] Found householdId for user:", { userId, householdId });
+      } else {
+        console.log("[WEBHOOK:SUBSCRIPTION] No householdId found for user (will be null):", userId);
+      }
+    } catch (error) {
+      console.error("[WEBHOOK:SUBSCRIPTION] Error getting householdId:", error);
+      // Continue without householdId - it can be set later
+    }
+  }
+
   // Prepare subscription data
   const subscriptionData: any = {
     id: subscriptionId,
     userId: userId,
+    householdId: householdId, // Link to active household (null if not found)
     planId: plan.id,
     status: status,
     stripeSubscriptionId: subscription.id,

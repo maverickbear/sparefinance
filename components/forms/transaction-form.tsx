@@ -35,6 +35,7 @@ import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DatePicker } from "@/components/ui/date-picker";
 
 /**
  * Converts a Date object to YYYY-MM-DD string format
@@ -676,15 +677,13 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                 <label className="text-sm font-medium">
                   Date
                 </label>
-                <Input
-                  type="date"
-                  className="h-12"
-                  {...form.register("date", { valueAsDate: true })}
-                  value={formatDateInput(form.watch("date"))}
-                  onChange={(e) => {
-                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
-                    form.setValue("date", date);
+                <DatePicker
+                  date={form.watch("date")}
+                  onDateChange={(date) => {
+                    form.setValue("date", date || new Date());
                   }}
+                  placeholder="Select date"
+                  className="h-12"
                   required
                 />
               </div>

@@ -21,17 +21,19 @@ export async function GET(request: NextRequest) {
 
     // Check if email has a pending invitation
     const { data: pendingInvitation } = await supabase
-      .from("HouseholdMember")
-      .select("id, ownerId, email")
+      .from("HouseholdMemberNew")
+      .select("id, householdId, email, Household(createdBy)")
       .eq("email", email.toLowerCase())
       .eq("status", "pending")
       .maybeSingle();
 
+    const household = pendingInvitation?.Household as any;
     return NextResponse.json({
       hasPendingInvitation: !!pendingInvitation,
       invitation: pendingInvitation ? {
         id: pendingInvitation.id,
-        ownerId: pendingInvitation.ownerId,
+        householdId: pendingInvitation.householdId,
+        ownerId: household?.createdBy || null,
       } : null,
     });
   } catch (error) {

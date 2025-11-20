@@ -54,17 +54,26 @@ const CustomTooltip = ({ active, payload }: any) => {
 
 // Custom legend component
 const CustomLegend = ({ payload }: any) => {
+  const getColor = (name: string, fallbackColor: string) => {
+    if (name === "Income") return INCOME_COLOR;
+    if (name === "Expenses") return EXPENSES_COLOR;
+    return fallbackColor;
+  };
+
   return (
     <div className="flex items-center justify-center gap-4 pt-2">
-      {payload?.map((entry: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-xs text-muted-foreground">{entry.value}</span>
-        </div>
-      ))}
+      {payload?.map((entry: any, index: number) => {
+        const color = getColor(entry.value, entry.color);
+        return (
+          <div key={index} className="flex items-center gap-1.5">
+            <div
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+            <span className="text-xs text-muted-foreground">{entry.value}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };

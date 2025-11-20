@@ -8,6 +8,7 @@ import { getAccountBalance } from "./transactions";
 import { guardAccountLimit, throwIfNotAllowed } from "@/lib/api/feature-guard";
 import { requireAccountOwnership } from "@/lib/utils/security";
 import { logger } from "@/lib/utils/logger";
+import { getActiveHouseholdId } from "@/lib/utils/household";
 
 export async function getAccounts(accessToken?: string, refreshToken?: string) {
     const supabase = await createServerClient(accessToken, refreshToken);
@@ -290,6 +291,9 @@ export async function createAccount(data: AccountFormData) {
     ? data.ownerIds 
     : [user.id];
 
+  // Get active household ID
+  const householdId = await getActiveHouseholdId(user.id);
+
   const { data: account, error } = await supabase
     .from("Account")
     .insert({
@@ -300,6 +304,7 @@ export async function createAccount(data: AccountFormData) {
       initialBalance: (data.type === "checking" || data.type === "savings") ? (data.initialBalance ?? 0) : null,
       dueDayOfMonth: data.type === "credit" ? (data.dueDayOfMonth ?? null) : null,
       userId: user.id, // Keep userId for backward compatibility and RLS
+      householdId: householdId, // Add householdId for household-based architecture
       createdAt: now,
       updatedAt: now,
     })

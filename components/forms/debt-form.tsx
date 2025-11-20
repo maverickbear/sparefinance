@@ -25,6 +25,7 @@ import { formatMoney } from "@/components/common/money";
 import { formatTransactionDate, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { PercentageInput } from "@/components/common/percentage-input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { calculateDebtMetrics, convertToMonthlyPayment, convertFromMonthlyPayment, calculateMonthlyPayment, calculatePaymentsFromDate, type DebtForCalculation } from "@/lib/utils/debts";
 import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
@@ -1242,13 +1243,12 @@ export function DebtForm({
                 <label className="text-sm font-medium">
                   {fieldConfig.startDateLabel}
                 </label>
-                <Input
-                  type="date"
-                  value={formatDateInput(form.watch("startDate"))}
-                  onChange={(e) => {
-                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
-                    form.setValue("startDate", date, { shouldValidate: true });
+                <DatePicker
+                  date={form.watch("startDate")}
+                  onDateChange={(date) => {
+                    form.setValue("startDate", date || new Date(), { shouldValidate: true });
                   }}
+                  placeholder="Select start date"
                   required={!((loanType || "").toLowerCase().includes("credit") || (loanType || "").toLowerCase().includes("card"))}
                 />
                 {form.formState.errors.startDate && (
@@ -1262,13 +1262,12 @@ export function DebtForm({
                 <label className="text-sm font-medium">
                   {fieldConfig.firstPaymentDateLabel}
                 </label>
-                <Input
-                  type="date"
-                  value={formatDateInput(form.watch("firstPaymentDate"))}
-                  onChange={(e) => {
-                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
-                    form.setValue("firstPaymentDate", date, { shouldValidate: true });
+                <DatePicker
+                  date={form.watch("firstPaymentDate")}
+                  onDateChange={(date) => {
+                    form.setValue("firstPaymentDate", date || new Date(), { shouldValidate: true });
                   }}
+                  placeholder="Select first payment date"
                   required
                 />
                 {form.formState.errors.firstPaymentDate && (

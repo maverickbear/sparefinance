@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import { invalidateSubscriptionCache } from "@/lib/api/subscription";
+import { getActiveHouseholdId } from "@/lib/utils/household";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -119,6 +120,16 @@ export async function POST(request: NextRequest) {
       .eq("id", authUser.id)
       .single();
 
+    // Get active household ID for the user
+    const householdId = await getActiveHouseholdId(authUser.id);
+    if (!householdId) {
+      console.error("[START-TRIAL] No active household found for user:", authUser.id);
+      return NextResponse.json(
+        { error: "No active household found. Please contact support." },
+        { status: 400 }
+      );
+    }
+
     if (existingSubscription?.stripeCustomerId) {
       customerId = existingSubscription.stripeCustomerId;
       console.log("[START-TRIAL] Using existing Stripe customer:", customerId);
@@ -198,6 +209,7 @@ export async function POST(request: NextRequest) {
       .insert({
         id: subscriptionId,
         userId: authUser.id,
+        householdId: householdId, // Link to active household
         planId: planId,
         status: "trialing",
         stripeSubscriptionId: stripeSubscription.id,

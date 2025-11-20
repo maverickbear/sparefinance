@@ -80,7 +80,7 @@ export default function FAQPage() {
         },
         {
           question: `What features are available in the ${essentialPlanName} plan?`,
-          answer: `The ${essentialPlanName} plan includes: complete investments, advanced reports, CSV import/export, bank integration via Plaid, family member management (household members), AI-powered intelligent categorization, and up to 500 transactions per month and 10 accounts.`,
+          answer: `The ${essentialPlanName} plan includes: complete investments, advanced reports, CSV import/export, bank integration via Plaid, AI-powered intelligent categorization, and up to 500 transactions per month and 10 accounts.`,
         },
         {
           question: `What's the difference between ${essentialPlanName} and ${proPlanName}?`,
@@ -137,7 +137,7 @@ export default function FAQPage() {
         },
         {
           question: "Can I share my account with family members?",
-          answer: `Yes! On ${essentialPlanName} and ${proPlanName} plans, you can add household members to your account. You can invite family members by email, and each member maintains separate financial data (transactions, accounts, budgets). The account owner can view and manage all household members, while members can manage their own data. This is ideal for couples and families who want to track finances separately while staying organized in one place.`,
+          answer: `Yes! On the ${proPlanName} plan, you can add household members to your account. You can invite family members by email, and each member maintains separate financial data (transactions, accounts, budgets). The account owner can view and manage all household members, while members can manage their own data. This is ideal for couples and families who want to track finances separately while staying organized in one place.`,
         },
         {
           question: "What data can household members see?",
@@ -153,7 +153,7 @@ export default function FAQPage() {
         },
         {
           question: "How do I manage household members?",
-          answer: `On ${essentialPlanName} and ${proPlanName} plans, you can invite family members by email from the 'Members' section in your account settings. Each member receives an invitation email and can accept to join your household. Each member maintains separate financial data (transactions, accounts, budgets), but you as the account owner can view and manage all members. You can remove members at any time.`,
+          answer: `On the ${proPlanName} plan, you can invite family members by email from the 'Members' section in your account settings. Each member receives an invitation email and can accept to join your household. Each member maintains separate financial data (transactions, accounts, budgets), but you as the account owner can view and manage all members. You can remove members at any time.`,
         },
       ],
     },

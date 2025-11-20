@@ -140,7 +140,7 @@ export default async function TermsOfServicePage() {
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                   <li><strong>Bank Integration (Plaid):</strong> Available on {essentialPlanName} and {proPlanName} plans. By connecting your bank accounts, you authorize us to access your account information, transactions, and balances through Plaid. You understand that we do not store your bank credentials and that Plaid handles all authentication securely.</li>
-                  <li><strong>Household Members:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions.</li>
+                  <li><strong>Household Members:</strong> Available on the {proPlanName} plan. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions.</li>
                   <li><strong>AI-Powered Categorization:</strong> The Service uses intelligent categorization to suggest transaction categories based on your historical data. These are suggestions only, and you are responsible for verifying and approving all categorizations.</li>
                   <li><strong>CSV Import/Export:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may import and export your financial data. You are responsible for the accuracy of imported data and for maintaining backups of exported data.</li>
                   <li><strong>Plan Limits:</strong> Your subscription plan includes specific limits (e.g., number of transactions per month, number of accounts). You agree not to exceed these limits and understand that exceeding limits may result in service restrictions.</li>
@@ -182,7 +182,7 @@ export default async function TermsOfServicePage() {
                   Spare Finance offers the following subscription plans:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li><strong>{essentialPlanName} Plan:</strong> ${essentialPlan?.priceMonthly.toFixed(2) || '7.99'}/month or ${essentialPlan?.priceYearly.toFixed(2) || '79.90'}/year - Includes 500 transactions per month, 10 accounts, investments, advanced reports, CSV import/export, bank integration via Plaid, household members, and AI-powered categorization</li>
+                  <li><strong>{essentialPlanName} Plan:</strong> ${essentialPlan?.priceMonthly.toFixed(2) || '7.99'}/month or ${essentialPlan?.priceYearly.toFixed(2) || '79.90'}/year - Includes 500 transactions per month, 10 accounts, investments, advanced reports, CSV import/export, bank integration via Plaid, and AI-powered categorization</li>
                   <li><strong>{proPlanName} Plan:</strong> ${proPlan?.priceMonthly.toFixed(2) || '14.99'}/month or ${proPlan?.priceYearly.toFixed(2) || '149.90'}/year - Includes unlimited transactions and accounts, plus all {essentialPlanName} plan features</li>
                 </ul>
               </div>

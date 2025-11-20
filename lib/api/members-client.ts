@@ -29,34 +29,52 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
     return [];
   }
 
-  // Check if user owns a household
-  const { data: ownedHousehold } = await supabase
-    .from("HouseholdMember")
-    .select("ownerId")
-    .eq("ownerId", authUser.id)
-    .limit(1)
+  // Get user's active household
+  const { data: activeHousehold } = await supabase
+    .from("UserActiveHousehold")
+    .select("householdId")
+    .eq("userId", authUser.id)
     .maybeSingle();
 
-  // If user doesn't own a household, get the ownerId from their membership
-  let ownerId = authUser.id;
-  if (!ownedHousehold) {
-    const { data: memberHousehold } = await supabase
-      .from("HouseholdMember")
-      .select("ownerId")
-      .eq("memberId", authUser.id)
+  let householdId = activeHousehold?.householdId;
+
+  // Fallback to default (personal) household
+  if (!householdId) {
+    const { data: defaultMember } = await supabase
+      .from("HouseholdMemberNew")
+      .select("householdId")
+      .eq("userId", authUser.id)
+      .eq("isDefault", true)
       .eq("status", "active")
       .maybeSingle();
 
-    if (memberHousehold) {
-      ownerId = memberHousehold.ownerId;
-    }
+    householdId = defaultMember?.householdId || null;
   }
 
-  // Get household members
+  if (!householdId) {
+    console.error("No household found for user:", authUser.id);
+    return [];
+  }
+
+  // Get household info to find owner
+  const { data: household } = await supabase
+    .from("Household")
+    .select("createdBy")
+    .eq("id", householdId)
+    .single();
+
+  const ownerId = household?.createdBy || authUser.id;
+
+  // Get household members from new table
+  // Now we can join with User table because RLS allows household members to see each other's profiles
   const { data: members, error } = await supabase
-    .from("HouseholdMember")
-    .select("*")
-    .eq("ownerId", ownerId)
+    .from("HouseholdMemberNew")
+    .select(`
+      *,
+      user:User!HouseholdMemberNew_userId_fkey(id, email, name, role, avatarUrl)
+    `)
+    .eq("householdId", householdId)
+    .order("role", { ascending: false }) // owner first
     .order("createdAt", { ascending: false });
 
   if (error) {
@@ -64,42 +82,28 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
     return [];
   }
 
-  // Get avatar URLs from User table for active members
-  const memberIds = (members || [])
-    .filter((m: any) => m.memberId)
-    .map((m: any) => m.memberId);
-  
-  const ownerMemberId = ownerId;
-  const allUserIds = [...new Set([ownerMemberId, ...memberIds])];
-
-  const { data: users, error: usersError } = await supabase
-    .from("User")
-    .select("id, avatarUrl")
-    .in("id", allUserIds);
-
-  if (usersError) {
-    console.error("Error fetching user avatars:", usersError);
-  }
-
-  // Create a map of userId -> avatarUrl
-  const avatarMap = new Map<string, string | null>();
-  if (users) {
-    users.forEach((user: any) => {
-      avatarMap.set(user.id, user.avatarUrl);
-    });
-  }
-
-  // Map and mark owner, and add avatarUrl
+  // Map to old interface for compatibility
   const householdMembers: HouseholdMember[] = (members || []).map((member: any) => {
-    const userId = member.memberId || member.ownerId;
-    const avatarUrl = avatarMap.get(userId) || null;
+    // Use User data if available (for active members), otherwise use data from HouseholdMemberNew (for pending invitations)
+    const user = member.user as any;
+    const isOwner = member.role === 'owner';
     
-    const mapped: HouseholdMember = {
-      ...member,
-      isOwner: member.ownerId === member.memberId,
-      avatarUrl: avatarUrl,
+    return {
+      id: member.id,
+      ownerId: ownerId, // Keep ownerId for compatibility
+      memberId: member.userId || null,
+      email: user?.email || member.email || "",
+      name: user?.name || member.name || null,
+      role: member.role === 'owner' ? 'admin' : (member.role as "admin" | "member"),
+      status: member.status as "pending" | "active" | "declined",
+      invitationToken: member.invitationToken || "",
+      invitedAt: member.invitedAt || member.createdAt,
+      acceptedAt: member.acceptedAt || null,
+      createdAt: member.createdAt,
+      updatedAt: member.updatedAt,
+      isOwner,
+      avatarUrl: user?.avatarUrl || null,
     };
-    return mapped;
   });
 
   // Sort to ensure owner appears first
@@ -114,7 +118,7 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
 
 /**
  * Get user's role (admin, member, or super_admin)
- * Optimized: Uses single query to check both owned and member households
+ * Optimized: Uses single query to check household membership
  */
 export async function getUserRoleClient(): Promise<"admin" | "member" | "super_admin" | null> {
   const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
@@ -123,19 +127,19 @@ export async function getUserRoleClient(): Promise<"admin" | "member" | "super_a
     return null;
   }
 
-  // Optimized: Fetch User role and HouseholdMember in parallel
+  // Fetch User role and HouseholdMemberNew in parallel
   const [userResult, householdResult] = await Promise.all([
     supabase
       .from("User")
       .select("role")
       .eq("id", authUser.id)
       .single(),
-    // Single query to check both owned and member households
+    // Get user's household memberships
     supabase
-      .from("HouseholdMember")
-      .select("role, ownerId, memberId, status")
-      .or(`ownerId.eq.${authUser.id},memberId.eq.${authUser.id}`)
-      .limit(2)
+      .from("HouseholdMemberNew")
+      .select("role, userId, status, Household(type, createdBy)")
+      .eq("userId", authUser.id)
+      .eq("status", "active")
   ]);
 
   const userData = userResult.data;
@@ -146,24 +150,32 @@ export async function getUserRoleClient(): Promise<"admin" | "member" | "super_a
   }
 
   // Check household membership
-  const households = householdResult.data || [];
+  const memberships = householdResult.data || [];
   
-  // Check if user owns a household (ownerId === memberId)
-  const ownedHousehold = households.find(
-    (h: any) => h.ownerId === authUser.id && h.memberId === authUser.id
+  // Check if user is owner of a household
+  const ownedHousehold = memberships.find(
+    (m: any) => {
+      const household = m.Household as any;
+      return household?.createdBy === authUser.id && household?.type !== 'personal';
+    }
   );
   
   if (ownedHousehold) {
-    return ownedHousehold.role as "admin" | "member";
+    // Owner role maps to 'admin' in old system
+    return "admin";
   }
 
-  // Check if user is an active member
-  const activeMemberHousehold = households.find(
-    (h: any) => h.memberId === authUser.id && h.status === "active"
+  // Check if user is an active member (not owner)
+  const activeMember = memberships.find(
+    (m: any) => {
+      const household = m.Household as any;
+      return household?.createdBy !== authUser.id;
+    }
   );
   
-  if (activeMemberHousehold) {
-    return activeMemberHousehold.role as "admin" | "member";
+  if (activeMember) {
+    // Map new roles to old: 'owner'/'admin' -> 'admin', 'member' -> 'member'
+    return activeMember.role === 'member' ? 'member' : 'admin';
   }
 
   // Fallback to User table role if no household member record exists
@@ -178,7 +190,7 @@ export async function getUserRoleClient(): Promise<"admin" | "member" | "super_a
  * Delete a household member
  */
 export async function deleteMemberClient(id: string): Promise<void> {
-  const { error } = await supabase.from("HouseholdMember").delete().eq("id", id);
+  const { error } = await supabase.from("HouseholdMemberNew").delete().eq("id", id);
 
   if (error) {
     console.error("Supabase error deleting member:", error);

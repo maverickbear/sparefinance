@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
+import { getActiveHouseholdId } from "@/lib/utils/household";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -89,23 +90,38 @@ export async function POST(request: NextRequest) {
       // User is created in auth but not in User table - this is OK, will be created on first login
     }
 
-    // Create household member record for the owner using service role (bypasses RLS)
+    // Create personal household and member record for the owner using service role (bypasses RLS)
     if (userData) {
-      const invitationToken = crypto.randomUUID();
       const now = new Date().toISOString();
       
-      const { error: householdMemberError } = await serviceRoleClient
-        .from("HouseholdMember")
+      // Create personal household
+      const { data: household, error: householdError } = await serviceRoleClient
+        .from("Household")
         .insert({
-          ownerId: userData.id,
-          memberId: userData.id,
-          email: authData.user.email!,
-          name: name || null,
-          role: "admin",
-          status: "active",
-          invitationToken: invitationToken,
-          invitedAt: now,
-          acceptedAt: now,
+          name: name || authData.user.email || "Minha Conta",
+          type: "personal",
+          createdBy: userData.id,
+          createdAt: now,
+          updatedAt: now,
+          settings: {},
+        })
+        .select()
+        .single();
+
+      if (householdError || !household) {
+        console.error("[CREATE-ACCOUNT] Error creating household:", householdError);
+        // Don't fail - this is not critical
+      } else {
+        // Create household member (owner role)
+        const { error: householdMemberError } = await serviceRoleClient
+          .from("HouseholdMemberNew")
+          .insert({
+            householdId: household.id,
+            userId: userData.id,
+            role: "owner",
+            status: "active",
+            isDefault: true,
+            joinedAt: now,
           createdAt: now,
           updatedAt: now,
         });
@@ -113,6 +129,16 @@ export async function POST(request: NextRequest) {
       if (householdMemberError) {
         console.error("[CREATE-ACCOUNT] Error creating household member:", householdMemberError);
         // Don't fail - this is not critical
+        } else {
+          // Set as active household
+          await serviceRoleClient
+            .from("UserActiveHousehold")
+            .insert({
+              userId: userData.id,
+              householdId: household.id,
+              updatedAt: now,
+            });
+        }
       }
     }
 
@@ -200,9 +226,22 @@ export async function POST(request: NextRequest) {
     // Prefer pending subscription by customerId, then by email, then by stripeSubscriptionId
     const existingSub = pendingSubByCustomer || pendingSubByEmail || existingSubByStripeId;
     
+    // Get active household ID for the user (household should have been created during signup)
+    const householdId = await getActiveHouseholdId(authData.user.id);
+    if (!householdId) {
+      console.error("[CREATE-ACCOUNT] No active household found for user:", authData.user.id);
+      // Don't fail - subscription can be linked later when household is available
+      return NextResponse.json({
+        success: true,
+        message: "Account created. Subscription linking may need to be completed later.",
+        userId: authData.user.id,
+      });
+    }
+    
     const subscriptionData: any = {
       id: subscriptionId,
       userId: authData.user.id,
+      householdId: householdId, // Link to active household
       planId: plan.id,
       stripeSubscriptionId: stripeSubscription.id,
       stripeCustomerId: customerId,

@@ -5,6 +5,7 @@ import {
   pauseUserSubscription,
   resumeUserSubscription,
 } from "@/lib/api/user-subscriptions";
+import { invalidateSubscriptionCaches } from "@/lib/services/cache-manager";
 
 export async function GET(
   request: NextRequest,
@@ -41,6 +42,8 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     const subscription = await updateUserSubscription(id, body);
+    // Invalidate cache to ensure dashboard shows updated subscription
+    invalidateSubscriptionCaches();
     return NextResponse.json(subscription, { status: 200 });
   } catch (error) {
     console.error("Error updating subscription:", error);
@@ -58,6 +61,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     await deleteUserSubscription(id);
+    // Invalidate cache to ensure dashboard reflects deleted subscription
+    invalidateSubscriptionCaches();
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("Error deleting subscription:", error);
@@ -79,9 +84,13 @@ export async function POST(
 
     if (action === "pause") {
       const subscription = await pauseUserSubscription(id);
+      // Invalidate cache to ensure dashboard reflects paused subscription
+      invalidateSubscriptionCaches();
       return NextResponse.json(subscription, { status: 200 });
     } else if (action === "resume") {
       const subscription = await resumeUserSubscription(id);
+      // Invalidate cache to ensure dashboard reflects resumed subscription
+      invalidateSubscriptionCaches();
       return NextResponse.json(subscription, { status: 200 });
     } else {
       return NextResponse.json(

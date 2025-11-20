@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMacros, getCategoriesByMacro, getSubcategoriesByCategory, getAllCategories, createCategory } from "@/lib/api/categories";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,6 +41,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user can perform write operations
+    const writeGuard = await guardWriteAccess(userId);
+    await throwIfNotAllowed(writeGuard);
+
     const body = await request.json();
     const { name, macroId, groupId } = body;
 

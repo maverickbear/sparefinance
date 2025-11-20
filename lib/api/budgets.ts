@@ -5,6 +5,7 @@ import { createServerClient } from "@/lib/supabase-server";
 import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
 import { requireBudgetOwnership } from "@/lib/utils/security";
 import { decryptAmount } from "@/lib/utils/transaction-encryption";
+import { getActiveHouseholdId } from "@/lib/utils/household";
 
 export interface Budget {
   id: string;
@@ -475,6 +476,12 @@ export async function createBudget(data: {
 
   // Create budgets for the specified period(s) (skip existing ones)
   const budgetsToCreate: Array<Record<string, unknown>> = [];
+  // Get active household ID
+  const householdId = await getActiveHouseholdId(user.id);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const budgetCategoryRelations: Array<{ id: string; budgetId: string; categoryId: string; createdAt: string }> = [];
 
   for (let monthOffset = 0; monthOffset < monthsToCreate; monthOffset++) {
@@ -492,6 +499,7 @@ export async function createBudget(data: {
       period: targetPeriodDate,
       amount: data.amount,
       userId: user.id,
+      householdId: householdId, // Add householdId for household-based architecture
       createdAt: now,
       updatedAt: now,
       isRecurring: isRecurring,

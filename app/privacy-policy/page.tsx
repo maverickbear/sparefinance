@@ -140,7 +140,7 @@ export default async function PrivacyPolicyPage() {
                 <li>Process transactions and manage your account</li>
                 <li>Sync bank account data through Plaid integration ({essentialPlanName} and {proPlanName} plans)</li>
                 <li>Provide AI-powered category suggestions based on your transaction history</li>
-                <li>Manage household member accounts and permissions ({essentialPlanName} and {proPlanName} plans)</li>
+                <li>Manage household member accounts and permissions ({proPlanName} plan)</li>
                 <li>Calculate budgets, goals, investments, and debt tracking</li>
                 <li>Generate reports and analytics</li>
                 <li>Send you important updates and notifications</li>
@@ -173,7 +173,7 @@ export default async function PrivacyPolicyPage() {
                   </ul>
                 </li>
                 <li>
-                  <strong>Household Members:</strong> If you are part of a household account ({essentialPlanName} and {proPlanName} plans), 
+                  <strong>Household Members:</strong> If you are part of a household account ({proPlanName} plan), 
                   your financial data may be shared with other household members as configured. Each household member 
                   maintains separate financial data (transactions, accounts, budgets), but the account owner can view 
                   and manage all household members. You control which members have access to your household account.

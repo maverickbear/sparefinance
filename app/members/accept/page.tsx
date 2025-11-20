@@ -111,6 +111,13 @@ function AcceptInvitationForm() {
       const result = await res.json();
 
       if (res.ok) {
+        // Check if OTP verification is required
+        if (result.requiresOtpVerification) {
+          // Redirect to OTP verification page with invitation context
+          router.push(`/auth/verify-otp?email=${encodeURIComponent(result.email)}&invitationId=${encodeURIComponent(result.invitationId)}&userId=${encodeURIComponent(result.userId)}&from_invitation=true`);
+          return;
+        }
+
         setStatus("success");
         setMessage("Invitation accepted successfully! You are now part of the family.");
         
@@ -364,7 +371,6 @@ function AcceptInvitationForm() {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       {...form.register("password")}
-                      placeholder="••••••••"
                       disabled={(status as string) === "processing"}
                       className="pl-10 pr-10 h-11"
                     />
@@ -399,7 +405,6 @@ function AcceptInvitationForm() {
                       id="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
                       {...form.register("confirmPassword")}
-                      placeholder="••••••••"
                       disabled={(status as string) === "processing"}
                       className="pl-10 pr-10 h-11"
                     />

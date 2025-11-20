@@ -135,21 +135,18 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     });
 
     // Get household information for all users
-    // First get all household members where user is owner or member
-    const { data: householdMembersOwner, error: householdError1 } = await supabase
-      .from("HouseholdMember")
-      .select("ownerId, memberId, status")
-      .in("ownerId", userIds);
+    // Get all households created by users (owners)
+    const { data: ownedHouseholds, error: householdError1 } = await supabase
+      .from("Household")
+      .select("id, createdBy, type")
+      .in("createdBy", userIds);
 
-    const { data: householdMembersMember, error: householdError2 } = await supabase
-      .from("HouseholdMember")
-      .select("ownerId, memberId, status")
-      .in("memberId", userIds);
-
-    const householdMembers = [
-      ...(householdMembersOwner || []),
-      ...(householdMembersMember || []),
-    ];
+    // Get all household memberships where user is a member
+    const { data: householdMembers, error: householdError2 } = await supabase
+      .from("HouseholdMemberNew")
+      .select("userId, householdId, status, Household(createdBy, type)")
+      .in("userId", userIds)
+      .eq("status", "active");
 
     if (householdError1 || householdError2) {
       console.error("Error fetching household members:", householdError1 || householdError2);
@@ -158,20 +155,39 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     // Build household info map
     const householdInfoMap = new Map<string, { hasHousehold: boolean; isOwner: boolean; memberCount: number }>();
     
-    // Count members per owner
+    // Count members per household owner
     const ownerMemberCounts = new Map<string, number>();
-    (householdMembers || []).forEach((hm) => {
-      if (hm.ownerId && hm.status === "active") {
-        ownerMemberCounts.set(hm.ownerId, (ownerMemberCounts.get(hm.ownerId) || 0) + 1);
+    const householdOwnerMap = new Map<string, string>(); // householdId -> createdBy
+    
+    // Map owned households
+    (ownedHouseholds || []).forEach((h) => {
+      if (h.type !== 'personal') { // Only count non-personal households
+        householdOwnerMap.set(h.id, h.createdBy);
+      }
+    });
+    
+    // Count members per owner (excluding personal households)
+    (householdMembers || []).forEach((hm: any) => {
+      const household = hm.Household as any;
+      if (household && household.type !== 'personal' && household.createdBy) {
+        const ownerId = household.createdBy;
+        ownerMemberCounts.set(ownerId, (ownerMemberCounts.get(ownerId) || 0) + 1);
       }
     });
 
     // Check if user is owner or member
     userIds.forEach((userId) => {
-      const isOwner = ownerMemberCounts.has(userId);
-      const isMember = (householdMembers || []).some(
-        (hm) => hm.memberId === userId && hm.status === "active"
-      );
+      // Check if user owns any non-personal household
+      const isOwner = (ownedHouseholds || []).some((h) => h.createdBy === userId && h.type !== 'personal');
+      
+      // Check if user is a member of any non-personal household
+      const isMember = (householdMembers || []).some((hm: any) => {
+        const household = hm.Household as any;
+        return hm.userId === userId && 
+               hm.status === "active" && 
+               household?.createdBy !== userId && 
+               household?.type !== 'personal';
+      });
       
       householdInfoMap.set(userId, {
         hasHousehold: isOwner || isMember,

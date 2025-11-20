@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/components/common/money";
 import { Lightbulb } from "lucide-react";
 import type { FinancialHealthData } from "@/lib/api/financial-health";
-import { SpareScoreInsightsModal } from "./spare-score-insights-modal";
 
 interface FinancialHealthScoreWidgetProps {
   financialHealth: FinancialHealthData | null;
@@ -20,7 +20,7 @@ export function FinancialHealthScoreWidget({
   selectedMonthTransactions,
   lastMonthTransactions,
 }: FinancialHealthScoreWidgetProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
   
   // Helper function to parse date from Supabase format
   const parseTransactionDate = (dateStr: string | Date): Date => {
@@ -167,13 +167,12 @@ export function FinancialHealthScoreWidget({
   }
 
   return (
-    <>
-      <Card className="h-full">
-        <CardHeader>
-          <CardTitle>Spare Score</CardTitle>
-          <CardDescription>Combined view of spending, savings and debt</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle>Spare Score</CardTitle>
+        <CardDescription>Combined view of spending, savings and debt</CardDescription>
+      </CardHeader>
+      <CardContent>
         <div className="space-y-6">
           {/* Score Display */}
           <div>
@@ -200,7 +199,7 @@ export function FinancialHealthScoreWidget({
             {/* Gradient bar */}
             <div className="relative h-4 rounded-lg overflow-hidden border border-border/50">
               <div className="absolute inset-0" style={{
-                background: 'linear-gradient(to right, #fb923c 0%, #fbbf24 25%, #60a5fa 50%, #34d399 75%, #22c55e 100%)'
+                background: 'linear-gradient(to right, #ef4444 0%, #fb923c 50%, #22c55e 100%)'
               }}></div>
             </div>
             
@@ -217,11 +216,11 @@ export function FinancialHealthScoreWidget({
           </div>
 
           {/* Insights Button */}
-          <div className="pt-4 border-t border-border">
+          <div>
             <Button
               variant="outline"
               className="w-full gap-2"
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => router.push("/insights")}
             >
               <Lightbulb className="h-4 w-4" />
               <span>View Insights & Actions</span>
@@ -230,18 +229,6 @@ export function FinancialHealthScoreWidget({
         </div>
       </CardContent>
     </Card>
-
-    <SpareScoreInsightsModal
-      open={isModalOpen}
-      onOpenChange={setIsModalOpen}
-      financialHealth={financialHealth}
-      currentIncome={currentIncome}
-      currentExpenses={currentExpenses}
-      emergencyFundMonths={emergencyFundMonths}
-      selectedMonthTransactions={selectedMonthTransactions}
-      lastMonthTransactions={lastMonthTransactions}
-    />
-    </>
   );
 }
 

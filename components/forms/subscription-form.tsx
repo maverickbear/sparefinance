@@ -27,6 +27,7 @@ import {
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { formatTransactionDate, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
 import { useToast } from "@/components/toast-provider";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Loader2, Plus } from "lucide-react";
 import { getAllCategoriesClient } from "@/lib/api/categories-client";
 import type { Category } from "@/lib/api/categories-client";
@@ -550,24 +551,21 @@ export function SubscriptionForm({
 
             <div className="space-y-2">
               <label className="text-sm font-medium">First Billing Date</label>
-              <Input
-                type="date"
-                {...form.register("firstBillingDate", { required: true })}
-                value={
+              <DatePicker
+                date={
                   form.watch("firstBillingDate")
-                    ? formatDateInput(
-                        form.watch("firstBillingDate") instanceof Date
-                          ? form.watch("firstBillingDate")
-                          : new Date(form.watch("firstBillingDate"))
-                      )
-                    : ""
+                    ? form.watch("firstBillingDate") instanceof Date
+                      ? form.watch("firstBillingDate")
+                      : new Date(form.watch("firstBillingDate"))
+                    : undefined
                 }
-                onChange={(e) => {
-                  const date = parseDateInput(e.target.value);
+                onDateChange={(date) => {
                   if (date) {
                     form.setValue("firstBillingDate", date);
                   }
                 }}
+                placeholder="Select first billing date"
+                required
               />
             </div>
           </div>

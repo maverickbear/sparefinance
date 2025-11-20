@@ -4,7 +4,7 @@ import { useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ChartCard } from "@/components/charts/chart-card";
 import { formatMoney } from "@/components/common/money";
-import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HistoricalDataPoint } from "@/lib/api/portfolio";
 import { subDays, parseISO, format } from "date-fns";
 import { formatTransactionDate } from "@/lib/utils/timestamp";
@@ -80,8 +80,21 @@ export function PortfolioPerformanceChart({
   };
 
   const filteredData = getFilteredData();
+  
+  // Ensure data is sorted by date (ascending) for proper chart rendering
+  const sortedData = filteredData.length > 0 
+    ? [...filteredData].sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateA - dateB;
+      })
+    : [];
+  
   // Ensure we have at least one data point (current value)
-  const chartData = filteredData.length > 0 ? filteredData : [{ date: new Date().toISOString().split("T")[0], value: currentValue }];
+  const chartData = sortedData.length > 0 
+    ? sortedData 
+    : [{ date: new Date().toISOString().split("T")[0], value: currentValue }];
+  
   const startValue = chartData[0]?.value || currentValue;
   // Calculate performance, handling division by zero
   const performance = startValue !== 0 
@@ -94,104 +107,21 @@ export function PortfolioPerformanceChart({
       description="Portfolio value over time"
       className="overflow-hidden"
       headerActions={
-        <div className="flex gap-2">
-          <Button
-            variant={period === "1D" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("1D")}
-            className={`rounded-full transition-all ${
-              period === "1D"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            1D
-          </Button>
-          <Button
-            variant={period === "5D" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("5D")}
-            className={`rounded-full transition-all ${
-              period === "5D"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            5D
-          </Button>
-          <Button
-            variant={period === "1M" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("1M")}
-            className={`rounded-full transition-all ${
-              period === "1M"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            1M
-          </Button>
-          <Button
-            variant={period === "3M" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("3M")}
-            className={`rounded-full transition-all ${
-              period === "3M"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            3M
-          </Button>
-          <Button
-            variant={period === "6M" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("6M")}
-            className={`rounded-full transition-all ${
-              period === "6M"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            6M
-          </Button>
-          <Button
-            variant={period === "YTD" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("YTD")}
-            className={`rounded-full transition-all ${
-              period === "YTD"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            YTD
-          </Button>
-          <Button
-            variant={period === "1Y" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("1Y")}
-            className={`rounded-full transition-all ${
-              period === "1Y"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            1Y
-          </Button>
-          <Button
-            variant={period === "ALL" ? "default" : "outline"}
-            size="small"
-            onClick={() => setPeriod("ALL")}
-            className={`rounded-full transition-all ${
-              period === "ALL"
-                ? "border-2 border-primary"
-                : ""
-            }`}
-          >
-            ALL
-          </Button>
-        </div>
+        <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
+          <SelectTrigger size="small" className="w-fit h-7 text-xs px-2.5">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1D">1D</SelectItem>
+            <SelectItem value="5D">5D</SelectItem>
+            <SelectItem value="1M">1M</SelectItem>
+            <SelectItem value="3M">3M</SelectItem>
+            <SelectItem value="6M">6M</SelectItem>
+            <SelectItem value="YTD">YTD</SelectItem>
+            <SelectItem value="1Y">1Y</SelectItem>
+            <SelectItem value="ALL">ALL</SelectItem>
+          </SelectContent>
+        </Select>
       }
     >
       <div className="mb-4 border-b pb-3">

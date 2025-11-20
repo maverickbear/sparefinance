@@ -19,11 +19,12 @@ const MACROS_CACHE_TTL = GROUPS_CACHE_TTL;
 
 /**
  * Check if user has a paid plan (not free)
+ * This verifies that the subscription is active or trialing
  */
 async function hasPaidPlan(userId: string): Promise<boolean> {
   try {
-    const { subscription } = await getUserSubscriptionData(userId);
-    return subscription !== null;
+    const { canUserWrite } = await import("@/lib/api/subscription");
+    return await canUserWrite(userId);
   } catch (error) {
     logger.error("Error checking plan:", error);
     return false;

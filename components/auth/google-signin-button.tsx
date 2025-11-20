@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { signInWithGoogle } from "@/lib/api/auth-client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface GoogleSignInButtonProps {
   variant?: "signin" | "signup";
@@ -16,10 +16,23 @@ interface GoogleSignInButtonProps {
  */
 export function GoogleSignInButton({ variant = "signin", className }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [showLastUsed, setShowLastUsed] = useState(false);
+
+  // Check if Google was the last used authentication method
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const lastUsedMethod = localStorage.getItem("lastAuthMethod");
+      setShowLastUsed(lastUsedMethod === "google");
+    }
+  }, []);
 
   async function handleGoogleSignIn() {
     try {
       setLoading(true);
+      // Store that Google is being used before redirect
+      if (typeof window !== "undefined") {
+        localStorage.setItem("lastAuthMethod", "google");
+      }
       const { error } = await signInWithGoogle();
       
       if (error) {
@@ -49,8 +62,13 @@ export function GoogleSignInButton({ variant = "signin", className }: GoogleSign
       ) : (
         <>
           <GoogleIcon className="w-5 h-5 mr-2" />
-          {variant === "signin" ? "Sign in with Google" : "Sign up with Google"}
+          <span>{variant === "signin" ? "Sign in with Google" : "Sign up with Google"}</span>
         </>
+      )}
+      {showLastUsed && !loading && (
+        <span className="absolute top-1 right-2 text-[10px] text-muted-foreground font-normal">
+          LAST USED
+        </span>
       )}
     </Button>
   );

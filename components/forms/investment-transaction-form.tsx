@@ -28,6 +28,7 @@ import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 import { Label } from "@/components/ui/label";
 import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog as SecurityDialog,
@@ -1166,13 +1167,12 @@ export function InvestmentTransactionForm({
 
               <div className="space-y-1">
                 <Label>Date</Label>
-                <Input
-                  type="date"
-                  value={formatDateInput(form.watch("date"))}
-                  onChange={(e) => {
-                    const date = e.target.value ? parseDateInput(e.target.value) : new Date();
-                    form.setValue("date", date);
+                <DatePicker
+                  date={form.watch("date")}
+                  onDateChange={(date) => {
+                    form.setValue("date", date || new Date());
                   }}
+                  placeholder="Select date"
                 />
                 {form.formState.errors.date && (
                   <p className="text-sm text-destructive">

@@ -35,6 +35,13 @@ export interface WelcomeEmailData {
   appUrl?: string;
 }
 
+export interface PasswordResetEmailData {
+  to: string;
+  userName?: string;
+  resetLink: string;
+  appUrl?: string;
+}
+
 export async function sendInvitationEmail(data: InvitationEmailData): Promise<void> {
   console.log("[EMAIL] sendInvitationEmail called with:", {
     to: data.to,
@@ -42,30 +49,34 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
     ownerName: data.ownerName,
     ownerEmail: data.ownerEmail,
     hasToken: !!data.invitationToken,
+    appUrl: data.appUrl,
   });
 
   const resend = getResend();
   
   if (!resend) {
-    console.warn("[EMAIL] ❌ RESEND_API_KEY not configured. Email will not be sent.");
-    return;
+    const apiKeyStatus = process.env.RESEND_API_KEY ? "SET (but Resend not initialized)" : "NOT SET";
+    console.error("[EMAIL] ❌ RESEND_API_KEY not configured. Email will not be sent.");
+    console.error("[EMAIL] RESEND_API_KEY status:", apiKeyStatus);
+    throw new Error("RESEND_API_KEY not configured. Cannot send invitation email.");
   }
+  
+  console.log("[EMAIL] ✅ Resend initialized successfully");
 
   const appUrl = data.appUrl || process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/";
   const invitationLink = `${appUrl}/members/accept?token=${data.invitationToken}`;
 
   console.log("[EMAIL] Invitation link generated:", invitationLink);
 
-  // Always use noreply@sparefinance.com as the default sender
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@sparefinance.com";
-  
-  // Ensure we're using noreply@sparefinance.com instead of onboarding@resend.dev
-  const finalFromEmail = fromEmail === "onboarding@resend.dev" ? "noreply@sparefinance.com" : fromEmail;
+  // Always use noreply@sparefinance.com as the sender with "Spare Finance" as display name
+  const finalFromEmail = "Spare Finance <noreply@sparefinance.com>";
 
   console.log("[EMAIL] Sending email from:", finalFromEmail, "to:", data.to);
+  console.log("[EMAIL] Final from email value:", JSON.stringify(finalFromEmail));
 
   try {
-    const result = await resend.emails.send({
+    console.log("[EMAIL] Preparing to send email via Resend API...");
+    const emailPayload = {
       from: finalFromEmail,
       to: data.to,
       subject: `${data.ownerName} invited you to Spare Finance`,
@@ -76,36 +87,53 @@ export async function sendInvitationEmail(data: InvitationEmailData): Promise<vo
         invitationLink,
         memberEmail: data.to,
       }),
+    };
+    console.log("[EMAIL] Email payload (from field):", JSON.stringify(emailPayload.from));
+    const result = await resend.emails.send(emailPayload);
+
+    console.log("[EMAIL] Resend API response received:", {
+      hasError: !!result.error,
+      hasData: !!result.data,
+      error: result.error ? {
+        message: result.error.message,
+        name: result.error.name,
+      } : null,
+      emailId: result.data?.id,
     });
 
     if (result.error) {
       const errorMessage = result.error.message || JSON.stringify(result.error);
       
-      // Check if it's the Resend testing limitation error
-      if (errorMessage.includes("validation_error") || 
-          errorMessage.includes("You can only send testing emails to your own email address") ||
+      // Check if it's a domain verification or testing limitation error
+      const isDomainError = errorMessage.includes("validation_error") || 
           errorMessage.includes("domain") ||
-          errorMessage.includes("not verified")) {
-        console.warn(`
-⚠️  Resend Testing Limitation:
+          errorMessage.includes("not verified");
+      const isTestingLimitation = errorMessage.includes("You can only send testing emails to your own email address");
+      
+      if (isDomainError || isTestingLimitation) {
+        const warningMessage = `
+⚠️  Resend Domain Verification Required:
 The invitation was created successfully, but the email could not be sent automatically.
-This is because Resend's testing mode only allows sending emails to your verified email address.
+This is because the domain sparefinance.com is not verified in Resend.
 
 📋 The invitation link is: ${invitationLink}
 
 You can manually share this link with the invited member.
 
-🔧 To enable email sending to any recipient:
+🔧 To enable email sending:
 1. Go to https://resend.com/domains
 2. Add and verify the domain: sparefinance.com
 3. Configure DNS records (SPF, DKIM, DMARC) as instructed by Resend
 4. Wait for domain verification (may take a few hours)
 
-Once verified, emails will be sent from: ${finalFromEmail}
-        `);
+Once verified, emails will be sent from: noreply@sparefinance.com
+        `;
+        console.warn("[EMAIL]", warningMessage);
+        throw new Error(`Email not sent - domain verification required. Invitation link: ${invitationLink}`);
       } else {
         console.error("[EMAIL] ❌ Resend API error:", result.error);
         console.error("[EMAIL] Error details:", JSON.stringify(result.error, null, 2));
+        throw new Error(`Resend API error: ${errorMessage}`);
       }
     } else {
       console.log("[EMAIL] ✅ Invitation email sent successfully to:", data.to);
@@ -114,11 +142,18 @@ Once verified, emails will be sent from: ${finalFromEmail}
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
+    console.error("[EMAIL] ❌ Exception caught while sending invitation email:", error);
+    if (error instanceof Error) {
+      console.error("[EMAIL] Error message:", error.message);
+      console.error("[EMAIL] Error stack:", error.stack);
+    }
+    
     // Check if it's the Resend testing limitation error
     if (errorMessage.includes("validation_error") || 
         errorMessage.includes("You can only send testing emails to your own email address") ||
         errorMessage.includes("domain") ||
-        errorMessage.includes("not verified")) {
+        errorMessage.includes("not verified") ||
+        errorMessage.includes("Resend testing limitations")) {
       console.warn(`
 ⚠️  Resend Testing Limitation:
 The invitation was created successfully, but the email could not be sent automatically.
@@ -128,22 +163,19 @@ This is because Resend's testing mode only allows sending emails to your verifie
 
 You can manually share this link with the invited member.
 
-🔧 To enable email sending to any recipient:
+🔧 To enable email sending:
 1. Go to https://resend.com/domains
 2. Add and verify the domain: sparefinance.com
 3. Configure DNS records (SPF, DKIM, DMARC) as instructed by Resend
 4. Wait for domain verification (may take a few hours)
 
-Once verified, emails will be sent from: ${fromEmail}
+Once verified, emails will be sent from: noreply@sparefinance.com
       `);
-    } else {
-      console.error("[EMAIL] ❌ Error sending invitation email:", error);
-      if (error instanceof Error) {
-        console.error("[EMAIL] Error stack:", error.stack);
-      }
     }
-    // Don't throw - we don't want email failures to break the invitation flow
-    // The invitation is still created in the database
+    
+    // Re-throw the error so the caller knows the email wasn't sent
+    // The caller can decide whether to fail the invitation or continue
+    throw error;
   }
 }
 
@@ -270,14 +302,15 @@ export async function sendCheckoutPendingEmail(data: CheckoutPendingEmailData): 
   console.log("[EMAIL] ✅ Resend initialized successfully");
 
   const appUrl = data.appUrl || process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com";
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@sparefinance.com";
-  const finalFromEmail = fromEmail === "onboarding@resend.dev" ? "noreply@sparefinance.com" : fromEmail;
+  // Always use noreply@sparefinance.com as the sender with "Spare Finance" as display name
+  const finalFromEmail = "Spare Finance <noreply@sparefinance.com>";
 
   console.log("[EMAIL] Email configuration:", {
     from: finalFromEmail,
     to: data.to,
     appUrl,
   });
+  console.log("[EMAIL] Final from email value:", JSON.stringify(finalFromEmail));
 
   // Format trial end date
   let trialInfo = "";
@@ -297,7 +330,7 @@ export async function sendCheckoutPendingEmail(data: CheckoutPendingEmailData): 
 
   try {
     console.log("[EMAIL] Sending email via Resend...");
-    const result = await resend.emails.send({
+    const emailPayload = {
       from: finalFromEmail,
       to: data.to,
       subject: `Complete your Spare Finance account setup`,
@@ -306,7 +339,9 @@ export async function sendCheckoutPendingEmail(data: CheckoutPendingEmailData): 
         trialInfo,
         signupUrl: data.signupUrl,
       }),
-    });
+    };
+    console.log("[EMAIL] Checkout pending email payload (from field):", JSON.stringify(emailPayload.from));
+    const result = await resend.emails.send(emailPayload);
 
     console.log("[EMAIL] Resend API response:", {
       hasError: !!result.error,
@@ -429,6 +464,236 @@ function getCheckoutPendingEmailTemplate(data: {
   `.trim();
 }
 
+export async function sendPasswordResetEmail(data: PasswordResetEmailData): Promise<void> {
+  console.log("[EMAIL] sendPasswordResetEmail called with:", {
+    to: data.to,
+    userName: data.userName,
+    hasResetLink: !!data.resetLink,
+    appUrl: data.appUrl,
+  });
+
+  const resend = getResend();
+  
+  if (!resend) {
+    const apiKeyStatus = process.env.RESEND_API_KEY ? "SET (but Resend not initialized)" : "NOT SET";
+    console.error("[EMAIL] ❌ RESEND_API_KEY not configured. Email will not be sent.");
+    console.error("[EMAIL] RESEND_API_KEY status:", apiKeyStatus);
+    throw new Error("RESEND_API_KEY not configured. Cannot send password reset email.");
+  }
+  
+  console.log("[EMAIL] ✅ Resend initialized successfully");
+
+  // Always use noreply@sparefinance.com as the sender with "Spare Finance" as display name
+  const finalFromEmail = "Spare Finance <noreply@sparefinance.com>";
+
+  console.log("[EMAIL] Sending email from:", finalFromEmail, "to:", data.to);
+  console.log("[EMAIL] Final from email value:", JSON.stringify(finalFromEmail));
+
+  try {
+    console.log("[EMAIL] Preparing to send password reset email via Resend API...");
+    const emailPayload = {
+      from: finalFromEmail,
+      to: data.to,
+      subject: "Reset your password - Spare Finance",
+      html: getPasswordResetEmailTemplate({
+        userName: data.userName,
+        resetLink: data.resetLink,
+        userEmail: data.to,
+      }),
+    };
+    console.log("[EMAIL] Email payload (from field):", JSON.stringify(emailPayload.from));
+    const result = await resend.emails.send(emailPayload);
+
+    console.log("[EMAIL] Resend API response received:", {
+      hasError: !!result.error,
+      hasData: !!result.data,
+      error: result.error ? {
+        message: result.error.message,
+        name: result.error.name,
+      } : null,
+      emailId: result.data?.id,
+    });
+
+    if (result.error) {
+      const errorMessage = result.error.message || JSON.stringify(result.error);
+      
+      // Check if it's a domain verification or testing limitation error
+      const isDomainError = errorMessage.includes("validation_error") || 
+          errorMessage.includes("domain") ||
+          errorMessage.includes("not verified");
+      const isTestingLimitation = errorMessage.includes("You can only send testing emails to your own email address");
+      
+      if (isDomainError || isTestingLimitation) {
+        const warningMessage = `
+⚠️  Resend Domain Verification Required:
+The password reset email could not be sent automatically.
+This is because the domain sparefinance.com is not verified in Resend.
+
+📋 The password reset link is: ${data.resetLink}
+
+You can manually share this link with the user if needed.
+
+🔧 To enable email sending:
+1. Go to https://resend.com/domains
+2. Add and verify the domain: sparefinance.com
+3. Configure DNS records (SPF, DKIM, DMARC) as instructed by Resend
+4. Wait for domain verification (may take a few hours)
+
+Once verified, emails will be sent from: noreply@sparefinance.com
+        `;
+        console.warn("[EMAIL]", warningMessage);
+        throw new Error(`Email not sent - domain verification required. Reset link: ${data.resetLink}`);
+      } else {
+        console.error("[EMAIL] ❌ Resend API error:", result.error);
+        console.error("[EMAIL] Error details:", JSON.stringify(result.error, null, 2));
+        throw new Error(`Resend API error: ${errorMessage}`);
+      }
+    } else {
+      console.log("[EMAIL] ✅ Password reset email sent successfully to:", data.to);
+      console.log("[EMAIL] Email ID:", result.data?.id);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    console.error("[EMAIL] ❌ Exception caught while sending password reset email:", error);
+    if (error instanceof Error) {
+      console.error("[EMAIL] Error message:", error.message);
+      console.error("[EMAIL] Error stack:", error.stack);
+    }
+    
+    // Check if it's a domain verification or testing limitation error
+    if (errorMessage.includes("validation_error") || 
+        errorMessage.includes("domain") ||
+        errorMessage.includes("not verified") ||
+        errorMessage.includes("Resend testing limitations") ||
+        errorMessage.includes("domain verification required")) {
+      console.warn(`
+⚠️  Resend Domain Verification Required:
+The password reset email could not be sent automatically.
+This is because the domain sparefinance.com is not verified in Resend.
+
+📋 The password reset link is: ${data.resetLink}
+
+You can manually share this link with the user if needed.
+
+🔧 To enable email sending:
+1. Go to https://resend.com/domains
+2. Add and verify the domain: sparefinance.com
+3. Configure DNS records (SPF, DKIM, DMARC) as instructed by Resend
+4. Wait for domain verification (may take a few hours)
+
+Once verified, emails will be sent from: noreply@sparefinance.com
+      `);
+    }
+    
+    // Re-throw the error so the caller knows the email wasn't sent
+    throw error;
+  }
+}
+
+function getPasswordResetEmailTemplate(data: {
+  userName?: string;
+  resetLink: string;
+  userEmail?: string;
+}): string {
+  try {
+    const templatePath = path.join(process.cwd(), 'email-templates/password-reset.html');
+    console.log("[EMAIL] Loading password reset template from:", templatePath);
+    
+    let html = fs.readFileSync(templatePath, 'utf-8');
+    console.log("[EMAIL] Template loaded successfully, length:", html.length);
+    
+    // Replace template variables
+    html = html.replace(/\{\{ if \.Name \}\} \{\{ \.Name \}\}\{\{ end \}\}/g, data.userName || "");
+    html = html.replace(/\{\{ \.ConfirmationURL \}\}/g, data.resetLink);
+    html = html.replace(/\{\{ \.Email \}\}/g, data.userEmail || "");
+    html = html.replace(/\{\{ \.Year \}\}/g, new Date().getFullYear().toString());
+    
+    console.log("[EMAIL] Template variables replaced successfully");
+    return html;
+  } catch (error) {
+    console.error("[EMAIL] ❌ Error loading password reset email template:", error);
+    // Fallback to inline template if file read fails
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password - Spare Finance</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f5f5f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px;">
+          <tr>
+            <td style="padding: 30px 40px 20px; text-align: left;">
+              <img src="https://dvshwrtzazoetkbzxolv.supabase.co/storage/v1/object/public/images/spare-logo-purple.png" alt="Spare Finance" style="height: 32px; width: auto;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 40px 40px;">
+              <h1 style="margin: 0 0 20px; color: #1a1a1a; font-size: 28px; font-weight: 700; line-height: 1.3;">
+                Reset your password
+              </h1>
+              
+              <p style="margin: 0 0 16px; color: #4a4a4a; font-size: 16px; line-height: 1.5;">
+                Hi${data.userName ? ` ${data.userName}` : ""},
+              </p>
+              
+              <p style="margin: 0 0 24px; color: #4a4a4a; font-size: 16px; line-height: 1.5;">
+                We received a request to reset your password. Click the button below to create a new password:
+              </p>
+              
+              <div style="text-align: left; margin: 0 0 24px;">
+                <a href="${data.resetLink}" style="display: inline-block; padding: 14px 32px; background-color: #4A4AF2; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                  Reset Password
+                </a>
+              </div>
+              
+              <p style="margin: 0 0 16px; color: #8a8a8a; font-size: 14px; line-height: 1.5;">
+                Or copy and paste this link into your browser:
+              </p>
+              
+              <p style="margin: 0 0 24px; color: #8a8a8a; font-size: 14px; line-height: 1.5; word-break: break-all;">
+                ${data.resetLink}
+              </p>
+              
+              <p style="margin: 0 0 16px; color: #8a8a8a; font-size: 14px; line-height: 1.5;">
+                This link will expire in 1 hour for security reasons. If you didn't request a password reset, you can safely ignore this email.
+              </p>
+              
+              <p style="margin: 0 0 24px; color: #8a8a8a; font-size: 14px; line-height: 1.5;">
+                For your security, we recommend choosing a strong, unique password that you haven't used elsewhere.
+              </p>
+              
+              <p style="margin: 0; color: #4a4a4a; font-size: 16px; line-height: 1.5;">
+                Best regards,<br>
+                Spare Finance
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px; background-color: #f9f9f9; text-align: center; border-top: 1px solid #e5e5e5; border-radius: 0 0 8px 8px;">
+              <p style="margin: 0 0 8px; color: #8a8a8a; font-size: 12px; line-height: 1.5;">
+                This message was sent to ${data.userEmail || ""}. If you have questions or complaints, please contact us.
+              </p>
+              <p style="margin: 0; color: #8a8a8a; font-size: 12px;">
+                © ${new Date().getFullYear()} Spare Finance. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+    `.trim();
+  }
+}
+
 export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
   const resend = getResend();
   
@@ -440,12 +705,13 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
   const appUrl = data.appUrl || process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/";
   const founderName = data.founderName || "Naor Tartarotti";
   
-  // Use personal email address for welcome emails (from the founder)
-  const fromEmail = process.env.RESEND_WELCOME_FROM_EMAIL || "naor@sparefinance.com";
-  const finalFromEmail = fromEmail === "onboarding@resend.dev" ? "naor@sparefinance.com" : fromEmail;
+  // Always use noreply@sparefinance.com as the sender with "Spare Finance" as display name
+  const finalFromEmail = "Spare Finance <noreply@sparefinance.com>";
+
+  console.log("[EMAIL] Welcome email - Final from email value:", JSON.stringify(finalFromEmail));
 
   try {
-    const result = await resend.emails.send({
+    const emailPayload = {
       from: finalFromEmail,
       to: data.to,
       subject: `Welcome to Spare Finance!`,
@@ -453,7 +719,9 @@ export async function sendWelcomeEmail(data: WelcomeEmailData): Promise<void> {
         founderName,
         email: data.to,
       }),
-    });
+    };
+    console.log("[EMAIL] Welcome email payload (from field):", JSON.stringify(emailPayload.from));
+    const result = await resend.emails.send(emailPayload);
 
     if (result.error) {
       const errorMessage = result.error.message || JSON.stringify(result.error);

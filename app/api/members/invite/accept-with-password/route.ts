@@ -15,6 +15,17 @@ export async function POST(request: Request) {
 
     const result = await acceptInvitationWithPassword(token, password);
     
+    // If OTP verification is required, return that info instead of session
+    if (result.requiresOtpVerification) {
+      return NextResponse.json({
+        requiresOtpVerification: true,
+        email: result.email,
+        invitationId: result.invitationId,
+        userId: result.userId,
+        message: "Please check your email for the verification code",
+      });
+    }
+    
     // Create response with session data
     const response = NextResponse.json({
       member: result.member,

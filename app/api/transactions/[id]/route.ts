@@ -2,12 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateTransaction, deleteTransaction } from "@/lib/api/transactions";
 import { TransactionFormData } from "@/lib/validations/transaction";
 import { ZodError } from "zod";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user can perform write operations
+    const writeGuard = await guardWriteAccess(userId);
+    await throwIfNotAllowed(writeGuard);
+
     const { id } = await params;
     const data: Partial<TransactionFormData> = await request.json();
     
@@ -49,6 +59,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user can perform write operations
+    const writeGuard = await guardWriteAccess(userId);
+    await throwIfNotAllowed(writeGuard);
+
     const { id } = await params;
     
     await deleteTransaction(id);

@@ -199,6 +199,11 @@ function LoginFormContent() {
         }
       }
 
+      // Store that password was the last used authentication method
+      if (typeof window !== "undefined") {
+        localStorage.setItem("lastAuthMethod", "password");
+      }
+
       // Preload user and plan data while showing loading
       // This ensures data is ready when user navigates to dashboard
       await preloadUserData();

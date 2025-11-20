@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import type { DateRange as DateRangeType } from "react-day-picker";
 
 export type DateRangePreset = 
   | "all-dates"
@@ -54,20 +55,21 @@ export function DateRangePicker({
   className,
 }: DateRangePickerProps) {
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
-  const [customStartDate, setCustomStartDate] = React.useState(
-    dateRange?.startDate || ""
+  const [selectedRange, setSelectedRange] = React.useState<DateRangeType | undefined>(
+    dateRange ? {
+      from: new Date(dateRange.startDate),
+      to: new Date(dateRange.endDate),
+    } : undefined
   );
-  const [customEndDate, setCustomEndDate] = React.useState(
-    dateRange?.endDate || ""
-  );
-  const [error, setError] = React.useState<string>("");
   const [previousValue, setPreviousValue] = React.useState<DateRangePreset | "custom">("this-month");
 
   // Update custom dates when dateRange prop changes
   React.useEffect(() => {
     if (value === "custom" && dateRange) {
-      setCustomStartDate(dateRange.startDate);
-      setCustomEndDate(dateRange.endDate);
+      setSelectedRange({
+        from: new Date(dateRange.startDate),
+        to: new Date(dateRange.endDate),
+      });
     }
   }, [dateRange, value]);
 
@@ -118,100 +120,33 @@ export function DateRangePicker({
     }
   };
 
-  const validateDateInput = (value: string): boolean => {
-    // Check if the value matches YYYY-MM-DD format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(value)) {
-      return false;
-    }
+  const handleRangeSelect = (range: DateRangeType | undefined) => {
+    setSelectedRange(range);
     
-    // Check if the date is valid
-    const date = new Date(value);
-    if (isNaN(date.getTime())) {
-      return false;
+    // Auto-apply when both dates are selected
+    if (range?.from && range?.to) {
+      const startDate = format(range.from, "yyyy-MM-dd");
+      const endDate = format(range.to, "yyyy-MM-dd");
+      
+      const dateRange: DateRange = {
+        startDate,
+        endDate,
+      };
+      onValueChange("custom", dateRange);
+      setIsPopoverOpen(false);
     }
-    
-    // Check if the year has exactly 4 digits
-    const [year] = value.split('-');
-    if (year.length !== 4) {
-      return false;
-    }
-    
-    return true;
-  };
-
-  const handleDateChange = (
-    value: string,
-    setter: (value: string) => void
-  ) => {
-    // If empty, allow it (user might be clearing the field)
-    if (!value) {
-      setter(value);
-      setError("");
-      return;
-    }
-    
-    // Validate the format
-    if (validateDateInput(value)) {
-      setter(value);
-      setError("");
-    } else {
-      // Still update the value but show error
-      setter(value);
-      setError("Please enter a valid date in YYYY-MM-DD format");
-    }
-  };
-
-  const handleApplyCustomRange = () => {
-    if (!customStartDate || !customEndDate) {
-      setError("Please select both start and end dates");
-      return;
-    }
-
-    // Validate both dates
-    if (!validateDateInput(customStartDate)) {
-      setError("Please enter a valid start date in YYYY-MM-DD format");
-      return;
-    }
-
-    if (!validateDateInput(customEndDate)) {
-      setError("Please enter a valid end date in YYYY-MM-DD format");
-      return;
-    }
-
-    const start = new Date(customStartDate);
-    const end = new Date(customEndDate);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      setError("Please enter valid dates");
-      return;
-    }
-
-    if (start > end) {
-      setError("Start date must be before end date");
-      return;
-    }
-
-    setError("");
-    const range: DateRange = {
-      startDate: customStartDate,
-      endDate: customEndDate,
-    };
-    onValueChange("custom", range);
-    setIsPopoverOpen(false);
   };
 
   const handleCancel = () => {
     // Reset to previous values
     if (dateRange) {
-      setCustomStartDate(dateRange.startDate);
-      setCustomEndDate(dateRange.endDate);
+      setSelectedRange({
+        from: new Date(dateRange.startDate),
+        to: new Date(dateRange.endDate),
+      });
     } else {
-      // If no previous custom range, reset to empty
-      setCustomStartDate("");
-      setCustomEndDate("");
+      setSelectedRange(undefined);
     }
-    setError("");
     setIsPopoverOpen(false);
     // Revert to the previous value if user cancelled
     if (value === "custom" && !dateRange) {
@@ -258,35 +193,13 @@ export function DateRangePicker({
 
       <PopoverContent className="w-auto p-4" align="start">
         <div className="space-y-4">
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Start Date</label>
-              <Input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => {
-                  handleDateChange(e.target.value, setCustomStartDate);
-                }}
-                max="9999-12-31"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">End Date</label>
-              <Input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => {
-                  handleDateChange(e.target.value, setCustomEndDate);
-                }}
-                max="9999-12-31"
-                className="w-full"
-              />
-            </div>
-            {error && (
-              <p className="text-xs text-destructive">{error}</p>
-            )}
-          </div>
+          <Calendar
+            mode="range"
+            selected={selectedRange}
+            onSelect={handleRangeSelect}
+            numberOfMonths={2}
+            className="rounded-md border"
+          />
           <div className="flex gap-2 justify-end">
             <Button
               variant="outline"
@@ -294,12 +207,6 @@ export function DateRangePicker({
               onClick={handleCancel}
             >
               Cancel
-            </Button>
-            <Button
-              size="small"
-              onClick={handleApplyCustomRange}
-            >
-              Apply
             </Button>
           </div>
         </div>

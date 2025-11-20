@@ -238,6 +238,13 @@ export async function createTransactionClient(data: TransactionFormData): Promis
   }
   const userId = user.id;
 
+  // Get active household ID
+  const { getActiveHouseholdId } = await import("@/lib/utils/household");
+  const householdId = await getActiveHouseholdId(userId);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const date = data.date instanceof Date ? data.date : new Date(data.date);
   const now = formatTimestamp(new Date());
   // Use formatDateOnly to save only the date (00:00:00) in user's local timezone
@@ -258,6 +265,7 @@ export async function createTransactionClient(data: TransactionFormData): Promis
       amount: data.amount,
       accountId: data.accountId,
       userId: userId, // Add userId directly to transaction
+      householdId: householdId, // Add householdId for household-based architecture
       categoryId: data.categoryId || null,
       subcategoryId: data.subcategoryId || null,
       description: encryptedDescription,

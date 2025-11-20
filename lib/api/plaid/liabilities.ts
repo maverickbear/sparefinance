@@ -289,6 +289,7 @@ export async function syncAccountLiabilities(
 
 /**
  * Get all liabilities for a user (including shared accounts via AccountOwner)
+ * OPTIMIZED: Uses getAccounts() which properly handles RLS policies
  */
 export async function getUserLiabilities(userId: string, accessToken?: string, refreshToken?: string): Promise<PlaidLiability[]> {
   try {
@@ -297,41 +298,20 @@ export async function getUserLiabilities(userId: string, accessToken?: string, r
       return [];
     }
 
-    const supabase = await createServerClient(accessToken, refreshToken);
+    // OPTIMIZED: Use getAccounts() which properly handles RLS and AccountOwner relationships
+    // This avoids permission errors when accessing Account and AccountOwner tables directly
+    const { getAccounts } = await import('@/lib/api/accounts');
+    const accounts = await getAccounts(accessToken, refreshToken);
 
-    // Get all account IDs the user has access to:
-    // 1. Accounts where userId matches directly
-    // 2. Accounts shared via AccountOwner table
-    
-    // First, get accounts where userId matches directly
-    const { data: directAccounts, error: directAccountsError } = await supabase
-      .from('Account')
-      .select('id')
-      .eq('userId', userId);
-
-    if (directAccountsError) {
-      console.error('Error fetching direct accounts for liabilities:', directAccountsError);
-    }
-
-    // Get accounts shared via AccountOwner
-    const { data: sharedAccounts, error: sharedAccountsError } = await supabase
-      .from('AccountOwner')
-      .select('accountId')
-      .eq('ownerId', userId);
-
-    if (sharedAccountsError) {
-      console.error('Error fetching shared accounts for liabilities:', sharedAccountsError);
-    }
-
-    // Combine all account IDs
-    const directAccountIds = (directAccounts || []).map((acc) => acc.id);
-    const sharedAccountIds = (sharedAccounts || []).map((ao) => ao.accountId);
-    const allAccountIds = [...new Set([...directAccountIds, ...sharedAccountIds])];
-
-    if (allAccountIds.length === 0) {
+    if (!accounts || accounts.length === 0) {
       // No accounts found, return empty array (not an error)
       return [];
     }
+
+    // Extract all account IDs (getAccounts already includes shared accounts via AccountOwner)
+    const allAccountIds = accounts.map(acc => acc.id);
+
+    const supabase = await createServerClient(accessToken, refreshToken);
 
     // Get liabilities for these accounts
     const { data: liabilities, error } = await supabase

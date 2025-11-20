@@ -4,7 +4,7 @@ import { unstable_cache, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
 import { createServerClient } from "@/lib/supabase-server";
 import { TransactionFormData } from "@/lib/validations/transaction";
-import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp } from "@/lib/utils/timestamp";
+import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp, parseDateInput } from "@/lib/utils/timestamp";
 import { getDebts } from "@/lib/api/debts";
 import { calculateNextPaymentDates, type DebtForCalculation } from "@/lib/utils/debts";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
@@ -22,6 +22,7 @@ import {
   getCreditCardAccount 
 } from "@/lib/utils/credit-card-debt";
 import { createDebt } from "@/lib/api/debts";
+import { getActiveHouseholdId } from "@/lib/utils/household";
 
 export async function createTransaction(data: TransactionFormData) {
     const supabase = await createServerClient();
@@ -89,6 +90,9 @@ export async function createTransaction(data: TransactionFormData) {
   const finalCategoryId = data.type === "transfer" ? null : (data.categoryId || null);
   const finalSubcategoryId = data.type === "transfer" ? null : (data.subcategoryId || null);
 
+  // Get active household ID
+  const householdId = await getActiveHouseholdId(userId);
+
   // For transfers, use SQL function for atomic creation
   if (data.type === "transfer" && data.toAccountId) {
     const { data: transferResult, error: transferError } = await supabase.rpc(
@@ -129,6 +133,34 @@ export async function createTransaction(data: TransactionFormData) {
     if (fetchError || !outgoingTransaction) {
       logger.error("Error fetching created transfer transaction:", fetchError);
       throw new Error("Failed to fetch created transfer transaction");
+    }
+
+    // Update both transactions with householdId if not set by SQL function
+    if (householdId) {
+      // Update outgoing transaction
+      if (!outgoingTransaction.householdId) {
+        const { error: updateOutgoingError } = await supabase
+          .from("Transaction")
+          .update({ householdId })
+          .eq("id", outgoingId);
+
+        if (updateOutgoingError) {
+          logger.error("Error updating outgoing transaction with householdId:", updateOutgoingError);
+        }
+      }
+
+      // Update incoming transaction (get ID from result)
+      const incomingId = result?.incoming_id;
+      if (incomingId) {
+        const { error: updateIncomingError } = await supabase
+          .from("Transaction")
+          .update({ householdId })
+          .eq("id", incomingId);
+
+        if (updateIncomingError) {
+          logger.error("Error updating incoming transaction with householdId:", updateIncomingError);
+        }
+      }
     }
 
     // Invalidate cache to ensure dashboard shows updated data
@@ -217,6 +249,7 @@ export async function createTransaction(data: TransactionFormData) {
   }
 
   // Regular transaction (expense or income) - use SQL function for atomic creation
+  // Note: householdId was already declared above (line 94) and is available here
   const { data: transactionResult, error: transactionError } = await supabase.rpc(
     'create_transaction_with_limit',
     {
@@ -254,6 +287,19 @@ export async function createTransaction(data: TransactionFormData) {
   if (fetchError || !transaction) {
     logger.error("Error fetching created transaction:", fetchError);
     throw new Error("Failed to fetch created transaction");
+  }
+
+  // Update transaction with householdId if not set by SQL function
+  if (householdId && !transaction.householdId) {
+    const { error: updateError } = await supabase
+      .from("Transaction")
+      .update({ householdId })
+      .eq("id", id);
+
+    if (updateError) {
+      logger.error("Error updating transaction with householdId:", updateError);
+      // Don't fail the transaction creation if householdId update fails
+    }
   }
 
   // If we have a suggestion (any confidence level), save it for user approval/rejection
@@ -446,7 +492,19 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
 
   const updateData: Record<string, unknown> = {};
   if (data.date !== undefined) {
-    const date = data.date instanceof Date ? data.date : new Date(data.date);
+    // Handle date conversion properly to avoid timezone issues
+    // If it's already a Date, use it; if it's a string (YYYY-MM-DD), parse it correctly
+    let date: Date;
+    if (data.date instanceof Date) {
+      date = data.date;
+    } else if (typeof data.date === 'string') {
+      // If it's a string in YYYY-MM-DD format, use parseDateInput to avoid timezone issues
+      date = parseDateInput(data.date);
+    } else {
+      // Fallback: try to create Date object
+      date = new Date(data.date);
+    }
+    
     if (isNaN(date.getTime())) {
       throw new Error("Invalid date value");
     }

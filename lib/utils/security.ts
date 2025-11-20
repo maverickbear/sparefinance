@@ -10,7 +10,7 @@ import { SecurityLogger } from "@/lib/utils/security-logging";
 
 /**
  * Verify if the current user owns an account
- * Also checks AccountOwner relationships for household members
+ * Also checks AccountOwner relationships and household membership
  */
 export async function verifyAccountOwnership(accountId: string): Promise<boolean> {
   try {
@@ -49,6 +49,22 @@ export async function verifyAccountOwnership(accountId: string): Promise<boolean
       return true;
     }
 
+    // Check if user is a household member and account belongs to same household
+    // Get account's household
+    if (account.householdId) {
+    const { data: householdMember, error: memberError } = await supabase
+        .from("HouseholdMemberNew")
+        .select("householdId, status")
+        .eq("userId", userId)
+        .eq("householdId", account.householdId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!memberError && householdMember) {
+      return true;
+      }
+    }
+
     return false;
   } catch (error) {
     console.error("Error verifying account ownership:", error);
@@ -58,7 +74,7 @@ export async function verifyAccountOwnership(accountId: string): Promise<boolean
 
 /**
  * Verify if the current user owns a transaction
- * Transactions are owned directly via userId or through their account
+ * Transactions are owned directly via userId, through their account, or via household membership
  */
 export async function verifyTransactionOwnership(transactionId: string): Promise<boolean> {
   try {
@@ -85,7 +101,22 @@ export async function verifyTransactionOwnership(transactionId: string): Promise
       return true;
     }
 
-    // Second check: Verify account ownership (fallback for old data or shared accounts)
+    // Second check: Check if user is a household member and transaction belongs to same household
+    if (transaction.householdId) {
+    const { data: householdMember, error: memberError } = await supabase
+        .from("HouseholdMemberNew")
+        .select("householdId, status")
+        .eq("userId", userId)
+        .eq("householdId", transaction.householdId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!memberError && householdMember) {
+      return true;
+      }
+    }
+
+    // Third check: Verify account ownership (fallback for old data or shared accounts)
     return await verifyAccountOwnership(transaction.accountId);
   } catch (error) {
     console.error("Error verifying transaction ownership:", error);
@@ -95,6 +126,7 @@ export async function verifyTransactionOwnership(transactionId: string): Promise
 
 /**
  * Verify if the current user owns a budget
+ * Also checks household membership
  */
 export async function verifyBudgetOwnership(budgetId: string): Promise<boolean> {
   try {
@@ -115,7 +147,24 @@ export async function verifyBudgetOwnership(budgetId: string): Promise<boolean> 
       return false;
     }
 
-    return budget.userId === userId;
+    // Check direct ownership
+    if (budget.userId === userId) {
+      return true;
+    }
+
+    // Check if user is a household member and budget belongs to same household
+    if (budget.householdId) {
+    const { data: householdMember, error: memberError } = await supabase
+        .from("HouseholdMemberNew")
+        .select("householdId, status")
+        .eq("userId", userId)
+        .eq("householdId", budget.householdId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    return !memberError && householdMember !== null;
+    }
+    return false;
   } catch (error) {
     console.error("Error verifying budget ownership:", error);
     return false;
@@ -124,6 +173,7 @@ export async function verifyBudgetOwnership(budgetId: string): Promise<boolean> 
 
 /**
  * Verify if the current user owns a goal
+ * Also checks household membership
  */
 export async function verifyGoalOwnership(goalId: string): Promise<boolean> {
   try {
@@ -144,7 +194,24 @@ export async function verifyGoalOwnership(goalId: string): Promise<boolean> {
       return false;
     }
 
-    return goal.userId === userId;
+    // Check direct ownership
+    if (goal.userId === userId) {
+      return true;
+    }
+
+    // Check if user is a household member and goal belongs to same household
+    if (goal.householdId) {
+    const { data: householdMember, error: memberError } = await supabase
+        .from("HouseholdMemberNew")
+        .select("householdId, status")
+        .eq("userId", userId)
+        .eq("householdId", goal.householdId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    return !memberError && householdMember !== null;
+    }
+    return false;
   } catch (error) {
     console.error("Error verifying goal ownership:", error);
     return false;
@@ -153,6 +220,7 @@ export async function verifyGoalOwnership(goalId: string): Promise<boolean> {
 
 /**
  * Verify if the current user owns a debt
+ * Also checks household membership
  */
 export async function verifyDebtOwnership(debtId: string): Promise<boolean> {
   try {
@@ -173,7 +241,24 @@ export async function verifyDebtOwnership(debtId: string): Promise<boolean> {
       return false;
     }
 
-    return debt.userId === userId;
+    // Check direct ownership
+    if (debt.userId === userId) {
+      return true;
+    }
+
+    // Check if user is a household member and debt belongs to same household
+    if (debt.householdId) {
+    const { data: householdMember, error: memberError } = await supabase
+        .from("HouseholdMemberNew")
+        .select("householdId, status")
+        .eq("userId", userId)
+        .eq("householdId", debt.householdId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    return !memberError && householdMember !== null;
+    }
+    return false;
   } catch (error) {
     console.error("Error verifying debt ownership:", error);
     return false;

@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { formatMoney, formatMoneyCompact } from "@/components/common/money";
 import { cn } from "@/lib/utils";
 import { useSubscription } from "@/hooks/use-subscription";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { format, parseISO } from "date-fns";
 
 interface InvestmentPortfolioWidgetProps {
   savings: number; // Fallback value if no portfolio data
@@ -36,12 +38,15 @@ const DEMO_PORTFOLIO_DATA = {
   holdingsCount: 12,
 };
 
-// Static demo chart points (upward trend)
-const DEMO_CHART_POINTS = Array.from({ length: 12 }, (_, i) => {
-  const x = (i / 11) * 100;
-  const y = 100 - (i * 7);
-  return `${x},${y}`;
-}).join(" ");
+// Static demo chart data (upward trend)
+const DEMO_CHART_DATA = Array.from({ length: 12 }, (_, i) => {
+  const date = new Date();
+  date.setDate(date.getDate() - (11 - i));
+  return {
+    date: date.toISOString().split("T")[0],
+    value: 100000 + (i * 2000),
+  };
+});
 
 export function InvestmentPortfolioWidget({
   savings,
@@ -79,21 +84,65 @@ export function InvestmentPortfolioWidget({
             </div>
 
             <div className="bg-muted rounded-lg p-3 border border-border">
-              <svg
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                className="w-full h-20"
-                aria-label="Portfolio performance chart"
-              >
-                <polyline
-                  points={DEMO_CHART_POINTS}
-                  fill="none"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ResponsiveContainer width="100%" height={120}>
+                <LineChart data={DEMO_CHART_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    opacity={0.3}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={{ stroke: "hsl(var(--border))" }}
+                    tickFormatter={(value) => {
+                      try {
+                        return format(parseISO(value), "MMM dd");
+                      } catch {
+                        return value;
+                      }
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={{ stroke: "hsl(var(--border))" }}
+                    width={50}
+                    tickFormatter={(value) => {
+                      if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
+                      return `$${value}`;
+                    }}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
+                            <p className="mb-2 text-sm font-medium text-foreground">
+                              {format(parseISO(data.date), "MMM dd, yyyy")}
+                            </p>
+                            <div className="text-sm font-semibold text-foreground">
+                              {formatMoney(data.value)}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
 
             <div className="text-xs text-muted-foreground pt-2">
@@ -127,32 +176,28 @@ export function InvestmentPortfolioWidget({
       try {
         setIsLoading(true);
         
-        // Fetch portfolio summary, historical data, holdings, and accounts in parallel
-        const [summaryRes, historicalRes, holdingsRes, accountsRes] = await Promise.all([
-          fetch("/api/portfolio/summary").catch(() => null),
-          fetch("/api/portfolio/historical?days=30").catch(() => null),
-          fetch("/api/portfolio/holdings").catch(() => null),
-          fetch("/api/portfolio/accounts").catch(() => null),
-        ]);
+        // OPTIMIZED: Use /api/portfolio/all endpoint to fetch all data in one request
+        // This avoids duplicate calls to getHoldings() and getInvestmentAccounts()
+        const portfolioRes = await fetch("/api/portfolio/all?days=30").catch(() => null);
 
-        if (summaryRes?.ok) {
-          const summary = await summaryRes.json();
-          setPortfolioSummary(summary);
-        }
+        if (portfolioRes?.ok) {
+          const portfolioData = await portfolioRes.json();
+          
+          // Extract data from the combined response
+          if (portfolioData.summary) {
+            setPortfolioSummary(portfolioData.summary);
+          }
+          
+          if (portfolioData.historical) {
+            setHistoricalData(Array.isArray(portfolioData.historical) ? portfolioData.historical : []);
+          }
 
-        if (historicalRes?.ok) {
-          const historical = await historicalRes.json();
-          setHistoricalData(Array.isArray(historical) ? historical : []);
-        }
+          // Calculate asset mix from holdings and accounts
+          let assetTypes = new Set<string>();
+          let accountTypes = new Set<string>();
 
-        // Calculate asset mix from holdings and accounts
-        let assetTypes = new Set<string>();
-        let accountTypes = new Set<string>();
-
-        if (holdingsRes?.ok) {
-          const holdings = await holdingsRes.json();
-          if (Array.isArray(holdings)) {
-            holdings.forEach((holding: any) => {
+          if (portfolioData.holdings && Array.isArray(portfolioData.holdings)) {
+            portfolioData.holdings.forEach((holding: any) => {
               if (holding.assetType) {
                 // Map asset types to display names
                 const assetTypeMap: Record<string, string> = {
@@ -168,12 +213,9 @@ export function InvestmentPortfolioWidget({
               }
             });
           }
-        }
 
-        if (accountsRes?.ok) {
-          const accounts = await accountsRes.json();
-          if (Array.isArray(accounts)) {
-            accounts.forEach((account: any) => {
+          if (portfolioData.accounts && Array.isArray(portfolioData.accounts)) {
+            portfolioData.accounts.forEach((account: any) => {
               if (account.type) {
                 // Map account types to display names
                 const accountTypeMap: Record<string, string> = {
@@ -191,34 +233,6 @@ export function InvestmentPortfolioWidget({
               }
             });
           }
-        }
-
-        // Also fetch InvestmentAccount types directly if available
-        try {
-          const investmentAccountsRes = await fetch("/api/questrade/data").catch(() => null);
-          if (investmentAccountsRes?.ok) {
-            const data = await investmentAccountsRes.json();
-            if (data.accounts && Array.isArray(data.accounts)) {
-              data.accounts.forEach((account: any) => {
-                if (account.type) {
-                  const accountTypeMap: Record<string, string> = {
-                    "401k": "401(k)",
-                    "403b": "403(b)",
-                    "ira": "IRA",
-                    "roth_ira": "Roth IRA",
-                    "sep_ira": "SEP IRA",
-                    "brokerage": "Brokerage",
-                    "taxable": "Taxable",
-                    "retirement": "Retirement",
-                  };
-                  const displayName = accountTypeMap[account.type.toLowerCase()] || account.type;
-                  accountTypes.add(displayName);
-                }
-              });
-            }
-          }
-        } catch (error) {
-          // Silently fail - we already have account types from the accounts API
         }
 
         // Build mix string
@@ -252,28 +266,20 @@ export function InvestmentPortfolioWidget({
   const totalReturn = portfolioSummary?.totalReturn ?? 0;
   const totalReturnPercent = portfolioSummary?.totalReturnPercent ?? 0;
 
-  // Generate chart points from historical data
-  const chartPoints = historicalData.length > 0
-    ? (() => {
-        const values = historicalData.map(d => d.value);
-        const minValue = Math.min(...values);
-        const maxValue = Math.max(...values);
-        const range = maxValue - minValue || 1; // Avoid division by zero
-        
-        return historicalData.map((point, i) => {
-          const x = (i / (historicalData.length - 1)) * 100;
-          const normalizedValue = ((point.value - minValue) / range) * 100;
-          const y = 100 - normalizedValue; // Invert Y axis (SVG coordinates)
-          return `${x},${y}`;
-        }).join(" ");
-      })()
+  // Prepare chart data from historical data
+  const chartData = historicalData.length > 0
+    ? historicalData
     : (() => {
         // Fallback: simple upward trend if no data
+        const baseValue = portfolioValue * 0.8;
         return Array.from({ length: 12 }, (_, i) => {
-          const x = (i / 11) * 100;
-          const y = 100 - (i * 7);
-          return `${x},${y}`;
-        }).join(" ");
+          const date = new Date();
+          date.setDate(date.getDate() - (11 - i));
+          return {
+            date: date.toISOString().split("T")[0],
+            value: baseValue + (i * (portfolioValue - baseValue) / 11),
+          };
+        });
       })();
 
 
@@ -360,23 +366,67 @@ export function InvestmentPortfolioWidget({
             </>
           )}
 
-          {historicalData.length > 0 && (
+          {chartData.length > 0 && (
             <div className="bg-muted rounded-lg p-3 border border-border">
-              <svg
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                className="w-full h-20"
-                aria-label="Portfolio performance chart"
-              >
-                <polyline
-                  points={chartPoints}
-                  fill="none"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ResponsiveContainer width="100%" height={120}>
+                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    opacity={0.3}
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={{ stroke: "hsl(var(--border))" }}
+                    tickFormatter={(value) => {
+                      try {
+                        return format(parseISO(value), "MMM dd");
+                      } catch {
+                        return value;
+                      }
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={{ stroke: "hsl(var(--border))" }}
+                    width={50}
+                    tickFormatter={(value) => {
+                      if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
+                      return `$${value}`;
+                    }}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
+                            <p className="mb-2 text-sm font-medium text-foreground">
+                              {format(parseISO(data.date), "MMM dd, yyyy")}
+                            </p>
+                            <div className="text-sm font-semibold text-foreground">
+                              {formatMoney(data.value)}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           )}
 

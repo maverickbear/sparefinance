@@ -26,6 +26,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   const planId = searchParams.get("planId") || undefined;
   const interval = (searchParams.get("interval") as "month" | "year") || undefined;
   const fromCheckout = searchParams.get("from_checkout") === "true";
+  const fromInvitation = searchParams.get("from_invitation") === "true";
+  const invitationId = searchParams.get("invitationId") || undefined;
+  const userId = searchParams.get("userId") || undefined;
 
   // Note: Supabase automatically sends OTP when email confirmation is enabled
   // So we don't need to send it automatically on mount
@@ -141,6 +144,51 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       }
 
       // Success! Handle post-verification flow
+      // If user came from invitation, complete the invitation acceptance
+      if (fromInvitation && invitationId && userId) {
+        try {
+          // Wait for session to be fully established
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Complete invitation acceptance
+          const completeResponse = await fetch("/api/members/invite/complete-after-otp", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ invitationId }),
+          });
+
+          if (completeResponse.ok) {
+            const completeData = await completeResponse.json();
+            console.log("[OTP] Invitation completed successfully");
+            
+            // Invalidate client-side subscription cache to ensure fresh data
+            try {
+              const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
+              invalidateClientSubscriptionCache();
+            } catch (error) {
+              console.warn("[OTP] Could not invalidate client cache:", error);
+            }
+            
+            // Wait a bit more to ensure server-side cache is updated
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Redirect to dashboard after completing invitation
+            router.push("/dashboard");
+            return;
+          } else {
+            const errorData = await completeResponse.json();
+            setError(errorData.error || "Failed to complete invitation. Please try again.");
+            return;
+          }
+        } catch (error) {
+          console.error("[OTP] Error completing invitation:", error);
+          setError("Failed to complete invitation. Please try again.");
+          return;
+        }
+      }
+
       // If user came from checkout, link their Stripe subscription
       if (fromCheckout && email) {
         try {

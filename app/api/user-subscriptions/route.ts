@@ -3,6 +3,7 @@ import {
   getUserSubscriptions,
   createUserSubscription,
 } from "@/lib/api/user-subscriptions";
+import { invalidateSubscriptionCaches } from "@/lib/services/cache-manager";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +22,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const subscription = await createUserSubscription(body);
+    // Invalidate cache to ensure dashboard shows new subscription
+    invalidateSubscriptionCaches();
     return NextResponse.json(subscription, { status: 201 });
   } catch (error) {
     console.error("Error creating subscription:", error);

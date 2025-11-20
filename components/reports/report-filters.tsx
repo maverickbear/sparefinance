@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear } from "date-fns";
+import { DateRangePicker, type DateRangePreset, type DateRange } from "@/components/ui/date-range-picker";
 
 export type ReportPeriod = 
   | "current-month"
@@ -32,6 +33,8 @@ export function ReportFilters({
   onDateRangeChange,
 }: ReportFiltersProps) {
   const now = new Date();
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>("this-month");
   
   const getDateRange = (period: ReportPeriod): { startDate: Date; endDate: Date } => {
     switch (period) {
@@ -68,26 +71,66 @@ export function ReportFilters({
     }
   };
 
-  const dateRange = getDateRange(period);
+  const handleDateRangeChange = (preset: DateRangePreset | "custom", range?: DateRange) => {
+    setDateRangePreset(preset);
+    if (preset === "custom" && range) {
+      setCustomDateRange(range);
+      if (onDateRangeChange) {
+        onDateRangeChange(new Date(range.startDate), new Date(range.endDate));
+      }
+    } else if (preset !== "custom") {
+      setCustomDateRange(undefined);
+      const dateRange = getDateRange(period);
+      if (onDateRangeChange) {
+        onDateRangeChange(dateRange.startDate, dateRange.endDate);
+      }
+    }
+  };
+
+  const handlePeriodChange = (newPeriod: ReportPeriod) => {
+    onPeriodChange(newPeriod);
+    if (newPeriod !== "custom") {
+      setDateRangePreset("this-month");
+      setCustomDateRange(undefined);
+      const dateRange = getDateRange(newPeriod);
+      if (onDateRangeChange) {
+        onDateRangeChange(dateRange.startDate, dateRange.endDate);
+      }
+    } else {
+      setDateRangePreset("custom");
+    }
+  };
+
+  const dateRange = period === "custom" && customDateRange
+    ? { startDate: new Date(customDateRange.startDate), endDate: new Date(customDateRange.endDate) }
+    : getDateRange(period);
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
       <div className="flex items-center gap-2">
         <Calendar className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium">Period:</span>
-        <Select value={period} onValueChange={(value) => onPeriodChange(value as ReportPeriod)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="current-month">Current Month</SelectItem>
-            <SelectItem value="last-3-months">Last 3 Months</SelectItem>
-            <SelectItem value="last-6-months">Last 6 Months</SelectItem>
-            <SelectItem value="last-12-months">Last 12 Months</SelectItem>
-            <SelectItem value="year-to-date">Year to Date</SelectItem>
-            <SelectItem value="custom">Custom Range</SelectItem>
-          </SelectContent>
-        </Select>
+        {period === "custom" ? (
+          <DateRangePicker
+            value={dateRangePreset}
+            dateRange={customDateRange}
+            onValueChange={handleDateRangeChange}
+          />
+        ) : (
+          <Select value={period} onValueChange={(value) => handlePeriodChange(value as ReportPeriod)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="current-month">Current Month</SelectItem>
+              <SelectItem value="last-3-months">Last 3 Months</SelectItem>
+              <SelectItem value="last-6-months">Last 6 Months</SelectItem>
+              <SelectItem value="last-12-months">Last 12 Months</SelectItem>
+              <SelectItem value="year-to-date">Year to Date</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="text-sm text-muted-foreground">
         {format(dateRange.startDate, "MMM dd, yyyy")} - {format(dateRange.endDate, "MMM dd, yyyy")}

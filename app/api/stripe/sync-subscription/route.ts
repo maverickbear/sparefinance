@@ -194,9 +194,47 @@ export async function POST(request: NextRequest) {
     const status = mapStripeStatus(activeSubscription.status);
     const subscriptionId = authUser.id + "-" + plan.id;
 
+    // Get active household ID for the user
+    let householdId: string | null = null;
+    try {
+      // Try to get from UserActiveHousehold first
+      const { data: activeHousehold } = await serviceSupabase
+        .from("UserActiveHousehold")
+        .select("householdId")
+        .eq("userId", authUser.id)
+        .maybeSingle();
+      
+      if (activeHousehold?.householdId) {
+        householdId = activeHousehold.householdId;
+      } else {
+        // Fallback to default (personal) household
+        const { data: defaultMember } = await serviceSupabase
+          .from("HouseholdMemberNew")
+          .select("householdId")
+          .eq("userId", authUser.id)
+          .eq("isDefault", true)
+          .eq("status", "active")
+          .maybeSingle();
+        
+        if (defaultMember?.householdId) {
+          householdId = defaultMember.householdId;
+        }
+      }
+      
+      if (householdId) {
+        console.log("[SYNC] Found householdId for user:", { userId: authUser.id, householdId });
+      } else {
+        console.log("[SYNC] No householdId found for user (will be null):", authUser.id);
+      }
+    } catch (error) {
+      console.error("[SYNC] Error getting householdId:", error);
+      // Continue without householdId - it can be set later
+    }
+
     console.log("[SYNC] Upserting subscription:", {
       subscriptionId,
       userId: authUser.id,
+      householdId,
       planId: plan.id,
       status,
       stripeSubscriptionId: activeSubscription.id,
@@ -215,6 +253,7 @@ export async function POST(request: NextRequest) {
     const subscriptionData: any = {
       id: subscriptionId,
       userId: authUser.id,
+      householdId: householdId, // Link to active household (null if not found)
       planId: plan.id,
       status: status,
       stripeSubscriptionId: activeSubscription.id,

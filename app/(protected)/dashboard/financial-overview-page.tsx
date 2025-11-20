@@ -51,16 +51,24 @@ const NetWorthWidget = dynamic(
   }
 );
 
-const InvestmentPortfolioWidget = dynamic(
-  () => import("./widgets/investment-portfolio-widget").then(m => ({ default: m.InvestmentPortfolioWidget })),
+const PortfolioPerformanceWidget = dynamic(
+  () => import("./widgets/portfolio-performance-widget").then(m => ({ default: m.PortfolioPerformanceWidget })),
   { 
-    ssr: true,
+    ssr: false, // recharts doesn't work well with SSR
     loading: () => <CardSkeleton />
   }
 );
 
 const RecurringPaymentsWidget = dynamic(
   () => import("./widgets/recurring-payments-widget").then(m => ({ default: m.RecurringPaymentsWidget })),
+  { 
+    ssr: true,
+    loading: () => <CardSkeleton />
+  }
+);
+
+const SubscriptionsWidget = dynamic(
+  () => import("./widgets/subscriptions-widget").then(m => ({ default: m.SubscriptionsWidget })),
   { 
     ssr: true,
     loading: () => <CardSkeleton />
@@ -82,6 +90,7 @@ interface FinancialOverviewPageProps {
   liabilities: any[];
   debts: any[];
   recurringPayments: any[];
+  subscriptions: any[];
   selectedMonthDate: Date;
 }
 
@@ -100,6 +109,7 @@ export function FinancialOverviewPage({
   liabilities,
   debts,
   recurringPayments,
+  subscriptions,
   selectedMonthDate,
 }: FinancialOverviewPageProps) {
   // Helper function to parse date from Supabase format
@@ -305,11 +315,17 @@ export function FinancialOverviewPage({
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
       <RecurringPaymentsWidget
         recurringPayments={recurringPayments}
+        monthlyIncome={currentIncome}
       />
         <SavingsGoalsWidget
           goals={goals}
         />
       </div>
+
+      {/* Subscriptions Widget - Full Width */}
+      <SubscriptionsWidget
+        subscriptions={subscriptions}
+      />
 
       {/* Dashboard Grid */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -321,7 +337,7 @@ export function FinancialOverviewPage({
               totalAssets={totalAssets}
               totalDebts={totalDebts}
             />
-            <InvestmentPortfolioWidget
+            <PortfolioPerformanceWidget
               savings={savings}
             />
           </div>

@@ -1,9 +1,10 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase-server";
-import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData } from "@/lib/validations/auth";
+import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData, ChangePasswordFormData } from "@/lib/validations/auth";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
+import { formatTimestamp } from "@/lib/utils/timestamp";
 import { cookies } from "next/headers";
 
 export interface User {
@@ -29,8 +30,8 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
 
     // Check if email has a pending invitation
     const { data: pendingInvitation } = await supabase
-      .from("HouseholdMember")
-      .select("id, ownerId, email")
+      .from("HouseholdMemberNew")
+      .select("id, householdId, email, Household(createdBy)")
       .eq("email", data.email.toLowerCase())
       .eq("status", "pending")
       .maybeSingle();
@@ -78,39 +79,67 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
       // User is created in auth but not in User table - this is OK, will be created on first login
     }
 
-    // Create household member record for the owner (owner is also a household member of themselves)
+    // Create personal group for the new user
     if (userData) {
-      const invitationToken = crypto.randomUUID();
-      const now = new Date().toISOString();
+      const now = formatTimestamp(new Date());
       
-      // Check if household member already exists (should not happen, but safety check)
-      const { data: existingMember } = await supabase
-        .from("HouseholdMember")
+      // Check if personal household already exists
+      const { data: existingHousehold } = await supabase
+        .from("Household")
         .select("id")
-        .eq("ownerId", userData.id)
-        .eq("memberId", userData.id)
+        .eq("createdBy", userData.id)
+        .eq("type", "personal")
         .maybeSingle();
 
-      if (!existingMember) {
-        const { error: householdMemberError } = await supabase
-          .from("HouseholdMember")
+      if (!existingHousehold) {
+        // Create personal household
+        const { data: household, error: householdError } = await supabase
+          .from("Household")
           .insert({
-            ownerId: userData.id,
-            memberId: userData.id,
-            email: authData.user.email!,
-            name: data.name || null,
-            role: "admin", // Owner is admin
-            status: "active", // Owner is immediately active
-            invitationToken: invitationToken,
-            invitedAt: now,
-            acceptedAt: now, // Owner accepts immediately
+            name: data.name || userData.email || "Minha Conta",
+            type: "personal",
+            createdBy: userData.id,
             createdAt: now,
+            updatedAt: now,
+            settings: {},
+          })
+          .select()
+          .single();
+
+        if (householdError || !household) {
+          console.error("Error creating personal household:", householdError);
+          // Don't fail signup if household creation fails, but log it
+        } else {
+          // Create HouseholdMemberNew (owner role, active, default)
+          const { error: memberError } = await supabase
+            .from("HouseholdMemberNew")
+            .insert({
+              householdId: household.id,
+              userId: userData.id,
+              role: "owner",
+              status: "active",
+              isDefault: true,
+              joinedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            });
+
+          if (memberError) {
+            console.error("Error creating household member:", memberError);
+          } else {
+            // Set as active household
+            const { error: activeError } = await supabase
+              .from("UserActiveHousehold")
+              .insert({
+                userId: userData.id,
+                householdId: household.id,
             updatedAt: now,
           });
 
-        if (householdMemberError) {
-          console.error("Error creating household member record:", householdMemberError);
-          // Don't fail signup if household member creation fails, but log it
+            if (activeError) {
+              console.error("Error setting active household:", activeError);
+            }
+          }
         }
       }
     }
@@ -168,38 +197,66 @@ export async function signIn(data: SignInFormData): Promise<{ user: User | null;
 
       userData = newUser;
 
-      // Create household member record for the owner (owner is also a household member of themselves)
-      const invitationToken = crypto.randomUUID();
-      const now = new Date().toISOString();
+      // Create personal household for the new user
+      const now = formatTimestamp(new Date());
       
-      // Check if household member already exists (should not happen, but safety check)
-      const { data: existingMember } = await supabase
-        .from("HouseholdMember")
+      // Check if personal household already exists
+      const { data: existingHousehold } = await supabase
+        .from("Household")
         .select("id")
-        .eq("ownerId", userData.id)
-        .eq("memberId", userData.id)
+        .eq("createdBy", userData.id)
+        .eq("type", "personal")
         .maybeSingle();
 
-      if (!existingMember) {
-        const { error: householdMemberError } = await supabase
-          .from("HouseholdMember")
+      if (!existingHousehold) {
+        // Create personal household
+        const { data: household, error: householdError } = await supabase
+          .from("Household")
           .insert({
-            ownerId: userData.id,
-            memberId: userData.id,
-            email: authData.user.email!,
-            name: authData.user.user_metadata?.name || null,
-            role: "admin", // Owner is admin
-            status: "active", // Owner is immediately active
-            invitationToken: invitationToken,
-            invitedAt: now,
-            acceptedAt: now, // Owner accepts immediately
+            name: userData.name || userData.email || "Minha Conta",
+            type: "personal",
+            createdBy: userData.id,
             createdAt: now,
+            updatedAt: now,
+            settings: {},
+          })
+          .select()
+          .single();
+
+        if (householdError || !household) {
+          console.error("Error creating personal household:", householdError);
+          // Don't fail signin if household creation fails, but log it
+        } else {
+          // Create HouseholdMemberNew (owner role, active, default)
+          const { error: memberError } = await supabase
+            .from("HouseholdMemberNew")
+            .insert({
+              householdId: household.id,
+              userId: userData.id,
+              role: "owner",
+              status: "active",
+              isDefault: true,
+              joinedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            });
+
+          if (memberError) {
+            console.error("Error creating household member:", memberError);
+          } else {
+            // Set as active household
+            const { error: activeError } = await supabase
+              .from("UserActiveHousehold")
+              .insert({
+                userId: userData.id,
+                householdId: household.id,
             updatedAt: now,
           });
 
-        if (householdMemberError) {
-          console.error("Error creating household member record:", householdMemberError);
-          // Don't fail signin if household member creation fails, but log it
+            if (activeError) {
+              console.error("Error setting active household:", activeError);
+            }
+          }
         }
       }
 
@@ -368,6 +425,50 @@ export async function resetPassword(data: ResetPasswordFormData): Promise<{ erro
   } catch (error) {
     console.error("Error in resetPassword:", error);
     return { error: error instanceof Error ? error.message : "Failed to reset password" };
+  }
+}
+
+export async function changePassword(data: ChangePasswordFormData): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createServerClient();
+    
+    // Get current user to verify they're authenticated
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      return { error: "Not authenticated" };
+    }
+
+    // Verify current password by attempting to sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: data.currentPassword,
+    });
+
+    if (signInError) {
+      return { error: "Current password is incorrect" };
+    }
+
+    // Validate new password against HIBP
+    const passwordValidation = await validatePasswordAgainstHIBP(data.newPassword);
+    if (!passwordValidation.isValid) {
+      return { error: passwordValidation.error || "Invalid password" };
+    }
+
+    // Update user password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: data.newPassword,
+    });
+
+    if (updateError) {
+      const errorMessage = getAuthErrorMessage(updateError, "Failed to change password");
+      return { error: errorMessage };
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error("Error in changePassword:", error);
+    return { error: error instanceof Error ? error.message : "Failed to change password" };
   }
 }
 

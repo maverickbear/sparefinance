@@ -24,6 +24,7 @@ import {
 import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import type { PromoCode } from "@/lib/api/admin";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const promoCodeSchema = z.object({
   code: z.string().min(1, "Code is required").max(50, "Code must be 50 characters or less"),
@@ -284,10 +285,12 @@ export function PromoCodeDialog({
 
             <div className="space-y-2">
               <Label htmlFor="expiresAt">Expires At (optional)</Label>
-              <Input
-                id="expiresAt"
-                type="date"
-                {...form.register("expiresAt")}
+              <DatePicker
+                date={form.watch("expiresAt") ? new Date(form.watch("expiresAt")) : undefined}
+                onDateChange={(date) => {
+                  form.setValue("expiresAt", date ? date.toISOString().split("T")[0] : "");
+                }}
+                placeholder="Select expiration date"
               />
             </div>
           </div>

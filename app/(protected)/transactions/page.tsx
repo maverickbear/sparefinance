@@ -1408,6 +1408,10 @@ export default function TransactionsPage() {
 
     setUpdatingTransactionId(transactionId);
 
+    // Convert Date to YYYY-MM-DD string format (same as form does)
+    // This ensures we send date-only strings to the backend, avoiding timezone issues
+    const dateString = formatDateInput(newDate);
+
     // Optimistic update
     setTransactions(prev => prev.map(tx => 
       tx.id === transactionId 
@@ -1421,7 +1425,7 @@ export default function TransactionsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ date: newDate.toISOString() }),
+        body: JSON.stringify({ date: dateString }),
       });
 
       if (!response.ok) {

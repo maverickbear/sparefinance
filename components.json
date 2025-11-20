@@ -14,6 +14,9 @@
     "components": "@/components",
     "utils": "@/lib/utils",
     "ui": "@/components/ui"
+  },
+  "registries": {
+    "@shadcn": "https://ui.shadcn.com/r/{name}.json"
   }
 }
 

@@ -17,6 +17,7 @@ export enum PlanErrorCode {
   ACCOUNT_LIMIT_REACHED = "ACCOUNT_LIMIT_REACHED",
   FEATURE_NOT_AVAILABLE = "FEATURE_NOT_AVAILABLE",
   HOUSEHOLD_MEMBERS_NOT_AVAILABLE = "HOUSEHOLD_MEMBERS_NOT_AVAILABLE",
+  SUBSCRIPTION_INACTIVE = "SUBSCRIPTION_INACTIVE",
 }
 
 /**
@@ -43,7 +44,10 @@ export function getPlanErrorMessage(
       return `${featureName} is not available in your current plan. Upgrade to access this feature.`;
     
     case PlanErrorCode.HOUSEHOLD_MEMBERS_NOT_AVAILABLE:
-      return "Household members are not available in your current plan. Upgrade to Essential or Pro to add family members.";
+      return "Household members are not available in your current plan. Upgrade to Pro to add family members.";
+    
+    case PlanErrorCode.SUBSCRIPTION_INACTIVE:
+      return options?.message || "Your subscription is not active. Please renew your subscription to continue using this feature.";
     
     default:
       return "This action is not available in your current plan. Please upgrade to continue.";
@@ -78,6 +82,7 @@ export function createPlanError(
     currentPlan?: string;
     limit?: number;
     current?: number;
+    message?: string;
   }
 ): PlanError {
   const requiredPlan = options?.feature ? getSuggestedPlan(options.feature as keyof PlanFeatures) : "essential";

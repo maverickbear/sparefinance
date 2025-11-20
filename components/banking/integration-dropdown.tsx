@@ -33,6 +33,7 @@ interface IntegrationDropdownProps {
   onSync?: () => void;
   onDisconnect?: () => void;
   onSuccess?: () => void;
+  customTrigger?: React.ReactNode;
 }
 
 interface ConnectionStatus {
@@ -44,6 +45,7 @@ export function IntegrationDropdown({
   onSync,
   onDisconnect,
   onSuccess,
+  customTrigger,
 }: IntegrationDropdownProps) {
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
@@ -272,10 +274,12 @@ export function IntegrationDropdown({
     <FeatureGuard feature="hasInvestments" featureName="Investments">
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
+          {customTrigger || (
           <Button variant="outline" size="medium">
             Integration
             <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>What's integrated</DropdownMenuLabel>

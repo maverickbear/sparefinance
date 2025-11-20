@@ -28,9 +28,6 @@ const PortfolioPerformanceChart = dynamic(() => import("@/components/portfolio/p
 const HoldingsTable = dynamic(() => import("@/components/portfolio/holdings-table").then(m => ({ default: m.HoldingsTable })), { ssr: false });
 const AccountBreakdown = dynamic(() => import("@/components/portfolio/account-breakdown").then(m => ({ default: m.AccountBreakdown })), { ssr: false });
 const SectorBreakdown = dynamic(() => import("@/components/portfolio/sector-breakdown").then(m => ({ default: m.SectorBreakdown })), { ssr: false });
-const OrdersTabContent = dynamic(() => import("@/components/portfolio/orders-tab-content").then(m => ({ default: m.OrdersTabContent })), { ssr: false });
-const ExecutionsTabContent = dynamic(() => import("@/components/portfolio/executions-tab-content").then(m => ({ default: m.ExecutionsTabContent })), { ssr: false });
-const MarketDataTabContent = dynamic(() => import("@/components/portfolio/market-data-tab-content").then(m => ({ default: m.MarketDataTabContent })), { ssr: false });
 const InvestmentTransactionsTable = dynamic(() => import("@/components/portfolio/investment-transactions-table").then(m => ({ default: m.InvestmentTransactionsTable })), { ssr: false });
 const InvestmentTransactionForm = dynamic(() => import("@/components/forms/investment-transaction-form").then(m => ({ default: m.InvestmentTransactionForm })), { ssr: false });
 const InvestmentCsvImportDialog = dynamic(() => import("@/components/forms/investment-csv-import-dialog").then(m => ({ default: m.InvestmentCsvImportDialog })), { ssr: false });
@@ -191,44 +188,6 @@ export default function InvestmentsPage() {
               onSuccess={loadPortfolioData}
             />
             <Button
-              onClick={async () => {
-                if (!checkWriteAccess()) return;
-                setIsUpdatingPrices(true);
-                try {
-                  const response = await fetch("/api/investments/prices/update", {
-                    method: "POST",
-                  });
-                  if (response.ok) {
-                    const result = await response.json();
-                    loadPortfolioData();
-                    toast({
-                      title: "Prices updated",
-                      description: `Updated ${result.updated || 0} security prices${result.errors && result.errors.length > 0 ? `. ${result.errors.length} errors occurred.` : "."}`,
-                      variant: result.errors && result.errors.length > 0 ? "default" : "success",
-                    });
-                  } else {
-                    const error = await response.json();
-                    console.error("Error updating prices:", error);
-                    toast({
-                      title: "Error",
-                      description: error.error || "Failed to update prices",
-                      variant: "destructive",
-                    });
-                  }
-                } catch (error) {
-                  console.error("Error updating prices:", error);
-                } finally {
-                  setIsUpdatingPrices(false);
-                }
-              }}
-              variant="outline"
-              size="medium"
-              disabled={isUpdatingPrices}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isUpdatingPrices ? "animate-spin" : ""}`} />
-              Update Prices
-            </Button>
-            <Button
               onClick={() => {
                 if (!checkWriteAccess()) return;
                 setShowImportDialog(true);
@@ -237,7 +196,7 @@ export default function InvestmentsPage() {
               size="medium"
             >
               <Upload className="h-4 w-4 mr-2" />
-              Import CSV
+              Import File
             </Button>
             <Button
               onClick={() => {
@@ -258,9 +217,6 @@ export default function InvestmentsPage() {
           <SimpleTabsList>
             <SimpleTabsTrigger value="overview">Overview</SimpleTabsTrigger>
             <SimpleTabsTrigger value="transactions">Transactions</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="orders">Orders</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="executions">Executions</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="market-data">Market Data</SimpleTabsTrigger>
           </SimpleTabsList>
         </FixedTabsWrapper>
 
@@ -283,15 +239,6 @@ export default function InvestmentsPage() {
               <SimpleTabsTrigger value="transactions" className="flex-shrink-0 whitespace-nowrap">
                 Transactions
               </SimpleTabsTrigger>
-              <SimpleTabsTrigger value="orders" className="flex-shrink-0 whitespace-nowrap">
-                Orders
-              </SimpleTabsTrigger>
-              <SimpleTabsTrigger value="executions" className="flex-shrink-0 whitespace-nowrap">
-                Executions
-              </SimpleTabsTrigger>
-              <SimpleTabsTrigger value="market-data" className="flex-shrink-0 whitespace-nowrap">
-                Market Data
-              </SimpleTabsTrigger>
             </SimpleTabsList>
           </div>
         </div>
@@ -305,7 +252,57 @@ export default function InvestmentsPage() {
             ) : (
               <div className="space-y-4 md:space-y-6">
                 {/* Summary Cards */}
-                <PortfolioSummaryCards summary={displaySummary} />
+                <PortfolioSummaryCards 
+                  summary={displaySummary}
+                  onAddClick={() => {
+                    if (!checkWriteAccess()) return;
+                    setShowTransactionForm(true);
+                  }}
+                  onImportClick={() => {
+                    if (!checkWriteAccess()) return;
+                    setShowImportDialog(true);
+                  }}
+                  integrationProps={{
+                    onSync: () => {
+                      loadPortfolioData();
+                    },
+                    onDisconnect: () => {
+                      loadPortfolioData();
+                    },
+                    onSuccess: loadPortfolioData,
+                  }}
+                  onUpdatePrices={async () => {
+                    if (!checkWriteAccess()) return;
+                    setIsUpdatingPrices(true);
+                    try {
+                      const response = await fetch("/api/investments/prices/update", {
+                        method: "POST",
+                      });
+                      if (response.ok) {
+                        const result = await response.json();
+                        loadPortfolioData();
+                        toast({
+                          title: "Prices updated",
+                          description: `Updated ${result.updated || 0} security prices${result.errors && result.errors.length > 0 ? `. ${result.errors.length} errors occurred.` : "."}`,
+                          variant: result.errors && result.errors.length > 0 ? "default" : "success",
+                        });
+                      } else {
+                        const error = await response.json();
+                        console.error("Error updating prices:", error);
+                        toast({
+                          title: "Error",
+                          description: error.error || "Failed to update prices",
+                          variant: "destructive",
+                        });
+                      }
+                    } catch (error) {
+                      console.error("Error updating prices:", error);
+                    } finally {
+                      setIsUpdatingPrices(false);
+                    }
+                  }}
+                  isUpdatingPrices={isUpdatingPrices}
+                />
 
                 {/* Portfolio Performance Chart - Full Width */}
                 <PortfolioPerformanceChart
@@ -334,18 +331,6 @@ export default function InvestmentsPage() {
                 loadPortfolioData();
               }}
             />
-          </SimpleTabsContent>
-
-          <SimpleTabsContent value="orders">
-            <OrdersTabContent />
-          </SimpleTabsContent>
-
-          <SimpleTabsContent value="executions">
-            <ExecutionsTabContent />
-          </SimpleTabsContent>
-
-          <SimpleTabsContent value="market-data">
-            <MarketDataTabContent />
           </SimpleTabsContent>
         </div>
       

@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateCategory, deleteCategory } from "@/lib/api/categories";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user can perform write operations
+    const writeGuard = await guardWriteAccess(userId);
+    await throwIfNotAllowed(writeGuard);
+
     const { id } = await params;
     const body = await request.json();
     const { name, macroId } = body;
@@ -26,6 +36,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user can perform write operations
+    const writeGuard = await guardWriteAccess(userId);
+    await throwIfNotAllowed(writeGuard);
+
     const { id } = await params;
     await deleteCategory(id);
     return NextResponse.json({ success: true }, { status: 200 });

@@ -205,37 +205,181 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
   const supabase = await createServerClient();
   const log = logger.withPrefix("SUBSCRIPTION");
   
-  // Check if user is a household member
-  const { data: member, error: memberError } = await supabase
-    .from("HouseholdMember")
-    .select("ownerId, status")
-    .eq("memberId", userId)
-    .eq("status", "active")
+  // PERFORMANCE OPTIMIZATION: Try to use cached subscription fields from User table first
+  // This avoids 2 queries (HouseholdMember + Subscription) and uses only 1 query (User)
+  const { data: user, error: userError } = await supabase
+    .from("User")
+    .select("effectivePlanId, effectiveSubscriptionStatus, effectiveSubscriptionId, subscriptionUpdatedAt")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (userError && userError.code !== "PGRST116") {
+    log.error("Error fetching user subscription cache:", userError);
+  }
+
+  // If we have cached subscription data and it's recent (less than 5 minutes old), use it
+  if (user?.effectivePlanId && user?.effectiveSubscriptionStatus && user?.subscriptionUpdatedAt) {
+    const cacheAge = Date.now() - new Date(user.subscriptionUpdatedAt).getTime();
+    const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
+    
+    if (cacheAge < CACHE_MAX_AGE) {
+      log.debug("Using cached subscription data from User table", {
+        userId,
+        planId: user.effectivePlanId,
+        status: user.effectiveSubscriptionStatus,
+        cacheAge: `${Math.round(cacheAge / 1000)}s`,
+      });
+
+      // Get plan details
+      const { data: plan, error: planError } = await supabase
+        .from("Plan")
+        .select("*")
+        .eq("id", user.effectivePlanId)
+        .maybeSingle();
+
+      if (planError && planError.code !== "PGRST116") {
+        log.error("Error fetching plan:", planError);
+      }
+
+      if (plan) {
+        // Get full subscription details if we have subscriptionId
+        let fullSubscription: Subscription | null = null;
+        if (user.effectiveSubscriptionId) {
+          const { data: subscriptionData } = await supabase
+            .from("Subscription")
+            .select("*")
+            .eq("id", user.effectiveSubscriptionId)
+            .maybeSingle();
+          
+          if (subscriptionData) {
+            fullSubscription = subscriptionData as Subscription;
+          }
+        }
+
+        return {
+          subscription: fullSubscription || (user.effectiveSubscriptionId ? {
+            id: user.effectiveSubscriptionId,
+            userId: userId,
+            planId: user.effectivePlanId,
+            status: user.effectiveSubscriptionStatus as any,
+          } as Subscription : null),
+          plan: mapPlan(plan),
+          limits: plan.features || getDefaultFeatures(),
+        };
+      }
+    } else {
+      log.debug("Cache expired, falling back to full query", {
+        userId,
+        cacheAge: `${Math.round(cacheAge / 1000)}s`,
+      });
+    }
+  }
+
+  // FALLBACK: If cache is missing or expired, use the original logic
+  // This ensures backward compatibility and handles edge cases
+  log.debug("Using fallback subscription query (cache miss or expired)", { userId });
+  
+  // Get active household for user
+  const { data: activeHousehold, error: activeHouseholdError } = await supabase
+    .from("UserActiveHousehold")
+    .select("householdId")
+    .eq("userId", userId)
     .maybeSingle();
   
-  if (memberError && memberError.code !== "PGRST116") {
-    log.error("Error checking household membership:", memberError);
+  // Fallback to default (personal) household if no active household set
+  let householdId: string | null = null;
+  if (!activeHouseholdError && activeHousehold?.householdId) {
+    householdId = activeHousehold.householdId;
+  } else {
+    const { data: defaultMember } = await supabase
+      .from("HouseholdMemberNew")
+      .select("householdId")
+      .eq("userId", userId)
+      .eq("isDefault", true)
+      .eq("status", "active")
+      .maybeSingle();
+    
+    if (defaultMember?.householdId) {
+      householdId = defaultMember.householdId;
+    }
   }
 
-  const isMember = member !== null;
-  const ownerId = member?.ownerId || null;
-  
-  // Only treat as household member if ownerId exists and is different from userId
-  // This prevents issues where a user might have a HouseholdMember record pointing to themselves
-  const isActualMember = isMember && ownerId && ownerId !== userId;
-  const effectiveUserId = isActualMember ? ownerId : userId;
-  
-  if (isActualMember) {
-    log.debug("User is household member, using owner's subscription:", { userId, ownerId });
-  } else if (isMember && ownerId === userId) {
-    log.warn("Invalid household member record: user is their own owner", { userId });
+  // Try to get subscription by householdId first (new architecture)
+  let subscription: Subscription | null = null;
+  if (householdId) {
+    const { data: householdSubscription, error: householdSubError } = await supabase
+      .from("Subscription")
+      .select("*")
+      .eq("householdId", householdId)
+      .in("status", ["active", "trialing"])
+      .order("createdAt", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    
+    if (!householdSubError && householdSubscription) {
+      subscription = householdSubscription as Subscription;
+      log.debug("Found subscription by householdId:", { userId, householdId, subscriptionId: subscription.id });
+    }
   }
 
-  // Get subscription (active or trialing)
-  const { data: subscription, error: subError } = await supabase
+  // Fallback to userId-based subscription (backward compatibility)
+  if (!subscription) {
+    // Check if user is a household member (legacy support via new table)
+    // Get user's active household and check for subscription
+    const { data: activeHousehold } = await supabase
+      .from("UserActiveHousehold")
+      .select("householdId")
+      .eq("userId", userId)
+      .maybeSingle();
+  
+    if (activeHousehold?.householdId) {
+      const { data: householdSub } = await supabase
+        .from("Subscription")
+        .select("*")
+        .eq("householdId", activeHousehold.householdId)
+        .in("status", ["active", "trialing"])
+        .order("createdAt", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (householdSub) {
+        subscription = householdSub as Subscription;
+        log.debug("Found subscription via active household fallback:", { userId, householdId: activeHousehold.householdId });
+      }
+    }
+
+    // If still no subscription, try to get from user's personal household
+    if (!subscription) {
+      const { data: personalHousehold } = await supabase
+        .from("HouseholdMemberNew")
+        .select("householdId")
+        .eq("userId", userId)
+        .eq("isDefault", true)
+        .eq("status", "active")
+        .maybeSingle();
+      
+      if (personalHousehold?.householdId) {
+        const { data: personalSub } = await supabase
+          .from("Subscription")
+          .select("*")
+          .eq("householdId", personalHousehold.householdId)
+          .in("status", ["active", "trialing"])
+          .order("createdAt", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (personalSub) {
+          subscription = personalSub as Subscription;
+          log.debug("Found subscription via personal household:", { userId, householdId: personalHousehold.householdId });
+        }
+      }
+  }
+
+    // Fallback: Try to get subscription by userId (backward compatibility)
+    const { data: userSubscription, error: subError } = await supabase
     .from("Subscription")
     .select("*")
-    .eq("userId", effectiveUserId)
+      .eq("userId", userId)
     .in("status", ["active", "trialing"])
     .order("createdAt", { ascending: false })
     .limit(1)
@@ -243,6 +387,12 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
 
   if (subError && subError.code !== "PGRST116") {
     log.error("Error fetching subscription:", subError);
+    }
+
+    if (userSubscription) {
+      subscription = userSubscription as Subscription;
+      log.debug("Found subscription by userId (backward compatibility):", { userId, subscriptionId: subscription.id });
+    }
   }
 
   if (!subscription) {
@@ -531,6 +681,44 @@ export async function checkFeatureAccess(userId: string, feature: keyof PlanFeat
     return featureValue === true;
   } catch (error) {
     logger.error("Error in checkFeatureAccess:", error);
+    return false;
+  }
+}
+
+/**
+ * Check if user can perform write operations
+ * User can write if subscription is active or trialing
+ * This is the central function to verify write access - use this everywhere
+ */
+export async function canUserWrite(userId: string): Promise<boolean> {
+  try {
+    const { subscription } = await getUserSubscriptionData(userId);
+    
+    if (!subscription) {
+      return false;
+    }
+    
+    // User can write if subscription is active
+    if (subscription.status === "active") {
+      return true;
+    }
+    
+    // User can write if trial is active and valid
+    if (subscription.status === "trialing") {
+      // Validate trial end date
+      if (subscription.trialEndDate) {
+        const trialEnd = new Date(subscription.trialEndDate);
+        const now = new Date();
+        return trialEnd > now;
+      }
+      // If no trial end date, assume trial is valid
+      return true;
+    }
+    
+    // All other statuses (cancelled, past_due, etc.) block writes
+    return false;
+  } catch (error) {
+    logger.error("Error in canUserWrite:", error);
     return false;
   }
 }

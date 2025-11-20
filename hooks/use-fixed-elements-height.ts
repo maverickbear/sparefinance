@@ -16,7 +16,7 @@ export function useFixedElementsHeight() {
       const isMobile = window.innerWidth < 1024; // lg breakpoint
 
       if (isMobile) {
-        // On mobile: MobileHeader (top) -> PageHeader -> MobileBanner (bottom)
+        // On mobile: MobileHeader (top) -> PageHeader
         const mobileHeader = document.getElementById('mobile-header');
         let mobileHeaderHeight = 0;
         if (mobileHeader) {
@@ -43,19 +43,10 @@ export function useFixedElementsHeight() {
           }
         }
         
-        // Update page header height for MobileBanner positioning
+        // Update page header height
         document.documentElement.style.setProperty('--page-header-height', `${pageHeaderHeight}px`);
-        
-        // Add mobile banner height (appears after PageHeader)
-        const mobileBanner = document.getElementById('mobile-banner');
-        if (mobileBanner) {
-          const computedStyle = window.getComputedStyle(mobileBanner);
-          if (computedStyle.display !== 'none') {
-            height += mobileBanner.offsetHeight;
-          }
-        }
       } else {
-        // On desktop: PageHeader (top) -> DesktopHeader with banner (bottom)
+        // On desktop: PageHeader (top)
         // Get PageHeader height first
         const pageHeader = document.getElementById('page-header');
         let pageHeaderHeight = 0;
@@ -69,17 +60,8 @@ export function useFixedElementsHeight() {
           }
         }
         
-        // Update page header height for DesktopHeader positioning
+        // Update page header height
         document.documentElement.style.setProperty('--page-header-height', `${pageHeaderHeight}px`);
-        
-        // DesktopHeader (includes banner) - appears after PageHeader
-        const desktopHeader = document.getElementById('desktop-header');
-        if (desktopHeader) {
-          const computedStyle = window.getComputedStyle(desktopHeader);
-          if (computedStyle.display !== 'none') {
-            height += desktopHeader.offsetHeight;
-          }
-        }
       }
 
       // Only update if height actually changed to avoid unnecessary re-renders
@@ -93,14 +75,6 @@ export function useFixedElementsHeight() {
       // Update CSS variable for use in padding-top
       document.documentElement.style.setProperty('--fixed-elements-height', `${height}px`);
       
-      // Also update desktop header height (mobile header height is already updated above)
-      if (!isMobile) {
-        const desktopHeader = document.getElementById('desktop-header');
-        if (desktopHeader) {
-          const desktopHeaderHeight = desktopHeader.offsetHeight;
-          document.documentElement.style.setProperty('--desktop-header-height', `${desktopHeaderHeight}px`);
-        }
-      }
       
       // Calculate fixed tabs height if present
       const fixedTabs = document.querySelector('[data-fixed-tabs]');
@@ -160,22 +134,6 @@ export function useFixedElementsHeight() {
       observer.observe(mobileHeader);
       observers.push(observer);
     }
-    
-    // Observe mobile banner
-    const mobileBanner = document.getElementById('mobile-banner');
-    if (mobileBanner) {
-      const observer = new ResizeObserver(debouncedCalculateHeight);
-      observer.observe(mobileBanner);
-      observers.push(observer);
-    }
-
-    // Observe desktop header (includes banner)
-    const desktopHeader = document.getElementById('desktop-header');
-    if (desktopHeader) {
-      const observer = new ResizeObserver(debouncedCalculateHeight);
-      observer.observe(desktopHeader);
-      observers.push(observer);
-    }
 
     // Observe fixed tabs if present
     const fixedTabs = document.querySelector('[data-fixed-tabs]');
@@ -193,26 +151,6 @@ export function useFixedElementsHeight() {
       observers.push(observer);
     }
 
-    // Track which elements we're observing to avoid duplicates
-    const observedElements = new Set<HTMLElement>();
-    
-    // Function to observe banner (will be called initially and when banner appears)
-    const observeBanner = () => {
-      const banner = document.getElementById('upgrade-banner');
-      if (banner && !observedElements.has(banner)) {
-        const observer = new ResizeObserver(debouncedCalculateHeight);
-        observer.observe(banner);
-        observers.push(observer);
-        observedElements.add(banner);
-      }
-    };
-    
-    // Observe banner directly (works for both mobile and desktop)
-    observeBanner();
-    
-    // Also try to observe banner after delays in case it's added later
-    setTimeout(observeBanner, 100);
-    setTimeout(observeBanner, 500);
 
     // Observe page header if it exists
     const pageHeader = document.getElementById('page-header');
@@ -224,10 +162,6 @@ export function useFixedElementsHeight() {
 
     // Listen to window resize with debounce
     window.addEventListener('resize', debouncedCalculateHeight);
-    
-    // Listen for custom event when banner appears/disappears
-    const handleBannerChange = debouncedCalculateHeight;
-    window.addEventListener('banner-visibility-changed', handleBannerChange);
 
     // Use MutationObserver to watch for elements being added/removed
     // Only observe specific elements to reduce noise from React re-renders
@@ -240,10 +174,9 @@ export function useFixedElementsHeight() {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as HTMLElement;
-            if (element.id === 'upgrade-banner' || element.id === 'page-header' || 
-                element.id === 'mobile-header' || element.id === 'mobile-banner' || 
-                element.id === 'desktop-header' ||
-                element.querySelector('#upgrade-banner, #page-header, #mobile-header, #mobile-banner, #desktop-header')) {
+            if (element.id === 'page-header' || 
+                element.id === 'mobile-header' ||
+                element.querySelector('#page-header, #mobile-header')) {
               shouldRecalculate = true;
             }
           }
@@ -252,9 +185,8 @@ export function useFixedElementsHeight() {
         mutation.removedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as HTMLElement;
-            if (element.id === 'upgrade-banner' || element.id === 'page-header' || 
-                element.id === 'mobile-header' || element.id === 'mobile-banner' || 
-                element.id === 'desktop-header') {
+            if (element.id === 'page-header' || 
+                element.id === 'mobile-header') {
               shouldRecalculate = true;
             }
           }
@@ -263,9 +195,8 @@ export function useFixedElementsHeight() {
         // Check for attribute changes (like display, visibility) only on our target elements
         if (mutation.type === 'attributes') {
           const target = mutation.target as HTMLElement;
-          if (target.id === 'upgrade-banner' || target.id === 'page-header' || 
-              target.id === 'mobile-header' || target.id === 'mobile-banner' || 
-              target.id === 'desktop-header') {
+          if (target.id === 'page-header' || 
+              target.id === 'mobile-header') {
             shouldRecalculate = true;
           }
         }
@@ -273,11 +204,6 @@ export function useFixedElementsHeight() {
       
       if (shouldRecalculate) {
         debouncedCalculateHeight();
-        
-        // Also set up observers for newly added elements
-        setTimeout(() => {
-          observeBanner();
-        }, 100);
       }
     });
     
@@ -297,7 +223,6 @@ export function useFixedElementsHeight() {
       observers.forEach(observer => observer.disconnect());
       mutationObserver.disconnect();
       window.removeEventListener('resize', debouncedCalculateHeight);
-      window.removeEventListener('banner-visibility-changed', handleBannerChange);
     };
   }, []);
 

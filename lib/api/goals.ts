@@ -375,6 +375,13 @@ export async function createGoal(data: {
   // Check if goal is already completed (startingBalance >= targetAmount)
   const isCompleted = (data.currentBalance || 0) >= data.targetAmount;
 
+  // Get active household ID
+  const { getActiveHouseholdId } = await import("@/lib/utils/household");
+  const householdId = await getActiveHouseholdId(user.id);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const id = crypto.randomUUID();
   const now = formatTimestamp(new Date());
 
@@ -394,6 +401,7 @@ export async function createGoal(data: {
     accountId: data.accountId || null,
     holdingId: data.holdingId || null,
     userId: user.id,
+    householdId: householdId, // Add householdId for household-based architecture
     createdAt: now,
     updatedAt: now,
   };

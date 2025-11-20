@@ -3,8 +3,10 @@ import { createServiceRoleClient } from "@/lib/supabase-server";
 
 /**
  * POST /api/auth/create-household-member
- * Creates household member record using service role (bypasses RLS)
+ * Creates personal household and member record using service role (bypasses RLS)
  * This is called when RLS prevents direct insertion during signup
+ * NOTE: This endpoint is now deprecated in favor of automatic household creation in signup/signin
+ * Keeping for backward compatibility
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,12 +23,21 @@ export async function POST(request: NextRequest) {
     // Use service role client to bypass RLS
     const serviceRoleClient = createServiceRoleClient();
 
-    // Check if household member already exists
-    const { data: existingMember } = await serviceRoleClient
-      .from("HouseholdMember")
+    // Check if personal household already exists
+    const { data: existingHousehold } = await serviceRoleClient
+      .from("Household")
       .select("id")
-      .eq("ownerId", ownerId)
-      .eq("memberId", memberId || ownerId)
+      .eq("createdBy", ownerId)
+      .eq("type", "personal")
+      .maybeSingle();
+
+    if (existingHousehold) {
+      // Check if member already exists
+      const { data: existingMember } = await serviceRoleClient
+        .from("HouseholdMemberNew")
+        .select("id")
+        .eq("householdId", existingHousehold.id)
+        .eq("userId", memberId || ownerId)
       .maybeSingle();
 
     if (existingMember) {
@@ -34,24 +45,48 @@ export async function POST(request: NextRequest) {
         success: true,
         message: "Household member already exists"
       });
+      }
     }
 
-    const invitationToken = crypto.randomUUID();
     const now = new Date().toISOString();
+    let householdId = existingHousehold?.id;
+
+    // Create personal household if it doesn't exist
+    if (!householdId) {
+      const { data: household, error: householdError } = await serviceRoleClient
+        .from("Household")
+        .insert({
+          name: name || email || "Minha Conta",
+          type: "personal",
+          createdBy: ownerId,
+          createdAt: now,
+          updatedAt: now,
+          settings: {},
+        })
+        .select()
+        .single();
+
+      if (householdError || !household) {
+        console.error("[CREATE-HOUSEHOLD-MEMBER] Error creating household:", householdError);
+        return NextResponse.json(
+          { error: "Failed to create household", details: householdError?.message },
+          { status: 500 }
+        );
+      }
+
+      householdId = household.id;
+    }
 
     // Create household member using service role (bypasses RLS)
     const { error: memberError } = await serviceRoleClient
-      .from("HouseholdMember")
+      .from("HouseholdMemberNew")
       .insert({
-        ownerId: ownerId,
-        memberId: memberId || ownerId,
-        email: email,
-        name: name || null,
-        role: "admin", // Owner is admin
+        householdId: householdId,
+        userId: memberId || ownerId,
+        role: "owner", // Owner is owner role
         status: "active", // Owner is immediately active
-        invitationToken: invitationToken,
-        invitedAt: now,
-        acceptedAt: now, // Owner accepts immediately
+        isDefault: true, // Personal household is default
+        joinedAt: now,
         createdAt: now,
         updatedAt: now,
       });
@@ -82,6 +117,17 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Set as active household if not already set
+    await serviceRoleClient
+      .from("UserActiveHousehold")
+      .upsert({
+        userId: memberId || ownerId,
+        householdId: householdId,
+        updatedAt: now,
+      }, {
+        onConflict: "userId"
+      });
 
     return NextResponse.json({ 
       success: true,

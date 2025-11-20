@@ -23,6 +23,7 @@ export const CACHE_TAGS = {
   LIABILITIES: 'liabilities',
   PROFILE: 'profile',
   ONBOARDING: 'onboarding',
+  SUBSCRIPTIONS: 'subscriptions',
 } as const;
 
 /**
@@ -188,6 +189,16 @@ export function invalidateGoalCaches(): void {
 }
 
 /**
+ * Invalidate all related caches when subscriptions change
+ */
+export function invalidateSubscriptionCaches(): void {
+  invalidateCache(
+    CACHE_TAGS.SUBSCRIPTIONS,
+    CACHE_TAGS.DASHBOARD,
+  );
+}
+
+/**
  * Invalidate all dashboard-related caches
  */
 export function invalidateDashboardCaches(): void {
@@ -198,6 +209,7 @@ export function invalidateDashboardCaches(): void {
     CACHE_TAGS.ACCOUNTS,
     CACHE_TAGS.BUDGETS,
     CACHE_TAGS.GOALS,
+    CACHE_TAGS.SUBSCRIPTIONS,
   );
 }
 

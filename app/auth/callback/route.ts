@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
 
     // Check if email has a pending invitation
     const { data: pendingInvitation } = await supabase
-      .from("HouseholdMember")
-      .select("id, ownerId, email")
+      .from("HouseholdMemberNew")
+      .select("id, householdId, email, Household(createdBy)")
       .eq("email", authUser.email?.toLowerCase() || "")
       .eq("status", "pending")
       .maybeSingle();
@@ -122,26 +122,54 @@ export async function GET(request: NextRequest) {
         console.log("[OAUTH-CALLBACK] ✅ User profile created");
       }
 
-      // Create household member record for the owner
+      // Create personal household and member record for the owner
       if (userData) {
-        const invitationToken = crypto.randomUUID();
         const now = new Date().toISOString();
         
-        const { error: householdMemberError } = await serviceRoleClient
-          .from("HouseholdMember")
+        // Create personal household
+        const { data: household, error: householdError } = await serviceRoleClient
+          .from("Household")
           .insert({
-            ownerId: userData.id,
-            memberId: userData.id,
-            email: authUser.email!,
-            name: name,
-            role: "admin",
+            name: name || authUser.email || "Minha Conta",
+            type: "personal",
+            createdBy: userData.id,
+            createdAt: now,
+            updatedAt: now,
+            settings: {},
+          })
+          .select()
+          .single();
+
+        if (householdError || !household) {
+          console.error("[OAUTH-CALLBACK] Error creating household:", householdError);
+        } else {
+          // Create household member (owner role)
+          const { error: householdMemberError } = await serviceRoleClient
+            .from("HouseholdMemberNew")
+            .insert({
+              householdId: household.id,
+              userId: userData.id,
+              role: "owner",
             status: "active",
-            invitationToken: invitationToken,
-            invitedAt: now,
-            acceptedAt: now,
+              isDefault: true,
+              joinedAt: now,
             createdAt: now,
             updatedAt: now,
           });
+
+          if (householdMemberError) {
+            console.error("[OAUTH-CALLBACK] Error creating household member:", householdMemberError);
+          } else {
+            // Set as active household
+            await serviceRoleClient
+              .from("UserActiveHousehold")
+              .insert({
+                userId: userData.id,
+                householdId: household.id,
+                updatedAt: now,
+              });
+          }
+        }
 
         if (householdMemberError) {
           // If it's a duplicate, that's OK

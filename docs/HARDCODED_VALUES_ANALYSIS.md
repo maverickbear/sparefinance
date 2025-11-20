@@ -83,21 +83,17 @@ Este documento lista todos os valores hardcoded encontrados no projeto que dever
 
 ---
 
-#### 2.2 Email do Fundador
-**Status:** ⚠️ **MÉDIO** - Usado em emails de boas-vindas
+#### 2.2 Email de Boas-vindas
+**Status:** ✅ **RESOLVIDO** - Todos os emails usam `noreply@sparefinance.com`
 
 **Locais encontrados:**
-- `lib/utils/email.ts:441, 444, 445`
+- `lib/utils/email.ts:688-702`
   ```typescript
-  const founderName = data.founderName || "Naor Tartarotti";
-  const fromEmail = process.env.RESEND_WELCOME_FROM_EMAIL || "naor@sparefinance.com";
+  // Always use noreply@sparefinance.com as the sender with "Spare Finance" as display name
+  const finalFromEmail = "Spare Finance <noreply@sparefinance.com>";
   ```
 
-**Problema:** Nome e email hardcoded não são flexíveis.
-
-**Solução:** Criar variáveis de ambiente:
-- `FOUNDER_NAME`
-- `RESEND_WELCOME_FROM_EMAIL`
+**Solução implementada:** Todos os emails transacionais (invitation, checkout pending, password reset, welcome) agora usam `noreply@sparefinance.com` com o nome de exibição "Spare Finance".
 
 ---
 
@@ -291,8 +287,8 @@ NEXT_PUBLIC_APP_URL=https://sparefinance.com
 APP_DOMAIN=sparefinance.com
 
 # Email Configuration
-RESEND_FROM_EMAIL=noreply@sparefinance.com
-RESEND_WELCOME_FROM_EMAIL=naor@sparefinance.com
+# All transactional emails use noreply@sparefinance.com
+# RESEND_FROM_EMAIL is no longer used - all emails hardcoded to noreply@sparefinance.com
 SUPPORT_EMAIL=support@sparefinance.com
 LEGAL_EMAIL=legal@sparefinance.com
 FOUNDER_NAME=Naor Tartarotti
@@ -327,8 +323,8 @@ export const config = {
     domain: process.env.APP_DOMAIN || new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://sparefinance.com').hostname,
   },
   email: {
-    from: process.env.RESEND_FROM_EMAIL || 'noreply@sparefinance.com',
-    welcomeFrom: process.env.RESEND_WELCOME_FROM_EMAIL || 'naor@sparefinance.com',
+    // All transactional emails use noreply@sparefinance.com (hardcoded)
+    from: 'noreply@sparefinance.com',
     support: process.env.SUPPORT_EMAIL || 'support@sparefinance.com',
     legal: process.env.LEGAL_EMAIL || 'legal@sparefinance.com',
     founderName: process.env.FOUNDER_NAME || 'Naor Tartarotti',

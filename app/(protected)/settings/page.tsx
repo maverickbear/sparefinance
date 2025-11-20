@@ -15,7 +15,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Save, User, CreditCard, Upload, Loader2, Calendar } from "lucide-react";
+import { Save, User, CreditCard, Upload, Loader2 } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
+import { ChangePasswordForm } from "@/components/profile/change-password-form";
 import { useToast } from "@/components/toast-provider";
 import { UsageChart } from "@/components/billing/usage-chart";
 import { UpgradePlanCard } from "@/components/billing/upgrade-plan-card";
@@ -525,15 +527,14 @@ function ProfileModule() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs sm:text-sm font-medium">Date of Birth</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                    <Input
-                      {...form.register("dateOfBirth")}
-                      type="date"
-                      className="h-9 pl-10 uppercase placeholder:uppercase"
-                      placeholder="YYYY-MM-DD"
-                    />
-                  </div>
+                  <DatePicker
+                    date={form.watch("dateOfBirth") ? new Date(form.watch("dateOfBirth")) : undefined}
+                    onDateChange={(date) => {
+                      form.setValue("dateOfBirth", date ? date.toISOString().split("T")[0] : "");
+                    }}
+                    placeholder="Select date of birth"
+                    className="h-9"
+                  />
                   {form.formState.errors.dateOfBirth && (
                     <p className="text-xs text-destructive">
                       {form.formState.errors.dateOfBirth.message}
@@ -964,10 +965,13 @@ export default function MyAccountPage() {
         </div>
       </div>
 
-      <div className="w-full p-4 lg:p-8">
+      <div className="w-full p-4 lg:p-8 space-y-6">
         <SimpleTabsContent value="profile">
-        <ProfileModule />
-      </SimpleTabsContent>
+          <div className="space-y-6">
+            <ProfileModule />
+            <ChangePasswordForm />
+          </div>
+        </SimpleTabsContent>
 
       <SimpleTabsContent value="billing">
         <BillingModule />

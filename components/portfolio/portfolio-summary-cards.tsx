@@ -1,41 +1,33 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
-import { TrendingUp, TrendingDown, Wallet, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, Upload, Plug, RefreshCw } from "lucide-react";
 import { PortfolioSummary } from "@/lib/api/portfolio";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
 
 interface PortfolioSummaryCardsProps {
   summary: PortfolioSummary;
+  onAddClick?: () => void;
+  onImportClick?: () => void;
+  integrationProps?: {
+    onSync?: () => void;
+    onDisconnect?: () => void;
+    onSuccess?: () => void;
+  };
+  onUpdatePrices?: () => void;
+  isUpdatingPrices?: boolean;
 }
 
-export function PortfolioSummaryCards({ summary }: PortfolioSummaryCardsProps) {
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  // Handle scroll for carousel indicators
-  useEffect(() => {
-    const carousel = carouselRef.current;
-    if (!carousel) return;
-
-    const handleScroll = () => {
-      const scrollLeft = carousel.scrollLeft;
-      const firstCard = carousel.querySelector('.snap-start') as HTMLElement;
-      if (!firstCard) return;
-      
-      const cardWidth = firstCard.offsetWidth;
-      const gap = 16; // 1rem = 16px (gap-4)
-      const totalCardWidth = cardWidth + gap;
-      const newIndex = Math.round(scrollLeft / totalCardWidth);
-      setActiveIndex(Math.min(Math.max(newIndex, 0), 3)); // 4 cards total (0-3)
-    };
-
-    carousel.addEventListener('scroll', handleScroll);
-    handleScroll();
-    return () => carousel.removeEventListener('scroll', handleScroll);
-  }, []);
+export function PortfolioSummaryCards({ 
+  summary,
+  onAddClick,
+  onImportClick,
+  integrationProps,
+  onUpdatePrices,
+  isUpdatingPrices = false,
+}: PortfolioSummaryCardsProps) {
 
   const cards = [
     {
@@ -102,95 +94,96 @@ export function PortfolioSummaryCards({ summary }: PortfolioSummaryCardsProps) {
     },
   ];
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Portfolio Summary</CardTitle>
-      </CardHeader>
-      <CardContent className="!pt-0 md:!pt-0">
-        {/* Mobile Carousel */}
-        <div className="md:hidden">
-          <div
-            ref={carouselRef}
-            className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory pb-2 -mx-4 px-4"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {cards.map((card) => {
-              const Icon = card.icon;
-              return (
-                <div
-                  key={card.id}
-                  className="flex-shrink-0 w-[calc(100vw-6rem)] snap-start flex flex-col p-4 border rounded-lg"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Icon className={cn("h-5 w-5", card.iconColor)} />
-                    <div>
-                      <div className="font-semibold text-xs md:text-sm">{card.title}</div>
-                    </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <div className={cn("font-semibold", card.valueColor)}>
-                      {card.id === 'holdings' ? card.value : formatMoney(card.value)}
-                    </div>
-                    {card.change}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {/* Carousel Indicators */}
-          <div className="flex justify-center gap-2 mt-3">
-            {cards.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  const carousel = carouselRef.current;
-                  if (carousel) {
-                    const firstCard = carousel.querySelector('.snap-start') as HTMLElement;
-                    if (!firstCard) return;
-                    
-                    const cardWidth = firstCard.offsetWidth;
-                    const gap = 16; // 1rem = 16px (gap-4)
-                    const totalCardWidth = cardWidth + gap;
-                    carousel.scrollTo({ left: index * totalCardWidth, behavior: 'smooth' });
-                  }
-                }}
-                className={cn(
-                  "h-2 rounded-full transition-all",
-                  activeIndex === index
-                    ? "w-6 bg-primary"
-                    : "w-2 bg-muted-foreground/30"
-                )}
-                aria-label={`Go to card ${index + 1}`}
-              />
-            ))}
-          </div>
-        </div>
+  const totalValueCard = cards.find(card => card.id === 'totalValue');
+  const holdingsCard = cards.find(card => card.id === 'holdings');
+  const dayChangeCard = cards.find(card => card.id === 'dayChange');
+  const totalReturnCard = cards.find(card => card.id === 'totalReturn');
 
-        {/* Desktop Grid */}
-        <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {cards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <div key={card.id} className="flex flex-col p-4 border rounded-lg">
-                <div className="flex items-center gap-3 mb-3">
-                  <Icon className={cn("h-5 w-5", card.iconColor)} />
-                  <div>
-                    <div className="font-semibold text-xs md:text-sm">{card.title}</div>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <div className={cn("font-semibold", card.valueColor)}>
-                    {card.id === 'holdings' ? card.value : formatMoney(card.value)}
-                  </div>
-                  {card.change}
-                </div>
-              </div>
-            );
-          })}
+  const renderCard = (card: typeof cards[0]) => {
+    const Icon = card.icon;
+    return (
+      <div key={card.id} className="flex flex-col p-4 border rounded-lg">
+        <div className="flex flex-col items-start mb-3">
+          <Icon className={cn("h-5 w-5 mb-2", card.iconColor)} />
+          <div className="font-semibold text-xs md:text-sm">{card.title}</div>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex items-baseline gap-2">
+          <div className={cn("font-semibold", card.valueColor)}>
+            {card.id === 'holdings' ? card.value : formatMoney(card.value)}
+          </div>
+          {card.change}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Mobile and Tablet: Action buttons before Portfolio Summary */}
+      <div className="lg:hidden mb-4">
+        <div className="grid grid-cols-3 gap-3">
+          <Button
+            variant="outline"
+            className="flex flex-col items-center justify-center gap-2 h-auto py-3"
+            onClick={onAddClick}
+          >
+            <Plus className="h-5 w-5" />
+            <span className="text-xs">Add</span>
+          </Button>
+          <Button
+            variant="outline"
+            className="flex flex-col items-center justify-center gap-2 h-auto py-3"
+            onClick={onImportClick}
+          >
+            <Upload className="h-5 w-5" />
+            <span className="text-xs">Import</span>
+          </Button>
+          {integrationProps && (
+            <IntegrationDropdown
+              {...integrationProps}
+              customTrigger={
+                <Button
+                  variant="outline"
+                  className="flex flex-col items-center justify-center gap-2 h-auto py-3 w-full"
+                >
+                  <Plug className="h-5 w-5" />
+                  <span className="text-xs">Integration</span>
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </div>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Portfolio Summary</h2>
+        {onUpdatePrices && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onUpdatePrices}
+            disabled={isUpdatingPrices}
+            className="h-8 w-8"
+          >
+            <RefreshCw className={cn("h-4 w-4", isUpdatingPrices && "animate-spin")} />
+          </Button>
+        )}
+      </div>
+      {/* Mobile: Total Value + Holdings in first row, Day Change + Total Return in second row */}
+      <div className="md:hidden space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          {totalValueCard && renderCard(totalValueCard)}
+          {holdingsCard && renderCard(holdingsCard)}
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          {dayChangeCard && renderCard(dayChangeCard)}
+          {totalReturnCard && renderCard(totalReturnCard)}
+        </div>
+      </div>
+      {/* Desktop: All cards in one row */}
+      <div className="hidden md:grid md:grid-cols-4 gap-4">
+        {cards.map(renderCard)}
+      </div>
+    </div>
   );
 }
 

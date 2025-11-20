@@ -315,7 +315,7 @@ async function calculateFinancialHealthInternal(
     if (userId) {
       // Get total debts
       const debts = await getDebts();
-      const liabilities = await getUserLiabilities(userId);
+      const liabilities = await getUserLiabilities(userId, accessToken, refreshToken);
 
       let totalDebts = 0;
 

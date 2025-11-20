@@ -62,6 +62,13 @@ export async function createPlannedPayment(
     throw new Error("Unauthorized");
   }
 
+  // Get active household ID
+  const { getActiveHouseholdId } = await import("@/lib/utils/household");
+  const householdId = await getActiveHouseholdId(user.id);
+  if (!householdId) {
+    throw new Error("No active household found. Please contact support.");
+  }
+
   const id = crypto.randomUUID();
   const now = formatTimestamp(new Date());
   const date = data.date instanceof Date ? data.date : new Date(data.date);
@@ -85,6 +92,7 @@ export async function createPlannedPayment(
     debtId: data.debtId || null,
     subscriptionId: data.subscriptionId || null,
     userId: user.id,
+    householdId: householdId, // Add householdId for household-based architecture
     createdAt: now,
     updatedAt: now,
   };
