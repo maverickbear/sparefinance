@@ -20,7 +20,6 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { ChangePasswordForm } from "@/components/profile/change-password-form";
 import { useToast } from "@/components/toast-provider";
 import { UsageChart } from "@/components/billing/usage-chart";
-import { UpgradePlanCard } from "@/components/billing/upgrade-plan-card";
 import { SubscriptionManagement } from "@/components/billing/subscription-management";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { PlanFeatures } from "@/lib/validations/plan";
@@ -683,41 +682,33 @@ function BillingModuleContent() {
     try {
       setLoading(true);
       
-      // Create fetch promise and cache it
-      const fetchPromise = Promise.all([
-        fetch("/api/billing/subscription", {
-          cache: "no-store",
-        }),
-        import("@/lib/actions/billing").then(m => m.getBillingLimitsAction()),
-      ]).then(async ([subResponse, limitsAction]) => {
-        let subscriptionData: Subscription | null = null;
-        let planData: Plan | null = null;
-        let limitsData: PlanFeatures | null = null;
-        let intervalData: "month" | "year" | null = null;
-
-        // Process subscription data
-        if (subResponse.ok) {
-          const subData = await subResponse.json();
-          subscriptionData = subData.subscription;
-          planData = subData.plan;
-          limitsData = subData.limits;
-          intervalData = subData.interval || null;
-        } else {
+      // OPTIMIZATION: Single API call that returns everything (subscription, plan, limits, transactionLimit, accountLimit)
+      // This avoids duplicate queries and reduces latency
+      const fetchPromise = fetch("/api/billing/subscription", {
+        cache: "no-store",
+      }).then(async (subResponse) => {
+        if (!subResponse.ok) {
           console.error("Failed to fetch subscription:", subResponse.status);
+          return {
+            subscription: null,
+            plan: null,
+            limits: null,
+            transactionLimit: null,
+            accountLimit: null,
+            interval: null,
+          };
         }
 
-        // Process limits data
-        const transactionLimitData = limitsAction?.transactionLimit || null;
-        const accountLimitData = limitsAction?.accountLimit || null;
-
-        const result = {
-          subscription: subscriptionData,
-          plan: planData,
-          limits: limitsData,
-          transactionLimit: transactionLimitData,
-          accountLimit: accountLimitData,
-          interval: intervalData,
+        const subData = await subResponse.json();
+        return {
+          subscription: subData.subscription ?? null,
+          plan: subData.plan ?? null,
+          limits: subData.limits ?? null,
+          transactionLimit: subData.transactionLimit ?? null,
+          accountLimit: subData.accountLimit ?? null,
+          interval: subData.interval ?? null,
         };
+      }).then((result) => {
 
         // Update cache
         billingDataCache.data = result;
@@ -835,17 +826,6 @@ function BillingModuleContent() {
         />
       </div>
 
-      <UpgradePlanCard 
-        currentPlan={plan?.name} 
-        currentPlanId={plan?.id}
-        onUpgradeSuccess={() => {
-          // Invalidate cache when plan is upgraded
-          billingDataCache.data = null;
-          billingDataCache.timestamp = 0;
-          billingDataCache.promise = null;
-          loadBillingData(true);
-        }}
-      />
 
       <LazyPaymentHistory />
     </div>
@@ -866,12 +846,10 @@ function useBillingPreload() {
   useEffect(() => {
     // Preload billing data in background when page loads
     // This ensures data is ready when user clicks on Billing tab
+    // OPTIMIZATION: Single API call returns everything (subscription, plan, limits, transactionLimit, accountLimit)
     const preloadBillingData = async () => {
       try {
-        await Promise.all([
-          fetch("/api/billing/subscription", { cache: "no-store" }),
-          import("@/lib/actions/billing").then(m => m.getBillingLimitsAction()),
-        ]);
+        await fetch("/api/billing/subscription", { cache: "no-store" });
       } catch (error) {
         // Silently fail - data will load when tab is opened
         console.debug("Billing preload failed:", error);

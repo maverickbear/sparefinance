@@ -136,9 +136,10 @@ export async function getPlannedPayments(filters?: {
     return [];
   }
 
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   let query = supabase
     .from("PlannedPayment")
-    .select("*")
+    .select("id, date, type, amount, accountId, toAccountId, categoryId, subcategoryId, description, source, status, linkedTransactionId, debtId, subscriptionId, userId, createdAt, updatedAt, householdId")
     .eq("userId", user.id)
     .order("date", { ascending: true });
 

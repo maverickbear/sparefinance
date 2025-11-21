@@ -1,16 +1,21 @@
 import dynamic from "next/dynamic";
 import { LandingHeader } from "@/components/landing/landing-header";
-import { LandingFooter } from "@/components/landing/landing-footer";
+import { FizensFooter } from "@/components/landing/fizens-footer";
+import { LandingMobileFooter } from "@/components/landing/landing-mobile-footer";
 import { getCurrentUser } from "@/lib/api/auth";
 import { startServerPagePerformance } from "@/lib/utils/performance";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 
 // Lazy load heavy landing page components for better initial load performance
-const HeroSection = dynamic(() => import("@/components/landing/hero-section").then(m => ({ default: m.HeroSection })), { ssr: true });
-const FeaturesSection = dynamic(() => import("@/components/landing/features-section").then(m => ({ default: m.FeaturesSection })), { ssr: true });
-const ParallaxFeaturesSection = dynamic(() => import("@/components/landing/parallax-features-section").then(m => ({ default: m.ParallaxFeaturesSection })), { ssr: true });
-const TestimonialsSection = dynamic(() => import("@/components/landing/testimonials-section").then(m => ({ default: m.TestimonialsSection })), { ssr: true });
+const FizensHeroSection = dynamic(() => import("@/components/landing/fizens-hero-section").then(m => ({ default: m.FizensHeroSection })), { ssr: true });
+const StatisticsSection = dynamic(() => import("@/components/landing/statistics-section").then(m => ({ default: m.StatisticsSection })), { ssr: true });
+const FizensFeaturesSection = dynamic(() => import("@/components/landing/fizens-features-section").then(m => ({ default: m.FizensFeaturesSection })), { ssr: true });
+const BenefitsSection = dynamic(() => import("@/components/landing/benefits-section").then(m => ({ default: m.BenefitsSection })), { ssr: true });
+const HowItWorksSection = dynamic(() => import("@/components/landing/how-it-works-section").then(m => ({ default: m.HowItWorksSection })), { ssr: true });
+const FizensTestimonialsSection = dynamic(() => import("@/components/landing/fizens-testimonials-section").then(m => ({ default: m.FizensTestimonialsSection })), { ssr: true });
 const PricingSection = dynamic(() => import("@/components/landing/pricing-section").then(m => ({ default: m.PricingSection })), { ssr: true });
+const FAQSection = dynamic(() => import("@/components/landing/faq-section").then(m => ({ default: m.FAQSection })), { ssr: true });
+const PartnersSection = dynamic(() => import("@/components/landing/partners-section").then(m => ({ default: m.PartnersSection })), { ssr: true });
 
 export const metadata = {
   title: "Spare Finance - Powerful Tools for Easy Money Management",
@@ -55,14 +60,19 @@ export default async function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <LandingHeader isAuthenticated={isAuthenticated} />
-      <main className="flex-1">
-        <HeroSection />
-        <FeaturesSection />
-        <ParallaxFeaturesSection />
-        <TestimonialsSection />
+      <main className="flex-1 pb-20 md:pb-0">
+        <FizensHeroSection />
+        <StatisticsSection />
+        <FizensFeaturesSection />
+        <BenefitsSection />
+        <HowItWorksSection />
+        <FizensTestimonialsSection />
         {!isMaintenanceMode && <PricingSection />}
+        <FAQSection />
+        <PartnersSection />
       </main>
-      <LandingFooter />
+      <FizensFooter />
+      <LandingMobileFooter isAuthenticated={isAuthenticated} />
     </div>
   );
 }

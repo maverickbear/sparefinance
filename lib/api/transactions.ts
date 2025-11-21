@@ -741,9 +741,11 @@ export async function getTransactionsInternal(
     .from("Transaction")
     .select("*", { count: 'exact', head: true });
   
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
+  // We'll fetch related data separately to avoid RLS issues
   let query = supabase
     .from("Transaction")
-    .select("*")
+    .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, recurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, amount_numeric, userId, householdId")
     .order("date", { ascending: false });
 
   const log = logger.withPrefix("getTransactionsInternal");
@@ -834,15 +836,17 @@ export async function getTransactionsInternal(
   const subcategoryIds = [...new Set(data.map((t: any) => t.subcategoryId).filter(Boolean))];
 
   // Buscar todos os relacionamentos em paralelo para melhor performance
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
+  // Note: balance is calculated, not a column in the database
   const [accountsResult, categoriesResult, subcategoriesResult] = await Promise.all([
     accountIds.length > 0 
-      ? supabase.from("Account").select("*").in("id", accountIds)
+      ? supabase.from("Account").select("id, name, type, initialBalance").in("id", accountIds)
       : Promise.resolve({ data: null, error: null }),
     categoryIds.length > 0
-      ? supabase.from("Category").select("*").in("id", categoryIds)
+      ? supabase.from("Category").select("id, name, type, icon, color").in("id", categoryIds)
       : Promise.resolve({ data: null, error: null }),
     subcategoryIds.length > 0
-      ? supabase.from("Subcategory").select("*").in("id", subcategoryIds)
+      ? supabase.from("Subcategory").select("id, name, categoryId, icon, color").in("id", subcategoryIds)
       : Promise.resolve({ data: null, error: null }),
   ]);
 

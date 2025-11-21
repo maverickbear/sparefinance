@@ -18,7 +18,7 @@ Use this as a quick reference when filling out the Plaid security questionnaire 
 
 **Key Points:**
 - Documented security policies and procedures
-- RLS policies (129 policies)
+- RLS policies (160+ policies, 38+ tables)
 - CSP headers
 - Rate limiting
 - Data encryption
@@ -112,9 +112,9 @@ Use this as a quick reference when filling out the Plaid security questionnaire 
 
 **Answer:** Yes
 
-**URL:** https://[your-domain]/privacy-policy
+**Privacy Policy URL:** https://sparefinance.com/privacy-policy
 
-**Note:** Replace [your-domain] with your actual domain.
+**Terms of Service URL:** https://sparefinance.com/terms-of-service
 
 ---
 
@@ -152,7 +152,7 @@ Use this as a quick reference when filling out the Plaid security questionnaire 
 
 ## Before Submitting
 
-- [ ] Update all [your-domain] placeholders
+- [x] URLs updated: https://sparefinance.com/privacy-policy and https://sparefinance.com/terms-of-service
 - [ ] Verify security contact information
 - [ ] Confirm MFA is enabled in Supabase
 - [ ] Verify vulnerability scanning tools

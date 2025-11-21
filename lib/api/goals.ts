@@ -161,9 +161,10 @@ export async function getGoalsInternal(accessToken?: string, refreshToken?: stri
   }
   console.log("[GOALS] Fetching goals for user:", user.id);
 
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   const { data: goals, error } = await supabase
     .from("Goal")
-    .select("*")
+    .select("id, name, targetAmount, currentBalance, incomePercentage, isCompleted, completedAt, description, priority, isPaused, expectedIncome, targetMonths, accountId, holdingId, createdAt, updatedAt, userId, householdId")
     .order("priority", { ascending: false })
     .order("createdAt", { ascending: false });
 

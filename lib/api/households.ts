@@ -219,6 +219,32 @@ export async function getHouseholdMembers(householdId: string): Promise<Househol
   try {
     const supabase = await createServerClient();
 
+    // SECURITY: Verify that the current user is actually a member of this household
+    // This prevents users from accessing other households by manipulating householdId
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      console.error("User not authenticated");
+      return [];
+    }
+
+    const { data: userMembership, error: membershipError } = await supabase
+      .from("HouseholdMemberNew")
+      .select("id")
+      .eq("householdId", householdId)
+      .eq("userId", authUser.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (membershipError || !userMembership) {
+      console.error("User is not a member of this household:", {
+        userId: authUser.id,
+        householdId,
+        error: membershipError,
+      });
+      return [];
+    }
+
     const { data: members, error } = await supabase
       .from("HouseholdMemberNew")
       .select("*")

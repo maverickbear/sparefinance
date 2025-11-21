@@ -51,6 +51,26 @@ export default async function ProtectedLayout({
     redirect(redirectUrl);
   }
 
+  // Check if user is blocked
+  try {
+    const { data: userData } = await supabase
+      .from("User")
+      .select("isBlocked, role")
+      .eq("id", user.id)
+      .single();
+
+    // If user is blocked and not super_admin, prevent access
+    if (userData?.isBlocked && userData?.role !== "super_admin") {
+      log.debug("User is blocked, redirecting to login");
+      // Sign out the user
+      await supabase.auth.signOut();
+      redirect("/auth/login?error=blocked");
+    }
+  } catch (error) {
+    // If error checking blocked status, log but don't block access
+    log.error("Error checking user blocked status:", error);
+  }
+
   // Check maintenance mode
   let isMaintenanceMode = false;
   try {
@@ -116,13 +136,6 @@ export default async function ProtectedLayout({
       const isActiveStatus = subscription.status === "active";
       const isTrialingStatus = subscription.status === "trialing";
       
-      log.debug("Subscription status check:", {
-        status: subscription.status,
-        isActive: isActiveStatus,
-        isTrialing: isTrialingStatus,
-        shouldOpenModal: !(isActiveStatus || isTrialingStatus),
-      });
-      
       // If subscription exists and status is active or trialing, allow access
       if (isActiveStatus || isTrialingStatus) {
         shouldOpenModal = false;
@@ -138,6 +151,13 @@ export default async function ProtectedLayout({
           shouldOpenModal = false;
         }
       }
+      
+      log.debug("Subscription status check:", {
+        status: subscription.status,
+        isActive: isActiveStatus,
+        isTrialing: isTrialingStatus,
+        shouldOpenModal,
+      });
     }
   } catch (error) {
     // If error checking subscription, open modal

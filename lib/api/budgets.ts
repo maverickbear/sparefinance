@@ -67,9 +67,10 @@ async function ensureRecurringBudgetsForPeriod(
 
   // Find the most recent recurring budget for each category/group/subcategory combination
   // We need to get the latest budget for each unique combination
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   const { data: allRecurringBudgets } = await supabase
     .from("Budget")
-    .select("*")
+    .select("id, amount, period, categoryId, groupId, subcategoryId, isRecurring, createdAt, updatedAt, userId, householdId")
     .eq("userId", user.id)
     .eq("isRecurring", true)
     .lt("period", targetPeriodStr)

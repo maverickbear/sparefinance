@@ -475,6 +475,97 @@ export async function createPortalSession(userId: string): Promise<{ url: string
   }
 }
 
+/**
+ * Update subscription trial end date in Stripe
+ * This will trigger a customer.subscription.updated webhook which will sync back to the database
+ */
+export async function updateSubscriptionTrial(
+  userId: string,
+  trialEndDate: Date
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createServerClient();
+    
+    // Get user
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+    if (authError || !authUser || authUser.id !== userId) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Get subscription with stripeSubscriptionId
+    const { data: subscription, error: subError } = await supabase
+      .from("Subscription")
+      .select("id, stripeSubscriptionId, status, trialEndDate")
+      .eq("userId", userId)
+      .not("stripeSubscriptionId", "is", null)
+      .in("status", ["trialing", "active"])
+      .order("createdAt", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (subError) {
+      console.error("[UPDATE-TRIAL] Error fetching subscription:", subError);
+      return { success: false, error: "Failed to fetch subscription" };
+    }
+
+    if (!subscription?.stripeSubscriptionId) {
+      console.log("[UPDATE-TRIAL] No subscription with Stripe subscription ID found for user:", userId);
+      return { success: false, error: "No active subscription found" };
+    }
+
+    // Validate that subscription is in trial
+    if (subscription.status !== "trialing") {
+      return { success: false, error: "Subscription is not in trial period" };
+    }
+
+    // Validate that trialEndDate is in the future
+    const now = new Date();
+    if (trialEndDate <= now) {
+      return { success: false, error: "Trial end date must be in the future" };
+    }
+
+    // Convert Date to Unix timestamp (Stripe expects seconds, not milliseconds)
+    const trialEndTimestamp = Math.floor(trialEndDate.getTime() / 1000);
+
+    console.log("[UPDATE-TRIAL] Updating trial end date in Stripe:", {
+      userId,
+      subscriptionId: subscription.id,
+      stripeSubscriptionId: subscription.stripeSubscriptionId,
+      currentTrialEndDate: subscription.trialEndDate,
+      newTrialEndDate: trialEndDate.toISOString(),
+      newTrialEndTimestamp: trialEndTimestamp,
+    });
+
+    // Update subscription in Stripe
+    const updatedSubscription = await stripe.subscriptions.update(
+      subscription.stripeSubscriptionId,
+      {
+        trial_end: trialEndTimestamp,
+      }
+    );
+
+    console.log("[UPDATE-TRIAL] Stripe subscription updated successfully:", {
+      subscriptionId: updatedSubscription.id,
+      trialEnd: updatedSubscription.trial_end,
+    });
+
+    // The webhook customer.subscription.updated will be triggered automatically
+    // and will sync the new trial_end back to the database
+    // We invalidate the cache here to ensure UI reflects changes immediately
+    const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
+    await invalidateSubscriptionCache(userId);
+    console.log("[UPDATE-TRIAL] Subscription cache invalidated for user:", userId);
+
+    return { success: true };
+  } catch (error) {
+    console.error("[UPDATE-TRIAL] Error updating subscription trial:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to update subscription trial",
+    };
+  }
+}
+
 export async function handleWebhookEvent(event: Stripe.Event): Promise<{ success: boolean; error?: string }> {
   try {
     console.log("[WEBHOOK] Received webhook event:", { 
@@ -507,7 +598,21 @@ export async function handleWebhookEvent(event: Stripe.Event): Promise<{ success
       case "customer.subscription.updated": {
         console.log("[WEBHOOK] Processing customer.subscription.updated");
         const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionChange(supabase, subscription);
+        // Fetch the subscription directly from Stripe to ensure we have the latest data
+        // This is important because the webhook object might not have all fields updated
+        try {
+          const latestSubscription = await stripe.subscriptions.retrieve(subscription.id);
+          console.log("[WEBHOOK] Retrieved latest subscription from Stripe:", {
+            subscriptionId: latestSubscription.id,
+            trial_end: latestSubscription.trial_end,
+            status: latestSubscription.status,
+          });
+          await handleSubscriptionChange(supabase, latestSubscription);
+        } catch (error) {
+          console.error("[WEBHOOK] Error retrieving subscription from Stripe, using webhook object:", error);
+          // Fallback to webhook object if retrieval fails
+          await handleSubscriptionChange(supabase, subscription);
+        }
         break;
       }
 
@@ -613,7 +718,10 @@ async function handleSubscriptionChange(
     subscriptionId: subscription.id,
     customerId,
     status: subscription.status,
-    priceId: subscription.items.data[0]?.price.id
+    priceId: subscription.items.data[0]?.price.id,
+    trial_start: (subscription as any).trial_start,
+    trial_end: (subscription as any).trial_end,
+    trial_end_date: (subscription as any).trial_end ? new Date((subscription as any).trial_end * 1000).toISOString() : null,
   });
   
   // First, try to get userId from checkout session (most reliable when available)
@@ -731,7 +839,7 @@ async function handleSubscriptionChange(
 
         // Create pending subscription ID using customerId (temporary, will be updated when user signs up)
         const pendingSubscriptionId = `pending-${customerId}-${plan.id}`;
-        const status = mapStripeStatus(subscription.status);
+        const status = await mapStripeStatus(subscription.status);
 
         // Check if pending subscription already exists
         const { data: existingPendingSub } = await supabase
@@ -907,7 +1015,7 @@ async function handleSubscriptionChange(
   });
 
   // Update or create subscription
-  const status = mapStripeStatus(subscription.status);
+  const status = await mapStripeStatus(subscription.status);
   const subscriptionId = userId + "-" + plan.id;
   
   console.log("[WEBHOOK:SUBSCRIPTION] Preparing to upsert subscription:", {
@@ -1038,11 +1146,38 @@ async function handleSubscriptionChange(
       newTrialEndDate: now,
     });
   } else {
-    // Preserve trial end date if it exists, or set from Stripe if available
-    if (existingSubData?.trialEndDate) {
+    // Stripe is the source of truth for trial_end - always use it when available
+    const stripeTrialEnd = (subscription as any).trial_end;
+    console.log("[WEBHOOK:SUBSCRIPTION] Trial end processing:", {
+      subscriptionId,
+      stripeTrialEnd,
+      stripeTrialEndDate: stripeTrialEnd ? new Date(stripeTrialEnd * 1000).toISOString() : null,
+      existingTrialEndDate: existingSubData?.trialEndDate,
+      status,
+    });
+    
+    if (stripeTrialEnd) {
+      subscriptionData.trialEndDate = new Date(stripeTrialEnd * 1000);
+      console.log("[WEBHOOK:SUBSCRIPTION] Using trial_end from Stripe:", {
+        subscriptionId,
+        trialEndDate: subscriptionData.trialEndDate.toISOString(),
+        previousTrialEndDate: existingSubData?.trialEndDate,
+        changed: existingSubData?.trialEndDate !== subscriptionData.trialEndDate.toISOString(),
+      });
+    } else if (existingSubData?.trialEndDate && status === "trialing") {
+      // Only preserve existing value if Stripe doesn't have trial_end and status is still trialing
       subscriptionData.trialEndDate = existingSubData.trialEndDate;
-    } else if ((subscription as any).trial_end) {
-      subscriptionData.trialEndDate = new Date((subscription as any).trial_end * 1000);
+      console.log("[WEBHOOK:SUBSCRIPTION] Preserving existing trialEndDate (Stripe has no trial_end):", {
+        subscriptionId,
+        trialEndDate: subscriptionData.trialEndDate,
+      });
+    } else {
+      console.log("[WEBHOOK:SUBSCRIPTION] No trial_end to set:", {
+        subscriptionId,
+        stripeTrialEnd,
+        existingTrialEndDate: existingSubData?.trialEndDate,
+        status,
+      });
     }
   }
 
@@ -1217,7 +1352,12 @@ async function handleInvoicePaymentFailed(
   }
 }
 
-function mapStripeStatus(status: Stripe.Subscription.Status): "active" | "cancelled" | "past_due" | "trialing" {
+/**
+ * Map Stripe subscription status to our internal status format
+ * Exported for reuse in other modules
+ * NOTE: Made async to comply with Next.js 16 Server Actions requirement
+ */
+export async function mapStripeStatus(status: Stripe.Subscription.Status): Promise<"active" | "cancelled" | "past_due" | "trialing"> {
   switch (status) {
     case "active":
       return "active";

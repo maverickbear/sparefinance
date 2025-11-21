@@ -190,7 +190,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
 
   return (
     <>
-      <Card className="bg-gradient-to-br from-background to-muted/20">
+      <Card className="bg-gradient-to-br from-background to-muted/20 mb-6">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-2">

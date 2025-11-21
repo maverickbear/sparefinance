@@ -453,6 +453,17 @@ export default function AccountsPage() {
       </Dialog>
 
       {ConfirmDialog}
+
+      {/* Mobile Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+        <Button
+          size="large"
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={handleAddAccount}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import {
   Table,
   TableBody,
@@ -37,7 +37,7 @@ interface HoldingsTableProps {
 type SortField = "symbol" | "assetType" | "sector" | "marketValue" | "unrealizedPnL" | "unrealizedPnLPercent";
 type SortDirection = "asc" | "desc";
 
-export function HoldingsTable({ holdings }: HoldingsTableProps) {
+export const HoldingsTable = memo(function HoldingsTable({ holdings }: HoldingsTableProps) {
   const [assetTypeFilter, setAssetTypeFilter] = useState<string | null>(null);
   const [sectorFilter, setSectorFilter] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>("marketValue");
@@ -103,14 +103,14 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
     return sorted;
   }, [filteredHoldings, sortField, sortDirection]);
 
-  const handleSort = (field: SortField) => {
+  const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
       setSortDirection("desc");
     }
-  };
+  }, [sortField, sortDirection]);
 
   const SortButton = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <Button
@@ -133,7 +133,7 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
   );
 
   return (
-    <Card className="border-0 shadow-none !p-0">
+    <Card className="border-0 shadow-none !p-0 bg-transparent">
       <CardHeader className="!p-0 !md:p-0">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <CardTitle>Holdings</CardTitle>
@@ -298,5 +298,5 @@ export function HoldingsTable({ holdings }: HoldingsTableProps) {
       </CardContent>
     </Card>
   );
-}
+});
 

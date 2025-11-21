@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/api/feature-guard";
-import { guardFeatureAccess } from "@/lib/api/feature-guard";
+import { guardFeatureAccessReadOnly } from "@/lib/api/feature-guard";
 import { createServerClient } from "@/lib/supabase-server";
 import { 
   getPortfolioSummaryInternal, 
@@ -17,8 +17,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has access to investments
-    const featureGuard = await guardFeatureAccess(userId, "hasInvestments");
+    // Check if user has access to investments (read-only - allows cancelled subscriptions)
+    const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
     if (!featureGuard.allowed) {
       return NextResponse.json(
         { 

@@ -222,7 +222,8 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
     const cacheAge = Date.now() - new Date(user.subscriptionUpdatedAt).getTime();
     const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
     
-    if (cacheAge < CACHE_MAX_AGE) {
+    // If cache age is negative (future timestamp), treat as expired
+    if (cacheAge >= 0 && cacheAge < CACHE_MAX_AGE) {
       log.debug("Using cached subscription data from User table", {
         userId,
         planId: user.effectivePlanId,
@@ -268,29 +269,39 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
         };
       }
     } else {
-      log.debug("Cache expired, falling back to full query", {
-        userId,
-        cacheAge: `${Math.round(cacheAge / 1000)}s`,
-      });
+      // Log if cache is expired (negative age = future timestamp, or too old)
+      if (cacheAge < 0 || cacheAge > 60 * 60 * 1000) {
+        log.debug("Cache expired, falling back to full query", {
+          userId,
+          cacheAge: `${Math.round(cacheAge / 1000)}s`,
+          reason: cacheAge < 0 ? "future_timestamp" : "too_old",
+        });
+      }
     }
   }
 
-  // FALLBACK: If cache is missing or expired, use the original logic
-  // This ensures backward compatibility and handles edge cases
-  log.debug("Using fallback subscription query (cache miss or expired)", { userId });
+  // FALLBACK: If cache is missing or expired, use optimized query logic
+  // Only log if we're actually doing a full query (not just cache miss on first load)
+  if (!user?.effectivePlanId) {
+    log.debug("Using fallback subscription query (cache miss or expired)", { userId });
+  }
   
-  // Get active household for user
-  const { data: activeHousehold, error: activeHouseholdError } = await supabase
+  // ARCHITECTURE: Subscriptions are by household, not by user
+  // All members of the same household share the same subscription
+  // Priority: householdId first (current architecture), then userId (backward compatibility)
+  
+  // Step 1: Get householdId first (needed for primary lookup)
+  let householdId: string | null = null;
+  const { data: activeHousehold } = await supabase
     .from("UserActiveHousehold")
     .select("householdId")
     .eq("userId", userId)
     .maybeSingle();
   
-  // Fallback to default (personal) household if no active household set
-  let householdId: string | null = null;
-  if (!activeHouseholdError && activeHousehold?.householdId) {
+  if (activeHousehold?.householdId) {
     householdId = activeHousehold.householdId;
   } else {
+    // Fallback to default household
     const { data: defaultMember } = await supabase
       .from("HouseholdMemberNew")
       .select("householdId")
@@ -299,100 +310,85 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
       .eq("status", "active")
       .maybeSingle();
     
-    if (defaultMember?.householdId) {
-      householdId = defaultMember.householdId;
-    }
+    householdId = defaultMember?.householdId || null;
   }
 
-  // Try to get subscription by householdId first (new architecture)
-  let subscription: Subscription | null = null;
-  if (householdId) {
-    const { data: householdSubscription, error: householdSubError } = await supabase
-      .from("Subscription")
-      .select("*")
-      .eq("householdId", householdId)
-      .in("status", ["active", "trialing"])
-      .order("createdAt", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    
-    if (!householdSubError && householdSubscription) {
-      subscription = householdSubscription as Subscription;
-      log.debug("Found subscription by householdId:", { userId, householdId, subscriptionId: subscription.id });
-    }
-  }
-
-  // Fallback to userId-based subscription (backward compatibility)
-  if (!subscription) {
-    // Check if user is a household member (legacy support via new table)
-    // Get user's active household and check for subscription
-    const { data: activeHousehold } = await supabase
-      .from("UserActiveHousehold")
-      .select("householdId")
-      .eq("userId", userId)
-      .maybeSingle();
-  
-    if (activeHousehold?.householdId) {
-      const { data: householdSub } = await supabase
-        .from("Subscription")
-        .select("*")
-        .eq("householdId", activeHousehold.householdId)
-        .in("status", ["active", "trialing"])
-        .order("createdAt", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (householdSub) {
-        subscription = householdSub as Subscription;
-        log.debug("Found subscription via active household fallback:", { userId, householdId: activeHousehold.householdId });
-      }
-    }
-
-    // If still no subscription, try to get from user's personal household
-    if (!subscription) {
-      const { data: personalHousehold } = await supabase
-        .from("HouseholdMemberNew")
-        .select("householdId")
-        .eq("userId", userId)
-        .eq("isDefault", true)
-        .eq("status", "active")
-        .maybeSingle();
-      
-      if (personalHousehold?.householdId) {
-        const { data: personalSub } = await supabase
+  // Step 2: Fetch subscriptions in parallel (householdId primary, userId fallback)
+  const [subscriptionByHouseholdResult, subscriptionByUserIdResult] = await Promise.all([
+    // PRIMARY: Get subscription by householdId (current architecture)
+    householdId
+      ? supabase
           .from("Subscription")
           .select("*")
-          .eq("householdId", personalHousehold.householdId)
-          .in("status", ["active", "trialing"])
+          .eq("householdId", householdId)
+          .in("status", ["active", "trialing", "cancelled"])
           .order("createdAt", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (personalSub) {
-          subscription = personalSub as Subscription;
-          log.debug("Found subscription via personal household:", { userId, householdId: personalHousehold.householdId });
-        }
-      }
-  }
-
-    // Fallback: Try to get subscription by userId (backward compatibility)
-    const { data: userSubscription, error: subError } = await supabase
-    .from("Subscription")
-    .select("*")
+          .limit(10)
+          .then(({ data, error }) => {
+            if (error && error.code !== "PGRST116") {
+              log.error("Error fetching subscription by householdId:", error);
+              return null;
+            }
+            if (!data || data.length === 0) {
+              return null;
+            }
+            // Prioritize: active/trialing > cancelled, then by createdAt (newest first)
+            const sorted = data.sort((a, b) => {
+              const aPriority = (a.status === "active" || a.status === "trialing") ? 0 : 1;
+              const bPriority = (b.status === "active" || b.status === "trialing") ? 0 : 1;
+              if (aPriority !== bPriority) return aPriority - bPriority;
+              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            });
+            return sorted[0] as Subscription;
+          })
+      : Promise.resolve(null),
+    // FALLBACK: Get subscription by userId (backward compatibility for old subscriptions)
+    supabase
+      .from("Subscription")
+      .select("*")
       .eq("userId", userId)
-    .in("status", ["active", "trialing"])
-    .order("createdAt", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      .in("status", ["active", "trialing", "cancelled"])
+      .order("createdAt", { ascending: false })
+      .limit(10)
+      .then(({ data, error }) => {
+        if (error && error.code !== "PGRST116") {
+          log.error("Error fetching subscription by userId:", error);
+          return null;
+        }
+        if (!data || data.length === 0) {
+          return null;
+        }
+        // Prioritize: active/trialing > cancelled, then by createdAt (newest first)
+        const sorted = data.sort((a, b) => {
+          const aPriority = (a.status === "active" || a.status === "trialing") ? 0 : 1;
+          const bPriority = (b.status === "active" || b.status === "trialing") ? 0 : 1;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        return sorted[0] as Subscription;
+      })
+  ]);
 
-  if (subError && subError.code !== "PGRST116") {
-    log.error("Error fetching subscription:", subError);
-    }
+  let subscription: Subscription | null = null;
 
-    if (userSubscription) {
-      subscription = userSubscription as Subscription;
-      log.debug("Found subscription by userId (backward compatibility):", { userId, subscriptionId: subscription.id });
-    }
+  // PRIMARY: Use householdId subscription (current architecture - subscriptions are by household)
+  if (subscriptionByHouseholdResult) {
+    subscription = subscriptionByHouseholdResult;
+    log.debug("Found subscription by householdId (primary):", { 
+      userId, 
+      householdId, 
+      subscriptionId: subscription.id,
+      status: subscription.status 
+    });
+  } 
+  // FALLBACK: If no subscription found by householdId, try userId (backward compatibility)
+  else if (subscriptionByUserIdResult) {
+    subscription = subscriptionByUserIdResult;
+    log.debug("Found subscription by userId (fallback for backward compatibility):", { 
+      userId, 
+      subscriptionId: subscription.id, 
+      status: subscription.status 
+    });
   }
 
   if (!subscription) {
@@ -566,7 +562,7 @@ export async function checkTransactionLimit(userId: string, month: Date = new Da
       allowed,
       limit: limits.maxTransactions,
       current,
-      message: allowed ? undefined : `You've reached your monthly transaction limit (${limits.maxTransactions}). Upgrade to continue.`,
+      message: allowed ? undefined : `You've reached your monthly transaction limit (${limits.maxTransactions}).`,
     };
   } catch (error) {
     logger.error("Error in checkTransactionLimit:", error);
@@ -588,34 +584,41 @@ export async function checkAccountLimit(userId: string): Promise<LimitCheckResul
     
     const supabase = await createServerClient();
     
-    // Count accounts where user is owner via userId OR via AccountOwner
-    // Get all account IDs where user is owner via AccountOwner
-    const { data: accountOwners } = await supabase
-      .from("AccountOwner")
-      .select("accountId")
-      .eq("ownerId", userId);
+    // OPTIMIZATION: Fetch all account data in parallel instead of sequentially
+    // This reduces total query time from 3 sequential queries to 2 parallel queries
+    const [accountOwnersResult, directAccountsResult] = await Promise.all([
+      // Get all account IDs where user is owner via AccountOwner
+      supabase
+        .from("AccountOwner")
+        .select("accountId")
+        .eq("ownerId", userId),
+      // Get accounts with userId = userId
+      supabase
+        .from("Account")
+        .select("id")
+        .eq("userId", userId),
+    ]);
 
-    const ownedAccountIds = accountOwners?.map(ao => ao.accountId) || [];
-    
-    // Get all unique account IDs: those with userId = userId OR those in ownedAccountIds
-    const accountIds = new Set<string>();
-    
-    // Get accounts with userId = userId
-    const { data: directAccounts, error: directError } = await supabase
-      .from("Account")
-      .select("id")
-      .eq("userId", userId);
+    const { data: accountOwners, error: accountOwnersError } = accountOwnersResult;
+    const { data: directAccounts, error: directError } = directAccountsResult;
 
+    if (accountOwnersError) {
+      logger.error("Error fetching account owners:", accountOwnersError);
+    }
     if (directError) {
       logger.error("Error fetching direct accounts:", directError);
-    } else {
-      directAccounts?.forEach(acc => accountIds.add(acc.id));
     }
 
-    // Get accounts owned via AccountOwner
+    const ownedAccountIds = accountOwners?.map(ao => ao.accountId) || [];
+    const accountIds = new Set<string>();
+    
+    // Add direct accounts
+    directAccounts?.forEach(acc => accountIds.add(acc.id));
+
+    // Get accounts owned via AccountOwner (only if we have account IDs to fetch)
     let ownedAccounts: { id: string }[] | null = null;
     if (ownedAccountIds.length > 0) {
-      const { data, error: ownedError } = await supabase
+      const { data: ownedAccountsData, error: ownedError } = await supabase
         .from("Account")
         .select("id")
         .in("id", ownedAccountIds);
@@ -623,7 +626,7 @@ export async function checkAccountLimit(userId: string): Promise<LimitCheckResul
       if (ownedError) {
         logger.error("Error fetching owned accounts:", ownedError);
       } else {
-        ownedAccounts = data;
+        ownedAccounts = ownedAccountsData;
         ownedAccounts?.forEach(acc => accountIds.add(acc.id));
       }
     }
@@ -655,7 +658,7 @@ export async function checkAccountLimit(userId: string): Promise<LimitCheckResul
       allowed,
       limit: limits.maxAccounts,
       current: count,
-      message: allowed ? undefined : `You've reached your account limit (${limits.maxAccounts}). Upgrade to continue.`,
+      message: allowed ? undefined : `You've reached your account limit (${limits.maxAccounts}).`,
     };
   } catch (error) {
     logger.error("Error in checkAccountLimit:", error);

@@ -73,12 +73,21 @@ export async function getHoldings(
   // See: docs/ANALISE_PORTFOLIO_CALCULOS.md for details.
 
   // First, try to get holdings from Questrade positions (more accurate and faster)
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   const { data: questradePositions, error: positionsError } = await supabase
     .from("Position")
     .select(`
-      *,
-      security:Security(*),
-      account:InvestmentAccount(*)
+      securityId,
+      accountId,
+      openQuantity,
+      averageEntryPrice,
+      totalCost,
+      currentPrice,
+      currentMarketValue,
+      openPnl,
+      lastUpdatedAt,
+      security:Security(id, symbol, name, class, sector),
+      account:InvestmentAccount(id, name)
     `)
     .gt("openQuantity", 0)
     .order("lastUpdatedAt", { ascending: false });
@@ -131,12 +140,20 @@ export async function getHoldings(
   // Fallback to calculating from transactions if no Questrade positions
   // Note: This fallback is slower but necessary if views/positions are not available
 
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   let query = supabase
     .from("InvestmentTransaction")
     .select(`
-      *,
-      security:Security(*),
-      account:Account!InvestmentTransaction_accountId_fkey(*)
+      id,
+      date,
+      type,
+      quantity,
+      price,
+      fees,
+      securityId,
+      accountId,
+      security:Security(id, symbol, name, class, sector),
+      account:Account!InvestmentTransaction_accountId_fkey(id, name)
     `)
     .order("date", { ascending: true });
 
@@ -192,10 +209,16 @@ export async function getHoldings(
     // Create unique key for security+account combination
     const holdingKey = `${securityId}_${accountIdForTx}`;
 
-    const symbol = tx.security.symbol;
-    const name = tx.security.name;
-    const assetType = tx.security.class || "Stock";
-    const sector = tx.security.sector || mapClassToSector(assetType, symbol);
+    // Handle security as either array or single object (Supabase can return either)
+    const securityData = Array.isArray(tx.security) ? tx.security[0] : tx.security;
+    if (!securityData) {
+      continue;
+    }
+
+    const symbol = securityData.symbol;
+    const name = securityData.name;
+    const assetType = securityData.class || "Stock";
+    const sector = securityData.sector || mapClassToSector(assetType, symbol);
 
     if (!holdingKeyMap.has(holdingKey)) {
       holdingKeyMap.set(holdingKey, {
@@ -379,12 +402,23 @@ export async function getInvestmentTransactions(filters?: {
 }) {
     const supabase = await createServerClient();
 
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   let query = supabase
     .from("InvestmentTransaction")
     .select(`
-      *,
-      account:Account(*),
-      security:Security(*)
+      id,
+      date,
+      type,
+      quantity,
+      price,
+      fees,
+      notes,
+      securityId,
+      accountId,
+      createdAt,
+      updatedAt,
+      account:Account(id, name, type),
+      security:Security(id, symbol, name, class, sector)
     `)
     .order("date", { ascending: false });
 

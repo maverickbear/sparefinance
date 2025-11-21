@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,7 @@ interface HoldingsMobileCardProps {
   holding: Holding;
 }
 
-export function HoldingsMobileCard({ holding }: HoldingsMobileCardProps) {
+export const HoldingsMobileCard = memo(function HoldingsMobileCard({ holding }: HoldingsMobileCardProps) {
   return (
     <Card>
       <CardContent className="p-4">
@@ -92,5 +93,5 @@ export function HoldingsMobileCard({ holding }: HoldingsMobileCardProps) {
       </CardContent>
     </Card>
   );
-}
+});
 

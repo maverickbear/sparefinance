@@ -29,7 +29,6 @@ import { EmptyState } from "@/components/common/empty-state";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
-import { FeatureGuard } from "@/components/common/feature-guard";
 
 interface Debt {
   id: string;
@@ -199,7 +198,7 @@ export default function DebtsPage() {
 
 
   return (
-    <FeatureGuard feature="hasDebts" featureName="Debt Tracking" requiredPlan="essential">
+    <>
       <PageHeader
         title="Debts"
       >
@@ -414,7 +413,22 @@ export default function DebtsPage() {
       </Dialog>
       {ConfirmDialog}
       </div>
-    </FeatureGuard>
+
+      {/* Mobile Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+        <Button
+          size="large"
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={() => {
+            if (!checkWriteAccess()) return;
+            setSelectedDebt(null);
+            setIsFormOpen(true);
+          }}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
+    </>
   );
 }
 

@@ -41,8 +41,8 @@ async function preloadUserData() {
         return profile;
       }).catch(() => null),
       // Preload subscription/billing data (without limits - loaded later when needed)
-      // Optimized: Skip Stripe API call and limits check during signup for faster loading
-      fetch("/api/billing/subscription?skipStripe=true", { cache: "no-store" }).then(async (r) => {
+      // Optimized: Stripe API call is now opt-in (includeStripe=true) for faster loading
+      fetch("/api/billing/subscription", { cache: "no-store" }).then(async (r) => {
         if (!r.ok) return null;
         const subData = await r.json();
         if (!subData) return null;

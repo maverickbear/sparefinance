@@ -6,7 +6,6 @@ export interface PlanError {
   feature?: string;
   currentPlan?: string;
   requiredPlan?: string;
-  upgradeUrl?: string;
 }
 
 /**
@@ -35,23 +34,23 @@ export function getPlanErrorMessage(
 ): string {
   switch (code) {
     case PlanErrorCode.TRANSACTION_LIMIT_REACHED:
-      return `You've reached your monthly transaction limit (${options?.limit || 50}). Upgrade your plan to continue adding transactions.`;
+      return `You've reached your monthly transaction limit (${options?.limit || 50}).`;
     
     case PlanErrorCode.ACCOUNT_LIMIT_REACHED:
-      return `You've reached your account limit (${options?.limit || 2}). Upgrade your plan to add more accounts.`;
+      return `You've reached your account limit (${options?.limit || 2}).`;
     
     case PlanErrorCode.FEATURE_NOT_AVAILABLE:
       const featureName = options?.feature || "This feature";
-      return `${featureName} is not available in your current plan. Upgrade to access this feature.`;
+      return `${featureName} is not available in your current plan.`;
     
     case PlanErrorCode.HOUSEHOLD_MEMBERS_NOT_AVAILABLE:
-      return "Household members are not available in your current plan. Upgrade to Pro to add family members.";
+      return "Household members are not available in your current plan.";
     
     case PlanErrorCode.SUBSCRIPTION_INACTIVE:
       return options?.message || "Your subscription is not active. Please renew your subscription to continue using this feature.";
     
     default:
-      return "This action is not available in your current plan. Please upgrade to continue.";
+      return "This action is not available in your current plan.";
   }
 }
 
@@ -94,7 +93,6 @@ export function createPlanError(
     feature: options?.feature,
     currentPlan: options?.currentPlan || "essential",
     requiredPlan,
-    upgradeUrl: `/pricing?upgrade=${requiredPlan}`,
   };
 }
 

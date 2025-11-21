@@ -17,7 +17,6 @@ import { endOfMonth } from "date-fns/endOfMonth";
 import { eachMonthOfInterval } from "date-fns/eachMonthOfInterval";
 import { subMonths } from "date-fns/subMonths";
 import { PlanFeatures } from "@/lib/validations/plan";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import type { Budget } from "@/lib/api/budgets";
 import type { Transaction } from "@/lib/api/transactions-client";
 import type { DebtWithCalculations } from "@/lib/api/debts";
@@ -27,7 +26,6 @@ import type { Account } from "@/lib/api/accounts-client";
 import type { PortfolioSummary, HistoricalDataPoint } from "@/lib/api/portfolio";
 import type { Holding } from "@/lib/api/investments";
 import type { ReportPeriod } from "@/components/reports/report-filters";
-import { FinancialOverviewCard } from "@/components/reports/financial-overview-card";
 import { InvestmentPerformanceSection } from "@/components/reports/investment-performance-section";
 import { DebtAnalysisSection } from "@/components/reports/debt-analysis-section";
 import { GoalsProgressSection } from "@/components/reports/goals-progress-section";
@@ -36,7 +34,6 @@ import { SpendingPatternsSection } from "@/components/reports/spending-patterns-
 import { FinancialHealthInsights } from "@/components/reports/financial-health-insights";
 import { IncomeExpensesChart } from "@/components/charts/income-expenses-chart";
 import { CategoryExpensesChart } from "@/components/charts/category-expenses-chart";
-import { PageHeader } from "@/components/common/page-header";
 import { FixedTabsWrapper } from "@/components/common/fixed-tabs-wrapper";
 
 interface ReportsContentProps {
@@ -165,10 +162,6 @@ export function ReportsContent({
 
   return (
     <SimpleTabs defaultValue="overview" className="w-full">
-      <PageHeader
-        title="Reports"
-      />
-
       {/* Fixed Tabs - Desktop only */}
       <FixedTabsWrapper>
           <SimpleTabsList className="flex-wrap">
@@ -220,32 +213,28 @@ export function ReportsContent({
         </div>
       </div>
 
-      <div className="w-full p-4 lg:p-8">
-        {/* Financial Overview - Always visible */}
-        <FinancialOverviewCard
-          currentMonthTransactions={currentMonthTransactions}
-          lastMonthTransactions={lastMonthTransactions}
-          financialHealth={financialHealth}
-          now={now}
-        />
-
+      <div className="w-full">
         {/* Overview Tab */}
         <SimpleTabsContent value="overview">
         {/* Income vs Expenses Trend */}
           {monthlyData.length > 0 && (
-            <IncomeExpensesChart data={monthlyData} />
+            <div className="pb-8">
+              <IncomeExpensesChart data={monthlyData} />
+            </div>
           )}
 
           {/* Category Breakdown */}
           {categoryExpensesData.length > 0 && (
-            <CategoryExpensesChart
-              data={categoryExpensesData}
-              totalIncome={currentIncome}
-            />
+            <div className="pb-8">
+              <CategoryExpensesChart
+                data={categoryExpensesData}
+                totalIncome={currentIncome}
+              />
+            </div>
           )}
 
           {/* Monthly Summary Table */}
-          <div className="space-y-2">
+          <div className="space-y-2 pb-8">
             <h3 className="text-lg md:text-xl font-semibold">Monthly Summary</h3>
               <div className="rounded-[12px] border overflow-x-auto">
                 <Table>
@@ -299,98 +288,112 @@ export function ReportsContent({
           </div>
 
           {/* Top 10 Expenses */}
-          <FeatureGuard feature="hasAdvancedReports" featureName="Advanced Reports">
-            <div className="space-y-2">
-              <h3 className="text-lg md:text-xl font-semibold">Top 10 Expenses</h3>
-                <div className="rounded-[12px] border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs md:text-sm">Date</TableHead>
-                        <TableHead className="text-xs md:text-sm hidden md:table-cell">Description</TableHead>
-                        <TableHead className="text-xs md:text-sm">Category</TableHead>
-                        <TableHead className="text-xs md:text-sm hidden sm:table-cell">Account</TableHead>
-                        <TableHead className="text-right text-xs md:text-sm">Amount</TableHead>
+          <div className="space-y-2 pb-8">
+            <h3 className="text-lg md:text-xl font-semibold">Top 10 Expenses</h3>
+              <div className="rounded-[12px] border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs md:text-sm">Date</TableHead>
+                      <TableHead className="text-xs md:text-sm hidden md:table-cell">Description</TableHead>
+                      <TableHead className="text-xs md:text-sm">Category</TableHead>
+                      <TableHead className="text-xs md:text-sm hidden sm:table-cell">Account</TableHead>
+                      <TableHead className="text-right text-xs md:text-sm">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topExpenses.map((tx) => (
+                      <TableRow key={tx.id}>
+                        <TableCell className="font-medium text-xs md:text-sm whitespace-nowrap">{format(new Date(tx.date), "MMM dd, yyyy")}</TableCell>
+                        <TableCell className="text-xs md:text-sm hidden md:table-cell max-w-[150px] truncate">{tx.description || "-"}</TableCell>
+                        <TableCell className="text-xs md:text-sm">
+                          {tx.category?.name}
+                          {tx.subcategory && ` / ${tx.subcategory.name}`}
+                        </TableCell>
+                        <TableCell className="text-xs md:text-sm hidden sm:table-cell">{tx.account?.name}</TableCell>
+                        <TableCell className="text-right font-medium text-red-600 dark:text-red-400 text-xs md:text-sm">
+                          {formatMoney(tx.amount)}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {topExpenses.map((tx) => (
-                        <TableRow key={tx.id}>
-                          <TableCell className="font-medium text-xs md:text-sm whitespace-nowrap">{format(new Date(tx.date), "MMM dd, yyyy")}</TableCell>
-                          <TableCell className="text-xs md:text-sm hidden md:table-cell max-w-[150px] truncate">{tx.description || "-"}</TableCell>
-                          <TableCell className="text-xs md:text-sm">
-                            {tx.category?.name}
-                            {tx.subcategory && ` / ${tx.subcategory.name}`}
-                          </TableCell>
-                          <TableCell className="text-xs md:text-sm hidden sm:table-cell">{tx.account?.name}</TableCell>
-                          <TableCell className="text-right font-medium text-red-600 dark:text-red-400 text-xs md:text-sm">
-                            {formatMoney(tx.amount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {topExpenses.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="p-0">
-                            <div className="flex items-center justify-center py-8 w-full">
-                              <div className="text-center text-muted-foreground">
-                                No expenses found
-                              </div>
+                    ))}
+                    {topExpenses.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="p-0">
+                          <div className="flex items-center justify-center py-8 w-full">
+                            <div className="text-center text-muted-foreground">
+                              No expenses found
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-            </div>
-          </FeatureGuard>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+          </div>
         </SimpleTabsContent>
 
         {/* Income & Expenses Tab */}
         <SimpleTabsContent value="income-expenses">
           {monthlyData.length > 0 && (
-            <IncomeExpensesChart data={monthlyData} />
+            <div className="pb-8">
+              <IncomeExpensesChart data={monthlyData} />
+            </div>
           )}
           {categoryExpensesData.length > 0 && (
-            <CategoryExpensesChart
-              data={categoryExpensesData}
-              totalIncome={currentIncome}
-            />
+            <div className="pb-8">
+              <CategoryExpensesChart
+                data={categoryExpensesData}
+                totalIncome={currentIncome}
+              />
+            </div>
           )}
-          <SpendingPatternsSection transactions={historicalTransactions} />
+          <div className="pb-8">
+            <SpendingPatternsSection transactions={historicalTransactions} />
+          </div>
         </SimpleTabsContent>
 
         {/* Investments Tab */}
         <SimpleTabsContent value="investments">
-          <InvestmentPerformanceSection
-            portfolioSummary={portfolioSummary}
-            portfolioHoldings={portfolioHoldings}
-            portfolioHistorical={portfolioHistorical}
-          />
+          <div className="pb-8">
+            <InvestmentPerformanceSection
+              portfolioSummary={portfolioSummary}
+              portfolioHoldings={portfolioHoldings}
+              portfolioHistorical={portfolioHistorical}
+            />
+          </div>
         </SimpleTabsContent>
 
         {/* Debts Tab */}
         <SimpleTabsContent value="debts">
-          <DebtAnalysisSection debts={debts} />
+          <div className="pb-8">
+            <DebtAnalysisSection debts={debts} />
+          </div>
         </SimpleTabsContent>
 
         {/* Goals Tab */}
         <SimpleTabsContent value="goals">
-          <GoalsProgressSection goals={goals} />
+          <div className="pb-8">
+            <GoalsProgressSection goals={goals} />
+          </div>
         </SimpleTabsContent>
 
         {/* Accounts Tab */}
         <SimpleTabsContent value="accounts">
-          <AccountBalancesSection
-            accounts={accounts}
-            historicalTransactions={historicalTransactions}
-            now={now}
-          />
+          <div className="pb-8">
+            <AccountBalancesSection
+              accounts={accounts}
+              historicalTransactions={historicalTransactions}
+              now={now}
+            />
+          </div>
         </SimpleTabsContent>
 
         {/* Insights Tab */}
       <SimpleTabsContent value="insights">
-        <FinancialHealthInsights financialHealth={financialHealth} />
+        <div className="pb-8">
+          <FinancialHealthInsights financialHealth={financialHealth} />
+        </div>
       </SimpleTabsContent>
       </div>
     </SimpleTabs>

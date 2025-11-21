@@ -1,20 +1,16 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 
 interface LimitWarningProps {
   current: number;
   limit: number;
   type: "transactions" | "accounts";
   className?: string;
-  onUpgradeSuccess?: () => void;
 }
 
-export function LimitWarning({ current, limit, type, className = "", onUpgradeSuccess }: LimitWarningProps) {
-  const router = useRouter();
+export function LimitWarning({ current, limit, type, className = "" }: LimitWarningProps) {
   // Show warning when at 80% or more
   const percentage = (current / limit) * 100;
   const showWarning = percentage >= 80;
@@ -39,8 +35,8 @@ export function LimitWarning({ current, limit, type, className = "", onUpgradeSu
           <p className="text-sm text-yellow-800 dark:text-yellow-200">
             {isAtLimit
               ? type === "accounts"
-                ? `You're using all ${limit} of your ${typeName}. Upgrade to unlock unlimited ${typeName} and more powerful features!`
-                : `You've used all ${limit} ${typeName} this month. Upgrade to unlock unlimited ${typeName} and keep tracking your finances without limits!`
+                ? `You're using all ${limit} of your ${typeName}.`
+                : `You've used all ${limit} ${typeName} this month.`
               : `You've used ${current} of ${limit} ${typeName} this month. ${remaining} ${typeNameSingular}${remaining !== 1 ? "s" : ""} remaining.`}
           </p>
         </div>
@@ -58,14 +54,6 @@ export function LimitWarning({ current, limit, type, className = "", onUpgradeSu
             <span>{percentage.toFixed(0)}%</span>
           </div>
         </div>
-        <Button 
-          variant="default" 
-          className="w-full sm:w-auto"
-          onClick={() => router.push("/pricing")}
-        >
-          {isAtLimit ? "Unlock Unlimited Access" : "Upgrade Plan"}
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
       </AlertDescription>
     </Alert>
   );

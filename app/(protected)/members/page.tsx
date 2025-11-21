@@ -14,7 +14,6 @@ import { Plus, Edit as EditIcon, Trash2, Crown, Mail, Users, Loader2 } from "luc
 import { MemberForm } from "@/components/members/member-form";
 import type { HouseholdMember } from "@/lib/api/members-client";
 import { useSubscription } from "@/hooks/use-subscription";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { EmptyState } from "@/components/common/empty-state";
 import {
   Table,
@@ -147,8 +146,7 @@ export default function MembersPage() {
   }
 
   return (
-    <FeatureGuard feature="hasHousehold" featureName="Household Members" requiredPlan="pro">
-      <div>
+    <div>
       <PageHeader
         title="Household Members"
       >
@@ -331,7 +329,22 @@ export default function MembersPage() {
       />
       {ConfirmDialog}
       </div>
+
+      {/* Mobile Floating Action Button */}
+      {(currentUserRole === "admin" || currentUserRole === "super_admin" || currentUserRole === null) && (
+        <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+          <Button
+            size="large"
+            className="h-14 w-14 rounded-full shadow-lg"
+            onClick={() => {
+              if (!checkWriteAccess()) return;
+              setIsFormOpen(true);
+            }}
+          >
+            <Plus className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
       </div>
-    </FeatureGuard>
   );
 }

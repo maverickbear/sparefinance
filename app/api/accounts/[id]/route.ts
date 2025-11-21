@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateAccount, deleteAccount } from "@/lib/api/accounts";
 import { AccountFormData } from "@/lib/validations/account";
 import { createServerClient } from "@/lib/supabase-server";
+import { requireAccountOwnership } from "@/lib/utils/security";
 
 export async function GET(
   request: NextRequest,
@@ -9,9 +10,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    
+    // SECURITY: Verify user has access to this account (own account or household member)
+    await requireAccountOwnership(id);
+    
     const supabase = await createServerClient();
     
-    // Get account first
+    // Get account first (RLS will ensure user can only see accounts they have access to)
     const { data: account, error: accountError } = await supabase
       .from('Account')
       .select('*')

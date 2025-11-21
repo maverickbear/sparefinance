@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
+import { ServiceWorkerRegister } from "./sw-register";
 // PlanLimitsProvider removed - SubscriptionProvider in protected layout handles this
 
 const inter = Inter({ 
@@ -42,6 +43,7 @@ export default function RootLayout({
           <ToastProvider>
             <LayoutWrapper>{children}</LayoutWrapper>
             <KBarWrapper />
+            <ServiceWorkerRegister />
           </ToastProvider>
         </ThemeProvider>
       </body>

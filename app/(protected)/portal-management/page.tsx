@@ -32,6 +32,9 @@ import { PlansTable } from "@/components/admin/plans-table";
 import { PlanDialog } from "@/components/admin/plan-dialog";
 import type { Plan } from "@/lib/validations/plan";
 import { CreditCard } from "lucide-react";
+import { SubscriptionDialog } from "@/components/admin/subscription-dialog";
+import { BlockUserDialog } from "@/components/admin/block-user-dialog";
+import { UnblockUserDialog } from "@/components/admin/unblock-user-dialog";
 
 export default function PortalManagementPage() {
   const router = useRouter();
@@ -69,6 +72,18 @@ export default function PortalManagementPage() {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [isPlanDialogOpen, setIsPlanDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  
+  // Subscription dialog state
+  const [isSubscriptionDialogOpen, setIsSubscriptionDialogOpen] = useState(false);
+  const [subscriptionUser, setSubscriptionUser] = useState<AdminUser | null>(null);
+  
+  // Block user dialog state
+  const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
+  const [blockUser, setBlockUser] = useState<AdminUser | null>(null);
+  
+  // Unblock user dialog state
+  const [isUnblockDialogOpen, setIsUnblockDialogOpen] = useState(false);
+  const [unblockUser, setUnblockUser] = useState<AdminUser | null>(null);
   
   // Dashboard state
   const [dashboardData, setDashboardData] = useState<{
@@ -112,7 +127,7 @@ export default function PortalManagementPage() {
     }
   }, [isSuperAdmin]);
 
-  // Lazy load data when tab changes
+    // Lazy load data when tab changes
   useEffect(() => {
     if (!isSuperAdmin) return;
     
@@ -217,6 +232,30 @@ export default function PortalManagementPage() {
   function handleEditPlan(plan: Plan) {
     setEditingPlan(plan);
     setIsPlanDialogOpen(true);
+  }
+
+  function handleManageSubscription(user: AdminUser) {
+    if (!user.subscription || !user.subscription.stripeSubscriptionId) {
+      console.error("User does not have a valid subscription");
+      return;
+    }
+    setSubscriptionUser(user);
+    setIsSubscriptionDialogOpen(true);
+  }
+
+  function handleBlockUser(user: AdminUser) {
+    setBlockUser(user);
+    setIsBlockDialogOpen(true);
+  }
+
+  function handleUnblockUser(user: AdminUser) {
+    setUnblockUser(user);
+    setIsUnblockDialogOpen(true);
+  }
+
+  function handleSuccess() {
+    loadUsers(); // Refresh users to show updated info
+    loadDashboard(); // Refresh dashboard to update metrics
   }
 
   async function loadDashboard() {
@@ -638,7 +677,15 @@ export default function PortalManagementPage() {
               </div>
             </div>
           </div>
-          <UsersTable users={users} loading={loading} searchQuery={userSearchQuery} onSearchChange={setUserSearchQuery} />
+          <UsersTable 
+            users={users} 
+            loading={loading} 
+            searchQuery={userSearchQuery} 
+            onSearchChange={setUserSearchQuery}
+            onManageSubscription={handleManageSubscription}
+            onBlockUser={handleBlockUser}
+            onUnblockUser={handleUnblockUser}
+          />
         </SimpleTabsContent>
 
         <SimpleTabsContent value="promo-codes">
@@ -970,6 +1017,42 @@ export default function PortalManagementPage() {
           // Reload plans to show updated data
           await loadAdminPlans();
         }}
+      />
+
+      <SubscriptionDialog
+        user={subscriptionUser}
+        open={isSubscriptionDialogOpen}
+        onOpenChange={(open) => {
+          setIsSubscriptionDialogOpen(open);
+          if (!open) {
+            setSubscriptionUser(null);
+          }
+        }}
+        onSuccess={handleSuccess}
+      />
+
+      <BlockUserDialog
+        user={blockUser}
+        open={isBlockDialogOpen}
+        onOpenChange={(open) => {
+          setIsBlockDialogOpen(open);
+          if (!open) {
+            setBlockUser(null);
+          }
+        }}
+        onSuccess={handleSuccess}
+      />
+
+      <UnblockUserDialog
+        user={unblockUser}
+        open={isUnblockDialogOpen}
+        onOpenChange={(open) => {
+          setIsUnblockDialogOpen(open);
+          if (!open) {
+            setUnblockUser(null);
+          }
+        }}
+        onSuccess={handleSuccess}
       />
       </div>
     </SimpleTabs>

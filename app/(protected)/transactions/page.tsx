@@ -63,7 +63,6 @@ import { useToast } from "@/components/toast-provider";
 import type { Transaction } from "@/lib/api/transactions-client";
 import type { Category } from "@/lib/api/categories-client";
 import { useSubscription } from "@/hooks/use-subscription";
-import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { Badge } from "@/components/ui/badge";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1137,7 +1136,7 @@ export default function TransactionsPage() {
     if (!hasAccess) {
       toast({
         title: "CSV Export Not Available",
-        description: "CSV export is not available in your current plan. Upgrade to Essential or Pro to export your transactions.",
+        description: "CSV export is not available in your current plan.",
         variant: "destructive",
       });
       return;
@@ -1714,22 +1713,26 @@ export default function TransactionsPage() {
             </SimpleTabsTrigger>
           </SimpleTabsList>
         </div>
-      </div>
-
-      {/* Floating Filter Button - Mobile only */}
-      <div className="lg:hidden fixed bottom-24 right-4 z-[60]">
-          <Button 
-          onClick={() => setIsFiltersModalOpen(true)}
-          className="h-14 w-14 rounded-full shadow-lg"
-          size="icon"
-        >
-          <Filter className="h-5 w-5" />
-          {(filters.accountId !== "all" || filters.search || filters.recurring !== "all" || dateRange !== "all-dates" || customDateRange || filters.categoryId !== "all") && (
-            <Badge variant="secondary" className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
-              !
-            </Badge>
-          )}
-        </Button>
+        
+        {/* Filter Button - Mobile only, shown when there are transactions */}
+        {transactions.length > 0 && (
+          <div className="flex items-center justify-end px-4 py-2 border-t">
+            <Button 
+              variant="outline"
+              size="small"
+              onClick={() => setIsFiltersModalOpen(true)}
+              className="text-xs"
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+              {(filters.accountId !== "all" || filters.search || filters.recurring !== "all" || dateRange !== "all-dates" || customDateRange || filters.categoryId !== "all") && (
+                <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
+                  Active
+                </Badge>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Content Container */}
@@ -2107,7 +2110,7 @@ export default function TransactionsPage() {
 
         {/* Pagination Controls - Desktop only */}
         {transactions.length > 0 && (
-          <div className="hidden lg:flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
+          <div className="hidden lg:flex flex-col sm:flex-row items-center justify-between gap-4 px-2 mt-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Items per page:</span>
             <Select
@@ -2429,6 +2432,23 @@ export default function TransactionsPage() {
       </Dialog>
       {DeleteConfirmDialog}
       {DeleteMultipleConfirmDialog}
+
+      {/* Mobile Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+        <Button
+          size="large"
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={() => {
+            if (!checkWriteAccess()) {
+              return;
+            }
+            setSelectedTransaction(null);
+            setIsFormOpen(true);
+          }}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
     </SimpleTabs>
   );
 }

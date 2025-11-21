@@ -103,12 +103,15 @@ export default async function PrivacyPolicyPage() {
                   To provide our services, we collect and store:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li>Transaction data (amounts, dates, descriptions, categories, subcategories)</li>
-                  <li>Account information (account names, types, balances, limits)</li>
-                  <li>Budget and goal information (monthly budgets, savings goals, progress tracking)</li>
-                  <li>Investment and debt tracking data (securities, holdings, portfolio values, debt balances, payment schedules)</li>
-                  <li>Bank account data (when connected via Plaid): account numbers (masked), transaction history, balances, account types</li>
+                  <li>Transaction data (amounts, dates, descriptions, categories, subcategories, tags, recurring patterns)</li>
+                  <li>Account information (account names, types, balances, limits, credit limits, account numbers when applicable)</li>
+                  <li>Budget and goal information (monthly budgets, savings goals, progress tracking, target amounts, priorities)</li>
+                  <li>Investment data: securities (stocks, ETFs, bonds), holdings, positions, portfolio values, investment transactions (buys, sells, dividends, transfers), market prices, asset allocation</li>
+                  <li>Debt tracking data: loan types, balances, interest rates, payment schedules, minimum payments, due dates, payment history, principal and interest paid</li>
+                  <li>Bank account data (when connected via Plaid): account numbers (masked), transaction history, balances, account types, liability information (credit cards, loans)</li>
+                  <li>Investment account data (when connected via Questrade): account numbers, holdings, positions, transactions, portfolio values, cash balances, market values, buying power</li>
                   <li>Category learning data: historical transaction patterns used for AI-powered categorization suggestions</li>
+                  <li>AI interaction data: queries, responses, and insights generated through AI features</li>
                 </ul>
               </div>
 
@@ -139,15 +142,19 @@ export default async function PrivacyPolicyPage() {
                 <li>Provide, maintain, and improve our services</li>
                 <li>Process transactions and manage your account</li>
                 <li>Sync bank account data through Plaid integration ({essentialPlanName} and {proPlanName} plans)</li>
-                <li>Provide AI-powered category suggestions based on your transaction history</li>
+                <li>Sync investment account data through Questrade integration ({essentialPlanName} and {proPlanName} plans)</li>
+                <li>Provide AI-powered category suggestions and financial insights using OpenAI</li>
                 <li>Manage household member accounts and permissions ({proPlanName} plan)</li>
                 <li>Calculate budgets, goals, investments, and debt tracking</li>
-                <li>Generate reports and analytics</li>
-                <li>Send you important updates and notifications</li>
+                <li>Generate reports, analytics, and financial health scores</li>
+                <li>Send you important updates, notifications, and transactional emails via Resend</li>
                 <li>Respond to your inquiries and provide customer support</li>
+                <li>Monitor service performance and errors using Sentry</li>
                 <li>Detect, prevent, and address technical issues and security threats</li>
                 <li>Comply with legal obligations and enforce our terms</li>
                 <li>Personalize your experience and provide relevant content</li>
+                <li>Track account usage and enforce subscription plan limits</li>
+                <li>Maintain security logs and audit trails for account actions</li>
               </ul>
             </CardContent>
           </Card>
@@ -169,7 +176,20 @@ export default async function PrivacyPolicyPage() {
                     We do not store payment card information - all payment data is handled by Stripe.</li>
                     <li><strong>Plaid:</strong> For secure bank account connections ({essentialPlanName} and {proPlanName} plans only). 
                     We only receive account information, transactions, and balances - we never access your bank credentials.</li>
-                    <li>Cloud hosting and infrastructure providers</li>
+                    <li><strong>Questrade:</strong> For investment account connections ({essentialPlanName} and {proPlanName} plans only). 
+                    We receive investment account data, holdings, positions, and transactions through the Questrade API. 
+                    We store encrypted authorization tokens to maintain connections.</li>
+                    <li><strong>OpenAI:</strong> For AI-powered categorization and financial insights. 
+                    Transaction data and patterns may be processed by OpenAI to generate category suggestions and insights. 
+                    We do not share personally identifiable information with OpenAI beyond what is necessary for the service.</li>
+                    <li><strong>Sentry:</strong> For error tracking and performance monitoring. 
+                    Error logs may include technical information about your use of the service, but we filter sensitive data before sending to Sentry.</li>
+                    <li><strong>Resend:</strong> For sending transactional emails (verification codes, password resets, notifications). 
+                    Email addresses and basic account information are shared with Resend for email delivery.</li>
+                    <li><strong>Supabase:</strong> For database hosting, authentication, and cloud infrastructure. 
+                    All your data is stored securely in Supabase's infrastructure.</li>
+                    <li><strong>Vercel:</strong> For application hosting and content delivery. 
+                    Usage data and performance metrics may be collected by Vercel.</li>
                   </ul>
                 </li>
                 <li>
@@ -232,10 +252,11 @@ export default async function PrivacyPolicyPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                     <li>Plaid securely authenticates your bank credentials using bank-level security</li>
-                    <li>We only receive account information (account names, types, masked account numbers), transaction data (amounts, dates, descriptions, categories), and balances in real-time</li>
+                    <li>We only receive account information (account names, types, masked account numbers), transaction data (amounts, dates, descriptions, categories), balances, and liability information (for credit cards and loans) in real-time</li>
                     <li>We do not have access to your bank login credentials (username, password, PIN, or security questions)</li>
                     <li>Plaid uses bank-level encryption and security standards (SOC 2 Type 2 certified)</li>
                     <li>Transaction data is automatically synced and categorized using our AI-powered categorization system</li>
+                    <li>We store encrypted Plaid access tokens to maintain your connection</li>
                     <li>You can disconnect your bank account at any time through your account settings, which will stop all data synchronization</li>
                     <li>When you disconnect, we retain historical transaction data that was already imported, but no new data will be collected</li>
                   </ul>
@@ -243,6 +264,88 @@ export default async function PrivacyPolicyPage() {
                     For more information about how Plaid handles your financial data, please review 
                     <a href="https://plaid.com/legal/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
                       Plaid's Privacy Policy
+                    </a>.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Questrade - Investment Account Connection</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    We use Questrade API to securely connect your investment accounts (available on {essentialPlanName} and {proPlanName} plans). 
+                    When you connect your Questrade account:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                    <li>You provide a Questrade authorization token that you generate through the Questrade API Centre</li>
+                    <li>We receive investment account information (account numbers, types, balances), holdings (positions), transactions, portfolio values, and market data</li>
+                    <li>We store encrypted authorization tokens (access token and refresh token) to maintain your connection</li>
+                    <li>Tokens are automatically refreshed when needed to maintain the connection</li>
+                    <li>Investment data is automatically synced on a regular basis</li>
+                    <li>You can disconnect your Questrade account at any time through your account settings</li>
+                    <li>When you disconnect, we retain historical investment data that was already imported, but no new data will be collected</li>
+                    <li>We do not have access to your Questrade account login credentials</li>
+                  </ul>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    For more information about Questrade's data practices, please review 
+                    <a href="https://www.questrade.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
+                      Questrade's Privacy Policy
+                    </a>.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">OpenAI - AI-Powered Features</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    We use OpenAI's API to provide AI-powered categorization and financial insights. When you use AI features:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                    <li>Transaction descriptions and patterns may be sent to OpenAI to generate category suggestions</li>
+                    <li>We do not send personally identifiable information (names, account numbers, exact amounts) to OpenAI</li>
+                    <li>Transaction data is anonymized before processing by OpenAI</li>
+                    <li>AI-generated suggestions are stored in your account for future reference</li>
+                    <li>You can disable or ignore AI suggestions at any time</li>
+                    <li>OpenAI may use data sent to their API to improve their services, but they do not use it to train models that serve other customers</li>
+                  </ul>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    For more information about how OpenAI handles data, please review 
+                    <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
+                      OpenAI's Privacy Policy
+                    </a>.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Sentry - Error Tracking and Monitoring</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    We use Sentry to monitor application errors and performance. When errors occur:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                    <li>Technical error information (error messages, stack traces, performance data) may be sent to Sentry</li>
+                    <li>We filter and remove sensitive data (passwords, payment information, account numbers) before sending to Sentry</li>
+                    <li>Error logs help us identify and fix issues to improve the service</li>
+                    <li>You can opt out of error tracking, though this may limit our ability to provide support</li>
+                  </ul>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    For more information about Sentry's data practices, please review 
+                    <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
+                      Sentry's Privacy Policy
+                    </a>.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Resend - Email Delivery</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    We use Resend to send transactional emails (verification codes, password resets, notifications):
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                    <li>Your email address and basic account information are shared with Resend for email delivery</li>
+                    <li>Resend processes emails on our behalf and does not use your information for their own purposes</li>
+                    <li>You can unsubscribe from marketing emails, but transactional emails (verification, password resets) are required for account security</li>
+                  </ul>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    For more information about Resend's data practices, please review 
+                    <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
+                      Resend's Privacy Policy
                     </a>.
                   </p>
                 </div>
@@ -259,15 +362,21 @@ export default async function PrivacyPolicyPage() {
                 We implement industry-standard security measures to protect your information:
               </p>
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                <li>End-to-end encryption for data transmission (TLS/SSL)</li>
-                <li>Secure data storage with encryption at rest</li>
-                <li>Row Level Security (RLS) at the database level to ensure data isolation between users</li>
-                <li>Secure authentication via Supabase Auth with password hashing</li>
+                <li>End-to-end encryption for data transmission (TLS 1.2+)</li>
+                <li>Secure data storage with encryption at rest (AES-256-GCM for sensitive data)</li>
+                <li>Row Level Security (RLS) at the database level to ensure data isolation between users and households</li>
+                <li>Secure authentication via Supabase Auth with password hashing and email verification (OTP)</li>
+                <li>Encrypted storage of sensitive tokens (Plaid access tokens, Questrade authorization tokens) using AES-256-GCM</li>
                 <li>Regular security audits and vulnerability assessments</li>
                 <li>Access controls and authentication mechanisms</li>
-                <li>Compliance with financial data protection regulations</li>
+                <li>Compliance with financial data protection regulations (PIPEDA, GDPR, CCPA)</li>
                 <li>Bank credentials are never stored - all bank authentication is handled by Plaid</li>
+                <li>Questrade authorization tokens are encrypted before storage</li>
                 <li>Household member data is isolated and only accessible to authorized members</li>
+                <li>Security logging and audit trails for account actions (blocks, suspensions, deletions)</li>
+                <li>Rate limiting to prevent abuse and unauthorized access</li>
+                <li>Content Security Policy (CSP) headers to prevent XSS attacks</li>
+                <li>Secure headers (HSTS, X-Frame-Options, X-Content-Type-Options) for additional protection</li>
               </ul>
               <p className="text-sm text-muted-foreground">
                 However, no method of transmission over the Internet or electronic storage is 100% 
@@ -277,7 +386,13 @@ export default async function PrivacyPolicyPage() {
               <p className="text-sm text-muted-foreground">
                 <strong>AI Categorization Data:</strong> Category learning data is stored locally 
                 within your account and is not shared with other users. The AI system analyzes only 
-                your own historical transaction patterns to provide personalized category suggestions.
+                your own historical transaction patterns to provide personalized category suggestions. 
+                Transaction data sent to OpenAI is anonymized to protect your privacy.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Account Security:</strong> We maintain security logs and audit trails for 
+                account actions including blocks, suspensions, and terminations. This information 
+                is used for security purposes and compliance with our Terms of Service.
               </p>
             </CardContent>
           </Card>
@@ -324,9 +439,19 @@ export default async function PrivacyPolicyPage() {
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 We retain your personal and financial information for as long as your account is 
-                active or as needed to provide our services. If you delete your account, we will 
-                delete or anonymize your data within 30 days, except where we are required to 
-                retain it for legal, regulatory, or legitimate business purposes.
+                active or as needed to provide our services. Specific retention periods:
+              </p>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                <li><strong>Active Accounts:</strong> Data is retained while your account is active and needed for service provision</li>
+                <li><strong>Account Deletion:</strong> Upon account deletion request, data is deleted or anonymized within 30 days</li>
+                <li><strong>Connected Services:</strong> When you disconnect Plaid or Questrade, we retain historical data but stop collecting new data</li>
+                <li><strong>Security Logs:</strong> Security and audit logs (including account blocks and suspensions) may be retained longer for security and compliance purposes</li>
+                <li><strong>Legal Requirements:</strong> Data may be retained longer if required by law, regulation, or legitimate business purposes (e.g., tax records, dispute resolution)</li>
+                <li><strong>Backup Data:</strong> Backup copies may be retained for up to 90 days after deletion for disaster recovery purposes</li>
+              </ul>
+              <p className="text-sm text-muted-foreground mt-2">
+                You can request immediate deletion of your data by contacting us at legal@sparefinance.com. 
+                We will process deletion requests in accordance with applicable data protection laws.
               </p>
             </CardContent>
           </Card>
@@ -361,6 +486,50 @@ export default async function PrivacyPolicyPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Your Rights Under Data Protection Laws</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground mb-2">
+                Depending on your location, you may have additional rights under data protection laws:
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-semibold mb-2">PIPEDA (Canada)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    As a Canadian company, we comply with PIPEDA. You have the right to access, 
+                    correct, and challenge the accuracy of your personal information. You may also 
+                    file a complaint with the Privacy Commissioner of Canada if you believe we have 
+                    violated your privacy rights.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">GDPR (European Economic Area)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    If you are located in the EEA, you have the right to: access your data, rectify 
+                    inaccurate data, erase your data ("right to be forgotten"), restrict processing, 
+                    data portability, object to processing, and withdraw consent. You may also lodge 
+                    a complaint with your local data protection authority.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">CCPA (California)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    If you are a California resident, you have the right to: know what personal 
+                    information is collected, access your personal information, delete your personal 
+                    information, opt-out of the sale of personal information (we do not sell your data), 
+                    and non-discrimination for exercising your rights.
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-4">
+                To exercise any of these rights, please contact us at legal@sparefinance.com. 
+                We will respond to your request within 30 days (or as required by applicable law).
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Contact Us</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -370,9 +539,14 @@ export default async function PrivacyPolicyPage() {
               <div className="space-y-2 text-sm">
                 <p><strong>Company:</strong> Maverick Bear Design (Canadian company)</p>
                 <p><strong>Product:</strong> Spare Finance</p>
-                <p><strong>Email:</strong> legal@sparefinance.com</p>
+                <p><strong>Privacy & Legal:</strong> legal@sparefinance.com</p>
+                <p><strong>Security:</strong> security@sparefinance.com</p>
                 <p><strong>Support:</strong> support@sparefinance.com</p>
               </div>
+              <p className="text-sm text-muted-foreground mt-4">
+                For data protection inquiries, data subject access requests, or to exercise your privacy rights, 
+                please email legal@sparefinance.com with "Privacy Request" in the subject line.
+              </p>
             </CardContent>
           </Card>
         </div>

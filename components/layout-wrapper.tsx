@@ -3,6 +3,7 @@
 import { Nav } from "@/components/nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileHeader } from "@/components/mobile-header";
+import { CancelledSubscriptionBanner } from "@/components/common/cancelled-subscription-banner";
 import { useFixedElementsHeight } from "@/hooks/use-fixed-elements-height";
 import { useEffect, useState } from "react";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
@@ -154,6 +155,16 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // Normal layout with nav for users with subscription or optimistically for dashboard routes
   const showNav = hasSubscription || isDashboardRoute;
   
+  // Debug: Log subscription status for banner visibility
+  if (process.env.NODE_ENV === 'development') {
+    log.debug("Banner visibility check:", {
+      showNav,
+      hasSubscription,
+      subscriptionStatus: subscription?.status,
+      isDashboardRoute,
+    });
+  }
+  
   return (
     <div className="fixed inset-0 overflow-hidden bg-background">
       {/* Sidebar - Fixed Left (full height, desktop only) */}
@@ -178,6 +189,8 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
           }}
         >
           <div className="w-full max-w-full">
+            {/* Cancelled Subscription Banner - Inside Content Container */}
+            {showNav && <CancelledSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />}
             {children}
           </div>
         </main>

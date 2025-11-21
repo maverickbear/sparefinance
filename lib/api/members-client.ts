@@ -56,6 +56,25 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
     return [];
   }
 
+  // SECURITY: Verify that the current user is actually a member of this household
+  // This prevents users from accessing other households by manipulating householdId
+  const { data: userMembership, error: membershipError } = await supabase
+    .from("HouseholdMemberNew")
+    .select("id")
+    .eq("householdId", householdId)
+    .eq("userId", authUser.id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (membershipError || !userMembership) {
+    console.error("User is not a member of this household:", {
+      userId: authUser.id,
+      householdId,
+      error: membershipError,
+    });
+    return [];
+  }
+
   // Get household info to find owner
   const { data: household } = await supabase
     .from("Household")
@@ -67,6 +86,7 @@ export async function getHouseholdMembersClient(): Promise<HouseholdMember[]> {
 
   // Get household members from new table
   // Now we can join with User table because RLS allows household members to see each other's profiles
+  // RLS policies will also ensure only members of this household can see the data
   const { data: members, error } = await supabase
     .from("HouseholdMemberNew")
     .select(`

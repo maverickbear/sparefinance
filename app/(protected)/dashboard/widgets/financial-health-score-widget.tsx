@@ -147,13 +147,13 @@ export function FinancialHealthScoreWidget({
   // Show error state if no data available
   if (!hasData) {
     return (
-      <Card className="h-full">
-        <CardHeader>
+      <Card className="h-full flex flex-col">
+        <CardHeader className="flex-shrink-0">
           <CardTitle>Spare Score</CardTitle>
           <CardDescription>Combined view of spending, savings and debt</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
+        <CardContent className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center text-center">
             <p className="text-sm text-muted-foreground mb-2">
               {financialHealth?.message || "Unable to calculate Spare Score at this time."}
             </p>
@@ -167,25 +167,25 @@ export function FinancialHealthScoreWidget({
   }
 
   return (
-    <Card className="h-full">
-      <CardHeader>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex-shrink-0">
         <CardTitle>Spare Score</CardTitle>
         <CardDescription>Combined view of spending, savings and debt</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
+      <CardContent className="flex-1 flex flex-col min-h-0">
+        <div className="space-y-4 flex-1 flex flex-col">
           {/* Score Display */}
-          <div>
-            <div className={cn("text-5xl lg:text-6xl font-bold tabular-nums leading-none", getScoreColor(score))}>
+          <div className="flex-shrink-0">
+            <div className={cn("text-4xl md:text-5xl lg:text-6xl font-bold tabular-nums leading-none", getScoreColor(score))}>
               {score}
             </div>
-            <div className="text-base font-medium text-foreground mt-2">
+            <div className="text-sm md:text-base font-medium text-foreground mt-1 md:mt-2">
               {getClassificationText(score)}
             </div>
           </div>
 
           {/* Horizontal Gauge */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             {/* Indicator pointer - above bar */}
             <div 
               className="absolute -top-2 -translate-x-1/2 transition-all duration-500 z-10"
@@ -216,7 +216,7 @@ export function FinancialHealthScoreWidget({
           </div>
 
           {/* Insights Button */}
-          <div>
+          <div className="flex-shrink-0 mt-auto">
             <Button
               variant="outline"
               className="w-full gap-2"

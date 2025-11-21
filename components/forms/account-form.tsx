@@ -241,7 +241,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
         if (currentAccountLimit.limit !== -1 && currentAccountLimit.current >= currentAccountLimit.limit) {
           toast({
             title: "Limit Reached",
-            description: `You've reached your account limit (${currentAccountLimit.limit}). Upgrade your plan to add more accounts.`,
+            description: `You've reached your account limit (${currentAccountLimit.limit}).`,
             variant: "destructive",
           });
           setIsSubmitting(false);

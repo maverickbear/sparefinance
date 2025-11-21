@@ -125,46 +125,19 @@ export async function getPortfolioSummaryInternal(
   const { createServerClient } = await import("@/lib/supabase-server");
   const supabase = await createServerClient(accessToken, refreshToken);
 
-  console.log("[Portfolio Summary Internal] Starting calculation...");
-  
   // Use shared data if provided, otherwise fetch it
   const data = sharedData || await getPortfolioInternalData(accessToken, refreshToken);
   const { holdings, accounts: allAccounts, questradeAccounts } = data;
   
-  console.log("[Portfolio Summary Internal] getHoldings() returned", holdings.length, "holdings");
-  
-  // Debug: Log holdings count and values
-  console.log("[Portfolio Summary] Holdings count:", holdings.length);
+  // Only log warnings/errors, not every calculation
   if (holdings.length > 0) {
-    const totalMarketValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
-    const totalBookValue = holdings.reduce((sum, h) => sum + (h.bookValue || 0), 0);
-    console.log("[Portfolio Summary] Total market value from holdings:", totalMarketValue);
-    console.log("[Portfolio Summary] Total book value from holdings:", totalBookValue);
-    console.log("[Portfolio Summary] Sample holdings (first 5):", holdings.slice(0, 5).map(h => ({
-      symbol: h.symbol,
-      quantity: h.quantity,
-      marketValue: h.marketValue,
-      bookValue: h.bookValue,
-      lastPrice: h.lastPrice,
-      avgPrice: h.avgPrice,
-      accountId: h.accountId,
-    })));
-    
-    // Check for holdings with zero marketValue
+    // Check for holdings with zero marketValue (potential data issue)
     const zeroValueHoldings = holdings.filter(h => !h.marketValue || h.marketValue === 0);
     if (zeroValueHoldings.length > 0) {
       console.warn("[Portfolio Summary] WARNING: Found", zeroValueHoldings.length, "holdings with zero marketValue:", 
         zeroValueHoldings.map(h => ({ symbol: h.symbol, quantity: h.quantity, lastPrice: h.lastPrice, avgPrice: h.avgPrice }))
       );
     }
-  } else {
-    console.warn("[Portfolio Summary] WARNING: No holdings found!");
-  }
-  
-  // Debug: Log accounts
-  if (process.env.NODE_ENV === "development") {
-    console.log("[Portfolio Summary] Questrade accounts:", questradeAccounts?.length || 0);
-    console.log("[Portfolio Summary] All investment accounts:", allAccounts.length);
   }
   
   let totalValue: number;
@@ -184,21 +157,10 @@ export async function getPortfolioSummaryInternal(
     
     totalValue = questradeValue + nonQuestradeHoldingsValue;
     
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Portfolio Summary] Questrade value:", questradeValue);
-      console.log("[Portfolio Summary] Non-Questrade holdings value:", nonQuestradeHoldingsValue);
-    }
+    // Removed verbose development logging
   } else {
     // Fallback to calculating from holdings for all accounts
     totalValue = holdings.reduce((sum, h) => sum + (h.marketValue || 0), 0);
-    
-    console.log("[Portfolio Summary] No Questrade accounts, calculating from holdings");
-    console.log("[Portfolio Summary] Total value from holdings:", totalValue);
-    console.log("[Portfolio Summary] Holdings breakdown:", holdings.map(h => ({
-      symbol: h.symbol,
-      marketValue: h.marketValue,
-      accountId: h.accountId,
-    })));
   }
 
   const totalCost = holdings.reduce((sum, h) => sum + h.bookValue, 0);
@@ -366,8 +328,7 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
     }
   )();
 
-  // Log result for debugging
-  console.log("[Portfolio Summary] Calculated result:", result);
+  // Only log errors or warnings, not every successful calculation
   if (result.totalValue === 0 && result.holdingsCount > 0) {
     console.error("[Portfolio Summary] ERROR: Total value is 0 but there are", result.holdingsCount, "holdings!");
     console.error("[Portfolio Summary] This indicates holdings have zero marketValue. Check price data.");

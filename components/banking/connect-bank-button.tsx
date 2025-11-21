@@ -5,7 +5,6 @@ import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/toast-provider';
 import { useSubscription } from '@/hooks/use-subscription';
-import { UpgradePrompt } from '@/components/billing/upgrade-prompt';
 import { Loader2 } from 'lucide-react';
 
 interface ConnectBankButtonProps {
@@ -145,11 +144,9 @@ export function ConnectBankButton({ onSuccess, variant = "default" }: ConnectBan
   
   if (!hasAccess) {
     return (
-      <UpgradePrompt
-        feature="Bank Integration"
-        requiredPlan="pro"
-        currentPlan={plan?.id || "essential"}
-      />
+      <div className="p-4 text-center text-muted-foreground">
+        Bank integration is not available in your current plan.
+      </div>
     );
   }
 

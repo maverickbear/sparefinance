@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { usePagePerformance } from "@/hooks/use-page-performance";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { PortfolioSummaryCards } from "@/components/portfolio/portfolio-summary-cards";
 import { Loader2 } from "lucide-react";
 import type { Holding as SupabaseHolding } from "@/lib/api/investments";
@@ -172,8 +171,7 @@ export default function InvestmentsPage() {
   };
 
   return (
-    <FeatureGuard feature="hasInvestments" featureName="Investments" requiredPlan="pro">
-      <SimpleTabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <SimpleTabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <PageHeader
             title="Portfolio Management"
           >
@@ -349,6 +347,5 @@ export default function InvestmentsPage() {
         }}
         />
       </SimpleTabs>
-    </FeatureGuard>
   );
 }

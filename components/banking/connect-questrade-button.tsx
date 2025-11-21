@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/toast-provider";
 import { Loader2, ExternalLink } from "lucide-react";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 
 interface ConnectQuestradeButtonProps {
@@ -85,8 +84,7 @@ export function ConnectQuestradeButton({
   };
 
   return (
-    <FeatureGuard feature="hasInvestments" featureName="Investments">
-      <Dialog open={isOpen} onOpenChange={(open) => {
+    <Dialog open={isOpen} onOpenChange={(open) => {
         if (open && !checkWriteAccess()) return;
         setIsOpen(open);
       }}>
@@ -167,7 +165,6 @@ export function ConnectQuestradeButton({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </FeatureGuard>
   );
 }
 

@@ -73,9 +73,10 @@ export async function getDebts(): Promise<DebtWithCalculations[]> {
     return [];
   }
 
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   const { data: debts, error } = await supabase
     .from("Debt")
-    .select("*")
+    .select("id, name, loanType, initialAmount, downPayment, currentBalance, interestRate, totalMonths, firstPaymentDate, monthlyPayment, paymentFrequency, paymentAmount, principalPaid, interestPaid, additionalContributions, additionalContributionAmount, priority, description, accountId, isPaidOff, isPaused, paidOffAt, status, nextDueDate, createdAt, updatedAt, userId, householdId")
     .order("priority", { ascending: false })
     .order("createdAt", { ascending: false });
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHoldings } from "@/lib/api/investments";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccessReadOnly, getCurrentUserId } from "@/lib/api/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,8 +9,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has access to investments
-    const featureGuard = await guardFeatureAccess(userId, "hasInvestments");
+    // Check if user has access to investments (read-only - allows cancelled subscriptions)
+    const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
     if (!featureGuard.allowed) {
       return NextResponse.json(
         { 

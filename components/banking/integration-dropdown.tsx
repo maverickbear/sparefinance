@@ -25,7 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ChevronDown, RefreshCw, Unlink, Loader2, Plus, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 
@@ -271,7 +270,7 @@ export function IntegrationDropdown({
   }
 
   return (
-    <FeatureGuard feature="hasInvestments" featureName="Investments">
+    <>
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
           {customTrigger || (
@@ -414,7 +413,7 @@ export function IntegrationDropdown({
         </DialogContent>
       </Dialog>
       {ConfirmDialog}
-    </FeatureGuard>
+    </>
   );
 }
 

@@ -2,7 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 import { SignUpForm } from "@/components/auth/signup-form";
-import { Wallet, TrendingUp, Shield, Zap } from "lucide-react";
+import { TrendingUp, Shield, Zap } from "lucide-react";
+import { Logo } from "@/components/common/logo";
 
 export function SignUpFormWrapperContent() {
   const searchParams = useSearchParams();
@@ -20,11 +21,8 @@ export function SignUpFormWrapperContent() {
         
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-[12px]">
-                <Wallet className="w-8 h-8 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold">Spare Finance</h1>
+            <div className="flex items-center">
+              <Logo variant="wordmark" color="auto" width={150} height={40} priority />
             </div>
             <p className="text-lg text-muted-foreground max-w-md">
               Manage your personal finances intelligently and make more informed decisions about your money.
@@ -76,11 +74,8 @@ export function SignUpFormWrapperContent() {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile header */}
           <div className="lg:hidden text-center space-y-2">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="p-2 bg-primary/10 rounded-[12px]">
-                <Wallet className="w-6 h-6 text-primary" />
-              </div>
-              <h1 className="text-2xl font-bold">Spare Finance</h1>
+            <div className="flex items-center justify-center mb-4">
+              <Logo variant="wordmark" color="auto" height={40} priority />
             </div>
             <p className="text-muted-foreground text-sm">
               Create your account to get started

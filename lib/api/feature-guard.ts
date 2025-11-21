@@ -21,6 +21,7 @@ export interface GuardResult {
 
 /**
  * Guard feature access - validates if user has access to a specific feature
+ * Requires write access (active/trialing subscription)
  */
 export async function guardFeatureAccess(
   userId: string,
@@ -47,6 +48,53 @@ export async function guardFeatureAccess(
     return { allowed: true };
   } catch (error) {
     console.error("Error in guardFeatureAccess:", error);
+    return {
+      allowed: false,
+      error: createPlanError(PlanErrorCode.FEATURE_NOT_AVAILABLE, {
+        feature,
+      }),
+    };
+  }
+}
+
+/**
+ * Guard feature access for read-only operations
+ * Allows cancelled subscriptions to read data (but not write)
+ * Use this for GET endpoints that only read data
+ */
+export async function guardFeatureAccessReadOnly(
+  userId: string,
+  feature: keyof PlanFeatures
+): Promise<GuardResult> {
+  try {
+    // Check if user has a subscription (even if cancelled)
+    const { subscription } = await getUserSubscriptionData(userId);
+    
+    // User must have a subscription (active, trialing, or cancelled)
+    if (!subscription) {
+      return {
+        allowed: false,
+        error: createPlanError(PlanErrorCode.SUBSCRIPTION_INACTIVE, {
+          message: "You need an active subscription to access this feature.",
+        }),
+      };
+    }
+    
+    // Check feature access (doesn't require write access)
+    const hasAccess = await checkFeatureAccess(userId, feature);
+    
+    if (!hasAccess) {
+      return {
+        allowed: false,
+        error: createPlanError(PlanErrorCode.FEATURE_NOT_AVAILABLE, {
+          feature,
+        }),
+      };
+    }
+    
+    return { allowed: true };
+  } catch (error) {
+    console.error("Error in guardFeatureAccessReadOnly:", error);
     return {
       allowed: false,
       error: createPlanError(PlanErrorCode.FEATURE_NOT_AVAILABLE, {

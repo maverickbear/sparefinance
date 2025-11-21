@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { GoogleSignInButton } from "./google-signin-button";
+import { VerifyLoginOtpForm } from "./verify-login-otp-form";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -41,8 +42,8 @@ async function preloadUserData() {
         return profile;
       }).catch(() => null),
       // Preload subscription/billing data (without limits - loaded later when needed)
-      // Optimized: Skip Stripe API call and limits check during login for faster loading
-      fetch("/api/billing/subscription?skipStripe=true", { cache: "no-store" }).then(async (r) => {
+      // Optimized: Stripe API call is now opt-in (includeStripe=true) for faster loading
+      fetch("/api/billing/subscription", { cache: "no-store" }).then(async (r) => {
         if (!r.ok) return null;
         const subData = await r.json();
         if (!subData) return null;
@@ -77,6 +78,8 @@ function LoginFormContent() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [invitationInfo, setInvitationInfo] = useState<{ email: string; ownerName: string } | null>(null);
+  const [showOtpForm, setShowOtpForm] = useState(false);
+  const [loginEmail, setLoginEmail] = useState<string>("");
 
   // Check for OAuth errors in URL params
   useEffect(() => {
@@ -134,88 +137,52 @@ function LoginFormContent() {
       setLoading(true);
       setError(null);
 
-      // Check maintenance mode before attempting login
-      let isMaintenanceMode = false;
-      try {
-        const maintenanceResponse = await fetch("/api/system-settings/public");
-        if (maintenanceResponse.ok) {
-          const maintenanceData = await maintenanceResponse.json();
-          isMaintenanceMode = maintenanceData.maintenanceMode || false;
-        }
-      } catch (maintenanceError) {
-        // If error checking maintenance, continue with normal login flow
-        console.error("Error checking maintenance mode:", maintenanceError);
-      }
+      // Send OTP for login (this validates credentials first)
+      const response = await fetch("/api/auth/send-login-otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      });
 
-      // Attempt login
-      const { signInClient } = await import("@/lib/api/auth-client");
-      const result = await signInClient(data);
+      const result = await response.json();
 
-      if (result.error) {
-        setError(result.error);
+      if (!response.ok) {
+        setError(result.error || "Failed to send verification code");
         setLoading(false);
         return;
       }
 
-      if (!result.user) {
-        setError("Failed to sign in");
-        setLoading(false);
-        return;
-      }
-
-      // If maintenance mode is active, check if user is super_admin
-      if (isMaintenanceMode) {
-        const { getUserRoleClient } = await import("@/lib/api/members-client");
-        const role = await getUserRoleClient();
-
-        if (role !== "super_admin") {
-          // Not super_admin - redirect to maintenance page
-          router.push("/maintenance");
-          return;
-        }
-        // super_admin can continue with login
-      }
-
-      // If there's an invitation token, accept the invitation after login
-      if (invitationToken && result.user) {
-        try {
-          const acceptResponse = await fetch("/api/members/invite/accept", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: invitationToken }),
-          });
-
-          if (acceptResponse.ok) {
-            // Invitation accepted successfully
-            console.log("Invitation accepted after login");
-          } else {
-            const acceptError = await acceptResponse.json();
-            console.error("Error accepting invitation:", acceptError);
-            // Don't block login if invitation acceptance fails
-          }
-        } catch (acceptError) {
-          console.error("Error accepting invitation:", acceptError);
-          // Don't block login if invitation acceptance fails
-        }
-      }
-
-      // Store that password was the last used authentication method
-      if (typeof window !== "undefined") {
-        localStorage.setItem("lastAuthMethod", "password");
-      }
-
-      // Preload user and plan data while showing loading
-      // This ensures data is ready when user navigates to dashboard
-      await preloadUserData();
-
-      // Always redirect to dashboard after login
-      // Supabase session is automatically managed, so we can use router
-      router.push("/dashboard");
+      // OTP sent successfully - show OTP form
+      setLoginEmail(data.email);
+      setShowOtpForm(true);
+      setLoading(false);
     } catch (error) {
-      console.error("Error signing in:", error);
+      console.error("Error sending login OTP:", error);
       setError("An unexpected error occurred");
       setLoading(false);
     }
+  }
+
+  // Show OTP form if OTP was sent
+  if (showOtpForm) {
+    return (
+      <div className="space-y-6">
+        <VerifyLoginOtpForm 
+          email={loginEmail}
+          invitationToken={invitationToken}
+          onBack={() => {
+            setShowOtpForm(false);
+            setLoginEmail("");
+            setError(null);
+          }}
+        />
+      </div>
+    );
   }
 
   return (

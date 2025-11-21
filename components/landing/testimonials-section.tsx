@@ -96,7 +96,7 @@ export function TestimonialsSection() {
                 </p>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-primary font-medium text-sm">
+                    <span className="text-primary font-medium text-base">
                       {testimonial.author
                         .split(" ")
                         .map((n) => n[0])
@@ -104,8 +104,8 @@ export function TestimonialsSection() {
                     </span>
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{testimonial.author}</p>
-                    <p className="text-xs text-muted-foreground">{testimonial.role}</p>
+                    <p className="font-medium text-base">{testimonial.author}</p>
+                    <p className="text-base text-muted-foreground">{testimonial.role}</p>
                   </div>
                 </div>
               </div>

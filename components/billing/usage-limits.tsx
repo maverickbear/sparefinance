@@ -1,12 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { PlanFeatures } from "@/lib/validations/plan";
 import { LimitCheckResult } from "@/lib/api/subscription";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { useRouter } from "next/navigation";
 
 interface UsageLimitsProps {
   limits: PlanFeatures;
@@ -15,7 +13,6 @@ interface UsageLimitsProps {
 }
 
 export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLimitsProps) {
-  const router = useRouter();
   
   const getProgress = (limit: LimitCheckResult) => {
     if (limit.limit === -1) return 0; // Unlimited
@@ -81,12 +78,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           {transactionLimit.message && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{transactionLimit.message}</p>
-              {isAtLimit(transactionLimit) && (
-                <Button onClick={() => router.push("/pricing")} variant="default">
-                    Upgrade
-                    <ArrowRight className="ml-1 w-3 h-3" />
-                </Button>
-              )}
             </div>
           )}
         </div>
@@ -128,12 +119,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
           {accountLimit.message && (
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{accountLimit.message}</p>
-              {isAtLimit(accountLimit) && (
-                <Button onClick={() => router.push("/pricing")} variant="default">
-                    Upgrade
-                    <ArrowRight className="ml-1 w-3 h-3" />
-                </Button>
-              )}
             </div>
           )}
         </div>
@@ -147,9 +132,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={() => router.push("/pricing")} variant="default" size="small" className="text-xs">
-                      Upgrade
-                  </Button>
                 </>
               )}
             </div>
@@ -162,9 +144,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={() => router.push("/pricing")} variant="default" size="small" className="text-xs">
-                      Upgrade
-                  </Button>
                 </>
               )}
             </div>
@@ -177,9 +156,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={() => router.push("/pricing")} variant="default" size="small" className="text-xs">
-                      Upgrade
-                  </Button>
                 </>
               )}
             </div>
@@ -192,9 +168,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={() => router.push("/pricing")} variant="default" size="small" className="text-xs">
-                      Upgrade
-                  </Button>
                 </>
               )}
             </div>
@@ -207,9 +180,6 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               ) : (
                 <>
                   <Badge variant="secondary" className="text-xs">Disabled</Badge>
-                  <Button onClick={() => router.push("/pricing")} variant="default" size="small" className="text-xs">
-                      Upgrade
-                  </Button>
                 </>
               )}
             </div>

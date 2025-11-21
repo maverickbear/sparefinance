@@ -22,9 +22,11 @@ export async function getAccounts(accessToken?: string, refreshToken?: string) {
 
   logger.debug("[getAccounts] Fetching accounts for user:", user.id);
 
+  // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
+  // Note: balance is calculated, not a column in the database
   const { data: accounts, error } = await supabase
     .from("Account")
-    .select("*")
+    .select("id, name, type, initialBalance, isConnected, createdAt, updatedAt, userId, householdId")
     .order("name", { ascending: true });
 
   if (error) {

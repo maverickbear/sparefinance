@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import { getQuestradeAccounts, decryptTokens, refreshAccessToken, encryptTokens } from "@/lib/api/questrade";
-import { getCurrentUserId, guardFeatureAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardFeatureAccessReadOnly, throwIfNotAllowed } from "@/lib/api/feature-guard";
 import { formatTimestamp } from "@/lib/utils/timestamp";
 
 export async function GET() {
@@ -12,8 +12,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has access to investments
-    const guardResult = await guardFeatureAccess(userId, "hasInvestments");
+    // Check if user has access to investments (read-only - allows cancelled subscriptions)
+    const guardResult = await guardFeatureAccessReadOnly(userId, "hasInvestments");
     await throwIfNotAllowed(guardResult);
 
     const supabase = await createServerClient();

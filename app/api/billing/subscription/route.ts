@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserSubscriptionData } from "@/lib/api/subscription";
+import { getCurrentUserSubscriptionData, checkTransactionLimit, checkAccountLimit } from "@/lib/api/subscription";
 import { createServerClient } from "@/lib/supabase-server";
 import Stripe from "stripe";
 
@@ -34,31 +34,49 @@ export async function GET(request: Request) {
     // Use unified API - single source of truth
     const { subscription, plan, limits } = await getCurrentUserSubscriptionData();
     
-    // Determine subscription interval (monthly/yearly) from Stripe
-    // Check if we should skip Stripe API call (for faster preload during login)
+    // OPTIMIZATION: Fetch limits in parallel with Stripe interval check
+    // This reduces total request time by doing everything in parallel
     const { searchParams } = new URL(request.url);
-    const skipStripe = searchParams.get("skipStripe") === "true";
+    const includeStripe = searchParams.get("includeStripe") === "true";
+    const includeLimits = searchParams.get("includeLimits") !== "false"; // Default true
     
-    let interval: "month" | "year" | null = null;
-    if (!skipStripe && subscription?.stripeSubscriptionId && plan) {
-      try {
-        const stripeSubscription = await stripe.subscriptions.retrieve(
-          subscription.stripeSubscriptionId
-        );
-        const priceId = stripeSubscription.items.data[0]?.price.id;
-        
-        if (priceId && plan) {
-          if (plan.stripePriceIdMonthly === priceId) {
-            interval = "month";
-          } else if (plan.stripePriceIdYearly === priceId) {
-            interval = "year";
-          }
+    // Fetch everything in parallel for better performance
+    const [intervalResult, limitsResult] = await Promise.all([
+      // Determine subscription interval (monthly/yearly) from Stripe
+      // OPTIMIZATION: Only fetch from Stripe if explicitly requested (includeStripe=true)
+      (async (): Promise<"month" | "year" | null> => {
+        if (!includeStripe || !subscription?.stripeSubscriptionId || !plan) {
+          return null;
         }
-      } catch (error) {
-        console.error("Error fetching Stripe subscription interval:", error);
-        // Continue without interval if Stripe call fails
-      }
-    }
+        try {
+          const stripeSubscription = await stripe.subscriptions.retrieve(
+            subscription.stripeSubscriptionId
+          );
+          const priceId = stripeSubscription.items.data[0]?.price.id;
+          
+          if (priceId && plan) {
+            if (plan.stripePriceIdMonthly === priceId) {
+              return "month";
+            } else if (plan.stripePriceIdYearly === priceId) {
+              return "year";
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching Stripe subscription interval:", error);
+        }
+        return null;
+      })(),
+      // Fetch transaction and account limits (only if requested)
+      includeLimits
+        ? Promise.all([
+            checkTransactionLimit(authUser.id),
+            checkAccountLimit(authUser.id),
+          ]).then(([transactionLimit, accountLimit]) => ({
+            transactionLimit,
+            accountLimit,
+          }))
+        : Promise.resolve({ transactionLimit: null, accountLimit: null }),
+    ]);
 
     // Add cache headers for better performance
     // Cache for 60 seconds - subscription data doesn't change frequently
@@ -67,7 +85,9 @@ export async function GET(request: Request) {
         subscription,
         plan,
         limits,
-        interval,
+        interval: intervalResult,
+        transactionLimit: limitsResult.transactionLimit,
+        accountLimit: limitsResult.accountLimit,
       },
       {
         headers: {

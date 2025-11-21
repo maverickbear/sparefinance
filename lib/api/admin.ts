@@ -14,6 +14,7 @@ export interface AdminUser {
   email: string;
   name: string | null;
   createdAt: Date;
+  isBlocked?: boolean;
   plan: {
     id: string;
     name: string;
@@ -22,12 +23,23 @@ export interface AdminUser {
     id: string;
     status: string;
     planId: string;
+    trialEndDate: string | null;
+    trialStartDate: string | null;
+    stripeSubscriptionId: string | null;
+    currentPeriodEnd?: string | null;
   } | null;
   household: {
     hasHousehold: boolean;
     isOwner: boolean;
     memberCount: number;
+    householdId: string | null;
+    ownerId: string | null;
   };
+  pendingMembers?: Array<{
+    email: string | null;
+    name: string | null;
+    status: string;
+  }>;
 }
 
 export interface PromoCode {
@@ -86,7 +98,7 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     // Get all users
     const { data: users, error: usersError } = await supabase
       .from("User")
-      .select("id, email, name, createdAt")
+      .select("id, email, name, createdAt, isBlocked")
       .order("createdAt", { ascending: false });
 
     if (usersError) {
@@ -106,7 +118,7 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     // Get all subscriptions (not just active ones, to show all subscription statuses)
     const { data: subscriptions, error: subsError } = await supabase
       .from("Subscription")
-      .select("id, userId, planId, status")
+      .select("id, userId, planId, status, trialEndDate, trialStartDate, stripeSubscriptionId, currentPeriodEnd")
       .in("userId", userIds)
       .order("createdAt", { ascending: false });
 
@@ -127,7 +139,16 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     
     // Create a map of userId to most recent subscription
     // Since subscriptions are already ordered by createdAt DESC, we just need the first one per user
-    const subscriptionMap = new Map<string, { id: string; userId: string; planId: string; status: string }>();
+    const subscriptionMap = new Map<string, { 
+      id: string; 
+      userId: string; 
+      planId: string; 
+      status: string;
+      trialEndDate: string | null;
+      trialStartDate: string | null;
+      stripeSubscriptionId: string | null;
+      currentPeriodEnd: string | null;
+    }>();
     (subscriptions || []).forEach((s) => {
       if (!subscriptionMap.has(s.userId)) {
         subscriptionMap.set(s.userId, s);
@@ -141,59 +162,123 @@ export async function getAllUsers(): Promise<AdminUser[]> {
       .select("id, createdBy, type")
       .in("createdBy", userIds);
 
-    // Get all household memberships where user is a member
-    const { data: householdMembers, error: householdError2 } = await supabase
+    // Get all household IDs owned by these users (including personal with members)
+    const allOwnedHouseholdIds = (ownedHouseholds || []).map(h => h.id);
+    
+    // Get all household memberships:
+    // 1. Active members with userId in our list
+    // 2. All members (active or pending) of households owned by users in our list (including pending without userId)
+    let householdMembersQuery = supabase
       .from("HouseholdMemberNew")
-      .select("userId, householdId, status, Household(createdBy, type)")
-      .in("userId", userIds)
-      .eq("status", "active");
+      .select("userId, householdId, status, email, name, Household(createdBy, type)")
+      .in("status", ["active", "pending"]);
+    
+    if (userIds.length > 0 || allOwnedHouseholdIds.length > 0) {
+      const conditions: string[] = [];
+      if (userIds.length > 0) {
+        conditions.push(`userId.in.(${userIds.join(',')})`);
+      }
+      if (allOwnedHouseholdIds.length > 0) {
+        conditions.push(`householdId.in.(${allOwnedHouseholdIds.join(',')})`);
+      }
+      if (conditions.length > 0) {
+        householdMembersQuery = householdMembersQuery.or(conditions.join(','));
+      }
+    }
+    
+    const { data: householdMembers, error: householdError2 } = await householdMembersQuery;
 
     if (householdError1 || householdError2) {
       console.error("Error fetching household members:", householdError1 || householdError2);
     }
 
     // Build household info map
-    const householdInfoMap = new Map<string, { hasHousehold: boolean; isOwner: boolean; memberCount: number }>();
+    const householdInfoMap = new Map<string, { hasHousehold: boolean; isOwner: boolean; memberCount: number; householdId: string | null; ownerId: string | null }>();
     
     // Count members per household owner
     const ownerMemberCounts = new Map<string, number>();
     const householdOwnerMap = new Map<string, string>(); // householdId -> createdBy
+    const householdIdToOwnerMap = new Map<string, string>(); // householdId -> ownerId
     
-    // Map owned households
+    // Map owned households (include personal households that have additional members)
     (ownedHouseholds || []).forEach((h) => {
-      if (h.type !== 'personal') { // Only count non-personal households
-        householdOwnerMap.set(h.id, h.createdBy);
-      }
+      householdOwnerMap.set(h.id, h.createdBy);
+      householdIdToOwnerMap.set(h.id, h.createdBy);
     });
     
-    // Count members per owner (excluding personal households)
+    // Count members per owner (count all households, including personal with members)
     (householdMembers || []).forEach((hm: any) => {
       const household = hm.Household as any;
-      if (household && household.type !== 'personal' && household.createdBy) {
+      if (household && household.createdBy) {
         const ownerId = household.createdBy;
-        ownerMemberCounts.set(ownerId, (ownerMemberCounts.get(ownerId) || 0) + 1);
+        // Only count if this member is not the owner themselves
+        if (hm.userId !== ownerId) {
+          ownerMemberCounts.set(ownerId, (ownerMemberCounts.get(ownerId) || 0) + 1);
+        }
+        householdIdToOwnerMap.set(hm.householdId, ownerId);
       }
     });
 
     // Check if user is owner or member
     userIds.forEach((userId) => {
-      // Check if user owns any non-personal household
-      const isOwner = (ownedHouseholds || []).some((h) => h.createdBy === userId && h.type !== 'personal');
+      // Check if user owns any household (including personal with members)
+      const ownedHousehold = (ownedHouseholds || []).find((h) => {
+        if (h.createdBy !== userId) return false;
+        // Include if it's a household type OR if it's personal but has members
+        if (h.type !== 'personal') return true;
+        // Check if this personal household has additional members
+        const hasAdditionalMembers = (householdMembers || []).some((hm: any) => {
+          return hm.householdId === h.id && hm.userId !== userId;
+        });
+        return hasAdditionalMembers;
+      });
+      const isOwner = !!ownedHousehold;
       
-      // Check if user is a member of any non-personal household
-      const isMember = (householdMembers || []).some((hm: any) => {
+      // Check if user is a member of any household (not as owner)
+      const memberHousehold = (householdMembers || []).find((hm: any) => {
         const household = hm.Household as any;
         return hm.userId === userId && 
                hm.status === "active" && 
-               household?.createdBy !== userId && 
-               household?.type !== 'personal';
+               household?.createdBy !== userId;
       });
+      const isMember = !!memberHousehold;
+      
+      let householdId: string | null = null;
+      let ownerId: string | null = null;
+      
+      if (isOwner && ownedHousehold) {
+        householdId = ownedHousehold.id;
+        ownerId = userId; // Owner is themselves
+      } else if (isMember && memberHousehold) {
+        householdId = memberHousehold.householdId;
+        const household = memberHousehold.Household as any;
+        ownerId = household?.createdBy || null;
+      }
       
       householdInfoMap.set(userId, {
         hasHousehold: isOwner || isMember,
         isOwner,
         memberCount: isOwner ? (ownerMemberCounts.get(userId) || 0) : 0,
+        householdId,
+        ownerId,
       });
+    });
+
+    // Build pending members map by household (include all households, including personal with members)
+    const pendingMembersByHousehold = new Map<string, Array<{ email: string | null; name: string | null; status: string }>>();
+    (householdMembers || []).forEach((hm: any) => {
+      const household = hm.Household as any;
+      if (household && hm.status === "pending") {
+        const householdId = hm.householdId;
+        if (!pendingMembersByHousehold.has(householdId)) {
+          pendingMembersByHousehold.set(householdId, []);
+        }
+        pendingMembersByHousehold.get(householdId)!.push({
+          email: hm.email || null,
+          name: hm.name || null,
+          status: hm.status,
+        });
+      }
     });
 
     // Map users with their data
@@ -204,13 +289,21 @@ export async function getAllUsers(): Promise<AdminUser[]> {
         hasHousehold: false,
         isOwner: false,
         memberCount: 0,
+        householdId: null,
+        ownerId: null,
       };
+
+      // Get pending members for this owner's household
+      const pendingMembers = household.isOwner && household.householdId
+        ? (pendingMembersByHousehold.get(household.householdId) || [])
+        : undefined;
 
       return {
         id: user.id,
         email: user.email,
         name: user.name,
         createdAt: new Date(user.createdAt),
+        isBlocked: user.isBlocked || false,
         plan: plan
           ? {
               id: plan.id,
@@ -222,9 +315,14 @@ export async function getAllUsers(): Promise<AdminUser[]> {
               id: subscription.id,
               status: subscription.status,
               planId: subscription.planId,
+              trialEndDate: subscription.trialEndDate || null,
+              trialStartDate: subscription.trialStartDate || null,
+              stripeSubscriptionId: subscription.stripeSubscriptionId || null,
+              currentPeriodEnd: subscription.currentPeriodEnd || null,
             }
           : null,
         household,
+        pendingMembers,
       };
     });
 

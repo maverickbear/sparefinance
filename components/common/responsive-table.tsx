@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, memo, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -33,7 +33,7 @@ interface ResponsiveTableProps<T> {
   mobileCardClassName?: string;
 }
 
-export function ResponsiveTable<T extends Record<string, any>>({
+export const ResponsiveTable = memo(function ResponsiveTable<T extends Record<string, any>>({
   data,
   columns,
   emptyMessage = "No data found",
@@ -43,11 +43,11 @@ export function ResponsiveTable<T extends Record<string, any>>({
   onRowClick,
   mobileCardClassName,
 }: ResponsiveTableProps<T>) {
-  // Filter columns for mobile (exclude those with hideOnMobile)
-  const mobileColumns = columns.filter((col) => !col.hideOnMobile);
+  // OPTIMIZED: Memoize filtered columns to avoid recalculation on every render
+  const mobileColumns = useMemo(() => columns.filter((col) => !col.hideOnMobile), [columns]);
   
   // Filter columns for tablet (exclude those with hideOnTablet)
-  const tabletColumns = columns.filter((col) => !col.hideOnTablet);
+  const tabletColumns = useMemo(() => columns.filter((col) => !col.hideOnTablet), [columns]);
 
   if (loading) {
     return (
@@ -157,5 +157,5 @@ export function ResponsiveTable<T extends Record<string, any>>({
       </div>
     </>
   );
-}
+}) as <T extends Record<string, any>>(props: ResponsiveTableProps<T>) => React.JSX.Element;
 

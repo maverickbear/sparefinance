@@ -28,7 +28,6 @@ import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
-import { FeatureGuard } from "@/components/common/feature-guard";
 
 interface Goal {
   id: string;
@@ -268,8 +267,7 @@ export default function GoalsPage() {
   });
 
   return (
-    <FeatureGuard feature="hasGoals" featureName="Goals Tracking" requiredPlan="essential">
-      <div>
+    <div>
         <PageHeader
           title="Goals"
         >
@@ -430,8 +428,22 @@ export default function GoalsPage() {
       </Dialog>
       {ConfirmDialog}
       </div>
+
+      {/* Mobile Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+        <Button
+          size="large"
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={() => {
+            if (!checkWriteAccess()) return;
+            setSelectedGoal(null);
+            setIsFormOpen(true);
+          }}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
       </div>
-    </FeatureGuard>
+      </div>
   );
 }
 

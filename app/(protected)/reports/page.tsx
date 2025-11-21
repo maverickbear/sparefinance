@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { ReportsContent } from "./reports-content";
 import type { ReportPeriod } from "@/components/reports/report-filters";
+import { ReportFilters } from "@/components/reports/report-filters";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { getTransactionsClient } from "@/lib/api/transactions-client";
 import { getBudgetsClient } from "@/lib/api/budgets-client";
@@ -23,8 +24,8 @@ import type { PortfolioSummary, HistoricalDataPoint } from "@/lib/api/portfolio"
 import type { Holding } from "@/lib/api/investments";
 import type { PlanFeatures } from "@/lib/validations/plan";
 import { Loader2 } from "lucide-react";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { useSubscription } from "@/hooks/use-subscription";
+import { PageHeader } from "@/components/common/page-header";
 
 export default function ReportsPage() {
   const perf = usePagePerformance("Reports");
@@ -206,8 +207,18 @@ export default function ReportsPage() {
   }
 
   return (
-    <FeatureGuard feature="hasAdvancedReports" featureName="Advanced Reports" requiredPlan="essential">
-      <ReportsContent
+    <div>
+      <PageHeader
+        title="Reports"
+      >
+        <ReportFilters
+          period={period}
+          onPeriodChange={setPeriod}
+        />
+      </PageHeader>
+
+      <div className="w-full p-4 lg:p-8">
+        <ReportsContent
           limits={limits}
           budgets={budgets}
           currentMonthTransactions={currentMonthTransactions}
@@ -223,7 +234,8 @@ export default function ReportsPage() {
           period={period}
           dateRange={getDateRange(period)}
         />
-    </FeatureGuard>
+      </div>
+    </div>
   );
 }
 

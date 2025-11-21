@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
     } : false,
   },
   
-  // Webpack optimizations
+  // Webpack optimizations - Enhanced for better bundle splitting
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.optimization = {
@@ -43,12 +43,36 @@ const nextConfig: NextConfig = {
         runtimeChunk: 'single',
         splitChunks: {
           chunks: 'all',
+          maxInitialRequests: 25,
+          minSize: 20000,
           cacheGroups: {
+            // Separate vendor chunks for better caching
             vendor: {
               test: /[\\/]node_modules[\\/]/,
               name: 'vendors',
               priority: 10,
+              reuseExistingChunk: true,
             },
+            // Separate large libraries
+            recharts: {
+              test: /[\\/]node_modules[\\/]recharts[\\/]/,
+              name: 'recharts',
+              priority: 15,
+              reuseExistingChunk: true,
+            },
+            radix: {
+              test: /[\\/]node_modules[\\/]@radix-ui[\\/]/,
+              name: 'radix-ui',
+              priority: 12,
+              reuseExistingChunk: true,
+            },
+            lucide: {
+              test: /[\\/]node_modules[\\/]lucide-react[\\/]/,
+              name: 'lucide',
+              priority: 11,
+              reuseExistingChunk: true,
+            },
+            // Common chunks
             common: {
               minChunks: 2,
               priority: 5,

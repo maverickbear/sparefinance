@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
+import { mapStripeStatus } from "@/lib/api/stripe";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -174,24 +175,8 @@ export async function POST(request: NextRequest) {
 
     console.log("[SYNC] Found plan:", { planId: plan.id, priceId });
 
-    // Map status
-    const mapStripeStatus = (status: Stripe.Subscription.Status): "active" | "cancelled" | "past_due" | "trialing" => {
-      switch (status) {
-        case "active":
-          return "active";
-        case "canceled":
-        case "unpaid":
-          return "cancelled";
-        case "past_due":
-          return "past_due";
-        case "trialing":
-          return "trialing";
-        default:
-          return "active";
-      }
-    };
-
-    const status = mapStripeStatus(activeSubscription.status);
+    // Map status using shared function
+    const status = await mapStripeStatus(activeSubscription.status);
     const subscriptionId = authUser.id + "-" + plan.id;
 
     // Get active household ID for the user
@@ -230,6 +215,16 @@ export async function POST(request: NextRequest) {
       console.error("[SYNC] Error getting householdId:", error);
       // Continue without householdId - it can be set later
     }
+
+    console.log("[SYNC] Subscription data from Stripe:", {
+      subscriptionId: activeSubscription.id,
+      status: activeSubscription.status,
+      trial_start: (activeSubscription as any).trial_start,
+      trial_end: (activeSubscription as any).trial_end,
+      trial_end_date: (activeSubscription as any).trial_end ? new Date((activeSubscription as any).trial_end * 1000).toISOString() : null,
+      current_period_start: (activeSubscription as any).current_period_start,
+      current_period_end: (activeSubscription as any).current_period_end,
+    });
 
     console.log("[SYNC] Upserting subscription:", {
       subscriptionId,
@@ -288,11 +283,38 @@ export async function POST(request: NextRequest) {
         newTrialEndDate: now,
       });
     } else {
-      // Preserve trial end date if it exists, or set from Stripe if available
-      if (existingSubData?.trialEndDate) {
+      // Stripe is the source of truth for trial_end - always use it when available
+      const stripeTrialEnd = (activeSubscription as any).trial_end;
+      console.log("[SYNC] Trial end processing:", {
+        subscriptionId,
+        stripeTrialEnd,
+        stripeTrialEndDate: stripeTrialEnd ? new Date(stripeTrialEnd * 1000).toISOString() : null,
+        existingTrialEndDate: existingSubData?.trialEndDate,
+        status,
+      });
+      
+      if (stripeTrialEnd) {
+        subscriptionData.trialEndDate = new Date(stripeTrialEnd * 1000);
+        console.log("[SYNC] Using trial_end from Stripe:", {
+          subscriptionId,
+          trialEndDate: subscriptionData.trialEndDate.toISOString(),
+          previousTrialEndDate: existingSubData?.trialEndDate,
+          changed: existingSubData?.trialEndDate !== subscriptionData.trialEndDate.toISOString(),
+        });
+      } else if (existingSubData?.trialEndDate && status === "trialing") {
+        // Only preserve existing value if Stripe doesn't have trial_end and status is still trialing
         subscriptionData.trialEndDate = existingSubData.trialEndDate;
-      } else if ((activeSubscription as any).trial_end) {
-        subscriptionData.trialEndDate = new Date((activeSubscription as any).trial_end * 1000);
+        console.log("[SYNC] Preserving existing trialEndDate (Stripe has no trial_end):", {
+          subscriptionId,
+          trialEndDate: subscriptionData.trialEndDate,
+        });
+      } else {
+        console.log("[SYNC] No trial_end to set:", {
+          subscriptionId,
+          stripeTrialEnd,
+          existingTrialEndDate: existingSubData?.trialEndDate,
+          status,
+        });
       }
     }
 

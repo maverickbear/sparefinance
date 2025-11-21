@@ -1969,7 +1969,8 @@ CREATE TABLE IF NOT EXISTS "public"."User" (
     "effectivePlanId" "text",
     "effectiveSubscriptionStatus" "text",
     "effectiveSubscriptionId" "text",
-    "subscriptionUpdatedAt" timestamp(3) without time zone
+    "subscriptionUpdatedAt" timestamp(3) without time zone,
+    "isBlocked" boolean DEFAULT false NOT NULL
 );
 
 
@@ -1992,6 +1993,10 @@ COMMENT ON COLUMN "public"."User"."subscriptionUpdatedAt" IS 'Timestamp when sub
 
 
 
+COMMENT ON COLUMN "public"."User"."isBlocked" IS 'When true, user is blocked from accessing the system and cannot log in. Subscription is paused until unblocked.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."UserActiveHousehold" (
     "userId" "uuid" NOT NULL,
     "householdId" "uuid" NOT NULL,
@@ -2007,6 +2012,36 @@ COMMENT ON TABLE "public"."UserActiveHousehold" IS 'Tracks which household is cu
 
 
 COMMENT ON COLUMN "public"."UserActiveHousehold"."householdId" IS 'The currently active household for this user';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."UserBlockHistory" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "userId" "uuid" NOT NULL,
+    "action" "text" NOT NULL,
+    "reason" "text",
+    "blockedBy" "uuid" NOT NULL,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT "UserBlockHistory_action_check" CHECK (("action" = ANY (ARRAY['block'::"text", 'unblock'::"text"])))
+);
+
+
+ALTER TABLE "public"."UserBlockHistory" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."UserBlockHistory" IS 'Tracks history of user blocks and unblocks with reasons';
+
+
+
+COMMENT ON COLUMN "public"."UserBlockHistory"."action" IS 'Action taken: block or unblock';
+
+
+
+COMMENT ON COLUMN "public"."UserBlockHistory"."reason" IS 'Reason/comment for the action';
+
+
+
+COMMENT ON COLUMN "public"."UserBlockHistory"."blockedBy" IS 'User ID of the admin who performed the action';
 
 
 
@@ -2536,6 +2571,11 @@ ALTER TABLE ONLY "public"."UserActiveHousehold"
 
 
 
+ALTER TABLE ONLY "public"."UserBlockHistory"
+    ADD CONSTRAINT "UserBlockHistory_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."UserServiceSubscription"
     ADD CONSTRAINT "UserServiceSubscription_pkey" PRIMARY KEY ("id");
 
@@ -2924,6 +2964,14 @@ CREATE INDEX "UserActiveHousehold_householdId_idx" ON "public"."UserActiveHouseh
 
 
 
+CREATE INDEX "UserBlockHistory_createdAt_idx" ON "public"."UserBlockHistory" USING "btree" ("createdAt" DESC);
+
+
+
+CREATE INDEX "UserBlockHistory_userId_idx" ON "public"."UserBlockHistory" USING "btree" ("userId");
+
+
+
 CREATE INDEX "UserServiceSubscription_householdId_idx" ON "public"."UserServiceSubscription" USING "btree" ("householdId");
 
 
@@ -3068,11 +3116,19 @@ CREATE INDEX "idx_investment_transaction_account_date" ON "public"."InvestmentTr
 
 
 
+CREATE INDEX "idx_investment_transaction_date_type" ON "public"."InvestmentTransaction" USING "btree" ("date" DESC, "type") WHERE ("date" IS NOT NULL);
+
+
+
 CREATE INDEX "idx_investment_transaction_holdings_calc" ON "public"."InvestmentTransaction" USING "btree" ("accountId", "securityId", "date") WHERE (("securityId" IS NOT NULL) AND ("date" IS NOT NULL));
 
 
 
 CREATE INDEX "idx_investment_transaction_security" ON "public"."InvestmentTransaction" USING "btree" ("securityId", "accountId", "type") WHERE ("securityId" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_investment_transaction_security_account" ON "public"."InvestmentTransaction" USING "btree" ("securityId", "accountId", "date" DESC) WHERE ("securityId" IS NOT NULL);
 
 
 
@@ -3148,7 +3204,15 @@ CREATE INDEX "idx_position_account_open" ON "public"."Position" USING "btree" ("
 
 
 
+CREATE INDEX "idx_position_account_open_quantity" ON "public"."Position" USING "btree" ("accountId", "openQuantity" DESC) WHERE ("openQuantity" > (0)::numeric);
+
+
+
 CREATE INDEX "idx_position_accountid" ON "public"."Position" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "idx_position_last_updated" ON "public"."Position" USING "btree" ("lastUpdatedAt" DESC) WHERE ("lastUpdatedAt" IS NOT NULL);
 
 
 
@@ -3160,11 +3224,19 @@ CREATE INDEX "idx_sector_allocation_user" ON "public"."sector_allocation_view" U
 
 
 
+CREATE INDEX "idx_security_price_date" ON "public"."SecurityPrice" USING "btree" ("date" DESC) WHERE ("date" IS NOT NULL);
+
+
+
 CREATE INDEX "idx_security_price_date_range" ON "public"."SecurityPrice" USING "btree" ("securityId", "date") WHERE ("date" IS NOT NULL);
 
 
 
 CREATE INDEX "idx_security_price_security_date" ON "public"."SecurityPrice" USING "btree" ("securityId", "date" DESC) WHERE ("date" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_security_price_security_date_desc" ON "public"."SecurityPrice" USING "btree" ("securityId", "date" DESC) WHERE ("date" IS NOT NULL);
 
 
 
@@ -3192,7 +3264,15 @@ CREATE INDEX "idx_subscription_userid_status" ON "public"."Subscription" USING "
 
 
 
+CREATE INDEX "idx_transaction_category_date" ON "public"."Transaction" USING "btree" ("categoryId", "date" DESC) WHERE (("categoryId" IS NOT NULL) AND ("date" IS NOT NULL));
+
+
+
 CREATE INDEX "idx_transaction_description_gin" ON "public"."Transaction" USING "gin" ("to_tsvector"('"english"'::"regconfig", "description")) WHERE ("description" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_transaction_recurring" ON "public"."Transaction" USING "btree" ("recurring", "date" DESC) WHERE ("recurring" = true);
 
 
 
@@ -3656,6 +3736,16 @@ ALTER TABLE ONLY "public"."UserActiveHousehold"
 
 
 
+ALTER TABLE ONLY "public"."UserBlockHistory"
+    ADD CONSTRAINT "UserBlockHistory_blockedBy_fkey" FOREIGN KEY ("blockedBy") REFERENCES "public"."User"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."UserBlockHistory"
+    ADD CONSTRAINT "UserBlockHistory_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."UserServiceSubscription"
     ADD CONSTRAINT "UserServiceSubscription_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON DELETE CASCADE;
 
@@ -3710,35 +3800,41 @@ ALTER TABLE "public"."AccountInvestmentValue" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."AccountOwner" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "Admins can insert block history" ON "public"."UserBlockHistory" FOR INSERT WITH CHECK (((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = ANY (ARRAY['admin'::"text", 'super_admin'::"text"]))))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Admins can insert block history" ON "public"."UserBlockHistory" IS 'Allows admins and service_role to insert block history records';
+
+
+
+CREATE POLICY "Admins can insert securities" ON "public"."Security" FOR INSERT WITH CHECK (((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Admins can insert securities" ON "public"."Security" IS 'Allows only super_admin and service_role to insert new securities';
+
+
+
+CREATE POLICY "Admins can view all block history" ON "public"."UserBlockHistory" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = ANY (ARRAY['admin'::"text", 'super_admin'::"text"]))))));
+
+
+
+COMMENT ON POLICY "Admins can view all block history" ON "public"."UserBlockHistory" IS 'Allows admins to view all user block history for auditing purposes';
+
+
+
 CREATE POLICY "Anyone can view securities" ON "public"."Security" FOR SELECT USING (true);
 
 
 
 CREATE POLICY "Anyone can view security prices" ON "public"."SecurityPrice" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Authenticated users can delete securities" ON "public"."Security" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Authenticated users can delete security prices" ON "public"."SecurityPrice" FOR DELETE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Authenticated users can insert securities" ON "public"."Security" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Authenticated users can insert security prices" ON "public"."SecurityPrice" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Authenticated users can update securities" ON "public"."Security" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
-
-
-
-CREATE POLICY "Authenticated users can update security prices" ON "public"."SecurityPrice" FOR UPDATE USING (("auth"."role"() = 'authenticated'::"text"));
 
 
 
@@ -4014,12 +4110,6 @@ CREATE POLICY "Users can create households" ON "public"."Household" FOR INSERT W
 
 
 
-CREATE POLICY "Users can delete TransactionSync for their accounts" ON "public"."TransactionSync" FOR DELETE USING ((EXISTS ( SELECT 1
-   FROM "public"."Account"
-  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "Users can delete account owners" ON "public"."AccountOwner" FOR DELETE USING ((("ownerId" = "auth"."uid"()) OR ("public"."get_account_user_id"("accountId") = "auth"."uid"())));
 
 
@@ -4034,9 +4124,18 @@ CREATE POLICY "Users can delete candles for own securities" ON "public"."Candle"
 
 
 
-CREATE POLICY "Users can delete executions for own accounts" ON "public"."Execution" FOR DELETE USING ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "Execution"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+CREATE POLICY "Users can delete household TransactionSync" ON "public"."TransactionSync" FOR DELETE USING ((("householdId" IN ( SELECT "get_user_accessible_households"."household_id"
+   FROM "public"."get_user_accessible_households"() "get_user_accessible_households"("household_id"))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND ("a"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND (EXISTS ( SELECT 1
+           FROM "public"."AccountOwner" "ao"
+          WHERE (("ao"."accountId" = "a"."id") AND ("ao"."ownerId" = "auth"."uid"())))))))));
+
+
+
+COMMENT ON POLICY "Users can delete household TransactionSync" ON "public"."TransactionSync" IS 'Allows users to delete TransactionSync records via household access, own accounts, or AccountOwner relationship';
 
 
 
@@ -4064,6 +4163,10 @@ CREATE POLICY "Users can delete household executions" ON "public"."Execution" FO
 
 
 
+COMMENT ON POLICY "Users can delete household executions" ON "public"."Execution" IS 'Allows users to delete Execution records via household access. Replaces redundant "own accounts" policy.';
+
+
+
 CREATE POLICY "Users can delete household goals" ON "public"."Goal" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = "auth"."uid"())));
 
 
@@ -4081,6 +4184,10 @@ CREATE POLICY "Users can delete household investment transactions" ON "public"."
 CREATE POLICY "Users can delete household orders" ON "public"."Order" FOR DELETE USING ((EXISTS ( SELECT 1
    FROM "public"."InvestmentAccount" "ia"
   WHERE (("ia"."id" = "Order"."accountId") AND "public"."can_access_household_data"("ia"."householdId", 'delete'::"text")))));
+
+
+
+COMMENT ON POLICY "Users can delete household orders" ON "public"."Order" IS 'Allows users to delete Order records via household access. Replaces redundant "own accounts" policy.';
 
 
 
@@ -4112,12 +4219,6 @@ CREATE POLICY "Users can delete household transactions" ON "public"."Transaction
 
 
 
-CREATE POLICY "Users can delete orders for own accounts" ON "public"."Order" FOR DELETE USING ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "Order"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "Users can delete own budget categories" ON "public"."BudgetCategory" FOR DELETE USING ((EXISTS ( SELECT 1
    FROM "public"."Budget"
   WHERE (("Budget"."id" = "BudgetCategory"."budgetId") AND ("Budget"."userId" = "auth"."uid"())))));
@@ -4138,6 +4239,32 @@ CREATE POLICY "Users can delete own subcategories" ON "public"."Subcategory" FOR
 
 
 
+CREATE POLICY "Users can delete prices for securities they own" ON "public"."SecurityPrice" FOR DELETE USING (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "SecurityPrice"."securityId") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Users can delete prices for securities they own" ON "public"."SecurityPrice" IS 'Allows users to delete prices for securities they have positions in, or admins/service_role to delete any price';
+
+
+
+CREATE POLICY "Users can delete securities they own" ON "public"."Security" FOR DELETE USING (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "Security"."id") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Users can delete securities they own" ON "public"."Security" IS 'Allows users to delete securities they have positions in, or admins/service_role to delete any security';
+
+
+
 CREATE POLICY "Users can delete their own Plaid connections" ON "public"."PlaidConnection" FOR DELETE USING (("auth"."uid"() = "userId"));
 
 
@@ -4149,12 +4276,6 @@ CREATE POLICY "Users can delete their own Plaid liabilities" ON "public"."PlaidL
 
 
 CREATE POLICY "Users can delete their own Questrade connections" ON "public"."QuestradeConnection" FOR DELETE USING (("userId" = "auth"."uid"()));
-
-
-
-CREATE POLICY "Users can insert TransactionSync for their accounts" ON "public"."TransactionSync" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."Account"
-  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
 
 
 
@@ -4176,9 +4297,18 @@ CREATE POLICY "Users can insert candles for own securities" ON "public"."Candle"
 
 
 
-CREATE POLICY "Users can insert executions for own accounts" ON "public"."Execution" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "Execution"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
+CREATE POLICY "Users can insert household TransactionSync" ON "public"."TransactionSync" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND ("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
+   FROM "public"."get_user_admin_household_ids"() "get_user_admin_household_ids"("household_id")))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND ("a"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND (EXISTS ( SELECT 1
+           FROM "public"."AccountOwner" "ao"
+          WHERE (("ao"."accountId" = "a"."id") AND ("ao"."ownerId" = "auth"."uid"())))) AND "public"."can_access_household_data"("a"."householdId", 'write'::"text"))))));
+
+
+
+COMMENT ON POLICY "Users can insert household TransactionSync" ON "public"."TransactionSync" IS 'Allows admins/owners to insert TransactionSync records for household accounts, own accounts, or AccountOwner accounts';
 
 
 
@@ -4206,6 +4336,10 @@ CREATE POLICY "Users can insert household executions" ON "public"."Execution" FO
 
 
 
+COMMENT ON POLICY "Users can insert household executions" ON "public"."Execution" IS 'Allows users to insert Execution records via household access. Replaces redundant "own accounts" policy.';
+
+
+
 CREATE POLICY "Users can insert household goals" ON "public"."Goal" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = "auth"."uid"())));
 
 
@@ -4223,6 +4357,10 @@ CREATE POLICY "Users can insert household investment transactions" ON "public"."
 CREATE POLICY "Users can insert household orders" ON "public"."Order" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."InvestmentAccount" "ia"
   WHERE (("ia"."id" = "Order"."accountId") AND "public"."can_access_household_data"("ia"."householdId", 'write'::"text")))));
+
+
+
+COMMENT ON POLICY "Users can insert household orders" ON "public"."Order" IS 'Allows users to insert Order records via household access. Replaces redundant "own accounts" policy.';
 
 
 
@@ -4251,12 +4389,6 @@ CREATE POLICY "Users can insert household subscriptions" ON "public"."Subscripti
 
 
 CREATE POLICY "Users can insert household transactions" ON "public"."Transaction" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = "auth"."uid"())));
-
-
-
-CREATE POLICY "Users can insert orders for own accounts" ON "public"."Order" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."InvestmentAccount"
-  WHERE (("InvestmentAccount"."id" = "Order"."accountId") AND ("InvestmentAccount"."userId" = "auth"."uid"())))));
 
 
 
@@ -4296,6 +4428,19 @@ CREATE POLICY "Users can insert own subcategories" ON "public"."Subcategory" FOR
 
 
 
+CREATE POLICY "Users can insert prices for securities they own" ON "public"."SecurityPrice" FOR INSERT WITH CHECK (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "SecurityPrice"."securityId") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Users can insert prices for securities they own" ON "public"."SecurityPrice" IS 'Allows users to insert prices for securities they have positions in, or admins/service_role to insert any price';
+
+
+
 CREATE POLICY "Users can insert their own Plaid connections" ON "public"."PlaidConnection" FOR INSERT WITH CHECK (("auth"."uid"() = "userId"));
 
 
@@ -4315,12 +4460,6 @@ CREATE POLICY "Users can set their active household" ON "public"."UserActiveHous
 
 
 
-CREATE POLICY "Users can update TransactionSync for their accounts" ON "public"."TransactionSync" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."Account"
-  WHERE (("Account"."id" = "TransactionSync"."accountId") AND ("Account"."userId" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "Users can update account owners" ON "public"."AccountOwner" FOR UPDATE USING ((("ownerId" = "auth"."uid"()) OR ("public"."get_account_user_id"("accountId") = "auth"."uid"())));
 
 
@@ -4335,6 +4474,28 @@ CREATE POLICY "Users can update candles for own securities" ON "public"."Candle"
 
 
 
+CREATE POLICY "Users can update household TransactionSync" ON "public"."TransactionSync" FOR UPDATE USING ((("householdId" IN ( SELECT "get_user_accessible_households"."household_id"
+   FROM "public"."get_user_accessible_households"() "get_user_accessible_households"("household_id"))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND ("a"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND (EXISTS ( SELECT 1
+           FROM "public"."AccountOwner" "ao"
+          WHERE (("ao"."accountId" = "a"."id") AND ("ao"."ownerId" = "auth"."uid"()))))))))) WITH CHECK ((("householdId" IN ( SELECT "get_user_accessible_households"."household_id"
+   FROM "public"."get_user_accessible_households"() "get_user_accessible_households"("household_id"))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND ("a"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."Account" "a"
+  WHERE (("a"."id" = "TransactionSync"."accountId") AND (EXISTS ( SELECT 1
+           FROM "public"."AccountOwner" "ao"
+          WHERE (("ao"."accountId" = "a"."id") AND ("ao"."ownerId" = "auth"."uid"())))))))));
+
+
+
+COMMENT ON POLICY "Users can update household TransactionSync" ON "public"."TransactionSync" IS 'Allows users to update TransactionSync records via household access, own accounts, or AccountOwner relationship';
+
+
+
 CREATE POLICY "Users can update household account investment values" ON "public"."AccountInvestmentValue" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR (EXISTS ( SELECT 1
    FROM "public"."Account" "a"
   WHERE (("a"."id" = "AccountInvestmentValue"."accountId") AND "public"."can_access_household_data"("a"."householdId", 'write'::"text")))))) WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR (EXISTS ( SELECT 1
@@ -4343,7 +4504,11 @@ CREATE POLICY "Users can update household account investment values" ON "public"
 
 
 
-CREATE POLICY "Users can update household accounts" ON "public"."Account" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = "auth"."uid"()) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"())) WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = "auth"."uid"())));
+CREATE POLICY "Users can update household accounts" ON "public"."Account" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = "auth"."uid"()) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"())) WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = "auth"."uid"()) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()));
+
+
+
+COMMENT ON POLICY "Users can update household accounts" ON "public"."Account" IS 'Allows users to update accounts via household access, direct ownership, AccountOwner relationship, or admin role. WITH CHECK now matches USING to prevent access issues.';
 
 
 
@@ -4444,6 +4609,42 @@ CREATE POLICY "Users can update own profile" ON "public"."User" FOR UPDATE USING
 CREATE POLICY "Users can update own subcategories" ON "public"."Subcategory" FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM "public"."Category"
   WHERE (("Category"."id" = "Subcategory"."categoryId") AND ("Category"."userId" = "auth"."uid"())))));
+
+
+
+CREATE POLICY "Users can update prices for securities they own" ON "public"."SecurityPrice" FOR UPDATE USING (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "SecurityPrice"."securityId") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text"))) WITH CHECK (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "SecurityPrice"."securityId") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Users can update prices for securities they own" ON "public"."SecurityPrice" IS 'Allows users to update prices for securities they have positions in, or admins/service_role to update any price';
+
+
+
+CREATE POLICY "Users can update securities they own" ON "public"."Security" FOR UPDATE USING (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "Security"."id") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text"))) WITH CHECK (((EXISTS ( SELECT 1
+   FROM ("public"."Position" "p"
+     JOIN "public"."InvestmentAccount" "ia" ON (("ia"."id" = "p"."accountId")))
+  WHERE (("p"."securityId" = "Security"."id") AND ("ia"."userId" = "auth"."uid"())))) OR (EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))) OR ("auth"."role"() = 'service_role'::"text")));
+
+
+
+COMMENT ON POLICY "Users can update securities they own" ON "public"."Security" IS 'Allows users to update securities they have positions in, or admins/service_role to update any security';
 
 
 
@@ -4606,6 +4807,14 @@ CREATE POLICY "Users can view own and household member profiles" ON "public"."Us
 
 
 COMMENT ON POLICY "Users can view own and household member profiles" ON "public"."User" IS 'Allows users to view their own profile and profiles of other active members in the same household(s)';
+
+
+
+CREATE POLICY "Users can view own block history" ON "public"."UserBlockHistory" FOR SELECT USING (("userId" = "auth"."uid"()));
+
+
+
+COMMENT ON POLICY "Users can view own block history" ON "public"."UserBlockHistory" IS 'Allows users to view their own block/unblock history';
 
 
 
@@ -5009,6 +5218,11 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."User" TO "authenticated";
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."UserActiveHousehold" TO "authenticated";
 GRANT ALL ON TABLE "public"."UserActiveHousehold" TO "service_role";
+
+
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."UserBlockHistory" TO "authenticated";
+GRANT ALL ON TABLE "public"."UserBlockHistory" TO "service_role";
 
 
 

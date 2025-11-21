@@ -49,7 +49,10 @@ export async function getUserSubscriptions(): Promise<UserServiceSubscription[]>
   // Get current user
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    logger.warn("[getUserSubscriptions] User not authenticated:", authError?.message);
+    // Only log if it's not an expected "session missing" error (common in some contexts)
+    if (authError?.message && !authError.message.includes("Auth session missing")) {
+      logger.warn("[getUserSubscriptions] User not authenticated:", authError?.message);
+    }
     return [];
   }
 

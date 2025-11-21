@@ -13,7 +13,7 @@ export function LandingFooter() {
             <Link href="/" className="flex items-center mb-4">
               <Logo variant="wordmark" color="auto" height={40} />
             </Link>
-            <p className="text-sm text-muted-foreground max-w-md">
+            <p className="text-base text-muted-foreground max-w-md">
               Simple, modern, and designed to put you in control of your future.
             </p>
           </div>
@@ -25,7 +25,7 @@ export function LandingFooter() {
               <li>
                 <Link
                   href="#features"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Features
                 </Link>
@@ -33,7 +33,7 @@ export function LandingFooter() {
               <li>
                 <Link
                   href="#pricing"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Pricing
                 </Link>
@@ -41,7 +41,7 @@ export function LandingFooter() {
               <li>
                 <Link
                   href="/faq"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
                 >
                   FAQ
                 </Link>
@@ -58,7 +58,7 @@ export function LandingFooter() {
                   href="/terms-of-service"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Terms of Service
                 </Link>
@@ -68,7 +68,7 @@ export function LandingFooter() {
                   href="/privacy-policy"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Privacy Policy
                 </Link>
@@ -79,7 +79,7 @@ export function LandingFooter() {
 
         {/* Bottom */}
         <div className="pt-8 border-t border-border">
-          <p className="text-sm text-center text-muted-foreground">
+          <p className="text-base text-center text-muted-foreground">
             © {new Date().getFullYear()} Spare Finance. All rights reserved.
           </p>
         </div>

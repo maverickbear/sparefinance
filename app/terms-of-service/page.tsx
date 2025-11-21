@@ -139,11 +139,14 @@ export default async function TermsOfServicePage() {
                   The Service includes various features, some of which may be subject to plan limitations:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li><strong>Bank Integration (Plaid):</strong> Available on {essentialPlanName} and {proPlanName} plans. By connecting your bank accounts, you authorize us to access your account information, transactions, and balances through Plaid. You understand that we do not store your bank credentials and that Plaid handles all authentication securely.</li>
-                  <li><strong>Household Members:</strong> Available on the {proPlanName} plan. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions.</li>
-                  <li><strong>AI-Powered Categorization:</strong> The Service uses intelligent categorization to suggest transaction categories based on your historical data. These are suggestions only, and you are responsible for verifying and approving all categorizations.</li>
-                  <li><strong>CSV Import/Export:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may import and export your financial data. You are responsible for the accuracy of imported data and for maintaining backups of exported data.</li>
-                  <li><strong>Plan Limits:</strong> Your subscription plan includes specific limits (e.g., number of transactions per month, number of accounts). You agree not to exceed these limits and understand that exceeding limits may result in service restrictions.</li>
+                  <li><strong>Bank Integration (Plaid):</strong> Available on {essentialPlanName} and {proPlanName} plans. By connecting your bank accounts, you authorize us to access your account information, transactions, and balances through Plaid. You understand that we do not store your bank credentials and that Plaid handles all authentication securely. Bank data is synced automatically and you can disconnect at any time.</li>
+                  <li><strong>Investment Integration (Questrade):</strong> Available on {essentialPlanName} and {proPlanName} plans. You may connect your Questrade investment accounts to automatically sync holdings, transactions, and portfolio values. You are responsible for maintaining the security of your Questrade authorization tokens and for ensuring you have the right to connect such accounts.</li>
+                  <li><strong>Household Members:</strong> Available on the {proPlanName} plan. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions. The account owner can view and manage all household members' data.</li>
+                  <li><strong>AI-Powered Features:</strong> The Service uses OpenAI-powered artificial intelligence to provide category suggestions, financial insights, and automated categorization based on your historical data. These are suggestions only, and you are responsible for verifying and approving all AI-generated content. We do not guarantee the accuracy of AI suggestions.</li>
+                  <li><strong>CSV Import/Export:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may import and export your financial data in CSV format. You are responsible for the accuracy of imported data and for maintaining backups of exported data. Imported data may require manual verification and categorization.</li>
+                  <li><strong>Investment Tracking:</strong> You may track investments, securities, positions, and portfolio performance. Investment data may be synced from Questrade or entered manually. We do not provide investment advice and are not responsible for investment decisions made based on data displayed in the Service.</li>
+                  <li><strong>Debt Management:</strong> You may track loans, mortgages, credit cards, and other debts. Debt information may be synced from Plaid or entered manually. We do not provide debt management advice.</li>
+                  <li><strong>Plan Limits:</strong> Your subscription plan includes specific limits (e.g., number of transactions per month, number of accounts). You agree not to exceed these limits and understand that exceeding limits may result in service restrictions or require plan upgrades.</li>
                 </ul>
               </div>
 
@@ -304,9 +307,20 @@ export default async function TermsOfServicePage() {
               </p>
               <p className="text-sm text-muted-foreground">
                 <strong>AI Categorization Disclaimer:</strong> Category suggestions provided by our 
-                AI-powered system are based on patterns in your historical data and are suggestions only. 
+                AI-powered system (powered by OpenAI) are based on patterns in your historical data and are suggestions only. 
                 You are responsible for reviewing and approving all categorizations. We do not guarantee 
-                the accuracy of category suggestions.
+                the accuracy of category suggestions or AI-generated insights.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Investment Integration Disclaimer:</strong> Questrade integration is provided as a convenience feature. 
+                We are not responsible for the availability, accuracy, or security of Questrade's services. 
+                Investment data is provided "as is" and we do not guarantee the accuracy or completeness of 
+                synced investment information. You are responsible for verifying all investment data.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                <strong>Investment Advice Disclaimer:</strong> The Service does not provide investment, financial, legal, or tax advice. 
+                All investment data, portfolio information, and financial insights are for informational purposes only. 
+                You should consult with qualified financial advisors before making investment decisions.
               </p>
             </CardContent>
           </Card>
@@ -350,18 +364,44 @@ export default async function TermsOfServicePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Termination</CardTitle>
+              <CardTitle>Account Suspension and Termination</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                We may terminate or suspend your account and access to the Service immediately, 
-                without prior notice, for any reason, including if you breach these Terms.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                You may terminate your account at any time by deleting your account through the 
-                account settings. Upon termination, your right to use the Service will immediately 
-                cease, and we may delete your account and data.
-              </p>
+              <div>
+                <h3 className="font-semibold mb-2">Termination by You</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  You may terminate your account at any time by deleting your account through the 
+                  account settings. Upon termination:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li>Your right to use the Service will immediately cease</li>
+                  <li>We may delete your account and data within 30 days</li>
+                  <li>All connected services (Plaid, Questrade) will be disconnected</li>
+                  <li>Your subscription will be cancelled and no further charges will occur</li>
+                  <li>You may export your data before termination</li>
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-2">Termination or Suspension by Us</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  We may terminate or suspend your account and access to the Service immediately, 
+                  without prior notice, for any reason, including if:
+                </p>
+                <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                  <li>You breach these Terms or our Privacy Policy</li>
+                  <li>You engage in fraudulent, illegal, or harmful activities</li>
+                  <li>You violate any applicable laws or regulations</li>
+                  <li>You abuse or misuse the Service</li>
+                  <li>We determine, in our sole discretion, that your use poses a security risk</li>
+                  <li>Your account is inactive for an extended period</li>
+                </ul>
+                <p className="text-sm text-muted-foreground mt-2">
+                  If your account is suspended or terminated, you may lose access to your data. 
+                  We maintain a history of account actions (including blocks and suspensions) for 
+                  security and compliance purposes. You may contact us to appeal a suspension or 
+                  termination decision.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -381,6 +421,28 @@ export default async function TermsOfServicePage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Compliance and Data Protection</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                We are committed to protecting your privacy and personal information. Our data practices 
+                are governed by our Privacy Policy and comply with applicable data protection laws, including:
+              </p>
+              <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
+                <li><strong>PIPEDA (Personal Information Protection and Electronic Documents Act):</strong> As a Canadian company, we comply with PIPEDA requirements for the collection, use, and disclosure of personal information.</li>
+                <li><strong>GDPR (General Data Protection Regulation):</strong> We comply with GDPR requirements for users in the European Economic Area, including rights to access, rectification, erasure, and data portability.</li>
+                <li><strong>CCPA (California Consumer Privacy Act):</strong> We comply with CCPA requirements for California residents, including disclosure of data collection practices and consumer rights.</li>
+              </ul>
+              <p className="text-sm text-muted-foreground">
+                You have the right to access, correct, delete, or export your personal data. You may also 
+                object to certain processing activities or request restriction of processing. To exercise 
+                these rights, please contact us at legal@sparefinance.com.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Governing Law</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -390,6 +452,11 @@ export default async function TermsOfServicePage() {
                 and the province in which Maverick Bear Design operates, without regard to its conflict 
                 of law provisions. Any disputes arising from these Terms or the Service shall be resolved 
                 through binding arbitration or in the appropriate courts of Canada.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                If you are located outside of Canada, you agree that by using the Service, you consent to 
+                the transfer of your information to Canada and the processing of such information in accordance 
+                with Canadian law and these Terms.
               </p>
             </CardContent>
           </Card>

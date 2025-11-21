@@ -66,9 +66,8 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
             hasUser: !!user,
           });
         }
-      } else {
-        logger.debug("[createServerClient] Successfully authenticated:", user.id);
       }
+      // Removed verbose success logging - authentication is expected and happens frequently
     } catch (error: any) {
       // Handle refresh token errors gracefully - don't log expected errors
       const isExpectedError = error?.message?.includes("refresh_token_not_found") || 

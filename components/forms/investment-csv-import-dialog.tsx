@@ -28,7 +28,6 @@ import {
   CSVRow,
 } from "@/lib/csv/investment-import";
 import { useSubscription } from "@/hooks/use-subscription";
-import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { Loader2, AlertCircle, CheckCircle2, X, Upload, FileText, File as FileIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -654,13 +653,8 @@ export function InvestmentCsvImportDialog({
 
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
             {!hasCsvAccess && !limitsLoading && (
-              <div>
-                <UpgradePrompt
-                  feature="CSV Import"
-                  currentPlan="essential"
-                  requiredPlan="essential"
-                  message="CSV import is not available. Please upgrade to Essential or Pro to import your investment transactions."
-                />
+              <div className="p-4 text-center text-muted-foreground">
+                CSV import is not available in your current plan.
               </div>
             )}
 

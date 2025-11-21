@@ -262,12 +262,19 @@ export async function middleware(request: NextRequest) {
           }
 
           if (user) {
-            // User is authenticated - check if super_admin
+            // User is authenticated - check if super_admin and if blocked
             const { data: userData } = await supabase
               .from("User")
-              .select("role")
+              .select("role, isBlocked")
               .eq("id", user.id)
               .single();
+
+            // Check if user is blocked (super_admin cannot be blocked)
+            if (userData?.isBlocked && userData?.role !== "super_admin") {
+              // User is blocked - sign them out and redirect to login
+              await supabase.auth.signOut();
+              return NextResponse.redirect(new URL("/auth/login?error=blocked", request.url));
+            }
 
             // If super_admin, allow access
             if (userData?.role === "super_admin") {

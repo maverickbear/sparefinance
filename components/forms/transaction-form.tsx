@@ -15,8 +15,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from "@/components/ui/select";
-import { Search, ChevronsUpDown, Check, Loader2, Info } from "lucide-react";
+import { Loader2, Info, Plus, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -80,12 +83,18 @@ function formatAccountType(type: string): string {
 interface Category {
   id: string;
   name: string;
-  macroId?: string;
-  macro?: {
+  groupId?: string;
+  macroId?: string; // Deprecated, for backward compatibility
+  group?: {
     id: string;
     name: string;
     type?: "income" | "expense" | null;
   } | null;
+  macro?: {
+    id: string;
+    name: string;
+    type?: "income" | "expense" | null;
+  } | null; // Deprecated, for backward compatibility
   subcategories?: Array<{
     id: string;
     name: string;
@@ -109,14 +118,15 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [shouldShowForm, setShouldShowForm] = useState(false);
-  const [categoryComboboxOpen, setCategoryComboboxOpen] = useState(false);
-  const [categorySearchQuery, setCategorySearchQuery] = useState("");
-  const categoryButtonRef = React.useRef<HTMLButtonElement>(null);
-  const categoryDropdownRef = React.useRef<HTMLDivElement>(null);
   const [subcategoryComboboxOpen, setSubcategoryComboboxOpen] = useState(false);
   const [subcategorySearchQuery, setSubcategorySearchQuery] = useState("");
   const subcategoryButtonRef = React.useRef<HTMLButtonElement>(null);
   const subcategoryDropdownRef = React.useRef<HTMLDivElement>(null);
+  const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false);
+  const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string; type?: "income" | "expense" | null }>>([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -187,8 +197,6 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
     } else {
       setShouldShowForm(false);
       setShowAccountDialog(false);
-      setCategoryComboboxOpen(false);
-      setCategorySearchQuery("");
       setSubcategoryComboboxOpen(false);
       setSubcategorySearchQuery("");
     }
@@ -198,16 +206,6 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
-      
-      if (
-        categoryComboboxOpen &&
-        categoryButtonRef.current &&
-        !categoryButtonRef.current.contains(target) &&
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(target)
-      ) {
-        setCategoryComboboxOpen(false);
-      }
       
       if (
         subcategoryComboboxOpen &&
@@ -220,14 +218,14 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       }
     }
 
-    if (categoryComboboxOpen || subcategoryComboboxOpen) {
+    if (subcategoryComboboxOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
     return undefined;
-  }, [categoryComboboxOpen, subcategoryComboboxOpen]);
+  }, [subcategoryComboboxOpen]);
 
   async function checkAccountsAndShowForm() {
     try {
@@ -276,6 +274,13 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
     }
   }, [open, form.watch("type")]);
 
+  // Load available groups when form opens, type changes, or add category dialog opens
+  useEffect(() => {
+    if (open) {
+      loadAvailableGroups();
+    }
+  }, [open, form.watch("type"), showAddCategoryDialog]);
+
   // Load subcategories when category is selected
   useEffect(() => {
     if (selectedCategoryId && open) {
@@ -312,11 +317,18 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       const categories = await res.json();
       
       // Handle relations (ensure consistent format)
-      const formattedCategories = (categories || []).map((cat: any) => ({
-        ...cat,
-        macro: Array.isArray(cat.macro) ? (cat.macro.length > 0 ? cat.macro[0] : null) : cat.macro,
-        subcategories: Array.isArray(cat.subcategories) ? cat.subcategories : [],
-      }));
+      const formattedCategories = (categories || []).map((cat: any) => {
+        // Handle group (new) and macro (deprecated) for backward compatibility
+        const group = Array.isArray(cat.group) ? (cat.group.length > 0 ? cat.group[0] : null) : 
+                     (cat.group || (Array.isArray(cat.macro) ? (cat.macro.length > 0 ? cat.macro[0] : null) : cat.macro));
+        
+        return {
+          ...cat,
+          group: group,
+          macro: group, // For backward compatibility
+          subcategories: Array.isArray(cat.subcategories) ? cat.subcategories : [],
+        };
+      });
       
       setAllCategories(formattedCategories);
       
@@ -335,6 +347,92 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       logger.error("Error loading categories:", error);
       setAllCategories([]);
       setSubcategoriesMap(new Map());
+    }
+  }
+
+  async function loadAvailableGroups() {
+    try {
+      const { getGroupsClient } = await import("@/lib/api/categories-client");
+      const groups = await getGroupsClient();
+      const transactionType = form.getValues("type");
+      
+      // Filter groups by transaction type
+      const filteredGroups = groups.filter((group: any) => {
+        if (transactionType === "expense") {
+          return group.type === "expense" || group.type === null;
+        } else if (transactionType === "income") {
+          return group.type === "income" || group.type === null;
+        }
+        return true;
+      });
+      
+      setAvailableGroups(filteredGroups);
+    } catch (error) {
+      logger.error("Error loading groups:", error);
+      setAvailableGroups([]);
+    }
+  }
+
+  async function handleCreateCategory() {
+    if (!newCategoryName.trim() || !selectedGroupId) {
+      toast({
+        title: "Error",
+        description: "Please enter a category name and select a group",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingCategory(true);
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          groupId: selectedGroupId,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to create category");
+      }
+
+      const newCategory = await res.json();
+      
+      toast({
+        title: "Category created",
+        description: "The category has been created successfully.",
+        variant: "success",
+      });
+
+      // Reload categories
+      await loadAllCategories();
+      
+      // Select the newly created category
+      setSelectedCategoryId(newCategory.id);
+      form.setValue("categoryId", newCategory.id);
+      form.setValue("subcategoryId", undefined);
+      
+      // Close dialogs
+      setShowAddCategoryDialog(false);
+      setNewCategoryName("");
+      setSelectedGroupId("");
+      
+      // Load subcategories for the new category
+      if (newCategory.id) {
+        loadSubcategoriesForCategory(newCategory.id);
+      }
+    } catch (error) {
+      logger.error("Error creating category:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create category",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingCategory(false);
     }
   }
 
@@ -390,6 +488,12 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   }, [open, transaction]);
 
   function handleCategoryChange(categoryId: string) {
+    // Handle special "Add Category" action
+    if (categoryId === "__add_category__") {
+      setShowAddCategoryDialog(true);
+      return;
+    }
+    
     setSelectedCategoryId(categoryId);
     form.setValue("categoryId", categoryId);
     form.setValue("subcategoryId", undefined);
@@ -491,7 +595,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         if (transactionLimit.limit !== -1 && transactionLimit.current >= transactionLimit.limit) {
           toast({
             title: "Limit Reached",
-            description: `You've reached your monthly transaction limit (${transactionLimit.limit}). Upgrade your plan to continue adding transactions.`,
+            description: `You've reached your monthly transaction limit (${transactionLimit.limit}).`,
             variant: "destructive",
           });
           setIsSubmitting(false);
@@ -704,15 +808,16 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                     setSelectedCategoryId("");
                     setSubcategories([]);
                     setSubcategoriesMap(new Map());
-                    setCategoryComboboxOpen(false);
-                    setCategorySearchQuery("");
                     setSubcategoryComboboxOpen(false);
                     setSubcategorySearchQuery("");
                   } else {
                     // When switching between expense and income, clear selected category if its group doesn't match the new type
                     const currentCategory = allCategories.find(c => c.id === selectedCategoryId);
                     if (currentCategory) {
-                      const categoryGroup = currentCategory.macro || (Array.isArray(currentCategory.macro) ? currentCategory.macro[0] : null);
+                      // Use group first, then macro for backward compatibility
+                      const categoryGroup = currentCategory.group || currentCategory.macro || 
+                                           (Array.isArray(currentCategory.group) ? currentCategory.group[0] : null) ||
+                                           (Array.isArray(currentCategory.macro) ? currentCategory.macro[0] : null);
                       if (categoryGroup) {
                         const shouldKeepCategory = 
                           (newType === "expense" && (categoryGroup.type === "expense" || categoryGroup.type === null)) ||
@@ -725,8 +830,6 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                           form.setValue("subcategoryId", undefined);
                           setSubcategories([]);
                           setSubcategoriesMap(new Map());
-                          setCategoryComboboxOpen(false);
-                          setCategorySearchQuery("");
                           setSubcategoryComboboxOpen(false);
                           setSubcategorySearchQuery("");
                         }
@@ -837,132 +940,95 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
             {/* Category and Subcategory (only for non-transfers) */}
             {form.watch("type") !== "transfer" && (
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-1 relative">
+                <div className="space-y-1">
                   <label className="text-sm font-medium">
                     Category {!selectedCategoryId && <span className="text-gray-400 text-[12px]">required</span>}
                   </label>
-                  <Button
-                    type="button"
-                    ref={categoryButtonRef}
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={categoryComboboxOpen}
-                    className="h-12 w-full justify-between"
-                    onClick={() => setCategoryComboboxOpen(!categoryComboboxOpen)}
+                  <Select
+                    value={selectedCategoryId && selectedCategoryId !== "__add_category__" ? selectedCategoryId : ""}
+                    onValueChange={handleCategoryChange}
                   >
-                    {selectedCategoryId
-                      ? allCategories.find((cat) => cat.id === selectedCategoryId)?.name || "Select a category"
-                      : "Select a category"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                  {categoryComboboxOpen && (
-                    <div 
-                      ref={categoryDropdownRef}
-                      className="absolute w-full mt-1 bg-popover border rounded-[12px] shadow-lg"
-                      style={{ maxHeight: '235px', display: 'flex', flexDirection: 'column', zIndex: 9999 }}
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      {/* Search Input */}
-                      <div className="flex items-center border-b px-3 h-11 flex-shrink-0">
-                        <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                        <Input
-                          placeholder="Search categories..."
-                          value={categorySearchQuery}
-                          onChange={(e) => setCategorySearchQuery(e.target.value)}
-                          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-full"
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape") {
-                              setCategoryComboboxOpen(false);
-                            }
-                          }}
-                          autoFocus
-                        />
-                      </div>
-                      {/* Categories List - Grouped by Group */}
-                      <div className="p-1 overflow-y-auto overflow-x-hidden" style={{ height: '184px' }}>
-                        {(() => {
-                          const transactionType = form.watch("type");
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const transactionType = form.watch("type");
+                        
+                        // Filter categories by transaction type (based on group type)
+                        const filteredCategories = allCategories.filter((category) => {
+                          // Use group first, then macro for backward compatibility
+                          const categoryGroup = category.group || category.macro || 
+                                               (Array.isArray(category.group) ? category.group[0] : null) ||
+                                               (Array.isArray(category.macro) ? category.macro[0] : null);
+                          if (!categoryGroup) return false;
                           
-                          // Filter categories by transaction type (based on group type)
-                          const filteredCategories = allCategories.filter((category) => {
-                            const categoryGroup = category.macro || (Array.isArray(category.macro) ? category.macro[0] : null);
-                            if (!categoryGroup) return false;
-                            
-                            // Filter by transaction type
-                            if (transactionType === "expense") {
-                              if (categoryGroup.type !== "expense" && categoryGroup.type !== null) return false;
-                            } else if (transactionType === "income") {
-                              if (categoryGroup.type !== "income" && categoryGroup.type !== null) return false;
-                            }
-                            
-                            // Filter by search query
-                            if (categorySearchQuery.trim()) {
-                              return category.name.toLowerCase().includes(categorySearchQuery.toLowerCase()) ||
-                                     categoryGroup.name.toLowerCase().includes(categorySearchQuery.toLowerCase());
-                            }
-                            return true;
-                          });
-
-                          if (filteredCategories.length === 0) {
-                            return (
-                              <div className="py-6 text-center text-sm text-muted-foreground">
-                                No categories found.
-                              </div>
-                            );
+                          // Filter by transaction type
+                          if (transactionType === "expense") {
+                            if (categoryGroup.type !== "expense" && categoryGroup.type !== null) return false;
+                          } else if (transactionType === "income") {
+                            if (categoryGroup.type !== "income" && categoryGroup.type !== null) return false;
                           }
+                          
+                          return true;
+                        });
 
-                          // Group categories by Group
-                          const groupedByGroup = new Map<string, { group: any; categories: Category[] }>();
-                          filteredCategories.forEach((category) => {
-                            const categoryGroup = category.macro || (Array.isArray(category.macro) ? category.macro[0] : null);
-                            if (categoryGroup) {
-                              const groupId = categoryGroup.id;
-                              if (!groupedByGroup.has(groupId)) {
-                                groupedByGroup.set(groupId, { group: categoryGroup, categories: [] });
-                              }
-                              groupedByGroup.get(groupId)!.categories.push(category);
-                            }
-                          });
-
+                        if (filteredCategories.length === 0) {
                           return (
-                            <div className="space-y-2">
-                              {Array.from(groupedByGroup.entries()).map(([groupId, { group, categories }]) => (
-                                <div key={groupId} className="space-y-1">
-                                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase">
-                                    {group.name}
-                                  </div>
-                                  {categories.map((category) => (
-                                    <button
-                                      key={category.id}
-                                      type="button"
-                                      onClick={() => {
-                                        handleCategoryChange(category.id);
-                                        setCategoryComboboxOpen(false);
-                                        setCategorySearchQuery("");
-                                      }}
-                                      className={cn(
-                                        "w-full flex items-center rounded-md px-2 py-1.5 text-sm text-left cursor-pointer transition-colors pl-6",
-                                        "hover:bg-accent hover:text-accent-foreground",
-                                        selectedCategoryId === category.id && "bg-accent text-accent-foreground"
-                                      )}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4 shrink-0",
-                                          selectedCategoryId === category.id ? "opacity-100" : "opacity-0"
-                                        )}
-                                      />
-                                      {category.name}
-                                    </button>
-                                  ))}
-                                </div>
-                              ))}
+                            <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                              No categories found.
                             </div>
                           );
-                        })()}
-                      </div>
-                    </div>
-                  )}
+                        }
+
+                        // Group categories by Group
+                        const groupedByGroup = new Map<string, { group: any; categories: Category[] }>();
+                        filteredCategories.forEach((category) => {
+                          // Use group first, then macro for backward compatibility
+                          const categoryGroup = category.group || category.macro || 
+                                               (Array.isArray(category.group) ? category.group[0] : null) ||
+                                               (Array.isArray(category.macro) ? category.macro[0] : null);
+                          if (categoryGroup) {
+                            const groupId = categoryGroup.id;
+                            if (!groupedByGroup.has(groupId)) {
+                              groupedByGroup.set(groupId, { group: categoryGroup, categories: [] });
+                            }
+                            groupedByGroup.get(groupId)!.categories.push(category);
+                          }
+                        });
+
+                        // Sort groups by name
+                        const sortedGroups = Array.from(groupedByGroup.entries()).sort((a, b) => 
+                          a[1].group.name.localeCompare(b[1].group.name)
+                        );
+
+                        return (
+                          <>
+                            {sortedGroups.map(([groupId, { group, categories }]) => (
+                              <SelectGroup key={groupId}>
+                                <SelectLabel>{group.name}</SelectLabel>
+                                {categories
+                                  .sort((a, b) => a.name.localeCompare(b.name))
+                                  .map((category) => (
+                                    <SelectItem key={category.id} value={category.id}>
+                                      {category.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectGroup>
+                            ))}
+                            <SelectSeparator />
+                            <SelectItem 
+                              value="__add_category__"
+                              className="text-primary font-medium"
+                            >
+                              <Plus className="mr-2 h-4 w-4 inline" />
+                              Add Category
+                            </SelectItem>
+                          </>
+                        );
+                      })()}
+                    </SelectContent>
+                  </Select>
                   {form.formState.errors.categoryId && (
                     <p className="text-xs text-destructive">
                       {form.formState.errors.categoryId.message}
@@ -1283,8 +1349,102 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
       )}
+
+      {/* Add Category Dialog */}
+      <Dialog 
+        open={showAddCategoryDialog} 
+        onOpenChange={(open) => {
+          setShowAddCategoryDialog(open);
+          if (!open) {
+            // Reset form when dialog closes
+            setNewCategoryName("");
+            setSelectedGroupId("");
+          } else {
+            // Reload groups when dialog opens to ensure we have the latest filtered list
+            loadAvailableGroups();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Category</DialogTitle>
+            <DialogDescription>
+              Create a new category for {form.watch("type") === "expense" ? "expenses" : "income"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Group</label>
+              <Select
+                value={selectedGroupId}
+                onValueChange={setSelectedGroupId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableGroups.length > 0 ? (
+                    availableGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No groups available for {form.watch("type") === "expense" ? "expenses" : "income"}
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Category Name</label>
+              <Input
+                placeholder="Enter category name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newCategoryName.trim() && selectedGroupId) {
+                    e.preventDefault();
+                    handleCreateCategory();
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowAddCategoryDialog(false);
+                setNewCategoryName("");
+                setSelectedGroupId("");
+              }}
+              disabled={isCreatingCategory}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateCategory}
+              disabled={!newCategoryName.trim() || !selectedGroupId || isCreatingCategory}
+            >
+              {isCreatingCategory ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

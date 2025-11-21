@@ -134,17 +134,7 @@ function WelcomeContent() {
               </div>
 
               <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Want more features? Upgrade to unlock unlimited transactions, more accounts, investments, advanced reports, and CSV export.
-                </p>
                 <div className="flex gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push("/pricing")}
-                    className="flex-1"
-                  >
-                    View Plans
-                  </Button>
                   <Button
                     onClick={handleGoToDashboard}
                     className="flex-1"

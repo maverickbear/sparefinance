@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Subscription, Plan } from "@/lib/validations/plan";
 import { format } from "date-fns";
-import { CreditCard, Loader2 } from "lucide-react";
+import { CreditCard, Loader2, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import {
   Alert,
@@ -136,6 +136,7 @@ export function SubscriptionManagement({
     ? (interval === "year" ? plan.priceYearly / 12 : plan.priceMonthly)
     : 0;
   const isCancelled = subscription.cancelAtPeriodEnd || subscription.status === "cancelled";
+  const isFullyCancelled = subscription.status === "cancelled";
 
   return (
     <>
@@ -163,27 +164,59 @@ export function SubscriptionManagement({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {(subscription.currentPeriodEnd || subscription.trialEndDate) && (
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {isCancelled 
-                  ? "Subscription ends" 
-                  : subscription.status === "trialing"
-                  ? "Your trial period ends in"
-                  : "Renews on"}
-              </p>
-              <p className="font-medium">
-                {format(
-                  new Date(
-                    subscription.status === "trialing" && subscription.trialEndDate
-                      ? subscription.trialEndDate
-                      : subscription.currentPeriodEnd!
-                  ), 
-                  "PPP"
-                )}
-              </p>
-            </div>
-          )}
+          {/* Show date information only if valid and relevant */}
+          {(() => {
+            // Determine which date to show and if it's valid
+            let dateToShow: Date | null = null;
+            let label = "";
+            let isValidDate = false;
+
+            if (subscription.status === "trialing" && subscription.trialEndDate) {
+              dateToShow = new Date(subscription.trialEndDate);
+              label = "Your trial period ends on";
+              isValidDate = !isNaN(dateToShow.getTime()) && dateToShow.getFullYear() > 1970;
+            } else if (subscription.currentPeriodEnd) {
+              dateToShow = new Date(subscription.currentPeriodEnd);
+              // Check if date is valid (not epoch 0 or invalid)
+              isValidDate = !isNaN(dateToShow.getTime()) && dateToShow.getFullYear() > 1970;
+              
+              if (isValidDate) {
+                if (isFullyCancelled) {
+                  // For fully cancelled subscriptions, show when access ended
+                  label = "Access ended on";
+                } else if (isCancelled) {
+                  // For subscriptions that will be cancelled
+                  label = "Subscription ends on";
+                } else {
+                  label = "Renews on";
+                }
+              }
+            }
+
+            // Only show date section if we have a valid date
+            if (dateToShow && isValidDate) {
+              return (
+                <div>
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="font-medium">
+                    {format(dateToShow, "PPP")}
+                  </p>
+                </div>
+              );
+            }
+
+            // For fully cancelled subscriptions without valid date, show friendly message
+            if (isFullyCancelled) {
+              return (
+                <div>
+                  <p className="text-sm text-muted-foreground">Subscription Status</p>
+                  <p className="font-medium text-muted-foreground">Cancelled</p>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
 
           {paymentMethod?.card && (
             <div>
@@ -198,13 +231,21 @@ export function SubscriptionManagement({
           )}
 
           {isCancelled && (
-            <Alert variant="destructive">
+            <Alert variant={isFullyCancelled ? "default" : "destructive"}>
               <AlertDescription>
-                <strong>Subscription Cancelled:</strong> Your subscription will end on{" "}
-                {subscription.currentPeriodEnd
-                  ? format(new Date(subscription.currentPeriodEnd), "PPP")
-                  : "the end of your billing period"}
-                . You can reactivate it through the Stripe Customer Portal.
+                {isFullyCancelled ? (
+                  <>
+                    <strong>Subscription Cancelled:</strong> Your subscription is cancelled. You can still view your data, but you cannot add, edit, or remove information. To reactivate your subscription and regain full functionality, click the button below.
+                  </>
+                ) : (
+                  <>
+                    <strong>Subscription Will Be Cancelled:</strong> Your subscription will be cancelled on{" "}
+                    {subscription.currentPeriodEnd
+                      ? format(new Date(subscription.currentPeriodEnd), "PPP")
+                      : "the end of your billing period"}
+                    . You can reactivate it through the Stripe Customer Portal.
+                  </>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -229,21 +270,44 @@ export function SubscriptionManagement({
 
           {(!householdInfo?.isMember || householdInfo?.isOwner) && (
             <div className="flex flex-col gap-2">
-              <Button
-                onClick={handleManageSubscription}
-                disabled={loading}
-                variant="outline"
-                className="w-full"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  "Manage Subscription"
-                )}
-              </Button>
+              {isFullyCancelled ? (
+                // When fully cancelled, show only Reactivate button
+                <Button
+                  onClick={handleManageSubscription}
+                  disabled={loading}
+                  variant="default"
+                  className="w-full"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Reactivate Subscription
+                    </>
+                  )}
+                </Button>
+              ) : (
+                // When active or will be cancelled, show only Manage button
+                <Button
+                  onClick={handleManageSubscription}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Manage Subscription"
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

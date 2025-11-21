@@ -6,7 +6,6 @@ import { TrendingUp, TrendingDown, PieChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PortfolioSummary, HistoricalDataPoint } from "@/lib/api/portfolio";
 import type { Holding } from "@/lib/api/investments";
-import { FeatureGuard } from "@/components/common/feature-guard";
 import { PortfolioPerformanceChart } from "@/components/portfolio/portfolio-performance-chart";
 
 interface InvestmentPerformanceSectionProps {
@@ -29,8 +28,7 @@ export function InvestmentPerformanceSection({
     .slice(0, 5);
 
   return (
-    <FeatureGuard feature="hasInvestments" featureName="Investments">
-      <div className="space-y-4">
+    <div className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg md:text-xl flex items-center gap-2">
@@ -166,7 +164,6 @@ export function InvestmentPerformanceSection({
           </CardContent>
         </Card>
       </div>
-    </FeatureGuard>
   );
 }
 

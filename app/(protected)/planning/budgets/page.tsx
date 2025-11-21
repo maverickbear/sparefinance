@@ -14,7 +14,6 @@ import { EmptyState } from "@/components/common/empty-state";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
-import { FeatureGuard } from "@/components/common/feature-guard";
 
 interface Budget {
   id: string;
@@ -168,91 +167,104 @@ export default function BudgetsPage() {
     : 0;
 
   return (
-    <FeatureGuard feature="hasBudgets" featureName="Budgets" requiredPlan="essential">
-      <div>
-        <PageHeader
-          title="Budgets"
-        >
-          <Button
-            onClick={() => {
-              if (!checkWriteAccess()) return;
-              setSelectedBudget(null);
-              setIsFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Budget
-          </Button>
-        </PageHeader>
-
-        <div className="w-full p-4 lg:p-8">
-          {/* Budgets Grid */}
-          {loading && !hasLoaded ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <div className="text-muted-foreground">Loading budgets...</div>
-            </CardContent>
-          </Card>
-        ) : budgets.length === 0 ? (
-          <div className="w-full h-full min-h-[400px]">
-          <EmptyState
-            icon={Wallet}
-            title="No budgets yet"
-            description="Create your first budget to start tracking your spending and stay on top of your finances."
-            actionLabel="Create Your First Budget"
-            onAction={() => {
-              if (!checkWriteAccess()) return;
-              setSelectedBudget(null);
-              setIsFormOpen(true);
-            }}
-            actionIcon={Plus}
-          />
-          </div>
-        ) : (
-          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-            {budgets.map((budget) => (
-              <BudgetCard
-                key={budget.id}
-                budget={budget}
-                onEdit={(b) => {
-                  if (!checkWriteAccess()) return;
-                  setSelectedBudget(b);
-                  setIsFormOpen(true);
-                }}
-                onDelete={(id) => {
-                  if (!checkWriteAccess()) return;
-                  if (deletingId !== id) {
-                    handleDelete(id);
-                  }
-                }}
-                deletingId={deletingId}
-              />
-            ))}
-          </div>
-        )}
-
-        <BudgetForm 
-          macros={macros}
-          categories={categories} 
-          period={now}
-          budget={selectedBudget || undefined}
-          open={isFormOpen}
-          onOpenChange={(open) => {
-            setIsFormOpen(open);
-            if (!open) {
-              setSelectedBudget(null);
-            }
-          }}
-          onSuccess={async () => {
+    <div>
+      <PageHeader
+        title="Budgets"
+      >
+        <Button
+          onClick={() => {
+            if (!checkWriteAccess()) return;
             setSelectedBudget(null);
-            // Small delay to ensure database is updated
-            await new Promise(resolve => setTimeout(resolve, 100));
-            loadData();
+            setIsFormOpen(true);
           }}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Budget
+        </Button>
+      </PageHeader>
+
+      <div className="w-full p-4 lg:p-8">
+        {/* Budgets Grid */}
+        {loading && !hasLoaded ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="text-muted-foreground">Loading budgets...</div>
+          </CardContent>
+        </Card>
+      ) : budgets.length === 0 ? (
+        <div className="w-full h-full min-h-[400px]">
+        <EmptyState
+          icon={Wallet}
+          title="No budgets yet"
+          description="Create your first budget to start tracking your spending and stay on top of your finances."
+          actionLabel="Create Your First Budget"
+          onAction={() => {
+            if (!checkWriteAccess()) return;
+            setSelectedBudget(null);
+            setIsFormOpen(true);
+          }}
+          actionIcon={Plus}
         />
-        {ConfirmDialog}
         </div>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          {budgets.map((budget) => (
+            <BudgetCard
+              key={budget.id}
+              budget={budget}
+              onEdit={(b) => {
+                if (!checkWriteAccess()) return;
+                setSelectedBudget(b);
+                setIsFormOpen(true);
+              }}
+              onDelete={(id) => {
+                if (!checkWriteAccess()) return;
+                if (deletingId !== id) {
+                  handleDelete(id);
+                }
+              }}
+              deletingId={deletingId}
+            />
+          ))}
+        </div>
+      )}
+
+      <BudgetForm 
+        macros={macros}
+        categories={categories} 
+        period={now}
+        budget={selectedBudget || undefined}
+        open={isFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) {
+            setSelectedBudget(null);
+          }
+        }}
+        onSuccess={async () => {
+          setSelectedBudget(null);
+          // Small delay to ensure database is updated
+          await new Promise(resolve => setTimeout(resolve, 100));
+          loadData();
+        }}
+      />
+      {ConfirmDialog}
       </div>
-    </FeatureGuard>
+
+      {/* Mobile Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+        <Button
+          size="large"
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={() => {
+            if (!checkWriteAccess()) return;
+            setSelectedBudget(null);
+            setIsFormOpen(true);
+          }}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      </div>
+    </div>
   );
 }

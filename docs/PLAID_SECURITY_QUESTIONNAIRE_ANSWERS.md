@@ -21,7 +21,7 @@
 **Details:**
 Our organization has documented information security policies and procedures that are operationalized to identify, mitigate, and monitor information security risks. Our security practices include:
 
-- **Row Level Security (RLS):** 129 policies protecting all database tables to ensure data isolation between users
+- **Row Level Security (RLS):** 160+ policies protecting 38+ database tables to ensure data isolation between users and households
 - **Content Security Policy (CSP):** Strict CSP headers configured in Next.js
 - **Rate Limiting:** API endpoint protection to prevent abuse
 - **Data Encryption:** Sensitive data encrypted at rest using AES-256-GCM encryption
@@ -32,7 +32,7 @@ Our organization has documented information security policies and procedures tha
 - **Input Validation:** All user inputs are validated before processing
 - **Secure Development Practices:** Code reviews, dependency management, and security best practices
 
-Our security measures are documented in our Privacy Policy (available at https://[your-domain]/privacy-policy) and are regularly reviewed and updated.
+Our security measures are documented in our Privacy Policy (available at https://sparefinance.com/privacy-policy) and Terms of Service (available at https://sparefinance.com/terms-of-service) and are regularly reviewed and updated.
 
 ---
 
@@ -201,7 +201,10 @@ Our organization encrypts all consumer data received from the Plaid API at rest:
 Our organization has a comprehensive privacy policy for the application where Plaid Link will be deployed.
 
 **Privacy Policy URL:**
-https://[your-domain]/privacy-policy
+https://sparefinance.com/privacy-policy
+
+**Terms of Service URL:**
+https://sparefinance.com/terms-of-service
 
 **Key Privacy Policy Elements:**
 - Information collection practices
@@ -301,7 +304,7 @@ Our organization has a defined and enforced data deletion and retention policy t
 
 Before submitting, ensure you update:
 - Actual security contact name and email
-- Your actual domain name (replace [your-domain])
+- URLs updated: https://sparefinance.com/privacy-policy and https://sparefinance.com/terms-of-service
 - Verification of MFA implementation status
 - Confirmation of vulnerability scanning tools in use
 - Review of data retention periods for legal compliance

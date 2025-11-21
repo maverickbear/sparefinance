@@ -2,7 +2,6 @@
 
 import { ReactNode, useState, useEffect } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
-import { UpgradePrompt } from "@/components/billing/upgrade-prompt";
 import { PlanFeatures } from "@/lib/validations/plan";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -63,21 +62,8 @@ export function FeatureGuard({
       return <>{fallback}</>;
     }
 
-    // Determine required plan: use provided requiredPlan or infer from feature
-    const isProFeature = feature === "hasInvestments" || feature === "hasHousehold" || feature === "hasBankIntegration";
-    const requiredPlanName = requiredPlan || (isProFeature ? "pro" : "essential");
-    const name = featureName || getFeatureName(feature);
-    
-    // Get current plan ID for accurate upgrade prompt
-    const currentPlanId = plan?.id || "essential";
-
-    return (
-      <UpgradePrompt
-        feature={name}
-        requiredPlan={requiredPlanName}
-        currentPlan={currentPlanId}
-      />
-    );
+    // Feature not available - return null or empty state
+    return null;
   }
 
   return <>{children}</>;
