@@ -34,7 +34,7 @@ export function StatisticsSection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16 max-w-5xl mx-auto">
           {stats.map((stat, index) => (
             <div key={index} className="text-center">
-              <div className="text-6xl sm:text-7xl md:text-8xl font-bold text-foreground mb-6">
+              <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground mb-6">
                 {stat.value}
               </div>
               <p className="text-lg text-muted-foreground font-medium leading-relaxed">

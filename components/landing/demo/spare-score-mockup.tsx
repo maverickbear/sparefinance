@@ -25,7 +25,7 @@ export function SpareScoreMockup() {
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="w-full max-w-[280px] bg-card border border-border rounded-2xl p-4 shadow-lg flex flex-col h-full">
+      <div className="w-full max-w-[280px] bg-card  rounded-2xl p-4  flex flex-col h-full">
         {/* Header */}
         <div className="mb-2.5">
           <h3 className="text-sm font-semibold mb-0.5">Spare Score</h3>
@@ -55,7 +55,7 @@ export function SpareScoreMockup() {
           </div>
           
           {/* Gradient bar */}
-          <div className="relative h-3 rounded-lg overflow-hidden border border-border/50">
+          <div className="relative h-3 rounded-lg overflow-hidden /50">
             <div className="absolute inset-0" style={{
               background: 'linear-gradient(to right, #ef4444 0%, #fb923c 50%, #22c55e 100%)'
             }}></div>
@@ -70,22 +70,6 @@ export function SpareScoreMockup() {
               <span className="text-[10px] text-muted-foreground font-medium">75</span>
               <span className="text-[10px] text-muted-foreground font-medium">100</span>
             </div>
-          </div>
-        </div>
-
-        {/* Metrics */}
-        <div className="space-y-1 pt-2 border-t border-border flex-grow">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Savings Rate</span>
-            <span className="text-[10px] font-semibold text-green-600">56.25%</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Spending Discipline</span>
-            <span className="text-[10px] font-semibold text-green-600">Excellent</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Debt Exposure</span>
-            <span className="text-[10px] font-semibold text-foreground">Low</span>
           </div>
         </div>
       </div>

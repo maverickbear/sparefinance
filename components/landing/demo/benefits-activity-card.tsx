@@ -2,12 +2,10 @@
 
 export function BenefitsActivityCard() {
   return (
-    <div className="bg-card border border-border rounded-2xl p-6 shadow-lg">
+    <div className="bg-card border border-border rounded-2xl p-6">
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm font-semibold">Activity</p>
-        <select className="text-xs border border-border rounded px-2 py-1 bg-background">
-          <option>Month</option>
-        </select>
+        <p className="text-xs text-muted-foreground">Month</p>
       </div>
       
       {/* Circular Progress Chart */}
@@ -30,7 +28,6 @@ export function BenefitsActivityCard() {
             strokeWidth="16"
             strokeDasharray={`${2 * Math.PI * 70}`}
             strokeDashoffset={`${2 * Math.PI * 70 * 0.25}`}
-            className="transition-all"
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
@@ -50,10 +47,10 @@ export function BenefitsActivityCard() {
         </div>
       </div>
 
-      <button className="w-full mt-6 text-sm border border-border rounded-lg py-2.5 hover:bg-muted transition-colors flex items-center justify-center gap-2">
+      <div className="w-full mt-6 text-sm border border-border rounded-lg py-2.5 flex items-center justify-center gap-2">
         View all activity
         <span>→</span>
-      </button>
+      </div>
     </div>
   );
 }

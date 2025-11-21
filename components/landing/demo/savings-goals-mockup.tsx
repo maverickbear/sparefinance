@@ -7,7 +7,7 @@ export function SavingsGoalsMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[300px] space-y-3">
         {/* Car Goal Card */}
-        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+        <div className="bg-card rounded-xl p-3">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Car className="w-4 h-4 text-primary" />
@@ -24,7 +24,7 @@ export function SavingsGoalsMockup() {
         </div>
 
         {/* House Goal Card */}
-        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+        <div className="bg-card rounded-xl p-3">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Home className="w-4 h-4 text-primary" />

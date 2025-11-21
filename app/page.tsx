@@ -14,7 +14,6 @@ const BenefitsSection = dynamic(() => import("@/components/landing/benefits-sect
 const HowItWorksSection = dynamic(() => import("@/components/landing/how-it-works-section").then(m => ({ default: m.HowItWorksSection })), { ssr: true });
 const FizensTestimonialsSection = dynamic(() => import("@/components/landing/fizens-testimonials-section").then(m => ({ default: m.FizensTestimonialsSection })), { ssr: true });
 const PricingSection = dynamic(() => import("@/components/landing/pricing-section").then(m => ({ default: m.PricingSection })), { ssr: true });
-const FAQSection = dynamic(() => import("@/components/landing/faq-section").then(m => ({ default: m.FAQSection })), { ssr: true });
 const PartnersSection = dynamic(() => import("@/components/landing/partners-section").then(m => ({ default: m.PartnersSection })), { ssr: true });
 
 export const metadata = {
@@ -68,7 +67,6 @@ export default async function LandingPage() {
         <HowItWorksSection />
         <FizensTestimonialsSection />
         {!isMaintenanceMode && <PricingSection />}
-        <FAQSection />
         <PartnersSection />
       </main>
       <FizensFooter />

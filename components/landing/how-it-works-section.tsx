@@ -6,19 +6,16 @@ import { Link2, TrendingUp, Target } from "lucide-react";
 export function HowItWorksSection() {
   const steps = [
     {
-      number: "1",
       title: "Track All Your Expenses",
       description: "Connect your bank accounts or add transactions manually. See where every dollar goes—groceries, bills, entertainment, everything. No more wondering where your money went.",
       icon: Link2,
     },
     {
-      number: "2",
       title: "Understand Your Spending",
       description: "Get insights based on your real spending. See your Spare Score, understand your savings rate, and learn where you can save more. Our AI helps you understand your finances.",
       icon: TrendingUp,
     },
     {
-      number: "3",
       title: "Learn to Save Together",
       description: "Set savings goals with your family and see when you'll reach them. Create budgets that work and track progress together. Build wealth, not just pay bills.",
       icon: Target,
@@ -42,11 +39,8 @@ export function HowItWorksSection() {
             const Icon = step.icon;
             return (
               <div key={index} className="text-center group">
-                <div className="p-8 rounded-2xl border border-border/50 hover:border-primary/30 transition-all hover:shadow-lg bg-card">
-                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 transition-colors">
-                    <span className="text-4xl font-bold text-primary">{step.number}</span>
-                  </div>
-                  <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-6 group-hover:bg-primary/20 transition-colors">
+                <div className="p-8 rounded-2xl border border-border/50 bg-card">
+                  <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
                     <Icon className="w-7 h-7 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold mb-4">

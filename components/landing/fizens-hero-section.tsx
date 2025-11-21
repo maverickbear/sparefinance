@@ -34,7 +34,7 @@ export function FizensHeroSection() {
               </h1>
 
               {/* Sub-headline */}
-              <p className="text-xl sm:text-2xl md:text-3xl text-white/90 max-w-3xl mx-auto font-light leading-relaxed">
+              <p className="text-base sm:text-lg md:text-xl text-white/90 max-w-3xl mx-auto font-light leading-relaxed">
                 Organize your finances, understand where your money goes, and learn to save together as a family. Get insights based on your real spending to build a healthy financial life.
               </p>
 

@@ -5,6 +5,7 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { PortfolioPerformanceChart } from "@/components/portfolio/portfolio-performance-chart";
 import type { HistoricalDataPoint } from "@/lib/api/portfolio";
 import { CardSkeleton } from "@/components/ui/card-skeleton";
+import { getCurrentUserClient } from "@/lib/api/auth-client";
 
 interface PortfolioPerformanceWidgetProps {
   savings: number; // Fallback value if no portfolio data
@@ -36,6 +37,14 @@ export function PortfolioPerformanceWidget({
       try {
         setIsLoading(true);
         
+        // Check if user is authenticated before making API call
+        // This prevents unnecessary requests in demo/landing page contexts
+        const user = await getCurrentUserClient();
+        if (!user) {
+          setIsLoading(false);
+          return;
+        }
+        
         // Use the same consolidated endpoint as the Investments page
         // This ensures we get the same data structure and avoids inconsistencies
         const allDataRes = await fetch("/api/portfolio/all?days=365", { cache: 'no-store' }).catch((err) => {
@@ -43,8 +52,21 @@ export function PortfolioPerformanceWidget({
           return null;
         });
 
-        if (!allDataRes || !allDataRes.ok) {
-          // Silently handle failed requests (e.g., in demo/landing page context)
+        if (!allDataRes) {
+          // Network error or fetch failed
+          setIsLoading(false);
+          return;
+        }
+
+        // If unauthorized (401), we're likely in a demo/landing page context
+        // Don't make further requests and use fallback data
+        if (allDataRes.status === 401) {
+          setIsLoading(false);
+          return;
+        }
+
+        if (!allDataRes.ok) {
+          // Silently handle other failed requests (e.g., in demo/landing page context)
           setIsLoading(false);
           return;
         }
