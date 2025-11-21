@@ -19,7 +19,7 @@ import {
   SelectLabel,
   SelectSeparator,
 } from "@/components/ui/select";
-import { Loader2, Info, Plus, ChevronsUpDown } from "lucide-react";
+import { Loader2, Info, Plus, ChevronsUpDown, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
