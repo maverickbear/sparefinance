@@ -280,10 +280,11 @@ export async function GET(request: NextRequest) {
     // Check if user has an active subscription
     try {
       const subscriptionData = await getUserSubscriptionData(authUser.id);
+      const subscription = subscriptionData.subscription;
       const hasActiveSubscription = 
-        subscriptionData.subscription && 
-        (subscriptionData.subscription.status === "active" || 
-         subscriptionData.subscription.status === "trialing");
+        subscription !== null && 
+        (subscription.status === "active" || 
+         subscription.status === "trialing");
 
       if (!hasActiveSubscription) {
         // No active subscription - redirect to select-plan (which redirects to dashboard with modal)
