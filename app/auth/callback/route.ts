@@ -157,8 +157,8 @@ export async function GET(request: NextRequest) {
         const errorCode = userError?.code;
         const errorMessage = userError?.message;
         const isDuplicateError = errorCode === "23505" || 
-          (errorMessage && errorMessage.includes("duplicate")) || 
-          (errorMessage && errorMessage.includes("unique"));
+          (errorMessage ? errorMessage.includes("duplicate") : false) || 
+          (errorMessage ? errorMessage.includes("unique") : false);
         
         if (isDuplicateError) {
           const { data: existingUser } = await serviceRoleClient
