@@ -193,6 +193,27 @@ export function VerifyGoogleOtpForm() {
         return;
       }
 
+      // Sync session with server to ensure cookies are set correctly in production
+      // This is critical for production where cookie settings need to be consistent
+      try {
+        const syncResponse = await fetch("/api/auth/sync-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include", // Important: include cookies in the request
+        });
+
+        if (!syncResponse.ok) {
+          console.warn("[GOOGLE-OTP] Failed to sync session with server, but continuing anyway");
+        } else {
+          console.log("[GOOGLE-OTP] Session synced with server successfully");
+        }
+      } catch (syncError) {
+        console.warn("[GOOGLE-OTP] Error syncing session with server:", syncError);
+        // Continue anyway - cookies might still work
+      }
+
       // Create or update user profile and household if OAuth data is available
       if (oauthData && oauthData.userId === currentUser.id) {
         try {
@@ -272,7 +293,22 @@ export function VerifyGoogleOtpForm() {
       // Preload user and plan data
       await preloadUserData();
 
-      // Redirect to dashboard
+      // Wait a bit more to ensure cookies are fully persisted before redirect
+      // This is especially important in production where cookie settings are stricter
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Verify one more time that session is still valid before redirecting
+      const { data: { user: finalUserCheck }, error: finalCheckError } = await supabase.auth.getUser();
+      
+      if (finalCheckError || !finalUserCheck) {
+        console.error("[GOOGLE-OTP] Final session check failed:", finalCheckError);
+        setError("Session verification failed. Please try again.");
+        return;
+      }
+
+      // Use window.location.href for a full page reload to ensure cookies are read correctly
+      // This is more reliable in production where cookie settings are stricter
+      // The full page reload ensures the server-side middleware and layout can read the cookies
       window.location.href = "/dashboard";
     } catch (error) {
       console.error("Error verifying OTP:", error);
