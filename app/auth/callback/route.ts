@@ -155,10 +155,10 @@ export async function GET(request: NextRequest) {
         
         // If it's a duplicate key error, try to fetch existing user
         const errorCode = userError?.code;
-        const errorMessage = userError?.message || "";
+        const errorMessage: string = userError?.message || "";
         const isDuplicateError = errorCode === "23505" || 
-          (errorMessage && errorMessage.includes("duplicate")) || 
-          (errorMessage && errorMessage.includes("unique"));
+          errorMessage.includes("duplicate") || 
+          errorMessage.includes("unique");
         
         if (isDuplicateError) {
           const { data: existingUser } = await serviceRoleClient
