@@ -15,15 +15,15 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerClient();
     
     // First, try to get the session
-    const { data: { session, user }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
     // If we have a session, use it
-    if (session && user) {
+    if (session && session.user) {
       const response = NextResponse.json({
         success: true,
         user: {
-          id: user.id,
-          email: user.email,
+          id: session.user.id,
+          email: session.user.email,
         },
       });
       
