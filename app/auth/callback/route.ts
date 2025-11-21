@@ -154,9 +154,13 @@ export async function GET(request: NextRequest) {
         console.error("[OAUTH-CALLBACK] Error creating user profile:", userError);
         
         // If it's a duplicate key error, try to fetch existing user
-        if (userError.code === "23505" || 
-            userError.message?.includes("duplicate") || 
-            userError.message?.includes("unique")) {
+        const errorCode = userError?.code;
+        const errorMessage = userError?.message;
+        const isDuplicateError = errorCode === "23505" || 
+          (errorMessage && errorMessage.includes("duplicate")) || 
+          (errorMessage && errorMessage.includes("unique"));
+        
+        if (isDuplicateError) {
           const { data: existingUser } = await serviceRoleClient
             .from("User")
             .select("*")
