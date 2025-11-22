@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import { MonthSelector } from "@/components/dashboard/month-selector";
 import { loadDashboardData } from "./data-loader";
 import { PageHeader } from "@/components/common/page-header";
@@ -12,8 +12,8 @@ import { startServerPagePerformance } from "@/lib/utils/performance";
 export const dynamic = 'force-dynamic';
 
 // Lazy load the new Financial Overview page
-const FinancialOverviewPage = dynamic(() => import("./financial-overview-page").then(m => ({ default: m.FinancialOverviewPage })), { ssr: true });
-const OnboardingWidget = dynamic(() => import("@/components/dashboard/onboarding-widget").then(m => ({ default: m.OnboardingWidget })), { ssr: true });
+const FinancialOverviewPage = nextDynamic(() => import("./financial-overview-page").then(m => ({ default: m.FinancialOverviewPage })), { ssr: true });
+const OnboardingWidget = nextDynamic(() => import("@/components/dashboard/onboarding-widget").then(m => ({ default: m.OnboardingWidget })), { ssr: true });
 
 interface DashboardProps {
   searchParams: Promise<{ month?: string }> | { month?: string };
