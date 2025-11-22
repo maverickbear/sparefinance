@@ -280,14 +280,14 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
         // If cache is very stale (>1 hour), refresh it in background
         // This helps prevent future cache misses without blocking the current request
         if (cacheAge > 60 * 60 * 1000) {
-          supabase.rpc('update_user_subscription_cache', { p_user_id: userId })
+          void Promise.resolve(supabase.rpc('update_user_subscription_cache', { p_user_id: userId }))
             .then(() => {
               log.debug("Background cache refresh completed", { userId });
             })
-            .catch((err) => {
+            .catch((err: unknown) => {
               log.warn("Failed to refresh stale subscription cache in background", {
                 userId,
-                error: err?.message,
+                error: err instanceof Error ? err.message : String(err),
               });
             });
         }

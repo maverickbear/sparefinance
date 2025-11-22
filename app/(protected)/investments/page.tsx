@@ -179,9 +179,7 @@ export default function InvestmentsPage() {
           : []
       );
       setAccounts(accountsData && Array.isArray(accountsData) ? accountsData : []);
-            setHistoricalData(historical && Array.isArray(historical) ? historical : []);
-      
-      setLastUpdated(new Date());
+      setHistoricalData(historical && Array.isArray(historical) ? historical : []);
       perf.markDataLoaded();
     } catch (error) {
       console.error("Error loading portfolio data:", error);

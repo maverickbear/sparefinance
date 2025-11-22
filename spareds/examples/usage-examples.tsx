@@ -211,20 +211,20 @@ export function ChartExample({ data }: { data: Array<{ name: string; value: numb
 export function CategoryBadgeExample({ category }: { category: string }) {
   // Mapear categoria para cor do token
   const categoryColorMap: Record<string, string> = {
-    'Rent': getToken('color.category.blue'),
-    'Groceries': getToken('color.category.emerald'),
-    'Restaurants': getToken('color.category.amber'),
-    'Medical': getToken('color.category.red'),
-    'Education': getToken('color.category.purple'),
-    'Travel': getToken('color.category.cyan'),
-    'Vehicle': getToken('color.category.orange'),
-    'Clothing': getToken('color.category.pink'),
-    'Home & Lifestyle': getToken('color.category.teal'),
-    'Electronics': getToken('color.category.indigo'),
+    'Rent': getToken('color.category.blue') ?? '#3b82f6',
+    'Groceries': getToken('color.category.emerald') ?? '#10b981',
+    'Restaurants': getToken('color.category.amber') ?? '#f59e0b',
+    'Medical': getToken('color.category.red') ?? '#ef4444',
+    'Education': getToken('color.category.purple') ?? '#8b5cf6',
+    'Travel': getToken('color.category.cyan') ?? '#06b6d4',
+    'Vehicle': getToken('color.category.orange') ?? '#f97316',
+    'Clothing': getToken('color.category.pink') ?? '#ec4899',
+    'Home & Lifestyle': getToken('color.category.teal') ?? '#14b8a6',
+    'Electronics': getToken('color.category.indigo') ?? '#6366f1',
   };
   
-  const color = categoryColorMap[category] || getToken('color.category.gray');
-  const textColor = getToken('color.text.inverse');
+  const color = categoryColorMap[category] || (getToken('color.category.gray') ?? '#6b7280');
+  const textColor = getToken('color.text.inverse') ?? '#ffffff';
   
   return (
     <span

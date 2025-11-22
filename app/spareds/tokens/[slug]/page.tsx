@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { tokens, defaultValuesTokens } from '@/spareds/tokens';
-import { TokenViewer } from '../components/token-viewer';
 
 const tokenPages = {
   'default-values': {
