@@ -379,9 +379,9 @@ export async function createCheckoutSession(
 
     console.log("[CHECKOUT] Session params before creation:", {
       customer: sessionParams.customer,
-      hasCustomerDetails: !!sessionParams.customer_details,
-      customerDetailsEmail: sessionParams.customer_details?.email,
-      customerDetailsName: sessionParams.customer_details?.name,
+      hasCustomerDetails: !!(sessionParams as any).customer_details,
+      customerDetailsEmail: (sessionParams as any).customer_details?.email,
+      customerDetailsName: (sessionParams as any).customer_details?.name,
       mode: sessionParams.mode,
       priceId,
     });
@@ -1883,7 +1883,7 @@ export async function createEmbeddedCheckoutSession(
         .single();
       
       if (promo?.stripeCouponId) {
-        subscriptionParams.coupon = promo.stripeCouponId;
+        subscriptionParams.discounts = [{ coupon: promo.stripeCouponId }];
       }
     }
 
@@ -1917,11 +1917,11 @@ export async function createEmbeddedCheckoutSession(
         stripeCustomerId: customerId,
         trialStartDate: trialStartDate.toISOString(),
         trialEndDate: trialEndDate.toISOString(),
-        currentPeriodStart: stripeSubscription.current_period_start 
-          ? new Date(stripeSubscription.current_period_start * 1000).toISOString()
+        currentPeriodStart: (stripeSubscription as any).current_period_start 
+          ? new Date((stripeSubscription as any).current_period_start * 1000).toISOString()
           : trialStartDate.toISOString(),
-        currentPeriodEnd: stripeSubscription.current_period_end 
-          ? new Date(stripeSubscription.current_period_end * 1000).toISOString()
+        currentPeriodEnd: (stripeSubscription as any).current_period_end 
+          ? new Date((stripeSubscription as any).current_period_end * 1000).toISOString()
           : trialEndDate.toISOString(),
         cancelAtPeriodEnd: false,
       })
@@ -1978,7 +1978,7 @@ export async function updateSubscriptionPlan(
     // Get user subscription
     const { data: subscription, error: subError } = await supabase
       .from("Subscription")
-      .select("stripeSubscriptionId, planId")
+      .select("id, stripeSubscriptionId, planId")
       .eq("userId", userId)
       .in("status", ["active", "trialing"])
       .order("createdAt", { ascending: false })
