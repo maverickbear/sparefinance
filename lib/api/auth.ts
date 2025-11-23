@@ -157,6 +157,26 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
     // User must select a plan on /select-plan page
     // This allows users to choose their plan before being redirected to dashboard
 
+    // Send welcome email to new user
+    if (userData && authData.user?.email) {
+      try {
+        const { sendWelcomeEmail } = await import("@/lib/utils/email");
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/";
+        
+        await sendWelcomeEmail({
+          to: authData.user.email,
+          userName: "", // Not used anymore, but keeping for interface compatibility
+          founderName: "Naor Tartarotti",
+          appUrl: appUrl,
+        });
+        
+        console.log("[SIGNUP] ✅ Welcome email sent successfully to:", authData.user.email);
+      } catch (welcomeEmailError) {
+        console.error("[SIGNUP] ❌ Error sending welcome email:", welcomeEmailError);
+        // Don't fail signup if welcome email fails
+      }
+    }
+
     return { user: userData ? mapUser(userData) : null, error: null };
   } catch (error) {
     console.error("Error in signUp:", error);

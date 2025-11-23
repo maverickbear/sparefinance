@@ -86,6 +86,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Send welcome email to new user (only when user is actually created)
+    if (userData && email) {
+      try {
+        const { sendWelcomeEmail } = await import("@/lib/utils/email");
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/";
+        
+        await sendWelcomeEmail({
+          to: email,
+          userName: "", // Not used anymore, but keeping for interface compatibility
+          founderName: "Naor Tartarotti",
+          appUrl: appUrl,
+        });
+        
+        console.log("[CREATE-USER-PROFILE] ✅ Welcome email sent successfully to:", email);
+      } catch (welcomeEmailError) {
+        console.error("[CREATE-USER-PROFILE] ❌ Error sending welcome email:", welcomeEmailError);
+        // Don't fail user creation if welcome email fails
+      }
+    }
+
     return NextResponse.json({ 
       success: true,
       message: "User profile created successfully",
