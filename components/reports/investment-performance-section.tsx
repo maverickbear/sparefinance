@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { TrendingUp, TrendingDown, PieChart } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PortfolioSummary, HistoricalDataPoint } from "@/lib/api/portfolio";
-import type { Holding } from "@/lib/api/investments";
+import type { PortfolioSummary, HistoricalDataPoint, Holding } from "@/lib/api/portfolio";
 import { PortfolioPerformanceChart } from "@/components/portfolio/portfolio-performance-chart";
 
 interface InvestmentPerformanceSectionProps {
@@ -133,7 +132,7 @@ export function InvestmentPerformanceSection({
                 <div className="space-y-2">
                   {topHoldings.map((holding) => (
                     <div
-                      key={`${holding.securityId}-${holding.accountId}`}
+                      key={`${holding.id}-${holding.accountId}`}
                       className="flex items-center justify-between p-3 rounded-lg border bg-card"
                     >
                       <div className="flex-1">
