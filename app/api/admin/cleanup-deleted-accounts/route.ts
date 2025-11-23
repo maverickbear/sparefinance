@@ -32,9 +32,12 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceRoleClient();
 
     // Call the cleanup function to get users scheduled for deletion
-    const { data: cleanupResult, error: functionError } = await supabase.rpc<
-      { deleted_count: number; deleted_user_ids: string[] }
-    >("cleanup_deleted_accounts");
+    const { data: cleanupResult, error: functionError } = await supabase.rpc(
+      "cleanup_deleted_accounts"
+    );
+    
+    type CleanupResult = { deleted_count: number; deleted_user_ids: string[] }[];
+    const typedResult = cleanupResult as CleanupResult | null;
 
     if (functionError) {
       console.error("[CLEANUP] Error calling cleanup function:", functionError);
@@ -44,12 +47,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!cleanupResult || cleanupResult.length === 0) {
+    if (!typedResult || typedResult.length === 0) {
       console.log("[CLEANUP] No accounts scheduled for deletion");
       return NextResponse.json({ deleted: 0, errors: [] });
     }
 
-    const result = cleanupResult[0];
+    const result = typedResult[0];
     const userIds: string[] = result?.deleted_user_ids || [];
     const count = result?.deleted_count || 0;
 
