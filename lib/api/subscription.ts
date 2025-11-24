@@ -440,8 +440,27 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
     householdId = defaultMember?.householdId || null;
   }
 
-  // Step 2: Fetch subscriptions in parallel (householdId primary, userId fallback)
-  const [subscriptionByHouseholdResult, subscriptionByUserIdResult] = await Promise.all([
+  // Step 2: Get ownerId if user is a household member (needed for inheritance)
+  let ownerId: string | null = null;
+  if (householdId) {
+    try {
+      const { data: household } = await supabase
+        .from("Household")
+        .select("createdBy")
+        .eq("id", householdId)
+        .maybeSingle();
+      
+      if (household?.createdBy && household.createdBy !== userId) {
+        ownerId = household.createdBy;
+        log.debug("User is household member, ownerId:", { userId, ownerId, householdId });
+      }
+    } catch (error) {
+      log.warn("Error fetching household owner:", error);
+    }
+  }
+
+  // Step 3: Fetch subscriptions in parallel (householdId primary, ownerId for inheritance, userId fallback)
+  const [subscriptionByHouseholdResult, subscriptionByOwnerIdResult, subscriptionByUserIdResult] = await Promise.all([
     // PRIMARY: Get subscription by householdId (current architecture)
     householdId
       ? supabase
@@ -470,6 +489,41 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
             log.debug("Found subscription by householdId", { 
               subscriptionId: sorted[0].id, 
               status: sorted[0].status,
+              householdId 
+            });
+            return sorted[0] as Subscription;
+          })
+      : Promise.resolve(null),
+    // INHERITANCE: Get subscription by ownerId (for household members to inherit owner's subscription)
+    ownerId
+      ? supabase
+          .from("Subscription")
+          .select("*")
+          .eq("userId", ownerId)
+          .in("status", ["active", "trialing", "cancelled"])
+          .order("createdAt", { ascending: false })
+          .limit(10)
+          .then(({ data, error }) => {
+            if (error && error.code !== "PGRST116") {
+              log.error("Error fetching subscription by ownerId:", error);
+              return null;
+            }
+            if (!data || data.length === 0) {
+              log.debug("No subscription found by ownerId", { ownerId, userId, householdId });
+              return null;
+            }
+            // Prioritize: active/trialing > cancelled, then by createdAt (newest first)
+            const sorted = data.sort((a, b) => {
+              const aPriority = (a.status === "active" || a.status === "trialing") ? 0 : 1;
+              const bPriority = (b.status === "active" || b.status === "trialing") ? 0 : 1;
+              if (aPriority !== bPriority) return aPriority - bPriority;
+              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            });
+            log.debug("Found subscription by ownerId (inheritance)", { 
+              subscriptionId: sorted[0].id, 
+              status: sorted[0].status,
+              ownerId,
+              memberUserId: userId,
               householdId 
             });
             return sorted[0] as Subscription;
@@ -520,7 +574,18 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
       status: subscription.status 
     });
   } 
-  // FALLBACK: If no subscription found by householdId, try userId (backward compatibility)
+  // INHERITANCE: If no subscription found by householdId, try owner's subscription (for household members)
+  else if (subscriptionByOwnerIdResult) {
+    subscription = subscriptionByOwnerIdResult;
+    log.debug("Found subscription by ownerId (inheritance for household member):", { 
+      userId, 
+      ownerId,
+      householdId,
+      subscriptionId: subscription.id, 
+      status: subscription.status 
+    });
+  }
+  // FALLBACK: If no subscription found by householdId or ownerId, try userId (backward compatibility)
   else if (subscriptionByUserIdResult) {
     subscription = subscriptionByUserIdResult;
     log.debug("Found subscription by userId (fallback for backward compatibility):", { 
@@ -534,7 +599,9 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
     log.debug("No subscription found for user:", { 
       userId, 
       householdId,
+      ownerId,
       subscriptionByHouseholdResult: subscriptionByHouseholdResult ? "found" : "not found",
+      subscriptionByOwnerIdResult: subscriptionByOwnerIdResult ? "found" : "not found",
       subscriptionByUserIdResult: subscriptionByUserIdResult ? "found" : "not found"
     });
     return {
