@@ -261,6 +261,7 @@ export interface Database {
     updatedAt: string;
     errorCode: string | null;
     errorMessage: string | null;
+    transactionsCursor: string | null;
   };
   TransactionSync: {
     id: string;

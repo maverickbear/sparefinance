@@ -179,6 +179,11 @@ export function DynamicPricingTable({
                       ? "Start 30-day trial"
                       : "Select Plan"}
                   </Button>
+                  {!isCurrent && showTrial && (
+                    <p className="text-sm text-muted-foreground text-center mt-2">
+                      No credit card required
+                    </p>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="!pt-0">

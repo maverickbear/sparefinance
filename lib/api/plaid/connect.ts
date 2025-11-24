@@ -28,8 +28,10 @@ async function getInstitutionLogo(institutionId: string): Promise<string | null>
 
 /**
  * Create a Plaid Link token for the current user
+ * @param userId - User ID
+ * @param accountType - 'bank' for regular bank accounts (Transactions), 'investment' for investment accounts (Investments)
  */
-export async function createLinkToken(userId: string): Promise<string> {
+export async function createLinkToken(userId: string, accountType: 'bank' | 'investment' = 'bank'): Promise<string> {
   try {
     // Check if Plaid credentials are configured
     if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
@@ -37,15 +39,59 @@ export async function createLinkToken(userId: string): Promise<string> {
       throw new Error('Plaid credentials not configured. Please contact support.');
     }
 
-    const response = await plaidClient.linkTokenCreate({
+    // Build products array based on account type
+    // For bank accounts: use Transactions (shows regular banks)
+    // For investment accounts: use Investments (shows brokers)
+    const products: Array<Products> = [];
+    
+    if (accountType === 'bank') {
+      products.push(Products.Transactions);
+    } else if (accountType === 'investment') {
+      products.push(Products.Investments);
+    }
+    
+    // Only add Liabilities if explicitly enabled (some Plaid accounts don't have access)
+    // You can enable this by setting PLAID_ENABLE_LIABILITIES=true in environment
+    if (process.env.PLAID_ENABLE_LIABILITIES === 'true' && accountType === 'bank') {
+      products.push(Products.Liabilities);
+    }
+
+    // Configure Link to show all available institutions
+    // This ensures both investment and regular bank accounts are available
+    const linkTokenConfig: any = {
       user: {
         client_user_id: userId,
       },
       client_name: 'Spare Finance',
-      products: [Products.Transactions],
+      products: products,
       country_codes: [CountryCode.Us],
       language: 'en',
-    });
+      // Configure Link to show all institutions that support at least one of our products
+      // This allows users to see both regular banks (Transactions) and investment brokers (Investments)
+      // The Link UI will automatically filter to show institutions that support the requested products
+    };
+
+    // Add transactions configuration for bank accounts
+    // This specifies how many days of transaction history to request
+    // Default is 90 days, max is 730 days (2 years)
+    if (accountType === 'bank') {
+      linkTokenConfig.transactions = {
+        days_requested: 90, // Request 90 days of transaction history
+      };
+    }
+
+    // Add webhook URL if configured
+    const webhookUrl = process.env.PLAID_WEBHOOK_URL || 
+      (process.env.NEXT_PUBLIC_APP_URL 
+        ? `${process.env.NEXT_PUBLIC_APP_URL}/api/plaid/webhook`
+        : undefined);
+
+    if (webhookUrl) {
+      linkTokenConfig.webhook = webhookUrl;
+      console.log('[PLAID] Using webhook URL:', webhookUrl);
+    }
+
+    const response = await plaidClient.linkTokenCreate(linkTokenConfig);
 
     if (!response.data.link_token) {
       throw new Error('Failed to create link token');

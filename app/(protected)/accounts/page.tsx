@@ -10,6 +10,7 @@ import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { AccountCard } from "@/components/banking/account-card";
+import { ConnectBankButton } from "@/components/banking/connect-bank-button";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 import { DeleteAccountWithTransferDialog } from "@/components/accounts/delete-account-with-transfer-dialog";
@@ -276,6 +277,17 @@ export default function AccountsPage() {
         title="Accounts"
       >
         <div className="flex gap-2">
+          <ConnectBankButton
+            onSuccess={() => {
+              loadAccounts();
+              toast({
+                title: 'Bank account connected',
+                description: 'Your bank account has been connected successfully.',
+                variant: 'success',
+              });
+            }}
+            variant="outline"
+          />
           {accounts.length > 0 && canWrite && (
             <Button
               size="medium"
@@ -293,14 +305,35 @@ export default function AccountsPage() {
         <TableSkeleton rowCount={5} />
       ) : accounts.length === 0 ? (
         <div className="w-full h-full min-h-[400px]">
-        <EmptyState
-          icon={CreditCard}
-          title="No accounts yet"
-          description="Create your first account to get started tracking your finances."
-          actionLabel={canWrite ? "Add Account" : undefined}
-          onAction={canWrite ? handleAddAccount : undefined}
-          actionIcon={canWrite ? Plus : undefined}
-        />
+        <div className="flex items-center justify-center w-full h-full min-h-[400px]">
+          <div className="w-full max-w-md text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <CreditCard className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">No accounts yet</h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+              Connect your bank account or create a manual account to get started tracking your finances.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <ConnectBankButton
+                onSuccess={() => {
+                  loadAccounts();
+                  toast({
+                    title: 'Bank account connected',
+                    description: 'Your bank account has been connected successfully.',
+                    variant: 'success',
+                  });
+                }}
+              />
+              {canWrite && (
+                <Button onClick={handleAddAccount} size="large" variant="outline">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Account
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
         </div>
       ) : (() => {
         // Group accounts by type

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
-// import { createLinkToken } from '@/lib/api/plaid/connect'; // TEMPORARILY DISABLED
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
 
@@ -19,14 +18,15 @@ export async function POST(req: NextRequest) {
     const guardResult = await guardBankIntegration(userId);
     await throwIfNotAllowed(guardResult);
 
-    // TEMPORARY BYPASS: Return a mock link token instead of calling Plaid
-    console.log('[PLAID BYPASS] Creating mock link token for user:', userId);
-    const mockLinkToken = `link-bypass-${Date.now()}-${userId.substring(0, 8)}`;
-    
-    // Original implementation (commented out):
-    // const linkToken = await createLinkToken(userId);
+    // Parse request body to get account type
+    const body = await req.json().catch(() => ({}));
+    const accountType = body.accountType || 'bank'; // 'bank' or 'investment'
 
-    return NextResponse.json({ link_token: mockLinkToken });
+    // Create link token using Plaid API with account type
+    const { createLinkToken } = await import('@/lib/api/plaid/connect');
+    const linkToken = await createLinkToken(userId, accountType);
+
+    return NextResponse.json({ link_token: linkToken });
   } catch (error: any) {
     console.error('Error creating link token:', error);
     

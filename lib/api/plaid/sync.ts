@@ -10,6 +10,22 @@ import type { PlaidTransactionMetadata } from './types';
 
 /**
  * Sync transactions from Plaid for a specific account
+ * 
+ * Uses the /transactions/sync API (recommended by Plaid)
+ * @see https://plaid.com/docs/api/products/transactions/#transactionssync
+ * 
+ * This endpoint supports cursor-based pagination and handles:
+ * - Added transactions
+ * - Modified transactions  
+ * - Removed transactions
+ * 
+ * @param accountId - The account ID in our database
+ * @param plaidAccountId - The Plaid account ID
+ * @param accessToken - The Plaid access token
+ * @param daysBack - DEPRECATED: Not used with /transactions/sync (kept for compatibility)
+ *                   Historical data is controlled by transactions.days_requested in link token
+ * 
+ * @returns Object with counts of synced, skipped, and errors
  */
 export async function syncAccountTransactions(
   accountId: string,
@@ -27,43 +43,125 @@ export async function syncAccountTransactions(
   let errors = 0;
 
   try {
-    // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - daysBack);
+    // Get the itemId and cursor for this connection
+    // We need itemId to update the cursor, and we get it from the account
+    const { data: account } = await supabase
+      .from('Account')
+      .select('plaidItemId')
+      .eq('id', accountId)
+      .single();
 
-    // Fetch transactions from Plaid
-    // Note: account_ids is not a valid parameter for transactionsGet
-    // The API will return all transactions for the item, we'll filter by account later if needed
-    const transactionsResponse = await plaidClient.transactionsGet({
-      access_token: accessToken,
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
-    });
+    const itemId = account?.plaidItemId;
+    
+    // Get cursor from PlaidConnection
+    let cursor: string | null = null;
+    if (itemId) {
+      const { data: connection } = await supabase
+        .from('PlaidConnection')
+        .select('transactionsCursor')
+        .eq('itemId', itemId)
+        .single();
+      
+      cursor = connection?.transactionsCursor || null;
+    }
 
-    const plaidTransactions = transactionsResponse.data.transactions;
+    // Use /transactions/sync API (recommended by Plaid)
+    // This API supports added, modified, and removed transactions
+    // First call uses no cursor, subsequent calls use the returned cursor
+    // Per Plaid docs: track both next_cursor and original cursor for pagination error recovery
+    let addedTransactions: any[] = [];
+    let modifiedTransactions: any[] = [];
+    let removedTransactionIds: string[] = [];
+    let hasMore = true;
+    let currentCursor = cursor;
+    let originalCursor: string | null = null; // Track first cursor when has_more becomes true
+
+    while (hasMore) {
+      try {
+        const syncResponse = await plaidClient.transactionsSync({
+          access_token: accessToken,
+          cursor: currentCursor || undefined,
+        });
+
+        const { added, modified, removed, has_more, next_cursor } = syncResponse.data;
+        
+        // Collect all transaction changes
+        addedTransactions.push(...(added || []));
+        modifiedTransactions.push(...(modified || []));
+        removedTransactionIds.push(...(removed?.map((tx: any) => tx.transaction_id) || []));
+        
+        // Track original cursor when pagination starts (has_more becomes true)
+        if (has_more && !originalCursor) {
+          originalCursor = currentCursor || null;
+        }
+        
+        // Update cursor for next iteration
+        currentCursor = next_cursor || null;
+        hasMore = has_more || false;
+
+        // Update cursor in database after each page
+        if (currentCursor && itemId) {
+          await supabase
+            .from('PlaidConnection')
+            .update({ 
+              transactionsCursor: currentCursor,
+              updatedAt: formatTimestamp(new Date()),
+            })
+            .eq('itemId', itemId);
+        }
+
+        // Break if no more pages
+        if (!hasMore) {
+          // Clear original cursor when pagination completes successfully
+          originalCursor = null;
+          break;
+        }
+      } catch (error: any) {
+        // Handle TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION error
+        // Per Plaid docs: restart from original cursor (first page of this update)
+        if (error.response?.data?.error_code === 'TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION') {
+          console.warn('[PLAID SYNC] Mutation during pagination, restarting from original cursor');
+          
+          // Reset collections and restart from original cursor
+          addedTransactions = [];
+          modifiedTransactions = [];
+          removedTransactionIds = [];
+          currentCursor = originalCursor || cursor;
+          hasMore = true;
+          
+          // Continue loop to retry from original cursor
+          continue;
+        }
+        
+        // Re-throw other errors
+        throw error;
+      }
+    }
 
     // Filter transactions for the specific account
-    const accountTransactions = plaidTransactions.filter(
+    const accountAdded = addedTransactions.filter(
+      (tx) => tx.account_id === plaidAccountId
+    );
+    const accountModified = modifiedTransactions.filter(
       (tx) => tx.account_id === plaidAccountId
     );
 
-    console.log(`Found ${accountTransactions.length} transactions for account ${plaidAccountId} out of ${plaidTransactions.length} total transactions`);
+    console.log(`[PLAID SYNC] Found ${accountAdded.length} added, ${accountModified.length} modified transactions for account ${plaidAccountId}`);
 
-    // Get already synced transaction IDs
+    // Get already synced transaction IDs with their transaction IDs
     const { data: syncedTransactions } = await supabase
       .from('TransactionSync')
-      .select('plaidTransactionId')
+      .select('plaidTransactionId, transactionId')
       .eq('accountId', accountId);
 
-    const syncedIds = new Set(
-      syncedTransactions?.map((t) => t.plaidTransactionId) || []
+    const syncedMap = new Map(
+      syncedTransactions?.map((t) => [t.plaidTransactionId, t.transactionId]) || []
     );
 
-    // Process each transaction
-    for (const plaidTx of accountTransactions) {
+    // Process added transactions
+    for (const plaidTx of accountAdded) {
       // Skip if already synced
-      if (syncedIds.has(plaidTx.transaction_id)) {
+      if (syncedMap.has(plaidTx.transaction_id)) {
         skipped++;
         continue;
       }
@@ -233,6 +331,143 @@ export async function syncAccountTransactions(
             syncDate: now,
             status: 'error',
           });
+      }
+    }
+
+    // Process modified transactions
+    for (const plaidTx of accountModified) {
+      const existingTransactionId = syncedMap.get(plaidTx.transaction_id);
+      
+      if (!existingTransactionId) {
+        // Transaction was modified but we don't have it - treat as new
+        try {
+          // Reuse the same processing logic as added transactions
+          const isExpense = plaidTx.amount < 0;
+          const plaidDate = new Date(plaidTx.date + 'T00:00:00');
+          const description = plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || 'Plaid Transaction';
+          const amount = Math.abs(plaidTx.amount);
+          const type = isExpense ? 'expense' : 'income';
+
+          const transactionData: TransactionFormData = {
+            date: plaidDate,
+            type,
+            amount,
+            accountId,
+            description,
+            categoryId: undefined,
+            subcategoryId: undefined,
+            recurring: false,
+          };
+
+          const transaction = await createTransaction(transactionData);
+          const transactionId = (transaction as any).id || (transaction as any).outgoing?.id || null;
+          
+          if (transactionId) {
+            const plaidMetadata: PlaidTransactionMetadata = {
+              category: plaidTx.category || null,
+              category_id: plaidTx.category_id || null,
+              pending: plaidTx.pending || false,
+              authorized_date: plaidTx.authorized_date || null,
+              authorized_datetime: plaidTx.authorized_datetime || null,
+              datetime: plaidTx.datetime || null,
+              iso_currency_code: plaidTx.iso_currency_code || null,
+              unofficial_currency_code: plaidTx.unofficial_currency_code || null,
+              transaction_code: plaidTx.transaction_code || null,
+              account_owner: plaidTx.account_owner || null,
+              pending_transaction_id: plaidTx.pending_transaction_id || null,
+            };
+
+            await supabase
+              .from('Transaction')
+              .update({ plaidMetadata: plaidMetadata as any })
+              .eq('id', transactionId);
+
+            await supabase
+              .from('TransactionSync')
+              .insert({
+                id: crypto.randomUUID(),
+                accountId,
+                plaidTransactionId: plaidTx.transaction_id,
+                transactionId: transactionId,
+                syncDate: formatTimestamp(new Date()),
+                status: 'synced',
+              });
+
+            synced++;
+          }
+        } catch (error) {
+          console.error('Error processing modified transaction (as new):', plaidTx.transaction_id, error);
+          errors++;
+        }
+      } else {
+        // Update existing transaction
+        try {
+          const isExpense = plaidTx.amount < 0;
+          const plaidDate = new Date(plaidTx.date + 'T00:00:00');
+          const description = plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || 'Plaid Transaction';
+          const amount = Math.abs(plaidTx.amount);
+          const type = isExpense ? 'expense' : 'income';
+
+          const plaidMetadata: PlaidTransactionMetadata = {
+            category: plaidTx.category || null,
+            category_id: plaidTx.category_id || null,
+            pending: plaidTx.pending || false,
+            authorized_date: plaidTx.authorized_date || null,
+            authorized_datetime: plaidTx.authorized_datetime || null,
+            datetime: plaidTx.datetime || null,
+            iso_currency_code: plaidTx.iso_currency_code || null,
+            unofficial_currency_code: plaidTx.unofficial_currency_code || null,
+            transaction_code: plaidTx.transaction_code || null,
+            account_owner: plaidTx.account_owner || null,
+            pending_transaction_id: plaidTx.pending_transaction_id || null,
+          };
+
+          await supabase
+            .from('Transaction')
+            .update({
+              date: formatTimestamp(plaidDate),
+              type,
+              amount,
+              description,
+              plaidMetadata: plaidMetadata as any,
+              updatedAt: formatTimestamp(new Date()),
+            })
+            .eq('id', existingTransactionId);
+        } catch (error) {
+          console.error('Error updating modified transaction:', plaidTx.transaction_id, error);
+          errors++;
+        }
+      }
+    }
+
+    // Process removed transactions
+    // Get all removed transaction IDs that belong to this account
+    if (removedTransactionIds.length > 0) {
+      const { data: removedSyncs } = await supabase
+        .from('TransactionSync')
+        .select('plaidTransactionId, transactionId')
+        .eq('accountId', accountId)
+        .in('plaidTransactionId', removedTransactionIds);
+
+      for (const removedSync of removedSyncs || []) {
+        if (removedSync.transactionId) {
+          try {
+            // Delete the transaction
+            await supabase
+              .from('Transaction')
+              .delete()
+              .eq('id', removedSync.transactionId);
+
+            // Remove from TransactionSync
+            await supabase
+              .from('TransactionSync')
+              .delete()
+              .eq('plaidTransactionId', removedSync.plaidTransactionId);
+          } catch (error) {
+            console.error('Error removing transaction:', removedSync.plaidTransactionId, error);
+            errors++;
+          }
+        }
       }
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
-// import { syncAccountTransactions } from '@/lib/api/plaid/sync'; // TEMPORARILY DISABLED
+import { syncAccountTransactions } from '@/lib/api/plaid/sync';
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
 
@@ -54,37 +54,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // TEMPORARY BYPASS: Return mock sync results instead of calling Plaid
-    console.log('[PLAID BYPASS] Syncing transactions (bypassed) for account:', accountId);
-    
-    // Original implementation (commented out):
-    // // Get access token
-    // const { data: connection, error: connectionError } = await supabase
-    //   .from('PlaidConnection')
-    //   .select('accessToken')
-    //   .eq('itemId', account.plaidItemId)
-    //   .single();
+    // Get access token
+    const { data: connection, error: connectionError } = await supabase
+      .from('PlaidConnection')
+      .select('accessToken')
+      .eq('itemId', account.plaidItemId)
+      .single();
 
-    // if (connectionError || !connection) {
-    //   return NextResponse.json(
-    //     { error: 'Plaid connection not found' },
-    //     { status: 404 }
-    //   );
-    // }
+    if (connectionError || !connection) {
+      return NextResponse.json(
+        { error: 'Plaid connection not found' },
+        { status: 404 }
+      );
+    }
 
-    // // Sync transactions
-    // const result = await syncAccountTransactions(
-    //   accountId,
-    //   account.plaidAccountId,
-    //   connection.accessToken,
-    //   daysBack || 30
-    // );
-
-    const result = {
-      synced: 0,
-      skipped: 0,
-      errors: 0,
-    };
+    // Sync transactions
+    const result = await syncAccountTransactions(
+      accountId,
+      account.plaidAccountId,
+      connection.accessToken,
+      daysBack || 30
+    );
 
     return NextResponse.json({
       success: true,
