@@ -115,17 +115,11 @@ export function ConnectBankButton({ onSuccess, variant = "default" }: ConnectBan
         });
       }
     },
-    // Configuration to show all available institutions
-    // This ensures both regular banks and investment brokers are visible
-    config: {
-      // Don't filter by institution type - show all
-      // This allows users to connect both regular accounts and investment accounts
-    },
   });
 
   // Store open function in ref so we can call it from handleConnect
   useEffect(() => {
-    openPlaidRef.current = open;
+    openPlaidRef.current = open as () => void;
   }, [open]);
 
   // Open Plaid Link when link token is ready

@@ -3,6 +3,7 @@
 import { plaidClient } from './index';
 import { createServerClient } from '@/lib/supabase-server';
 import { formatTimestamp } from '@/lib/utils/timestamp';
+import { InvestmentTransactionType } from 'plaid';
 
 /**
  * Sync investment accounts, holdings, and transactions from Plaid
@@ -218,12 +219,21 @@ export async function syncInvestmentAccounts(
 
             // Map Plaid transaction type to our transaction type
             let transactionType = 'buy';
-            if (plaidTx.type === 'sell') {
+            if (plaidTx.type === InvestmentTransactionType.Sell) {
               transactionType = 'sell';
-            } else if (plaidTx.type === 'dividend') {
-              transactionType = 'dividend';
-            } else if (plaidTx.type === 'transfer') {
+            } else if (plaidTx.type === InvestmentTransactionType.Transfer) {
               transactionType = 'transfer';
+            } else if (plaidTx.type === InvestmentTransactionType.Cash) {
+              // Cash transactions might include dividends
+              // Check the transaction name to determine if it's a dividend
+              const txName = (plaidTx.name || '').toLowerCase();
+              if (txName.includes('dividend')) {
+                transactionType = 'dividend';
+              } else {
+                transactionType = 'buy'; // Default cash transaction to buy
+              }
+            } else if (plaidTx.type === InvestmentTransactionType.Fee) {
+              transactionType = 'buy'; // Fees are treated as buy transactions
             }
 
             // Create investment transaction
