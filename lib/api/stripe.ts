@@ -1263,11 +1263,22 @@ async function handleSubscriptionChange(
   // Check if subscription already exists to determine if this is a new creation
   const { data: existingSubscription } = await supabase
     .from("Subscription")
-    .select("id")
+    .select("id, householdId")
     .eq("id", subscriptionId)
     .maybeSingle();
   
   const isNewSubscription = !existingSubscription;
+
+  // If subscription exists but doesn't have householdId, try to update it
+  // This handles cases where subscription was created before householdId was set
+  if (existingSubscription && !existingSubscription.householdId && householdId) {
+    console.log("[WEBHOOK:SUBSCRIPTION] Updating existing subscription with householdId:", {
+      subscriptionId,
+      householdId,
+      userId
+    });
+    subscriptionData.householdId = householdId;
+  }
 
   // Upsert the subscription
   console.log("[WEBHOOK:SUBSCRIPTION] Upserting subscription to database...");
