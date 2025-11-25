@@ -294,19 +294,24 @@ async function fetchAccountsInternal(
     }
   });
 
-  // Fetch owner names
+  // Fetch owner names and avatars
   const { data: owners } = await supabase
     .from("User")
-    .select("id, name")
+    .select("id, name, avatarUrl")
     .in("id", Array.from(allOwnerIds));
 
   // Create a map: ownerId -> ownerName (first name only)
   const ownerNameMap = new Map<string, string>();
+  // Create a map: ownerId -> ownerAvatarUrl
+  const ownerAvatarMap = new Map<string, string | null>();
   owners?.forEach((owner: any) => {
     if (owner.id && owner.name) {
       // Extract only the first name
       const firstName = owner.name.split(' ')[0];
       ownerNameMap.set(owner.id, firstName);
+    }
+    if (owner.id) {
+      ownerAvatarMap.set(owner.id, owner.avatarUrl || null);
     }
   });
 
@@ -325,11 +330,28 @@ async function fetchAccountsInternal(
       ? householdNames.join(", ") 
       : null;
 
+    // Get owner avatars (first owner's avatar, or null if none)
+    const ownerAvatarUrls = ownerIds
+      .map(ownerId => ownerAvatarMap.get(ownerId))
+      .filter(Boolean) as (string | null)[];
+    const ownerAvatarUrl = ownerAvatarUrls.length > 0 ? ownerAvatarUrls[0] : null;
+    
+    // Get owner names for avatar fallback
+    const ownerNames = ownerIds
+      .map(ownerId => {
+        const firstName = ownerNameMap.get(ownerId);
+        return firstName || null;
+      })
+      .filter(Boolean) as string[];
+    const ownerName = ownerNames.length > 0 ? ownerNames[0] : null;
+
     return {
       ...account,
       balance: balances.get(account.id) || 0,
       householdName,
       ownerIds, // Include ownerIds in response
+      ownerAvatarUrl,
+      ownerName,
     };
   });
 
@@ -370,6 +392,7 @@ export async function createAccount(data: AccountFormData) {
       creditLimit: data.type === "credit" ? data.creditLimit : null,
       initialBalance: (data.type === "checking" || data.type === "savings") ? (data.initialBalance ?? 0) : null,
       dueDayOfMonth: data.type === "credit" ? (data.dueDayOfMonth ?? null) : null,
+      currencyCode: data.currencyCode || 'USD', // Default to USD if not provided
       userId: user.id, // Keep userId for backward compatibility and RLS
       householdId: householdId, // Add householdId for household-based architecture
       createdAt: now,
@@ -469,6 +492,11 @@ export async function updateAccount(id: string, data: Partial<AccountFormData>) 
   } else if (data.initialBalance !== undefined) {
     // If only initialBalance is being updated, keep it as is
     updateData.initialBalance = data.initialBalance;
+  }
+  
+  // Handle currencyCode: update if provided, otherwise preserve existing value
+  if (data.currencyCode !== undefined) {
+    updateData.currencyCode = data.currencyCode || 'USD'; // Default to USD if explicitly set to null/empty
   }
   
   updateData.updatedAt = formatTimestamp(new Date());

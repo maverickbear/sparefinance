@@ -6,7 +6,7 @@
 export interface BaseAccount {
   id: string;
   name: string;
-  type: 'checking' | 'savings' | 'credit' | 'investment' | 'other';
+  type: 'cash' | 'checking' | 'savings' | 'credit' | 'investment' | 'other';
   userId?: string | null;
   creditLimit?: number | null;
   initialBalance?: number | null;
@@ -18,6 +18,13 @@ export interface BaseAccount {
   plaidMask?: string | null;
   plaidOfficialName?: string | null;
   plaidVerificationStatus?: string | null;
+  plaidSubtype?: string | null;
+  currencyCode?: string | null;
+  plaidUnofficialCurrencyCode?: string | null;
+  plaidAvailableBalance?: number | null;
+  plaidPersistentAccountId?: string | null;
+  plaidHolderCategory?: 'personal' | 'business' | 'unrecognized' | null;
+  plaidVerificationName?: string | null;
   createdAt?: string;
   updatedAt?: string;
   dueDayOfMonth?: number | null;

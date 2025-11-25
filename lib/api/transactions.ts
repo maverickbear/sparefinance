@@ -477,7 +477,7 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
   // Get current transaction BEFORE update to check if recurring status changed
   const { data: transactionBeforeUpdate } = await supabase
     .from("Transaction")
-    .select("recurring, accountId, type, amount_numeric, amount")
+    .select("recurring, accountId, type, amount")
     .eq("id", id)
     .single();
 
@@ -550,7 +550,7 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     // Get current transaction to compare
     const { data: currentTransaction } = await supabase
       .from("Transaction")
-      .select("description, type, amount_numeric, userId")
+      .select("description, type, amount, userId")
       .eq("id", id)
       .single();
     
@@ -742,7 +742,7 @@ export async function getTransactionsInternal(
   // We'll fetch related data separately to avoid RLS issues
   let query = supabase
     .from("Transaction")
-    .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, recurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, amount_numeric, userId, householdId")
+    .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, recurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, userId, householdId")
     .order("date", { ascending: false });
 
   const log = logger.withPrefix("getTransactionsInternal");
@@ -902,13 +902,13 @@ export async function getTransactionsInternal(
   }
 
   // Combine transactions with relationships
-  // Use amount_numeric if available, otherwise decrypt amount
+  // Amount is now numeric (no longer encrypted)
   // Decrypt description (description_search is only for search, not display)
   const { decryptDescription } = await import("@/lib/utils/transaction-encryption");
   
   let transactions = (data || []).map((tx: any) => {
-    // Amount is now numeric, but support both during migration
-    const amount = getTransactionAmount(tx.amount) ?? 0;
+    // Amount is numeric (no longer encrypted after migration)
+    const amount = typeof tx.amount === 'number' ? tx.amount : (getTransactionAmount(tx.amount) ?? 0);
     
     // Get category and subcategory from maps
     const category = categoriesMap.get(tx.categoryId) || null;

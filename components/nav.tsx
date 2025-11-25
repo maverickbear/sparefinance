@@ -36,12 +36,12 @@ const baseNavSections = [
   {
     title: "Money Management",
     items: [
+      { href: "/accounts", label: "Bank Accounts", icon: Wallet },
       { href: "/transactions", label: "Transactions", icon: Receipt },
-      { href: "/planned-payment", label: "Planned Payment", icon: Calendar },
       { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
+      { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
       { href: "/categories", label: "Categories", icon: FolderTree },
-      { href: "/accounts", label: "Accounts", icon: Wallet },
-      { href: "/members", label: "Households", icon: Users },
+      { href: "/members", label: "Household", icon: Users },
     ],
   },
   {

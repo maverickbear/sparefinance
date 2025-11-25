@@ -9,6 +9,16 @@ import { formatMoney } from "@/components/common/money";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+// Helper function to get initials from name
+function getInitials(name: string | null | undefined): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) {
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export interface AccountCardProps {
   account: {
     id: string;
@@ -17,6 +27,8 @@ export interface AccountCardProps {
     balance: number;
     creditLimit?: number | null;
     householdName?: string | null;
+    ownerName?: string | null;
+    ownerAvatarUrl?: string | null;
     isConnected?: boolean;
     lastSyncedAt?: string | null;
     institutionName?: string | null;
@@ -65,7 +77,7 @@ export function AccountCard({
             <div className="min-w-0 flex-1">
               <CardTitle className="text-sm font-semibold truncate">{account.name}</CardTitle>
               {account.institutionName && (
-                <p className="text-[10px] text-muted-foreground truncate">{account.institutionName}</p>
+                <p className="text-sm text-muted-foreground truncate">{account.institutionName}</p>
               )}
             </div>
           </div>
@@ -148,16 +160,38 @@ export function AccountCard({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline" className="capitalize text-[10px] px-1.5 py-0.5">
+          <Badge variant="outline" className="capitalize text-sm px-1.5 py-0.5">
             {account.type}
           </Badge>
           {account.householdName && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-              {account.householdName}
-            </Badge>
+            <div className="flex items-center">
+              {account.ownerAvatarUrl ? (
+                <>
+                  <img
+                    src={account.ownerAvatarUrl}
+                    alt={account.ownerName || account.householdName || "Owner"}
+                    className="h-8 w-8 rounded-full object-cover border"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      const initialsContainer = e.currentTarget.nextElementSibling;
+                      if (initialsContainer) {
+                        (initialsContainer as HTMLElement).style.display = "flex";
+                      }
+                    }}
+                  />
+                  <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground hidden items-center justify-center text-sm font-semibold border">
+                    {getInitials(account.ownerName || account.householdName)}
+                  </div>
+                </>
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold border">
+                  {getInitials(account.ownerName || account.householdName)}
+                </div>
+              )}
+            </div>
           )}
           {account.isConnected && (
-            <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-[10px] px-1.5 py-0.5">
+            <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-sm px-1.5 py-0.5">
               Connected
             </Badge>
           )}
@@ -168,7 +202,7 @@ export function AccountCard({
           {isCreditCard ? (
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <div className="text-[10px] text-muted-foreground mb-0.5">Balance</div>
+                <div className="text-sm text-muted-foreground mb-0.5">Balance</div>
                 <div className={cn(
                   "text-sm font-bold",
                   account.balance >= 0 
@@ -179,13 +213,13 @@ export function AccountCard({
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-muted-foreground mb-0.5">Credit Limit</div>
+                <div className="text-sm text-muted-foreground mb-0.5">Credit Limit</div>
                 <div className="text-sm font-semibold">
                   {formatMoney(account.creditLimit!)}
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-muted-foreground mb-0.5">Available</div>
+                <div className="text-sm text-muted-foreground mb-0.5">Available</div>
                 <div className={cn(
                   "text-sm font-semibold",
                   available !== null && available >= 0
@@ -198,7 +232,7 @@ export function AccountCard({
             </div>
           ) : (
             <div>
-              <div className="text-[10px] text-muted-foreground mb-0.5">Balance</div>
+              <div className="text-sm text-muted-foreground mb-0.5">Balance</div>
               <div className={cn(
                 "text-lg font-bold",
                 account.balance >= 0 
@@ -210,7 +244,7 @@ export function AccountCard({
             </div>
           )}
           {account.isConnected && account.lastSyncedAt && (
-            <div className="text-[10px] text-muted-foreground pt-2 border-t">
+            <div className="text-sm text-muted-foreground pt-2 border-t">
               Last synced: {format(new Date(account.lastSyncedAt), 'MMM dd, HH:mm')}
             </div>
           )}

@@ -15,6 +15,8 @@ import {
   PiggyBank,
   CreditCard,
   Users,
+  Repeat,
+  Calendar,
 } from "lucide-react";
 
 interface KBarProps {
@@ -33,10 +35,12 @@ const commandGroups = [
   {
     title: "Money Management",
     commands: [
+      { id: "accounts", label: "Bank Accounts", icon: Wallet, href: "/accounts" },
       { id: "transactions", label: "Transactions", icon: Receipt, href: "/transactions" },
+      { id: "subscriptions", label: "Subscriptions", icon: Repeat, href: "/subscriptions" },
+      { id: "planned-payment", label: "Planned Payments", icon: Calendar, href: "/planned-payment" },
       { id: "categories", label: "Categories", icon: FolderTree, href: "/categories" },
-      { id: "accounts", label: "Accounts", icon: Wallet, href: "/accounts" },
-      { id: "households", label: "Households", icon: Users, href: "/members" },
+      { id: "household", label: "Household", icon: Users, href: "/members" },
     ],
   },
   {

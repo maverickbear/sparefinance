@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import { syncAccountTransactions } from '@/lib/api/plaid/sync';
 import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities';
 import { syncInvestmentAccounts } from '@/lib/api/plaid/investments';
+import { syncAccountBalances } from '@/lib/api/plaid/connect';
 
 /**
  * Plaid Webhook Handler
@@ -143,6 +144,16 @@ async function handleTransactionsWebhook(
           }
         }
       }
+
+      // Sync account balances after syncing transactions
+      // This ensures we have the latest balance from Plaid
+      try {
+        const balanceResult = await syncAccountBalances(item_id, connection.accessToken);
+        console.log(`[PLAID WEBHOOK] Synced balances for item ${item_id}:`, balanceResult);
+      } catch (error) {
+        console.error(`[PLAID WEBHOOK] Error syncing balances for item ${item_id}:`, error);
+        // Don't fail the webhook if balance sync fails
+      }
       break;
     }
 
@@ -181,6 +192,15 @@ async function handleTransactionsWebhook(
             console.error(`[PLAID WEBHOOK] Error syncing transactions for account ${account.id}:`, error);
           }
         }
+      }
+
+      // Sync account balances after syncing transactions
+      try {
+        const balanceResult = await syncAccountBalances(item_id, connection.accessToken);
+        console.log(`[PLAID WEBHOOK] Synced balances for item ${item_id}:`, balanceResult);
+      } catch (error) {
+        console.error(`[PLAID WEBHOOK] Error syncing balances for item ${item_id}:`, error);
+        // Don't fail the webhook if balance sync fails
       }
       break;
     }
@@ -221,25 +241,42 @@ async function handleItemWebhook(
     case 'ERROR': {
       // Item is in an error state
       const error = body.error || {};
-      console.error('[PLAID WEBHOOK] Item error:', error);
+      const errorCode = error.error_code;
+      const errorType = error.error_type;
+      
+      console.error('[PLAID WEBHOOK] Item error:', {
+        error_code: errorCode,
+        error_type: errorType,
+        error_message: error.error_message,
+        display_message: error.display_message,
+        item_id,
+        institution_id: connection.institutionId,
+        institution_name: connection.institutionName,
+      });
 
       await supabase
         .from('PlaidConnection')
         .update({
-          errorCode: error.error_code || null,
+          errorCode: errorCode || null,
           errorMessage: error.error_message || null,
           updatedAt: now,
         })
         .eq('id', connection.id);
 
-      // Optionally disable sync for accounts in this item
-      await supabase
-        .from('Account')
-        .update({
-          syncEnabled: false,
-          updatedAt: now,
-        })
-        .eq('plaidItemId', item_id);
+      // For INTERNAL_SERVER_ERROR, it's often temporary - log but don't necessarily disable sync
+      // For other errors, disable sync to prevent repeated failed attempts
+      if (errorCode !== 'INTERNAL_SERVER_ERROR' && errorType !== 'API_ERROR') {
+        await supabase
+          .from('Account')
+          .update({
+            syncEnabled: false,
+            updatedAt: now,
+          })
+          .eq('plaidItemId', item_id);
+      } else {
+        // For INTERNAL_SERVER_ERROR, log but keep sync enabled (it may recover)
+        console.warn('[PLAID WEBHOOK] INTERNAL_SERVER_ERROR detected - keeping sync enabled as this is often temporary');
+      }
 
       break;
     }

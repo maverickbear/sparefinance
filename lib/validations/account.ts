@@ -7,6 +7,7 @@ export const accountSchema = z.object({
   initialBalance: z.number().optional().nullable(),
   ownerIds: z.array(z.string().uuid()).optional(),
   dueDayOfMonth: z.number().int().min(1).max(31).optional().nullable(),
+  currencyCode: z.enum(["USD", "CAD", "EUR", "GBP", "MXN", "AUD", "JPY", "CHF", "NZD", "BRL"]).optional().nullable(),
 }).refine((data) => {
   // Credit limit is required for credit cards, optional for others
   if (data.type === "credit" && !data.creditLimit) {

@@ -30,11 +30,6 @@ const billingFrequencyLabels: Record<string, string> = {
 export function SubscriptionsWidget({
   subscriptions,
 }: SubscriptionsWidgetProps) {
-  // Debug log
-  if (typeof window !== 'undefined') {
-    console.log('[SubscriptionsWidget] Received subscriptions:', subscriptions);
-  }
-
   // Sort by active status first, then by service name
   const sortedSubscriptions = useMemo(() => {
     return [...subscriptions].sort((a, b) => {

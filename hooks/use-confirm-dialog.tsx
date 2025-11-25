@@ -48,8 +48,9 @@ export function useConfirmDialog() {
       title={dialogState.title}
       description={dialogState.description}
       onConfirm={async () => {
+        // Dialog will close immediately in ConfirmDialog component
+        // We just need to execute the action
         await dialogState.onConfirm();
-        closeDialog();
       }}
       confirmLabel={dialogState.confirmLabel}
       cancelLabel={dialogState.cancelLabel}

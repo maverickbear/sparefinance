@@ -58,36 +58,15 @@ export function CancelledSubscriptionBanner({ isSidebarCollapsed = false }: Canc
 
   // No need to update CSS variable since banner is now in content flow
 
-  // Debug logging - always log
-  useEffect(() => {
-    console.log('[CANCELLED-BANNER] Subscription status check:', {
-      hasSubscription: !!subscription,
-      subscriptionId: subscription?.id,
-      status: status,
-      statusString: statusString,
-      statusType: typeof status,
-      isFullyCancelled,
-      checking,
-      fromContext: !!contextData.subscription,
-      fullSubscription: JSON.stringify(subscription, null, 2),
-    });
-  }, [subscription, status, statusString, isFullyCancelled, checking, contextData.subscription]);
-
-  // No need to update CSS variable since banner is now in content flow
-
   // Don't render if subscription is still loading
   if (checking) {
-    console.log('[CANCELLED-BANNER] Still checking, not rendering');
     return null;
   }
 
   // Only show banner when subscription is fully cancelled
   if (!isFullyCancelled) {
-    console.log('[CANCELLED-BANNER] Not cancelled, not rendering. Status:', status, 'StatusString:', statusString);
     return null;
   }
-
-  console.log('[CANCELLED-BANNER] RENDERING BANNER - Subscription is cancelled!');
 
   async function handleReactivate() {
     try {

@@ -116,7 +116,7 @@ export function encrypt(text: string): string {
     // Combine salt + iv + tag + encrypted
     return salt.toString('hex') + iv.toString('hex') + tag.toString('hex') + encrypted;
   } catch (error) {
-    console.error('Encryption error:', error);
+    logger.error('Encryption error:', error);
     throw new Error('Failed to encrypt data');
   }
 }

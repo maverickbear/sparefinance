@@ -9,6 +9,7 @@ import {
   getPortfolioInternalData,
   convertSupabaseHoldingToHolding
 } from "@/lib/api/portfolio";
+import { logger } from "@/lib/utils/logger";
 
 // In-memory cache for request deduplication
 // Prevents duplicate calls within a short time window (5 seconds)
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
         }
       }
     } catch (error: any) {
-      console.warn("[Portfolio All] Could not get session tokens:", error?.message);
+      logger.warn("[Portfolio All] Could not get session tokens:", error?.message);
     }
 
     // Get days parameter from query string
@@ -76,14 +77,14 @@ export async function GET(request: Request) {
       // Reuse in-flight request - get the data and create a new Response
       // This avoids ReadableStream lock issues when multiple requests use the same response
       const cacheAge = now - cached.timestamp;
-      console.log(`[Portfolio All] Cache hit: ${cacheKey}, age: ${cacheAge}ms`);
+      logger.log(`[Portfolio All] Cache hit: ${cacheKey}, age: ${cacheAge}ms`);
       const data = await cached.promise;
       return NextResponse.json(data);
     }
     
     if (cached) {
       const cacheAge = now - cached.timestamp;
-      console.log(`[Portfolio All] Cache miss: ${cacheKey}, expired by ${cacheAge - CACHE_TTL}ms`);
+      logger.log(`[Portfolio All] Cache miss: ${cacheKey}, expired by ${cacheAge - CACHE_TTL}ms`);
     }
 
     // Clean up expired entries (1% chance to avoid overhead)
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
     const data = await requestPromise;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching portfolio data:", error);
+    logger.error("Error fetching portfolio data:", error);
     return NextResponse.json(
       { error: "Failed to fetch portfolio data" },
       { status: 500 }

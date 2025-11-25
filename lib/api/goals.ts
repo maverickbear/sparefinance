@@ -7,6 +7,7 @@ import { startOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
 import { getTransactions } from "./transactions";
 import { calculateProgress as calculateGoalProgress } from "@/lib/utils/goals";
 import { requireGoalOwnership } from "@/lib/utils/security";
+import { logger } from "@/lib/utils/logger";
 
 export interface Goal {
   id: string;
@@ -50,7 +51,7 @@ export async function calculateIncomeBasis(
   refreshToken?: string
 ): Promise<number> {
   if (expectedIncome && expectedIncome > 0) {
-    console.log("[GOALS] Using expectedIncome:", expectedIncome);
+    logger.log("[GOALS] Using expectedIncome:", expectedIncome);
     return expectedIncome;
   }
 
@@ -64,7 +65,7 @@ export async function calculateIncomeBasis(
     end: currentMonth,
   });
 
-  console.log("[GOALS] Calculating income basis from last 3 months:", months.length, "months");
+  logger.log("[GOALS] Calculating income basis from last 3 months:", months.length, "months");
 
   // Import decryption utilities
   const { decryptTransactionsBatch } = await import("@/lib/utils/transaction-encryption");
@@ -76,29 +77,26 @@ export async function calculateIncomeBasis(
 
       const { data: transactions, error } = await supabase
         .from("Transaction")
-        .select("amount, amount_numeric")
+        .select("amount")
         .eq("type", "income")
         .gte("date", formatDateStart(monthStart))
         .lte("date", formatDateEnd(monthEnd));
 
       if (error) {
-        console.error("[GOALS] Error fetching income transactions:", error);
+        logger.error("[GOALS] Error fetching income transactions:", error);
         return 0;
       }
 
       // Decrypt transactions in batch
       const decryptedTransactions = decryptTransactionsBatch(transactions || []);
       
-      // Calculate month income using decrypted amounts
-      // Prefer amount_numeric if available (already decrypted), otherwise use decrypted amount
+      // Calculate month income using amounts (now numeric, no longer encrypted)
       const monthIncome = decryptedTransactions.reduce((sum: number, tx: any) => {
-        const amount = tx.amount_numeric !== null && tx.amount_numeric !== undefined
-          ? tx.amount_numeric
-          : (tx.amount || 0);
-        return sum + (Number(amount) || 0);
+        const amount = typeof tx.amount === 'number' ? tx.amount : (Number(tx.amount) || 0);
+        return sum + amount;
       }, 0);
       
-      console.log(`[GOALS] Month ${monthStart.toISOString().substring(0, 7)}: ${transactions?.length || 0} transactions, total: ${monthIncome}`);
+      logger.log(`[GOALS] Month ${monthStart.toISOString().substring(0, 7)}: ${transactions?.length || 0} transactions, total: ${monthIncome}`);
       return monthIncome;
     })
   );
@@ -107,7 +105,7 @@ export async function calculateIncomeBasis(
   const totalIncome = monthlyIncomes.reduce((sum, income) => sum + income, 0);
   const avgIncome = monthlyIncomes.length > 0 ? totalIncome / monthlyIncomes.length : 0;
 
-  console.log("[GOALS] Total income (3 months):", totalIncome, "Average monthly:", avgIncome);
+  logger.log("[GOALS] Total income (3 months):", totalIncome, "Average monthly:", avgIncome);
 
   return avgIncome;
 }
@@ -130,7 +128,7 @@ export async function validateAllocation(
     .eq("isPaused", false);
 
   if (error) {
-    console.error("Error fetching goals for validation:", error);
+    logger.error("Error fetching goals for validation:", error);
     throw new Error("Failed to validate allocation");
   }
 
@@ -184,11 +182,11 @@ export async function getGoalsInternal(
       authError?.message?.includes("Auth session missing");
     
     if (!isExpectedError) {
-      console.warn("[GOALS] Unexpected authentication error:", authError?.message);
+      logger.warn("[GOALS] Unexpected authentication error:", authError?.message);
     }
     return [];
   }
-  console.log("[GOALS] Fetching goals for user:", user.id);
+  logger.log("[GOALS] Fetching goals for user:", user.id);
 
   // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
   const { data: goals, error } = await supabase
@@ -198,11 +196,11 @@ export async function getGoalsInternal(
     .order("createdAt", { ascending: false });
 
   if (error) {
-    console.error("[GOALS] Supabase error fetching goals:", error);
+    logger.error("[GOALS] Supabase error fetching goals:", error);
     return [];
   }
 
-  console.log("[GOALS] Raw goals from database:", goals?.length || 0);
+  logger.log("[GOALS] Raw goals from database:", goals?.length || 0);
 
   if (!goals || goals.length === 0) {
     return [];
@@ -247,7 +245,7 @@ export async function getGoalsInternal(
           holdingsMap.set(`${accountId}_${holding.securityId}`, holding);
         });
       } catch (error) {
-        console.error(`[GOALS] Error fetching holdings for account ${accountId}:`, error);
+        logger.error(`[GOALS] Error fetching holdings for account ${accountId}:`, error);
       }
     }
   }
@@ -304,7 +302,7 @@ export async function getGoalsInternal(
           goal.completedAt = formatTimestamp(new Date());
         }
       } catch (error) {
-        console.error(`[GOALS] Error updating balance for goal ${goal.id}:`, error);
+        logger.error(`[GOALS] Error updating balance for goal ${goal.id}:`, error);
       }
     }
 
@@ -353,7 +351,7 @@ export async function getGoals(): Promise<GoalWithCalculations[]> {
     
   } catch (error: any) {
     // If we can't get tokens (e.g., inside unstable_cache), continue without them
-    console.warn("⚠️ [getGoals] Could not get tokens:", error?.message);
+    logger.warn("⚠️ [getGoals] Could not get tokens:", error?.message);
   }
   
   return unstable_cache(
@@ -459,7 +457,7 @@ export async function createGoal(data: {
     .single();
 
   if (error) {
-    console.error("Supabase error creating goal:", error);
+    logger.error("Supabase error creating goal:", error);
     throw new Error(`Failed to create goal: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -576,7 +574,7 @@ export async function updateGoal(
     .single();
 
   if (error) {
-    console.error("Supabase error updating goal:", error);
+    logger.error("Supabase error updating goal:", error);
     throw new Error(`Failed to update goal: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -606,7 +604,7 @@ export async function ensureEmergencyFundGoal(userId: string, householdId: strin
     .limit(10); // Get up to 10 to check for duplicates
 
   if (checkError) {
-    console.error("Error checking for emergency fund goal:", checkError);
+    logger.error("Error checking for emergency fund goal:", checkError);
     return null;
   }
 
@@ -614,7 +612,7 @@ export async function ensureEmergencyFundGoal(userId: string, householdId: strin
   if (existingGoals && existingGoals.length > 0) {
     // If there are duplicates, keep the first one and delete the rest
     if (existingGoals.length > 1) {
-      console.warn(`[Emergency Fund] Found ${existingGoals.length} duplicate emergency fund goals. Cleaning up...`);
+      logger.warn(`[Emergency Fund] Found ${existingGoals.length} duplicate emergency fund goals. Cleaning up...`);
       const goalToKeep = existingGoals[0];
       const duplicateIds = existingGoals.slice(1).map(g => g.id);
       
@@ -625,9 +623,9 @@ export async function ensureEmergencyFundGoal(userId: string, householdId: strin
         .in("id", duplicateIds);
       
       if (deleteError) {
-        console.error("Error deleting duplicate emergency fund goals:", deleteError);
+        logger.error("Error deleting duplicate emergency fund goals:", deleteError);
       } else {
-        console.log(`[Emergency Fund] Deleted ${duplicateIds.length} duplicate emergency fund goals`);
+        logger.log(`[Emergency Fund] Deleted ${duplicateIds.length} duplicate emergency fund goals`);
       }
       
       return goalToKeep as Goal;
@@ -651,7 +649,7 @@ export async function ensureEmergencyFundGoal(userId: string, householdId: strin
     });
     return goal;
   } catch (error) {
-    console.error("Error creating emergency fund goal:", error);
+    logger.error("Error creating emergency fund goal:", error);
     return null;
   }
 }
@@ -683,7 +681,7 @@ export async function deleteGoal(id: string): Promise<void> {
   const { error } = await supabase.from("Goal").delete().eq("id", id);
 
   if (error) {
-    console.error("Supabase error deleting goal:", error);
+    logger.error("Supabase error deleting goal:", error);
     throw new Error(`Failed to delete goal: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -734,7 +732,7 @@ export async function addTopUp(id: string, amount: number): Promise<Goal> {
     .single();
 
   if (error) {
-    console.error("Supabase error adding top-up:", error);
+    logger.error("Supabase error adding top-up:", error);
     throw new Error(`Failed to add top-up: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -787,7 +785,7 @@ export async function withdraw(id: string, amount: number): Promise<Goal> {
     .single();
 
   if (error) {
-    console.error("Supabase error withdrawing from goal:", error);
+    logger.error("Supabase error withdrawing from goal:", error);
     throw new Error(`Failed to withdraw: ${error.message || JSON.stringify(error)}`);
   }
 

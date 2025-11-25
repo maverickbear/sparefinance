@@ -2,8 +2,11 @@
 
 import { plaidClient } from './index';
 import { createServerClient } from '@/lib/supabase-server';
-import { formatTimestamp } from '@/lib/utils/timestamp';
+import { formatTimestamp, formatDateOnly, parseDateWithoutTimezone } from '@/lib/utils/timestamp';
 import type { PlaidLiability } from './types';
+import { getActiveCreditCardDebt } from '@/lib/utils/credit-card-debt';
+import { createDebt } from '@/lib/api/debts';
+import { calculateNextDueDate } from '@/lib/utils/credit-card-debt';
 
 /**
  * Sync liabilities from Plaid for a specific account/item
@@ -118,12 +121,147 @@ export async function syncAccountLiabilities(
             }
           }
 
-          // Update account credit limit if available
+          // Get account details first (before updating)
+          const { data: accountDetails } = await supabase
+            .from('Account')
+            .select('name, dueDayOfMonth')
+            .eq('id', account.id)
+            .single();
+
+          // Update account credit limit and dueDayOfMonth if available
+          const accountUpdateData: any = {};
           if (creditLimit) {
+            accountUpdateData.creditLimit = creditLimit;
+          }
+          
+          // Extract dueDayOfMonth from nextPaymentDueDate if available
+          let extractedDueDayOfMonth: number | null = null;
+          if (creditCard.next_payment_due_date) {
+            try {
+              const dueDate = parseDateWithoutTimezone(creditCard.next_payment_due_date);
+              const dayOfMonth = dueDate.getDate();
+              if (dayOfMonth >= 1 && dayOfMonth <= 31) {
+                extractedDueDayOfMonth = dayOfMonth;
+                accountUpdateData.dueDayOfMonth = dayOfMonth;
+              }
+            } catch (error) {
+              console.warn('Error extracting dueDayOfMonth from nextPaymentDueDate:', error);
+            }
+          }
+          
+          if (Object.keys(accountUpdateData).length > 0) {
+            accountUpdateData.updatedAt = formatTimestamp(new Date());
             await supabase
               .from('Account')
-              .update({ creditLimit: creditLimit })
+              .update(accountUpdateData)
               .eq('id', account.id);
+          }
+
+          // Use extracted dueDayOfMonth or existing one from account
+          const dueDayOfMonth = extractedDueDayOfMonth ?? accountDetails?.dueDayOfMonth ?? null;
+
+          // Create or update Debt record if balance is not zero
+          if (currentBalance && Math.abs(currentBalance) > 0) {
+            try {
+              const balanceAmount = Math.abs(currentBalance);
+              const activeDebt = await getActiveCreditCardDebt(account.id);
+              
+              if (!activeDebt) {
+                // Create new debt if it doesn't exist
+                const nextDueDate = dueDayOfMonth 
+                  ? calculateNextDueDate(dueDayOfMonth)
+                  : creditCard.next_payment_due_date 
+                    ? parseDateWithoutTimezone(creditCard.next_payment_due_date)
+                    : new Date();
+                
+                await createDebt({
+                  name: `${accountDetails?.name || 'Credit Card'} – Current Bill`,
+                  loanType: "credit_card",
+                  initialAmount: balanceAmount,
+                  downPayment: 0,
+                  interestRate: apr || 0,
+                  totalMonths: null,
+                  firstPaymentDate: formatDateOnly(nextDueDate),
+                  monthlyPayment: creditCard.minimum_payment_amount || 0,
+                  accountId: account.id,
+                  priority: "Medium",
+                  status: "active",
+                  nextDueDate: creditCard.next_payment_due_date 
+                    ? parseDateWithoutTimezone(creditCard.next_payment_due_date)
+                    : nextDueDate,
+                });
+                
+                console.log(`[PLAID LIABILITIES] Created debt for credit card account ${account.id} with balance ${balanceAmount}`);
+              } else {
+                // Update existing debt if balance changed
+                const balanceChanged = Math.abs(activeDebt.currentBalance - balanceAmount) > 0.01;
+                
+                if (balanceChanged) {
+                  const updateData: any = {
+                    currentBalance: balanceAmount,
+                    updatedAt: formatTimestamp(new Date()),
+                  };
+                  
+                  // Update nextDueDate if available from Plaid
+                  if (creditCard.next_payment_due_date) {
+                    updateData.nextDueDate = formatDateOnly(parseDateWithoutTimezone(creditCard.next_payment_due_date));
+                  }
+                  
+                  // Update minimum payment if available
+                  if (creditCard.minimum_payment_amount) {
+                    updateData.monthlyPayment = creditCard.minimum_payment_amount;
+                  }
+                  
+                  // Update APR if available
+                  if (apr !== null) {
+                    updateData.interestRate = apr;
+                  }
+                  
+                  // Mark as paid off if balance is zero
+                  if (balanceAmount <= 0) {
+                    updateData.isPaidOff = true;
+                    updateData.status = "closed";
+                    updateData.paidOffAt = formatTimestamp(new Date());
+                  } else if (activeDebt.isPaidOff) {
+                    // Reopen debt if it was paid off but now has balance
+                    updateData.isPaidOff = false;
+                    updateData.status = "active";
+                    updateData.paidOffAt = null;
+                  }
+                  
+                  await supabase
+                    .from('Debt')
+                    .update(updateData)
+                    .eq('id', activeDebt.id);
+                  
+                  console.log(`[PLAID LIABILITIES] Updated debt ${activeDebt.id} for credit card account ${account.id} with new balance ${balanceAmount}`);
+                }
+              }
+            } catch (error) {
+              console.error('Error creating/updating debt for credit card:', error);
+              // Don't increment errors count as this is not critical for liability sync
+            }
+          } else if (currentBalance && Math.abs(currentBalance) <= 0) {
+            // Balance is zero - close any active debt
+            try {
+              const activeDebt = await getActiveCreditCardDebt(account.id);
+              if (activeDebt && !activeDebt.isPaidOff) {
+                await supabase
+                  .from('Debt')
+                  .update({
+                    currentBalance: 0,
+                    isPaidOff: true,
+                    status: "closed",
+                    paidOffAt: formatTimestamp(new Date()),
+                    updatedAt: formatTimestamp(new Date()),
+                  })
+                  .eq('id', activeDebt.id);
+                
+                console.log(`[PLAID LIABILITIES] Closed debt ${activeDebt.id} for credit card account ${account.id} (balance is zero)`);
+              }
+            } catch (error) {
+              console.error('Error closing debt for credit card:', error);
+            }
           }
         } catch (error) {
           console.error('Error processing credit card liability:', error);

@@ -289,18 +289,23 @@ export async function getAccountsClient(options?: { includeInvestmentBalances?: 
     }
   });
 
-  // Fetch owner names
+  // Fetch owner names and avatars
   const { data: owners } = await supabase
     .from("User")
-    .select("id, name")
+    .select("id, name, avatarUrl")
     .in("id", Array.from(allOwnerIds));
 
   // Create a map: ownerId -> ownerName (first name only)
   const ownerNameMap = new Map<string, string>();
+  // Create a map: ownerId -> ownerAvatarUrl
+  const ownerAvatarMap = new Map<string, string | null>();
   owners?.forEach((owner) => {
     if (owner.id && owner.name) {
       const firstName = owner.name.split(' ')[0];
       ownerNameMap.set(owner.id, firstName);
+    }
+    if (owner.id) {
+      ownerAvatarMap.set(owner.id, owner.avatarUrl || null);
     }
   });
 
@@ -317,6 +322,21 @@ export async function getAccountsClient(options?: { includeInvestmentBalances?: 
       ? householdNames.join(", ") 
       : null;
 
+    // Get owner avatars (first owner's avatar, or null if none)
+    const ownerAvatarUrls = ownerIds
+      .map(ownerId => ownerAvatarMap.get(ownerId))
+      .filter(Boolean) as (string | null)[];
+    const ownerAvatarUrl = ownerAvatarUrls.length > 0 ? ownerAvatarUrls[0] : null;
+    
+    // Get owner names for avatar fallback
+    const ownerNames = ownerIds
+      .map(ownerId => {
+        const firstName = ownerNameMap.get(ownerId);
+        return firstName || null;
+      })
+      .filter(Boolean) as string[];
+    const ownerName = ownerNames.length > 0 ? ownerNames[0] : null;
+
     // Get calculated balance, or use initialBalance if balance is 0 and initialBalance exists
     const calculatedBalance = balances.get(account.id) || 0;
     const initialBalance = (account as any).initialBalance ?? 0;
@@ -331,6 +351,8 @@ export async function getAccountsClient(options?: { includeInvestmentBalances?: 
       initialBalance: initialBalance, // Ensure initialBalance is included in response
       householdName,
       ownerIds,
+      ownerAvatarUrl,
+      ownerName,
       isConnected: (account as any).isConnected || false,
       lastSyncedAt: (account as any).lastSyncedAt || null,
       institutionName: null, // Will be fetched separately if needed
@@ -403,6 +425,7 @@ export async function createAccountClient(data: AccountFormData): Promise<Accoun
       creditLimit: data.type === "credit" ? data.creditLimit : null,
       initialBalance: (data.type === "checking" || data.type === "savings") ? (data.initialBalance ?? 0) : null,
       dueDayOfMonth: data.type === "credit" ? (data.dueDayOfMonth ?? null) : null,
+      currencyCode: data.currencyCode || 'USD', // Default to USD if not provided
       userId: user.id,
       householdId: householdId, // Add householdId for household-based architecture
       createdAt: now,
@@ -479,6 +502,11 @@ export async function updateAccountClient(id: string, data: Partial<AccountFormD
     }
   } else if (data.initialBalance !== undefined) {
     updateData.initialBalance = data.initialBalance;
+  }
+  
+  // Handle currencyCode: update if provided, otherwise preserve existing value
+  if (data.currencyCode !== undefined) {
+    updateData.currencyCode = data.currencyCode || 'USD'; // Default to USD if explicitly set to null/empty
   }
   
   updateData.updatedAt = formatTimestamp(new Date());

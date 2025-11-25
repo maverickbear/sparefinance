@@ -25,6 +25,9 @@ export async function syncInvestmentAccounts(
 
   try {
     // Get investment accounts from Plaid
+    // Note: /accounts/get returns cached information, not real-time balances
+    // For investment accounts, balances are typically calculated from holdings,
+    // so we use /accounts/get for metadata and calculate balances from holdings separately
     const accountsResponse = await plaidClient.accountsGet({
       access_token: accessToken,
     });
@@ -105,6 +108,27 @@ export async function syncInvestmentAccounts(
 
             if (existingSecurity) {
               securityId = existingSecurity.id;
+              
+              // Update security with latest price and currency if available
+              const updateData: any = {
+                updatedAt: formatTimestamp(new Date()),
+              };
+              
+              if ((security as any).close_price !== undefined && (security as any).close_price !== null) {
+                updateData.closePrice = (security as any).close_price;
+                updateData.closePriceAsOf = formatTimestamp(new Date());
+              }
+              
+              if ((security as any).iso_currency_code) {
+                updateData.currencyCode = (security as any).iso_currency_code;
+              }
+              
+              if (Object.keys(updateData).length > 1) { // More than just updatedAt
+                await supabase
+                  .from('Security')
+                  .update(updateData)
+                  .eq('id', securityId);
+              }
             } else {
               // Create new Security
               securityId = crypto.randomUUID();
@@ -114,6 +138,9 @@ export async function syncInvestmentAccounts(
                 name: security.name || security.ticker_symbol || 'Unknown Security',
                 class: security.type || 'other',
                 sector: null, // Plaid doesn't provide sector
+                closePrice: (security as any).close_price || null,
+                closePriceAsOf: (security as any).close_price ? formatTimestamp(new Date()) : null,
+                currencyCode: (security as any).iso_currency_code || null,
                 createdAt: formatTimestamp(new Date()),
                 updatedAt: formatTimestamp(new Date()),
               });
@@ -166,24 +193,35 @@ export async function syncInvestmentAccounts(
           (tx) => tx.account_id === plaidAccount.account_id
         );
 
-        // Get already synced transaction IDs
+        // Get already synced transaction IDs - use plaidInvestmentTransactionId if available for better deduplication
         const { data: syncedTransactions } = await supabase
           .from('InvestmentTransaction')
-          .select('id, date, type, quantity, price, securityId')
+          .select('id, plaidInvestmentTransactionId, date, type, quantity, price, securityId')
           .eq('accountId', accountId);
 
-        const syncedTxMap = new Map(
-          syncedTransactions?.map((t) => [
-            `${t.date}-${t.type}-${t.quantity}-${t.price}-${t.securityId}`,
-            t.id,
-          ]) || []
-        );
+        // Create map using plaidInvestmentTransactionId (preferred) or fallback to composite key
+        const syncedTxMap = new Map<string, string>();
+        syncedTransactions?.forEach((t) => {
+          if (t.plaidInvestmentTransactionId) {
+            syncedTxMap.set(t.plaidInvestmentTransactionId, t.id);
+          } else {
+            // Fallback to composite key for old transactions without plaidInvestmentTransactionId
+            const txKey = `${t.date}-${t.type}-${t.quantity}-${t.price}-${t.securityId}`;
+            syncedTxMap.set(txKey, t.id);
+          }
+        });
 
         for (const plaidTx of accountTransactions) {
           try {
-            // Check if transaction already exists
+            // Check if transaction already exists - prefer plaidInvestmentTransactionId
+            const plaidTxId = plaidTx.investment_transaction_id;
+            if (plaidTxId && syncedTxMap.has(plaidTxId)) {
+              continue; // Skip already synced transactions
+            }
+            
+            // Fallback to composite key if plaidInvestmentTransactionId is not available
             const txKey = `${plaidTx.date}-${plaidTx.type}-${plaidTx.quantity || 0}-${plaidTx.price || 0}-${plaidTx.security_id || ''}`;
-            if (syncedTxMap.has(txKey)) {
+            if (!plaidTxId && syncedTxMap.has(txKey)) {
               continue; // Skip already synced transactions
             }
 
@@ -203,6 +241,27 @@ export async function syncInvestmentAccounts(
 
             if (existingSecurity) {
               securityId = existingSecurity.id;
+              
+              // Update security with latest price and currency if available
+              const updateData: any = {
+                updatedAt: formatTimestamp(new Date()),
+              };
+              
+              if ((security as any).close_price !== undefined && (security as any).close_price !== null) {
+                updateData.closePrice = (security as any).close_price;
+                updateData.closePriceAsOf = formatTimestamp(new Date());
+              }
+              
+              if ((security as any).iso_currency_code) {
+                updateData.currencyCode = (security as any).iso_currency_code;
+              }
+              
+              if (Object.keys(updateData).length > 1) { // More than just updatedAt
+                await supabase
+                  .from('Security')
+                  .update(updateData)
+                  .eq('id', securityId);
+              }
             } else {
               // Create new Security
               securityId = crypto.randomUUID();
@@ -212,6 +271,9 @@ export async function syncInvestmentAccounts(
                 name: security.name || security.ticker_symbol || 'Unknown Security',
                 class: security.type || 'other',
                 sector: null,
+                closePrice: (security as any).close_price || null,
+                closePriceAsOf: (security as any).close_price ? formatTimestamp(new Date()) : null,
+                currencyCode: (security as any).iso_currency_code || null,
                 createdAt: formatTimestamp(new Date()),
                 updatedAt: formatTimestamp(new Date()),
               });
@@ -234,7 +296,23 @@ export async function syncInvestmentAccounts(
               }
             } else if (plaidTx.type === InvestmentTransactionType.Fee) {
               transactionType = 'buy'; // Fees are treated as buy transactions
+            } else {
+              // Check transaction name or subtype for dividend/interest
+              // Plaid InvestmentTransactionType enum only has: Buy, Sell, Cancel, Cash, Fee, Transfer
+              // Dividends and interest may come as Cash transactions or have specific names
+              const txName = (plaidTx.name || '').toLowerCase();
+              const txSubtype = ((plaidTx as any).subtype || '').toLowerCase();
+              
+              if (txName.includes('interest') || txSubtype.includes('interest')) {
+                transactionType = 'interest';
+              } else if (txName.includes('dividend') || txSubtype.includes('dividend')) {
+                transactionType = 'dividend';
+              }
+              // If none match, transactionType remains 'buy' (default)
             }
+
+            // Get currency code from transaction or security
+            const currencyCode = (plaidTx as any).iso_currency_code || null;
 
             // Create investment transaction
             const transactionId = crypto.randomUUID();
@@ -250,6 +328,9 @@ export async function syncInvestmentAccounts(
               price: plaidTx.price || null,
               fees: plaidTx.fees || 0,
               notes: plaidTx.name || null,
+              plaidInvestmentTransactionId: plaidTx.investment_transaction_id || null,
+              plaidSubtype: (plaidTx as any).subtype || null,
+              currencyCode: currencyCode,
               createdAt: formatTimestamp(new Date()),
               updatedAt: formatTimestamp(new Date()),
             });

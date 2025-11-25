@@ -6,6 +6,7 @@ import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
 import { StripeProvider } from "@/components/stripe-provider";
+import { PlaidLinkProvider } from "@/components/banking/plaid-link-context";
 import { ServiceWorkerRegister } from "./sw-register";
 // PlanLimitsProvider removed - SubscriptionProvider in protected layout handles this
 
@@ -42,11 +43,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <StripeProvider>
+          <PlaidLinkProvider>
           <ToastProvider>
             <LayoutWrapper>{children}</LayoutWrapper>
             <KBarWrapper />
             <ServiceWorkerRegister />
           </ToastProvider>
+          </PlaidLinkProvider>
           </StripeProvider>
         </ThemeProvider>
       </body>

@@ -115,8 +115,8 @@ export function NetWorthWidget({
             <div className="text-sm text-muted-foreground">Total net worth</div>
           </div>
 
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[250px] min-h-[250px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minHeight={250}>
               <LineChart 
                 data={chartData} 
                 margin={{ top: 5, right: 10, left: 0, bottom: 5 }}

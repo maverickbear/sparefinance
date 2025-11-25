@@ -45,9 +45,11 @@ export async function syncAccountTransactions(
   try {
     // Get the itemId and cursor for this connection
     // We need itemId to update the cursor, and we get it from the account
+    // Also get account type to determine transaction type correctly
+    // Get householdId for TransactionSync records
     const { data: account } = await supabase
       .from('Account')
-      .select('plaidItemId')
+      .select('plaidItemId, type, householdId')
       .eq('id', accountId)
       .single();
 
@@ -168,9 +170,46 @@ export async function syncAccountTransactions(
 
       try {
         // Map Plaid transaction to our transaction format
-        // In Plaid, negative amounts are typically expenses (outflows) and positive amounts are income (inflows)
-        // But we need to check the account type and transaction context
-        const isExpense = plaidTx.amount < 0;
+        // For deposit accounts (checking/savings): negative = expense, positive = income
+        // For credit accounts: positive = expense (purchase increases debt), negative = income/payment (reduces debt)
+        // We also check transaction_code and category to be more accurate
+        let isExpense: boolean;
+        
+        if (account?.type === 'credit') {
+          // For credit cards: positive amounts are purchases (expenses), negative are payments (income/transfers)
+          // But we also check transaction_code and category to be more accurate
+          const transactionCode = plaidTx.transaction_code;
+          const categories = Array.isArray(plaidTx.category) ? plaidTx.category : [];
+          const categoryPrimary = categories.length > 0 ? categories[0].toLowerCase() : '';
+          
+          // Payment/credit transactions typically have specific codes or categories
+          if (
+            transactionCode === 'payment' || 
+            transactionCode === 'credit' || 
+            transactionCode === 'transfer' ||
+            categoryPrimary === 'transfer' ||
+            categoryPrimary === 'payment' ||
+            categoryPrimary === 'bank fees' // Bank fees on credit cards are usually credits
+          ) {
+            isExpense = false; // Payment/credit is income (reduces debt)
+          } else {
+            // For credit cards, positive amounts are usually purchases (expenses)
+            // Negative amounts are usually payments/credits (income)
+            isExpense = plaidTx.amount > 0;
+          }
+        } else {
+          // For deposit accounts: negative = expense, positive = income
+          isExpense = plaidTx.amount < 0;
+        }
+        
+        console.log('[PLAID SYNC] Determining transaction type:', {
+          accountType: account?.type,
+          plaidAmount: plaidTx.amount,
+          transactionCode: plaidTx.transaction_code,
+          category: plaidTx.category,
+          isExpense,
+          description: (plaidTx.name || plaidTx.merchant_name || '').substring(0, 50),
+        });
         
         // Parse Plaid date (format: YYYY-MM-DD)
         // Create date at midnight local time to avoid timezone issues
@@ -303,6 +342,7 @@ export async function syncAccountTransactions(
             accountId,
             plaidTransactionId: plaidTx.transaction_id,
             transactionId: transactionId,
+            householdId: account?.householdId || null,
             syncDate: now,
             status: 'synced',
           });
@@ -328,6 +368,7 @@ export async function syncAccountTransactions(
             accountId,
             plaidTransactionId: plaidTx.transaction_id,
             transactionId: null,
+            householdId: account?.householdId || null,
             syncDate: now,
             status: 'error',
           });
@@ -389,6 +430,7 @@ export async function syncAccountTransactions(
                 accountId,
                 plaidTransactionId: plaidTx.transaction_id,
                 transactionId: transactionId,
+                householdId: account?.householdId || null,
                 syncDate: formatTimestamp(new Date()),
                 status: 'synced',
               });
@@ -399,10 +441,32 @@ export async function syncAccountTransactions(
           console.error('Error processing modified transaction (as new):', plaidTx.transaction_id, error);
           errors++;
         }
-      } else {
-        // Update existing transaction
+        } else {
+          // Update existing transaction
         try {
-          const isExpense = plaidTx.amount < 0;
+          // Use same logic as for new transactions
+          let isExpense: boolean;
+          
+          if (account?.type === 'credit') {
+            const transactionCode = plaidTx.transaction_code;
+            const categories = Array.isArray(plaidTx.category) ? plaidTx.category : [];
+            const categoryPrimary = categories.length > 0 ? categories[0].toLowerCase() : '';
+            
+            if (
+              transactionCode === 'payment' || 
+              transactionCode === 'credit' || 
+              transactionCode === 'transfer' ||
+              categoryPrimary === 'transfer' ||
+              categoryPrimary === 'payment' ||
+              categoryPrimary === 'bank fees'
+            ) {
+              isExpense = false;
+            } else {
+              isExpense = plaidTx.amount > 0;
+            }
+          } else {
+            isExpense = plaidTx.amount < 0;
+          }
           const plaidDate = new Date(plaidTx.date + 'T00:00:00');
           const description = plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || 'Plaid Transaction';
           const amount = Math.abs(plaidTx.amount);

@@ -9,6 +9,7 @@ import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { sendInvitationEmail } from "@/lib/utils/email";
 import { guardHouseholdMembers, throwIfNotAllowed } from "@/lib/api/feature-guard";
 import { getActiveHouseholdId } from "@/lib/utils/household";
+import { logger } from "@/lib/utils/logger";
 
 export interface HouseholdMember {
   id: string;
@@ -32,7 +33,7 @@ export async function checkMemberAccess(userId: string): Promise<boolean> {
     const guard = await guardHouseholdMembers(userId);
     return guard.allowed;
   } catch (error) {
-    console.error("Error checking member access:", error);
+    logger.error("Error checking member access:", error);
     return false;
   }
 }
@@ -52,7 +53,7 @@ export async function getHouseholdMembers(ownerId: string): Promise<HouseholdMem
     const householdId = await getActiveHouseholdId(ownerId);
     
     if (!householdId) {
-      console.error("No household found for owner:", ownerId);
+      logger.error("No household found for owner:", ownerId);
       // Fallback: return owner as only member
       if (ownerData && !ownerError) {
         return [{
@@ -87,7 +88,7 @@ export async function getHouseholdMembers(ownerId: string): Promise<HouseholdMem
       .order("createdAt", { ascending: false });
 
     if (error) {
-      console.error("Error fetching household members:", error);
+      logger.error("Error fetching household members:", error);
       return [];
     }
 
@@ -123,7 +124,7 @@ export async function getHouseholdMembers(ownerId: string): Promise<HouseholdMem
 
     return householdMembers;
   } catch (error) {
-    console.error("Error in getHouseholdMembers:", error);
+    logger.error("Error in getHouseholdMembers:", error);
     return [];
   }
 }
@@ -215,7 +216,7 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
       .single();
 
     if (error || !member) {
-      console.error("Error inviting member:", error);
+      logger.error("Error inviting member:", error);
       throw new Error(`Failed to invite member: ${error?.message || JSON.stringify(error)}`);
     }
 
@@ -247,11 +248,11 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
       .single();
 
     if (ownerError) {
-      console.error("[MEMBERS] Error fetching owner for email:", ownerError);
+      logger.error("[MEMBERS] Error fetching owner for email:", ownerError);
       // Continue without sending email - invitation is still created
     } else if (owner) {
       // Send invitation email
-      console.log("[MEMBERS] Sending invitation email to:", data.email.toLowerCase());
+      logger.log("[MEMBERS] Sending invitation email to:", data.email.toLowerCase());
       let emailSent = false;
       let emailError: Error | null = null;
       
@@ -265,31 +266,31 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
           appUrl: process.env.NEXT_PUBLIC_APP_URL,
         });
         emailSent = true;
-        console.log("[MEMBERS] ✅ Invitation email sent successfully");
+        logger.log("[MEMBERS] ✅ Invitation email sent successfully");
       } catch (err) {
         // Log error but don't fail the invitation
         // The invitation is still created in the database
         emailError = err instanceof Error ? err : new Error(String(err));
-        console.error("[MEMBERS] ❌ Error sending invitation email:", emailError);
-        console.error("[MEMBERS] Error details:", emailError.message);
+        logger.error("[MEMBERS] ❌ Error sending invitation email:", emailError);
+        logger.error("[MEMBERS] Error details:", emailError.message);
         if (emailError.stack) {
-          console.error("[MEMBERS] Error stack:", emailError.stack);
+          logger.error("[MEMBERS] Error stack:", emailError.stack);
         }
         
         // Log the invitation link so it can be manually shared if needed
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/";
         const invitationLink = `${appUrl}/members/accept?token=${invitationToken}`;
-        console.warn("[MEMBERS] ⚠️ Invitation created but email not sent. Manual link:", invitationLink);
+        logger.warn("[MEMBERS] ⚠️ Invitation created but email not sent. Manual link:", invitationLink);
       }
       
       // If email failed, log a warning but continue
       // The invitation is already created in the database
       if (!emailSent && emailError) {
-        console.warn("[MEMBERS] ⚠️ Member invitation created but email delivery failed. The invitation link can be manually shared.");
+        logger.warn("[MEMBERS] ⚠️ Member invitation created but email delivery failed. The invitation link can be manually shared.");
       }
     } else {
-      console.warn("[MEMBERS] ⚠️ Owner not found for userId:", ownerId, "- Email not sent");
-      console.warn("[MEMBERS] ⚠️ Invitation created but email not sent due to missing owner data.");
+      logger.warn("[MEMBERS] ⚠️ Owner not found for userId:", ownerId, "- Email not sent");
+      logger.warn("[MEMBERS] ⚠️ Invitation created but email not sent due to missing owner data.");
     }
 
     // Map to old interface
@@ -309,7 +310,7 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
       isOwner: member.role === 'owner',
     };
   } catch (error) {
-    console.error("Error in inviteMember:", error);
+    logger.error("Error in inviteMember:", error);
     throw error;
   }
 }
@@ -349,7 +350,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
           .eq("id", currentMember.userId);
         
         if (userUpdateError) {
-          console.error("Error updating user name:", userUpdateError);
+          logger.error("Error updating user name:", userUpdateError);
         }
       }
     }
@@ -402,7 +403,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
           .eq("id", currentMember.userId);
         
         if (userUpdateError) {
-          console.error("Error updating user email:", userUpdateError);
+          logger.error("Error updating user email:", userUpdateError);
           throw new Error(`Failed to update email: ${userUpdateError.message}`);
         }
       }
@@ -434,7 +435,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
         .single();
 
       if (updateError || !updatedMember) {
-        console.error("Error updating member:", updateError);
+        logger.error("Error updating member:", updateError);
         throw new Error(`Failed to update member: ${updateError?.message || JSON.stringify(updateError)}`);
       }
 
@@ -455,9 +456,9 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
           .single();
 
         if (ownerError) {
-          console.error("[MEMBERS] Error fetching owner for email update:", ownerError);
+          logger.error("[MEMBERS] Error fetching owner for email update:", ownerError);
         } else if (owner) {
-          console.log("[MEMBERS] Sending invitation email after email update to:", updateData.email);
+          logger.log("[MEMBERS] Sending invitation email after email update to:", updateData.email);
           await sendInvitationEmail({
             to: updateData.email as string,
             memberName: (updateData.name as string) || updateData.email as string,
@@ -466,14 +467,14 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
             invitationToken: newToken,
             appUrl: process.env.NEXT_PUBLIC_APP_URL,
           });
-          console.log("[MEMBERS] ✅ Invitation email sent after email update");
+          logger.log("[MEMBERS] ✅ Invitation email sent after email update");
         } else {
-          console.warn("[MEMBERS] ⚠️ Owner not found for email update - Email not sent");
+          logger.warn("[MEMBERS] ⚠️ Owner not found for email update - Email not sent");
         }
       } catch (emailError) {
-        console.error("[MEMBERS] ❌ Error sending invitation email after email update:", emailError);
+        logger.error("[MEMBERS] ❌ Error sending invitation email after email update:", emailError);
         if (emailError instanceof Error) {
-          console.error("[MEMBERS] Error details:", emailError.message);
+          logger.error("[MEMBERS] Error details:", emailError.message);
         }
         // Don't fail the update if email sending fails
         }
@@ -509,7 +510,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
       .single();
 
     if (updateError || !updatedMember) {
-      console.error("Error updating member:", updateError);
+      logger.error("Error updating member:", updateError);
       throw new Error(`Failed to update member: ${updateError?.message || JSON.stringify(updateError)}`);
     }
 
@@ -538,7 +539,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
       isOwner: updatedMember.role === 'owner',
     };
   } catch (error) {
-    console.error("Error in updateMember:", error);
+    logger.error("Error in updateMember:", error);
     throw error;
   }
 }
@@ -583,9 +584,9 @@ export async function removeMember(memberId: string): Promise<void> {
             user?.name || user?.email || "Minha Conta",
             'personal'
           );
-          console.log("[MEMBERS] removeMember - Created personal household for removed member:", userId);
+          logger.log("[MEMBERS] removeMember - Created personal household for removed member:", userId);
         } catch (createError) {
-          console.error("Error creating personal household for removed member:", createError);
+          logger.error("Error creating personal household for removed member:", createError);
           // Don't fail the removal if household creation fails, but log it
         }
       }
@@ -598,11 +599,11 @@ export async function removeMember(memberId: string): Promise<void> {
       .eq("id", memberId);
 
     if (error) {
-      console.error("Error removing member:", error);
+      logger.error("Error removing member:", error);
       throw new Error(`Failed to remove member: ${error.message || JSON.stringify(error)}`);
     }
   } catch (error) {
-    console.error("Error in removeMember:", error);
+    logger.error("Error in removeMember:", error);
     throw error;
   }
 }
@@ -643,12 +644,12 @@ export async function resendInvitationEmail(memberId: string): Promise<void> {
       .single();
 
     if (ownerError || !owner) {
-      console.error("[MEMBERS] Error fetching owner for resend email:", ownerError);
+      logger.error("[MEMBERS] Error fetching owner for resend email:", ownerError);
       throw new Error("Owner not found");
     }
 
     // Send invitation email
-    console.log("[MEMBERS] Resending invitation email to:", member.email);
+    logger.log("[MEMBERS] Resending invitation email to:", member.email);
     await sendInvitationEmail({
       to: member.email,
       memberName: member.name || member.email,
@@ -657,9 +658,9 @@ export async function resendInvitationEmail(memberId: string): Promise<void> {
       invitationToken: member.invitationToken,
       appUrl: process.env.NEXT_PUBLIC_APP_URL,
     });
-    console.log("[MEMBERS] ✅ Resend invitation email sent successfully");
+    logger.log("[MEMBERS] ✅ Resend invitation email sent successfully");
   } catch (error) {
-    console.error("Error resending invitation email:", error);
+    logger.error("Error resending invitation email:", error);
     throw error;
   }
 }
@@ -719,7 +720,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
         });
 
       if (createUserError) {
-        console.error("Error creating user:", createUserError);
+        logger.error("Error creating user:", createUserError);
         throw new Error(`Failed to create user: ${createUserError.message || JSON.stringify(createUserError)}`);
       }
     } else {
@@ -733,7 +734,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
         .eq("id", userId);
 
       if (roleUpdateError) {
-        console.error("Error updating user role:", roleUpdateError);
+        logger.error("Error updating user role:", roleUpdateError);
         // Don't fail the invitation if role update fails
       }
     }
@@ -760,11 +761,11 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
       .single();
 
     if (updateError || !member) {
-      console.error("Error accepting invitation:", updateError);
+      logger.error("Error accepting invitation:", updateError);
       throw new Error(`Failed to accept invitation: ${updateError?.message || JSON.stringify(updateError)}`);
     }
 
-    console.log("[MEMBERS] acceptInvitation - Member accepted invitation:", {
+    logger.log("[MEMBERS] acceptInvitation - Member accepted invitation:", {
       memberId: member.userId,
       userId,
       householdId: member.householdId,
@@ -785,12 +786,12 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
         });
       
       if (activeError) {
-        console.warn("[MEMBERS] Could not set active household for new member:", activeError);
+        logger.warn("[MEMBERS] Could not set active household for new member:", activeError);
       } else {
-        console.log("[MEMBERS] Set active household for new member:", { userId, householdId: member.householdId });
+        logger.log("[MEMBERS] Set active household for new member:", { userId, householdId: member.householdId });
       }
     } catch (activeError) {
-      console.warn("[MEMBERS] Error setting active household:", activeError);
+      logger.warn("[MEMBERS] Error setting active household:", activeError);
     }
 
     // Update subscription cache in User table for the new member
@@ -802,21 +803,21 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
       );
       
       if (cacheUpdateError) {
-        console.warn("[MEMBERS] Could not update subscription cache via RPC:", cacheUpdateError);
+        logger.warn("[MEMBERS] Could not update subscription cache via RPC:", cacheUpdateError);
         // Fallback: invalidate cache and let it refresh on next query
         const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
         await invalidateSubscriptionCache(userId);
       } else {
-        console.log("[MEMBERS] Subscription cache updated in User table for new member");
+        logger.log("[MEMBERS] Subscription cache updated in User table for new member");
       }
     } catch (cacheError) {
-      console.warn("[MEMBERS] Could not update subscription cache:", cacheError);
+      logger.warn("[MEMBERS] Could not update subscription cache:", cacheError);
       // Fallback: invalidate cache
       try {
         const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
         await invalidateSubscriptionCache(userId);
       } catch (invalidateError) {
-        console.warn("[MEMBERS] Could not invalidate subscription cache:", invalidateError);
+        logger.warn("[MEMBERS] Could not invalidate subscription cache:", invalidateError);
       }
     }
 
@@ -839,7 +840,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
       isOwner: member.role === 'owner',
     };
   } catch (error) {
-    console.error("Error in acceptInvitation:", error);
+    logger.error("Error in acceptInvitation:", error);
     throw error;
   }
 }
@@ -860,7 +861,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
       .rpc("validate_invitation_token", { p_token: token });
 
     if (validateError || !invitationData || invitationData.length === 0) {
-      console.error("[MEMBERS] Error validating invitation token:", validateError);
+      logger.error("[MEMBERS] Error validating invitation token:", validateError);
       throw new Error("Invalid or expired invitation token");
     }
 
@@ -882,7 +883,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
       .single();
 
     if (findError || !fullInvitation) {
-      console.error("[MEMBERS] Error finding full invitation:", findError);
+      logger.error("[MEMBERS] Error finding full invitation:", findError);
       throw new Error("Invalid or expired invitation token");
     }
 
@@ -910,7 +911,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
     });
 
     if (authError) {
-      console.error("Error creating auth user:", authError);
+      logger.error("Error creating auth user:", authError);
       
       // Get user-friendly error message (handles HIBP errors automatically)
       const errorMessage = getAuthErrorMessage(authError, "Failed to create account");
@@ -926,17 +927,17 @@ export async function acceptInvitationWithPassword(token: string, password: stri
 
     // Send OTP email for verification
     // Don't confirm email automatically - user must verify OTP
-    console.log("[MEMBERS] Sending OTP email for invitation acceptance");
+    logger.log("[MEMBERS] Sending OTP email for invitation acceptance");
     const { error: otpError } = await serviceRoleClient.auth.resend({
       type: "signup",
       email: fullInvitation.email,
     });
 
     if (otpError) {
-      console.error("[MEMBERS] Error sending OTP:", otpError);
+      logger.error("[MEMBERS] Error sending OTP:", otpError);
       // Continue anyway - OTP might have been sent automatically by Supabase
     } else {
-      console.log("[MEMBERS] ✅ OTP email sent successfully");
+      logger.log("[MEMBERS] ✅ OTP email sent successfully");
     }
 
     // Create User in User table using service role (bypasses RLS during account creation)
@@ -952,7 +953,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
       });
 
     if (createUserError) {
-      console.error("Error creating user:", createUserError);
+      logger.error("Error creating user:", createUserError);
       throw new Error(`Failed to create user: ${createUserError.message || JSON.stringify(createUserError)}`);
     }
 
@@ -967,7 +968,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
       userId: userId,
     };
   } catch (error) {
-    console.error("Error in acceptInvitationWithPassword:", error);
+    logger.error("Error in acceptInvitationWithPassword:", error);
     throw error;
   }
 }
@@ -1030,12 +1031,12 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
       .single();
 
     if (updateError || !updatedMember) {
-      console.error("Error completing invitation:", updateError);
+      logger.error("Error completing invitation:", updateError);
       throw new Error(`Failed to complete invitation: ${updateError?.message || JSON.stringify(updateError)}`);
     }
 
     const household = updatedMember.Household as any;
-    console.log("[MEMBERS] completeInvitationAfterOtp - Member accepted invitation:", {
+    logger.log("[MEMBERS] completeInvitationAfterOtp - Member accepted invitation:", {
       memberId: updatedMember.userId,
       userId,
       householdId: updatedMember.householdId,
@@ -1056,12 +1057,12 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
         });
       
       if (activeError) {
-        console.warn("[MEMBERS] Could not set active household for new member:", activeError);
+        logger.warn("[MEMBERS] Could not set active household for new member:", activeError);
       } else {
-        console.log("[MEMBERS] Set active household for new member:", { userId, householdId: updatedMember.householdId });
+        logger.log("[MEMBERS] Set active household for new member:", { userId, householdId: updatedMember.householdId });
       }
     } catch (activeError) {
-      console.warn("[MEMBERS] Error setting active household:", activeError);
+      logger.warn("[MEMBERS] Error setting active household:", activeError);
     }
 
     // Update subscription cache in User table for the new member
@@ -1073,21 +1074,21 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
       );
       
       if (cacheUpdateError) {
-        console.warn("[MEMBERS] Could not update subscription cache via RPC:", cacheUpdateError);
+        logger.warn("[MEMBERS] Could not update subscription cache via RPC:", cacheUpdateError);
         // Fallback: invalidate cache and let it refresh on next query
         const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
         await invalidateSubscriptionCache(userId);
       } else {
-        console.log("[MEMBERS] Subscription cache updated in User table for new member");
+        logger.log("[MEMBERS] Subscription cache updated in User table for new member");
       }
     } catch (cacheError) {
-      console.warn("[MEMBERS] Could not update subscription cache:", cacheError);
+      logger.warn("[MEMBERS] Could not update subscription cache:", cacheError);
       // Fallback: invalidate cache
       try {
         const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
         await invalidateSubscriptionCache(userId);
       } catch (invalidateError) {
-        console.warn("[MEMBERS] Could not invalidate subscription cache:", invalidateError);
+        logger.warn("[MEMBERS] Could not invalidate subscription cache:", invalidateError);
       }
     }
 
@@ -1097,7 +1098,7 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError) {
-      console.warn("[MEMBERS] Could not get session:", sessionError);
+      logger.warn("[MEMBERS] Could not get session:", sessionError);
     }
 
     // Map to old interface
@@ -1121,7 +1122,7 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
       session: session || null,
     };
   } catch (error) {
-    console.error("Error in completeInvitationAfterOtp:", error);
+    logger.error("Error in completeInvitationAfterOtp:", error);
     throw error;
   }
 }
@@ -1158,7 +1159,7 @@ export async function isAdmin(userId: string, ownerId: string): Promise<boolean>
     // Owner is always admin, or check role from User table (admin or super_admin)
     return userId === ownerId || user?.role === "admin" || user?.role === "super_admin";
   } catch (error) {
-    console.error("Error checking admin status:", error);
+    logger.error("Error checking admin status:", error);
     return false;
   }
 }
@@ -1182,7 +1183,7 @@ export async function getUserRole(userId: string, ownerId: string): Promise<"adm
 
     return (user?.role as "admin" | "member" | "super_admin") || null;
   } catch (error) {
-    console.error("Error getting user role:", error);
+    logger.error("Error getting user role:", error);
     return null;
   }
 }
@@ -1251,7 +1252,7 @@ export async function getUserRoleOptimized(userId: string): Promise<"admin" | "m
 
     return null;
   } catch (error) {
-    console.error("Error getting user role:", error);
+    logger.error("Error getting user role:", error);
     return null;
   }
 }
@@ -1276,7 +1277,7 @@ export async function isHouseholdMember(userId: string): Promise<boolean> {
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      console.error("[MEMBERS] Error checking household membership:", error);
+      logger.error("[MEMBERS] Error checking household membership:", error);
       return false;
     }
 
@@ -1284,16 +1285,16 @@ export async function isHouseholdMember(userId: string): Promise<boolean> {
     if (member) {
       const household = member.Household as any;
       if (household?.type === 'personal' && household?.createdBy === userId) {
-        console.log("[MEMBERS] Ignoring personal household (user is owner)", { userId });
+        logger.log("[MEMBERS] Ignoring personal household (user is owner)", { userId });
       return false;
       }
     }
 
     const isMember = member !== null;
-    console.log("[MEMBERS] isHouseholdMember - userId:", userId, "isMember:", isMember, "member:", member);
+    logger.log("[MEMBERS] isHouseholdMember - userId:", userId, "isMember:", isMember, "member:", member);
     return isMember;
   } catch (error) {
-    console.error("[MEMBERS] Error in isHouseholdMember:", error);
+    logger.error("[MEMBERS] Error in isHouseholdMember:", error);
     return false;
   }
 }
@@ -1317,7 +1318,7 @@ export async function getOwnerIdForMember(userId: string): Promise<string | null
       .maybeSingle();
 
     if (error && error.code !== "PGRST116") {
-      console.error("[MEMBERS] Error getting ownerId for member:", error);
+      logger.error("[MEMBERS] Error getting ownerId for member:", error);
       return null;
     }
 
@@ -1330,14 +1331,14 @@ export async function getOwnerIdForMember(userId: string): Promise<string | null
     
     // Ignore personal households (user is their own owner)
     if (household?.type === 'personal' && ownerId === userId) {
-      console.log("[MEMBERS] Ignoring personal household (user is their own owner)", { userId });
+      logger.log("[MEMBERS] Ignoring personal household (user is their own owner)", { userId });
       return null;
     }
     
-    console.log("[MEMBERS] getOwnerIdForMember - userId:", userId, "ownerId:", ownerId, "member:", member);
+    logger.log("[MEMBERS] getOwnerIdForMember - userId:", userId, "ownerId:", ownerId, "member:", member);
     return ownerId;
   } catch (error) {
-    console.error("[MEMBERS] Error in getOwnerIdForMember:", error);
+    logger.error("[MEMBERS] Error in getOwnerIdForMember:", error);
     return null;
   }
 }
@@ -1362,7 +1363,7 @@ export async function getUserHouseholdInfo(userId: string): Promise<UserHousehol
       .maybeSingle();
 
     if (ownerError && ownerError.code !== "PGRST116") {
-      console.error("[MEMBERS] Error checking if user is owner:", ownerError);
+      logger.error("[MEMBERS] Error checking if user is owner:", ownerError);
     }
 
     const isOwner = ownedHousehold !== null;
@@ -1398,7 +1399,7 @@ export async function getUserHouseholdInfo(userId: string): Promise<UserHousehol
         .maybeSingle();
 
       if (ownerDataError && ownerDataError.code !== "PGRST116") {
-        console.error("[MEMBERS] Error fetching owner data:", ownerDataError);
+        logger.error("[MEMBERS] Error fetching owner data:", ownerDataError);
       }
 
       return {
@@ -1414,7 +1415,7 @@ export async function getUserHouseholdInfo(userId: string): Promise<UserHousehol
       isMember: true,
     };
   } catch (error) {
-    console.error("[MEMBERS] Error in getUserHouseholdInfo:", error);
+    logger.error("[MEMBERS] Error in getUserHouseholdInfo:", error);
     return {
       isOwner: false,
       isMember: false,

@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase-server';
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
 import { formatTimestamp } from '@/lib/utils/timestamp';
-// import { plaidClient } from '@/lib/api/plaid'; // TEMPORARILY DISABLED
+import { plaidClient } from '@/lib/api/plaid';
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,28 +55,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // TEMPORARY BYPASS: Skip Plaid API call
-    console.log('[PLAID BYPASS] Disconnecting account (bypassed) for account:', accountId);
-    
-    // Original implementation (commented out):
-    // // Get access token to remove item from Plaid
-    // const { data: connection } = await supabase
-    //   .from('PlaidConnection')
-    //   .select('accessToken, itemId')
-    //   .eq('itemId', account.plaidItemId)
-    //   .single();
+    // Check if there are other accounts using the same plaidItemId
+    const { data: otherAccounts } = await supabase
+      .from('Account')
+      .select('id')
+      .eq('plaidItemId', account.plaidItemId)
+      .neq('id', accountId)
+      .eq('isConnected', true)
+      .limit(1);
 
-    // // Remove item from Plaid if connection exists
-    // if (connection?.accessToken) {
-    //   try {
-    //     await plaidClient.itemRemove({
-    //       access_token: connection.accessToken,
-    //     });
-    //   } catch (error) {
-    //     console.error('Error removing item from Plaid:', error);
-    //     // Continue with disconnection even if Plaid removal fails
-    //   }
-    // }
+    const hasOtherConnectedAccounts = otherAccounts && otherAccounts.length > 0;
+
+    // Get access token to remove item from Plaid
+    // Only remove from Plaid if this is the last account using this itemId
+    if (!hasOtherConnectedAccounts) {
+      const { data: connection } = await supabase
+        .from('PlaidConnection')
+        .select('accessToken, itemId')
+        .eq('itemId', account.plaidItemId)
+        .single();
+
+      // Remove item from Plaid if connection exists
+      if (connection?.accessToken) {
+        try {
+          console.log('[PLAID] Removing item from Plaid:', account.plaidItemId);
+          await plaidClient.itemRemove({
+            access_token: connection.accessToken,
+          });
+          console.log('[PLAID] Successfully removed item from Plaid');
+        } catch (error: any) {
+          console.error('[PLAID] Error removing item from Plaid:', {
+            error: error.message,
+            error_code: error.response?.data?.error_code,
+            error_type: error.response?.data?.error_type,
+            itemId: account.plaidItemId,
+          });
+          // Continue with disconnection even if Plaid removal fails
+          // The item might already be removed or the access token might be invalid
+        }
+      }
+    } else {
+      console.log('[PLAID] Skipping item removal - other accounts still use this connection');
+    }
 
     const now = formatTimestamp(new Date());
 
@@ -100,20 +120,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Delete PlaidConnection if no other accounts use it
-    const { data: otherAccounts } = await supabase
-      .from('Account')
-      .select('id')
-      .eq('plaidItemId', account.plaidItemId)
-      .neq('id', accountId)
-      .limit(1);
+    // Clean up TransactionSync records for this account
+    // This prevents issues if the account is reconnected later
+    const { error: syncCleanupError } = await supabase
+      .from('TransactionSync')
+      .delete()
+      .eq('accountId', accountId);
 
-    if (!otherAccounts || otherAccounts.length === 0) {
+    if (syncCleanupError) {
+      console.error('[PLAID] Error cleaning up TransactionSync:', syncCleanupError);
+      // Continue anyway - the account is already disconnected
+    } else {
+      console.log('[PLAID] Cleaned up TransactionSync records for account:', accountId);
+    }
+
+    // Delete PlaidConnection if no other accounts use it
+    // We already checked this above with hasOtherConnectedAccounts
+    if (!hasOtherConnectedAccounts) {
       // No other accounts use this connection, delete it
-      await supabase
+      const { error: deleteError } = await supabase
         .from('PlaidConnection')
         .delete()
         .eq('itemId', account.plaidItemId);
+      
+      if (deleteError) {
+        console.error('[PLAID] Error deleting PlaidConnection:', deleteError);
+        // Continue anyway - the account is already disconnected
+      } else {
+        console.log('[PLAID] Deleted PlaidConnection for item:', account.plaidItemId);
+      }
     }
 
     return NextResponse.json({

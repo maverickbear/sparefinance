@@ -50,7 +50,7 @@ export async function getHoldings(
   // Verify user context
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
-    console.error("[getHoldings] ERROR: No authenticated user!", userError);
+    logger.error("[getHoldings] ERROR: No authenticated user!", userError);
     return [];
   }
 
@@ -60,12 +60,12 @@ export async function getHoldings(
     cleanHoldingsCache();
     const cached = holdingsCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < HOLDINGS_CACHE_TTL) {
-      console.log("[getHoldings] Using cached data for user:", user.id, accountId ? `(account: ${accountId})` : "(all accounts)");
+      logger.log("[getHoldings] Using cached data for user:", user.id, accountId ? `(account: ${accountId})` : "(all accounts)");
       return cached.data;
     }
   }
 
-  console.log("[getHoldings] Called for user:", user.id, accountId ? `(account: ${accountId})` : "(all accounts)");
+  logger.log("[getHoldings] Called for user:", user.id, accountId ? `(account: ${accountId})` : "(all accounts)");
 
   // NOTE: Materialized view (holdings_view) is disabled because it calculates
   // book_value incorrectly for sell transactions (uses sell price instead of avg cost).
@@ -92,7 +92,7 @@ export async function getHoldings(
     .gt("openQuantity", 0)
     .order("lastUpdatedAt", { ascending: false });
   
-  console.log("[getHoldings] Questrade positions:", questradePositions?.length || 0, positionsError ? `(error: ${positionsError.message})` : "");
+  logger.log("[getHoldings] Questrade positions:", questradePositions?.length || 0, positionsError ? `(error: ${positionsError.message})` : "");
 
   if (!positionsError && questradePositions && questradePositions.length > 0) {
     // Questrade positions found - use them directly
@@ -165,16 +165,16 @@ export async function getHoldings(
 
   if (error) {
     log.error("Error fetching investment transactions:", error);
-    console.error("[getHoldings] Query error:", error);
+    logger.error("[getHoldings] Query error:", error);
     return [];
   }
 
   if (!transactions || transactions.length === 0) {
-    console.log("[getHoldings] No transactions found for user:", user.id);
+    logger.log("[getHoldings] No transactions found for user:", user.id);
     return [];
   }
   
-  console.log("[getHoldings] Found", transactions.length, "transactions for user:", user.id);
+  logger.log("[getHoldings] Found", transactions.length, "transactions for user:", user.id);
 
   // Group by security and account (same security in different accounts = different holdings)
   const holdingKeyMap = new Map<string, Holding>();
@@ -302,7 +302,7 @@ export async function getHoldings(
         } else {
           // Last resort: if no price at all, use book value as market value
           // This ensures we at least show something instead of zero
-          console.warn(`[getHoldings] No price found for ${holding.symbol} (securityId: ${holding.securityId}). Using book value as fallback.`);
+          logger.warn(`[getHoldings] No price found for ${holding.symbol} (securityId: ${holding.securityId}). Using book value as fallback.`);
           holding.lastPrice = holding.bookValue > 0 && holding.quantity > 0 
             ? holding.bookValue / holding.quantity 
             : 0;
@@ -314,7 +314,7 @@ export async function getHoldings(
     }
   } else {
     // No prices found at all - use book value as fallback for all holdings
-    console.warn("[getHoldings] No prices found for any security. Using book value as market value fallback.");
+    logger.warn("[getHoldings] No prices found for any security. Using book value as market value fallback.");
     for (const [holdingKey, holding] of holdingKeyMap) {
       if (holding.quantity > 0 && holding.bookValue > 0) {
         holding.lastPrice = holding.bookValue / holding.quantity;
@@ -336,10 +336,10 @@ export async function getHoldings(
         log.debug(`... and ${skippedTransactions.length - 5} more`);
       }
     }
-    console.log(`[getHoldings] Final holdings count: ${holdings.length}`);
+    logger.log(`[getHoldings] Final holdings count: ${holdings.length}`);
     if (holdings.length > 0) {
       const totalMarketValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
-      console.log(`[getHoldings] Total market value: ${totalMarketValue}`);
+      logger.log(`[getHoldings] Total market value: ${totalMarketValue}`);
     }
   }
   
@@ -477,7 +477,7 @@ export async function createInvestmentTransaction(data: InvestmentTransactionFor
     .single();
 
   if (error) {
-    console.error("Supabase error creating investment transaction:", error);
+    logger.error("Supabase error creating investment transaction:", error);
     throw new Error(`Failed to create investment transaction: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -510,7 +510,7 @@ export async function updateInvestmentTransaction(id: string, data: Partial<Inve
     .single();
 
   if (error) {
-    console.error("Supabase error updating investment transaction:", error);
+    logger.error("Supabase error updating investment transaction:", error);
     throw new Error(`Failed to update investment transaction: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -523,7 +523,7 @@ export async function deleteInvestmentTransaction(id: string) {
   const { error } = await supabase.from("InvestmentTransaction").delete().eq("id", id);
 
   if (error) {
-    console.error("Supabase error deleting investment transaction:", error);
+    logger.error("Supabase error deleting investment transaction:", error);
     throw new Error(`Failed to delete investment transaction: ${error.message || JSON.stringify(error)}`);
   }
 }
@@ -537,7 +537,7 @@ export async function getSecurities() {
     .order("symbol", { ascending: true });
 
   if (error) {
-    console.error("Error fetching securities:", error);
+    logger.error("Error fetching securities:", error);
     return [];
   }
 
@@ -567,7 +567,7 @@ export async function createSecurity(data: { symbol: string; name: string; class
     .single();
 
   if (error) {
-    console.error("Supabase error creating security:", error);
+    logger.error("Supabase error creating security:", error);
     throw new Error(`Failed to create security: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -619,7 +619,7 @@ export async function createSecurityPrice(data: SecurityPriceFormData) {
     .single();
 
   if (error) {
-    console.error("Supabase error creating security price:", error);
+    logger.error("Supabase error creating security price:", error);
     throw new Error(`Failed to create security price: ${error.message || JSON.stringify(error)}`);
   }
 
@@ -679,7 +679,7 @@ export async function createInvestmentAccount(data: InvestmentAccountFormData) {
     .single();
 
   if (error) {
-    console.error("Supabase error creating investment account:", error);
+    logger.error("Supabase error creating investment account:", error);
     throw new Error(`Failed to create investment account: ${error.message || JSON.stringify(error)}`);
   }
 

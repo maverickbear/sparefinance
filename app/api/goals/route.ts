@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getGoalsInternal } from "@/lib/api/goals";
 import { createGoal } from "@/lib/api/goals";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { logger } from "@/lib/utils/logger";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,10 +15,10 @@ export async function GET(request: NextRequest) {
     // Call getGoalsInternal directly with tokens to bypass cache
     const goals = await getGoalsInternal(accessToken, refreshToken);
     
-    console.log("[API/GOALS] Goals fetched:", goals?.length || 0, "goals");
+    logger.log("[API/GOALS] Goals fetched:", goals?.length || 0, "goals");
     return NextResponse.json(goals, { status: 200 });
   } catch (error) {
-    console.error("[API/GOALS] Error fetching goals:", error);
+    logger.error("[API/GOALS] Error fetching goals:", error);
     
     const errorMessage = error instanceof Error ? error.message : "Failed to fetch goals";
     const statusCode = errorMessage.includes("Unauthorized") ? 401 : 500;
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(goal, { status: 201 });
   } catch (error) {
-    console.error("Error creating goal:", error);
+    logger.error("Error creating goal:", error);
     
     const errorMessage = error instanceof Error ? error.message : "Failed to create goal";
     const statusCode = errorMessage.includes("Unauthorized") ? 401 : 400;

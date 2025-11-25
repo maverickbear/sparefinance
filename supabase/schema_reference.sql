@@ -249,7 +249,7 @@ COMMENT ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned
 
 
 
-CREATE OR REPLACE FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text" DEFAULT NULL::"text", "p_subcategory_id" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_recurring" boolean DEFAULT false, "p_expense_type" "text" DEFAULT NULL::"text", "p_created_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP, "p_updated_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text" DEFAULT NULL::"text", "p_subcategory_id" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_recurring" boolean DEFAULT false, "p_expense_type" "text" DEFAULT NULL::"text", "p_created_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP, "p_updated_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -278,11 +278,11 @@ BEGIN
   
   -- Insert transaction
   INSERT INTO "public"."Transaction" (
-    "id", "date", "type", "amount", "amount_numeric", "accountId", "userId",
+    "id", "date", "type", "amount", "accountId", "userId",
     "categoryId", "subcategoryId", "description", "description_search",
     "recurring", "expenseType", "createdAt", "updatedAt"
   ) VALUES (
-    p_id, p_date, p_type, p_amount, p_amount_numeric, p_account_id, p_user_id,
+    p_id, p_date, p_type, p_amount, p_account_id, p_user_id,
     p_category_id, p_subcategory_id, p_description, p_description_search,
     p_recurring, p_expense_type, p_created_at, p_updated_at
   );
@@ -296,14 +296,14 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) IS 'Creates a regular transaction atomically with limit checking. All operations in one transaction. Uses SET search_path for security.';
+COMMENT ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) IS 'Creates a transaction atomically with limit checking. Amount is now numeric (no longer encrypted).';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_date" "date", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_recurring" boolean DEFAULT false, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_recurring" boolean DEFAULT false, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -345,22 +345,22 @@ BEGIN
   
   -- Create outgoing transaction (expense from source account)
   INSERT INTO "public"."Transaction" (
-    "id", "date", "type", "amount", "amount_numeric", "accountId", "userId",
+    "id", "date", "type", "amount", "accountId", "userId",
     "categoryId", "subcategoryId", "description", "description_search",
     "recurring", "transferToId", "createdAt", "updatedAt"
   ) VALUES (
-    v_outgoing_id, p_date, 'expense', p_amount, p_amount_numeric, p_from_account_id, p_user_id,
+    v_outgoing_id, p_date, 'expense', p_amount, p_from_account_id, p_user_id,
     NULL, NULL, v_outgoing_description, p_description_search,
     p_recurring, v_incoming_id, v_now, v_now
   );
   
   -- Create incoming transaction (income to destination account)
   INSERT INTO "public"."Transaction" (
-    "id", "date", "type", "amount", "amount_numeric", "accountId", "userId",
+    "id", "date", "type", "amount", "accountId", "userId",
     "categoryId", "subcategoryId", "description", "description_search",
     "recurring", "transferFromId", "createdAt", "updatedAt"
   ) VALUES (
-    v_incoming_id, p_date, 'income', p_amount, p_amount_numeric, p_to_account_id, p_user_id,
+    v_incoming_id, p_date, 'income', p_amount, p_to_account_id, p_user_id,
     NULL, NULL, v_incoming_description, p_description_search,
     p_recurring, v_outgoing_id, v_now, v_now
   );
@@ -375,10 +375,10 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) IS 'Creates a transfer (2 transactions) atomically with limit checking. Counts as 1 transaction. All operations in one transaction. Uses SET search_path for security.';
+COMMENT ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) IS 'Creates a transfer (2 transactions) atomically with limit checking. Both transactions are created as type "transfer" since transfers do not affect net worth. Counts as 1 transaction. Amount is now numeric (no longer encrypted).';
 
 
 
@@ -635,82 +635,6 @@ COMMENT ON FUNCTION "public"."get_user_admin_household_ids"() IS 'Returns all ho
 
 
 
-CREATE OR REPLACE FUNCTION "public"."get_user_asset_allocation"("p_user_id" "uuid" DEFAULT "auth"."uid"()) RETURNS TABLE("user_id" "uuid", "asset_type" "text", "holdings_count" bigint, "total_value" double precision, "total_pnl" double precision, "allocation_percent" double precision, "last_updated" timestamp without time zone)
-    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-BEGIN
-  -- Verify user can only access their own data
-  IF p_user_id IS NULL OR p_user_id != auth.uid() THEN
-    RAISE EXCEPTION 'Access denied: You can only access your own asset allocation';
-  END IF;
-
-  RETURN QUERY
-  SELECT 
-    aav.user_id,
-    aav.asset_type,
-    aav.holdings_count,
-    aav.total_value,
-    aav.total_pnl,
-    aav.allocation_percent,
-    aav.last_updated
-  FROM "public"."asset_allocation_view" aav
-  WHERE aav.user_id = p_user_id
-  ORDER BY aav.total_value DESC;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."get_user_asset_allocation"("p_user_id" "uuid") OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."get_user_asset_allocation"("p_user_id" "uuid") IS 'Secure function to get user asset allocation from asset_allocation_view. Users can only access their own data. Uses SET search_path for security.';
-
-
-
-CREATE OR REPLACE FUNCTION "public"."get_user_holdings_view"("p_user_id" "uuid" DEFAULT "auth"."uid"()) RETURNS TABLE("security_id" "text", "account_id" "text", "user_id" "uuid", "symbol" "text", "name" "text", "asset_type" "text", "sector" "text", "quantity" double precision, "avg_price" double precision, "book_value" double precision, "last_price" double precision, "market_value" double precision, "unrealized_pnl" double precision, "unrealized_pnl_percent" double precision, "account_name" "text", "last_price_date" "date", "last_updated" timestamp without time zone)
-    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-BEGIN
-  -- Verify user can only access their own data
-  IF p_user_id IS NULL OR p_user_id != auth.uid() THEN
-    RAISE EXCEPTION 'Access denied: You can only access your own holdings';
-  END IF;
-
-  RETURN QUERY
-  SELECT 
-    hv.security_id,
-    hv.account_id,
-    hv.user_id,
-    hv.symbol,
-    hv.name,
-    hv.asset_type,
-    hv.sector,
-    hv.quantity,
-    hv.avg_price,
-    hv.book_value,
-    hv.last_price,
-    hv.market_value,
-    hv.unrealized_pnl,
-    hv.unrealized_pnl_percent,
-    hv.account_name,
-    hv.last_price_date,
-    hv.last_updated
-  FROM "public"."holdings_view" hv
-  WHERE hv.user_id = p_user_id
-  ORDER BY hv.market_value DESC;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."get_user_holdings_view"("p_user_id" "uuid") OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."get_user_holdings_view"("p_user_id" "uuid") IS 'Secure function to get user holdings from holdings_view. Users can only access their own data. Uses SET search_path for security.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."get_user_household_ids"() RETURNS TABLE("household_id" "uuid")
     LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -755,71 +679,6 @@ ALTER FUNCTION "public"."get_user_household_role"("p_household_id" "uuid") OWNER
 
 
 COMMENT ON FUNCTION "public"."get_user_household_role"("p_household_id" "uuid") IS 'Returns the current user''s role in the specified household, or NULL if not a member. Uses SET search_path for security.';
-
-
-
-CREATE OR REPLACE FUNCTION "public"."get_user_portfolio_summary"("p_user_id" "uuid" DEFAULT "auth"."uid"()) RETURNS TABLE("user_id" "uuid", "holdings_count" bigint, "total_value" double precision, "total_cost" double precision, "total_return" double precision, "total_return_percent" double precision, "last_updated" timestamp without time zone)
-    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-BEGIN
-  -- Verify user can only access their own data
-  IF p_user_id IS NULL OR p_user_id != auth.uid() THEN
-    RAISE EXCEPTION 'Access denied: You can only access your own portfolio summary';
-  END IF;
-
-  RETURN QUERY
-  SELECT 
-    psv.user_id,
-    psv.holdings_count,
-    psv.total_value,
-    psv.total_cost,
-    psv.total_return,
-    psv.total_return_percent,
-    psv.last_updated
-  FROM "public"."portfolio_summary_view" psv
-  WHERE psv.user_id = p_user_id;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."get_user_portfolio_summary"("p_user_id" "uuid") OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."get_user_portfolio_summary"("p_user_id" "uuid") IS 'Secure function to get user portfolio summary from portfolio_summary_view. Users can only access their own data. Uses SET search_path for security.';
-
-
-
-CREATE OR REPLACE FUNCTION "public"."get_user_sector_allocation"("p_user_id" "uuid" DEFAULT "auth"."uid"()) RETURNS TABLE("user_id" "uuid", "sector" "text", "holdings_count" bigint, "total_value" double precision, "total_pnl" double precision, "allocation_percent" double precision, "last_updated" timestamp without time zone)
-    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-BEGIN
-  -- Verify user can only access their own data
-  IF p_user_id IS NULL OR p_user_id != auth.uid() THEN
-    RAISE EXCEPTION 'Access denied: You can only access your own sector allocation';
-  END IF;
-
-  RETURN QUERY
-  SELECT 
-    sav.user_id,
-    sav.sector,
-    sav.holdings_count,
-    sav.total_value,
-    sav.total_pnl,
-    sav.allocation_percent,
-    sav.last_updated
-  FROM "public"."sector_allocation_view" sav
-  WHERE sav.user_id = p_user_id
-  ORDER BY sav.total_value DESC;
-END;
-$$;
-
-
-ALTER FUNCTION "public"."get_user_sector_allocation"("p_user_id" "uuid") OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."get_user_sector_allocation"("p_user_id" "uuid") IS 'Secure function to get user sector allocation from sector_allocation_view. Users can only access their own data. Uses SET search_path for security.';
 
 
 
@@ -926,25 +785,6 @@ COMMENT ON FUNCTION "public"."is_household_member"("p_household_id" "uuid") IS '
 
 
 
-CREATE OR REPLACE FUNCTION "public"."notify_refresh_holdings"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO ''
-    AS $$
-BEGIN
-  -- Notificar que houve mudança (para background worker)
-  PERFORM pg_notify('refresh_holdings', 'refresh_needed');
-  RETURN COALESCE(NEW, OLD);
-END;
-$$;
-
-
-ALTER FUNCTION "public"."notify_refresh_holdings"() OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."notify_refresh_holdings"() IS 'Notifies that holdings need to be refreshed. Uses SET search_path for security.';
-
-
-
 CREATE OR REPLACE FUNCTION "public"."prevent_emergency_fund_deletion"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -975,31 +815,6 @@ ALTER FUNCTION "public"."prevent_emergency_fund_deletion"() OWNER TO "postgres";
 
 
 COMMENT ON FUNCTION "public"."prevent_emergency_fund_deletion"() IS 'Prevents deletion of system goals, except when the user is being deleted (CASCADE). Uses SET search_path for security.';
-
-
-
-CREATE OR REPLACE FUNCTION "public"."refresh_portfolio_views"() RETURNS "void"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO ''
-    AS $$
-BEGIN
-  -- Refresh holdings_view (tem índice único, pode usar CONCURRENTLY)
-  REFRESH MATERIALIZED VIEW CONCURRENTLY "public"."holdings_view";
-  
-  -- Refresh portfolio_summary_view (tem índice único, pode usar CONCURRENTLY)
-  REFRESH MATERIALIZED VIEW CONCURRENTLY "public"."portfolio_summary_view";
-  
-  -- Refresh outras views (sem índice único, não pode usar CONCURRENTLY)
-  REFRESH MATERIALIZED VIEW "public"."asset_allocation_view";
-  REFRESH MATERIALIZED VIEW "public"."sector_allocation_view";
-END;
-$$;
-
-
-ALTER FUNCTION "public"."refresh_portfolio_views"() OWNER TO "postgres";
-
-
-COMMENT ON FUNCTION "public"."refresh_portfolio_views"() IS 'Refresh manual de todas as views de portfolio. Executar via cron job ou API. Uses SET search_path for security.';
 
 
 
@@ -1208,6 +1023,101 @@ ALTER FUNCTION "public"."validate_invitation_token"("p_token" "text") OWNER TO "
 COMMENT ON FUNCTION "public"."validate_invitation_token"("p_token" "text") IS 'Validates an invitation token and returns invitation details. Updated to use HouseholdMemberNew table.';
 
 
+
+CREATE OR REPLACE FUNCTION "public"."validate_plan_features"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  required_features text[] := ARRAY[
+    'hasInvestments',
+    'hasAdvancedReports',
+    'hasCsvExport',
+    'hasCsvImport',
+    'hasDebts',
+    'hasGoals',
+    'hasBankIntegration',
+    'hasHousehold',
+    'hasBudgets',
+    'maxTransactions',
+    'maxAccounts'
+  ];
+  feature_key text;
+  feature_type text;
+BEGIN
+  -- Check if features is not null
+  IF NEW.features IS NULL THEN
+    RAISE EXCEPTION 'Plan features cannot be null';
+  END IF;
+
+  -- Check if features is an object
+  IF jsonb_typeof(NEW.features) != 'object' THEN
+    RAISE EXCEPTION 'Plan features must be a JSON object';
+  END IF;
+
+  -- Validate required features exist
+  FOREACH feature_key IN ARRAY required_features
+  LOOP
+    IF NOT (NEW.features ? feature_key) THEN
+      RAISE EXCEPTION 'Missing required feature: %', feature_key;
+    END IF;
+  END LOOP;
+
+  -- Validate boolean features
+  IF jsonb_typeof(NEW.features->'hasInvestments') != 'boolean' THEN
+    RAISE EXCEPTION 'hasInvestments must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasAdvancedReports') != 'boolean' THEN
+    RAISE EXCEPTION 'hasAdvancedReports must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasCsvExport') != 'boolean' THEN
+    RAISE EXCEPTION 'hasCsvExport must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasCsvImport') != 'boolean' THEN
+    RAISE EXCEPTION 'hasCsvImport must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasDebts') != 'boolean' THEN
+    RAISE EXCEPTION 'hasDebts must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasGoals') != 'boolean' THEN
+    RAISE EXCEPTION 'hasGoals must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasBankIntegration') != 'boolean' THEN
+    RAISE EXCEPTION 'hasBankIntegration must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasHousehold') != 'boolean' THEN
+    RAISE EXCEPTION 'hasHousehold must be a boolean';
+  END IF;
+  IF jsonb_typeof(NEW.features->'hasBudgets') != 'boolean' THEN
+    RAISE EXCEPTION 'hasBudgets must be a boolean';
+  END IF;
+
+  -- Validate numeric features
+  IF jsonb_typeof(NEW.features->'maxTransactions') != 'number' THEN
+    RAISE EXCEPTION 'maxTransactions must be a number';
+  END IF;
+  IF jsonb_typeof(NEW.features->'maxAccounts') != 'number' THEN
+    RAISE EXCEPTION 'maxAccounts must be a number';
+  END IF;
+
+  -- Validate numeric ranges (optional - can be -1 for unlimited)
+  IF (NEW.features->>'maxTransactions')::numeric < -1 THEN
+    RAISE EXCEPTION 'maxTransactions must be >= -1 (-1 means unlimited)';
+  END IF;
+  IF (NEW.features->>'maxAccounts')::numeric < -1 THEN
+    RAISE EXCEPTION 'maxAccounts must be >= -1 (-1 means unlimited)';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."validate_plan_features"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."validate_plan_features"() IS 'Validates that Plan.features JSONB column has the correct structure and types. Ensures all required features exist and have correct types.';
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
@@ -1233,6 +1143,13 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
     "dueDayOfMonth" integer,
     "extraCredit" numeric(15,2) DEFAULT 0 NOT NULL,
     "householdId" "uuid",
+    "plaidSubtype" "text",
+    "currencyCode" "text" DEFAULT 'USD'::"text",
+    "plaidPersistentAccountId" "text",
+    "plaidHolderCategory" "text",
+    "plaidVerificationName" "text",
+    "plaidAvailableBalance" numeric,
+    "plaidUnofficialCurrencyCode" "text",
     CONSTRAINT "Account_type_check" CHECK (("type" = ANY (ARRAY['cash'::"text", 'checking'::"text", 'savings'::"text", 'credit'::"text", 'investment'::"text", 'other'::"text"])))
 );
 
@@ -1249,6 +1166,34 @@ COMMENT ON COLUMN "public"."Account"."dueDayOfMonth" IS 'Day of month when credi
 
 
 COMMENT ON COLUMN "public"."Account"."extraCredit" IS 'Extra prepaid credit on this credit card. Used when user pays more than the current debt balance.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."plaidSubtype" IS 'Subtype from Plaid (e.g., checking, savings, credit card). Only set for accounts imported from Plaid.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."currencyCode" IS 'ISO currency code (e.g., USD, CAD). Defaults to USD. Used for multi-currency support.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."plaidPersistentAccountId" IS 'Persistent account ID for Tokenized Account Numbers (TAN). Used by Chase, PNC, and US Bank. Helps identify same account across multiple Items.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."plaidHolderCategory" IS 'Account category: personal, business, or unrecognized. Currently in beta.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."plaidVerificationName" IS 'Account holder name used for micro-deposit or database verification.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."plaidAvailableBalance" IS 'Available balance from Plaid (amount available to withdraw). Separate from current balance.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."plaidUnofficialCurrencyCode" IS 'Unofficial currency code for cryptocurrencies and non-ISO currencies. Only set when iso_currency_code is null.';
 
 
 
@@ -1727,12 +1672,27 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentTransaction" (
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
     "householdId" "uuid",
+    "plaidInvestmentTransactionId" "text",
+    "plaidSubtype" "text",
+    "currencyCode" "text",
     CONSTRAINT "check_buy_sell_fields" CHECK (((("type" = ANY (ARRAY['buy'::"text", 'sell'::"text"])) AND ("quantity" IS NOT NULL) AND ("quantity" > (0)::double precision) AND ("price" IS NOT NULL) AND ("price" >= (0)::double precision)) OR ("type" <> ALL (ARRAY['buy'::"text", 'sell'::"text"])))),
     CONSTRAINT "check_security_required" CHECK (((("type" = ANY (ARRAY['buy'::"text", 'sell'::"text", 'dividend'::"text", 'interest'::"text"])) AND ("securityId" IS NOT NULL)) OR ("type" <> ALL (ARRAY['buy'::"text", 'sell'::"text", 'dividend'::"text", 'interest'::"text"]))))
 );
 
 
 ALTER TABLE "public"."InvestmentTransaction" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."InvestmentTransaction"."plaidInvestmentTransactionId" IS 'Unique ID from Plaid for this investment transaction. Used for deduplication and tracking.';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentTransaction"."plaidSubtype" IS 'Subtype from Plaid (e.g., "dividend qualified", "dividend non-qualified"). Only set for transactions imported from Plaid.';
+
+
+
+COMMENT ON COLUMN "public"."InvestmentTransaction"."currencyCode" IS 'ISO currency code (e.g., USD, CAD). Used for multi-currency support.';
+
 
 
 COMMENT ON CONSTRAINT "check_buy_sell_fields" ON "public"."InvestmentTransaction" IS 'Garante que transações do tipo buy e sell tenham quantity e price válidos';
@@ -1810,11 +1770,16 @@ CREATE TABLE IF NOT EXISTS "public"."PlaidConnection" (
     "updatedAt" timestamp(3) without time zone NOT NULL,
     "errorCode" "text",
     "errorMessage" "text",
-    "institutionLogo" "text"
+    "institutionLogo" "text",
+    "transactionsCursor" "text"
 );
 
 
 ALTER TABLE "public"."PlaidConnection" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."PlaidConnection"."transactionsCursor" IS 'Cursor for Plaid transactions/sync API pagination. Used to track position in transaction sync.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."PlaidLiability" (
@@ -2002,7 +1967,10 @@ CREATE TABLE IF NOT EXISTS "public"."Security" (
     "class" "text" NOT NULL,
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
-    "sector" "text"
+    "sector" "text",
+    "closePrice" numeric(15,4),
+    "closePriceAsOf" timestamp(3) without time zone,
+    "currencyCode" "text"
 );
 
 
@@ -2010,6 +1978,18 @@ ALTER TABLE "public"."Security" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."Security"."sector" IS 'Industry sector for the security (e.g., Technology, Finance, Healthcare, Consumer, Energy, etc.)';
+
+
+
+COMMENT ON COLUMN "public"."Security"."closePrice" IS 'Most recent closing price from Plaid.';
+
+
+
+COMMENT ON COLUMN "public"."Security"."closePriceAsOf" IS 'Date when the closePrice was last updated from Plaid.';
+
+
+
+COMMENT ON COLUMN "public"."Security"."currencyCode" IS 'ISO currency code for the security (e.g., USD, CAD).';
 
 
 
@@ -2244,7 +2224,6 @@ COMMENT ON COLUMN "public"."SystemSettings"."maintenanceMode" IS 'When true, onl
 CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "id" "text" NOT NULL,
     "type" "text" NOT NULL,
-    "amount" "text" NOT NULL,
     "accountId" "text" NOT NULL,
     "categoryId" "text",
     "subcategoryId" "text",
@@ -2260,10 +2239,10 @@ CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "suggestedSubcategoryId" "text",
     "plaidMetadata" "jsonb",
     "expenseType" "text",
-    "amount_numeric" numeric(15,2),
     "description_search" "text",
     "date" "date" NOT NULL,
     "householdId" "uuid",
+    "amount" numeric(15,2) NOT NULL,
     CONSTRAINT "transaction_date_valid" CHECK ((("date" >= '1900-01-01'::"date") AND ("date" <= (CURRENT_DATE + '1 year'::interval))))
 );
 
@@ -2275,15 +2254,15 @@ COMMENT ON COLUMN "public"."Transaction"."expenseType" IS 'Indicates if expense 
 
 
 
-COMMENT ON COLUMN "public"."Transaction"."amount_numeric" IS 'Non-encrypted numeric amount for reports and aggregations. Populated from encrypted amount field.';
-
-
-
 COMMENT ON COLUMN "public"."Transaction"."description_search" IS 'Normalized description for search and category learning. Lowercase, no special characters, normalized whitespace.';
 
 
 
 COMMENT ON COLUMN "public"."Transaction"."date" IS 'Transaction date (date only, no time component). Changed from timestamp to date to avoid timezone issues.';
+
+
+
+COMMENT ON COLUMN "public"."Transaction"."amount" IS 'Transaction amount as numeric value. No longer encrypted per regulatory compliance (amount is not PII).';
 
 
 
@@ -2455,106 +2434,6 @@ COMMENT ON COLUMN "public"."UserServiceSubscription"."planId" IS 'ID of the sele
 
 
 
-CREATE MATERIALIZED VIEW "public"."holdings_view" AS
- WITH "transaction_agg" AS (
-         SELECT "it"."securityId",
-            "it"."accountId",
-            "a_1"."userId",
-            "sum"(
-                CASE
-                    WHEN ("it"."type" = 'buy'::"text") THEN COALESCE("it"."quantity", (0)::double precision)
-                    ELSE (0)::double precision
-                END) AS "total_buy_qty",
-            "sum"(
-                CASE
-                    WHEN ("it"."type" = 'sell'::"text") THEN COALESCE("it"."quantity", (0)::double precision)
-                    ELSE (0)::double precision
-                END) AS "total_sell_qty",
-            "sum"(
-                CASE
-                    WHEN ("it"."type" = 'buy'::"text") THEN ((COALESCE("it"."quantity", (0)::double precision) * COALESCE("it"."price", (0)::double precision)) + COALESCE("it"."fees", (0)::double precision))
-                    WHEN ("it"."type" = 'sell'::"text") THEN (- ((COALESCE("it"."quantity", (0)::double precision) * COALESCE("it"."price", (0)::double precision)) - COALESCE("it"."fees", (0)::double precision)))
-                    ELSE (0)::double precision
-                END) AS "book_value"
-           FROM ("public"."InvestmentTransaction" "it"
-             JOIN "public"."Account" "a_1" ON ((("a_1"."id" = "it"."accountId") AND ("a_1"."type" = 'investment'::"text"))))
-          WHERE (("it"."securityId" IS NOT NULL) AND ("a_1"."userId" IS NOT NULL))
-          GROUP BY "it"."securityId", "it"."accountId", "a_1"."userId"
-        ), "security_latest_price" AS (
-         SELECT DISTINCT ON ("SecurityPrice"."securityId") "SecurityPrice"."securityId",
-            "SecurityPrice"."price" AS "last_price",
-            "SecurityPrice"."date" AS "last_price_date"
-           FROM "public"."SecurityPrice"
-          ORDER BY "SecurityPrice"."securityId", "SecurityPrice"."date" DESC
-        )
- SELECT "ta"."securityId" AS "security_id",
-    "ta"."accountId" AS "account_id",
-    "ta"."userId" AS "user_id",
-    "s"."symbol",
-    "s"."name",
-    "s"."class" AS "asset_type",
-    COALESCE("s"."sector", 'Unknown'::"text") AS "sector",
-    ("ta"."total_buy_qty" - "ta"."total_sell_qty") AS "quantity",
-        CASE
-            WHEN (("ta"."total_buy_qty" - "ta"."total_sell_qty") > (0)::double precision) THEN ("ta"."book_value" / ("ta"."total_buy_qty" - "ta"."total_sell_qty"))
-            ELSE (0)::double precision
-        END AS "avg_price",
-    "ta"."book_value",
-    COALESCE("sp"."last_price", (0)::double precision) AS "last_price",
-    (("ta"."total_buy_qty" - "ta"."total_sell_qty") * COALESCE("sp"."last_price", (0)::double precision)) AS "market_value",
-    ((("ta"."total_buy_qty" - "ta"."total_sell_qty") * COALESCE("sp"."last_price", (0)::double precision)) - "ta"."book_value") AS "unrealized_pnl",
-        CASE
-            WHEN ("ta"."book_value" > (0)::double precision) THEN ((((("ta"."total_buy_qty" - "ta"."total_sell_qty") * COALESCE("sp"."last_price", (0)::double precision)) - "ta"."book_value") / "ta"."book_value") * (100)::double precision)
-            ELSE (0)::double precision
-        END AS "unrealized_pnl_percent",
-    "a"."name" AS "account_name",
-    "sp"."last_price_date",
-    "now"() AS "last_updated"
-   FROM ((("transaction_agg" "ta"
-     JOIN "public"."Security" "s" ON (("s"."id" = "ta"."securityId")))
-     LEFT JOIN "security_latest_price" "sp" ON (("sp"."securityId" = "ta"."securityId")))
-     LEFT JOIN "public"."Account" "a" ON (("a"."id" = "ta"."accountId")))
-  WHERE (("ta"."total_buy_qty" - "ta"."total_sell_qty") > (0)::double precision)
-  WITH NO DATA;
-
-
-ALTER MATERIALIZED VIEW "public"."holdings_view" OWNER TO "postgres";
-
-
-COMMENT ON MATERIALIZED VIEW "public"."holdings_view" IS 'View materializada que calcula holdings atuais de forma otimizada. Refresh automático via trigger. Filtra apenas contas do tipo investment.';
-
-
-
-CREATE MATERIALIZED VIEW "public"."asset_allocation_view" AS
- WITH "user_totals" AS (
-         SELECT "holdings_view"."user_id",
-            "sum"("holdings_view"."market_value") AS "total_portfolio_value"
-           FROM "public"."holdings_view"
-          GROUP BY "holdings_view"."user_id"
-        )
- SELECT "h"."user_id",
-    "h"."asset_type",
-    "count"(*) AS "holdings_count",
-    "sum"("h"."market_value") AS "total_value",
-    "sum"("h"."unrealized_pnl") AS "total_pnl",
-        CASE
-            WHEN ("ut"."total_portfolio_value" > (0)::double precision) THEN (("sum"("h"."market_value") / "ut"."total_portfolio_value") * (100)::double precision)
-            ELSE (0)::double precision
-        END AS "allocation_percent",
-    "now"() AS "last_updated"
-   FROM ("public"."holdings_view" "h"
-     JOIN "user_totals" "ut" ON (("ut"."user_id" = "h"."user_id")))
-  GROUP BY "h"."user_id", "h"."asset_type", "ut"."total_portfolio_value"
-  WITH NO DATA;
-
-
-ALTER MATERIALIZED VIEW "public"."asset_allocation_view" OWNER TO "postgres";
-
-
-COMMENT ON MATERIALIZED VIEW "public"."asset_allocation_view" IS 'Distribuição de portfolio por tipo de ativo (Stock, ETF, etc)';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."category_learning" (
     "user_id" "uuid" NOT NULL,
     "normalized_description" "text" NOT NULL,
@@ -2591,59 +2470,6 @@ COMMENT ON COLUMN "public"."category_learning"."last_used_at" IS 'Last time this
 
 
 
-CREATE MATERIALIZED VIEW "public"."portfolio_summary_view" AS
- SELECT "user_id",
-    "count"(*) AS "holdings_count",
-    "sum"("market_value") AS "total_value",
-    "sum"("book_value") AS "total_cost",
-    "sum"("unrealized_pnl") AS "total_return",
-        CASE
-            WHEN ("sum"("book_value") > (0)::double precision) THEN (("sum"("unrealized_pnl") / "sum"("book_value")) * (100)::double precision)
-            ELSE (0)::double precision
-        END AS "total_return_percent",
-    "now"() AS "last_updated"
-   FROM "public"."holdings_view"
-  GROUP BY "user_id"
-  WITH NO DATA;
-
-
-ALTER MATERIALIZED VIEW "public"."portfolio_summary_view" OWNER TO "postgres";
-
-
-COMMENT ON MATERIALIZED VIEW "public"."portfolio_summary_view" IS 'Resumo agregado do portfolio por usuário';
-
-
-
-CREATE MATERIALIZED VIEW "public"."sector_allocation_view" AS
- WITH "user_totals" AS (
-         SELECT "holdings_view"."user_id",
-            "sum"("holdings_view"."market_value") AS "total_portfolio_value"
-           FROM "public"."holdings_view"
-          GROUP BY "holdings_view"."user_id"
-        )
- SELECT "h"."user_id",
-    "h"."sector",
-    "count"(*) AS "holdings_count",
-    "sum"("h"."market_value") AS "total_value",
-    "sum"("h"."unrealized_pnl") AS "total_pnl",
-        CASE
-            WHEN ("ut"."total_portfolio_value" > (0)::double precision) THEN (("sum"("h"."market_value") / "ut"."total_portfolio_value") * (100)::double precision)
-            ELSE (0)::double precision
-        END AS "allocation_percent",
-    "now"() AS "last_updated"
-   FROM ("public"."holdings_view" "h"
-     JOIN "user_totals" "ut" ON (("ut"."user_id" = "h"."user_id")))
-  GROUP BY "h"."user_id", "h"."sector", "ut"."total_portfolio_value"
-  WITH NO DATA;
-
-
-ALTER MATERIALIZED VIEW "public"."sector_allocation_view" OWNER TO "postgres";
-
-
-COMMENT ON MATERIALIZED VIEW "public"."sector_allocation_view" IS 'Distribuição de portfolio por setor';
-
-
-
 CREATE TABLE IF NOT EXISTS "public"."user_monthly_usage" (
     "user_id" "uuid" NOT NULL,
     "month_date" "date" NOT NULL,
@@ -2668,34 +2494,34 @@ COMMENT ON COLUMN "public"."user_monthly_usage"."transactions_count" IS 'Number 
 
 CREATE OR REPLACE VIEW "public"."vw_transactions_for_reports" WITH ("security_invoker"='true') AS
  SELECT "id",
+    "date",
     "type",
     "amount",
     "accountId",
+    "userId",
     "categoryId",
     "subcategoryId",
     "description",
-    "tags",
-    "transferToId",
-    "transferFromId",
+    "description_search",
+    "recurring",
+    "expenseType",
     "createdAt",
     "updatedAt",
-    "recurring",
-    "userId",
+    "transferToId",
+    "transferFromId",
+    "tags",
     "suggestedCategoryId",
     "suggestedSubcategoryId",
     "plaidMetadata",
-    "expenseType",
-    "amount_numeric",
-    "description_search",
-    "date"
+    "householdId"
    FROM "public"."Transaction"
-  WHERE (("transferFromId" IS NULL) AND ("transferToId" IS NULL) AND ("type" = ANY (ARRAY['expense'::"text", 'income'::"text"])));
+  WHERE (("type" <> 'transfer'::"text") AND (("transferToId" IS NULL) AND ("transferFromId" IS NULL)));
 
 
 ALTER VIEW "public"."vw_transactions_for_reports" OWNER TO "postgres";
 
 
-COMMENT ON VIEW "public"."vw_transactions_for_reports" IS 'Transactions for reports, excluding transfers. Use this view for income/expense calculations to avoid double-counting transfers. Uses SECURITY INVOKER to ensure RLS policies on Transaction table are properly enforced.';
+COMMENT ON VIEW "public"."vw_transactions_for_reports" IS 'Transactions for reports, excluding transfers. Use this view for income/expense calculations to avoid double-counting transfers. Uses SECURITY INVOKER to ensure RLS policies on Transaction table are properly enforced. Amount is now numeric (no longer encrypted).';
 
 
 
@@ -3200,6 +3026,14 @@ CREATE INDEX "InvestmentTransaction_householdId_idx" ON "public"."InvestmentTran
 
 
 
+CREATE INDEX "InvestmentTransaction_plaidInvestmentTransactionId_idx" ON "public"."InvestmentTransaction" USING "btree" ("plaidInvestmentTransactionId");
+
+
+
+CREATE UNIQUE INDEX "InvestmentTransaction_plaidInvestmentTransactionId_unique" ON "public"."InvestmentTransaction" USING "btree" ("plaidInvestmentTransactionId") WHERE ("plaidInvestmentTransactionId" IS NOT NULL);
+
+
+
 CREATE INDEX "InvestmentTransaction_securityId_idx" ON "public"."InvestmentTransaction" USING "btree" ("securityId");
 
 
@@ -3348,7 +3182,7 @@ CREATE INDEX "Transaction_accountId_idx" ON "public"."Transaction" USING "btree"
 
 
 
-CREATE INDEX "Transaction_amount_numeric_idx" ON "public"."Transaction" USING "btree" ("amount_numeric") WHERE ("amount_numeric" IS NOT NULL);
+CREATE INDEX "Transaction_amount_idx" ON "public"."Transaction" USING "btree" ("amount");
 
 
 
@@ -3480,10 +3314,6 @@ CREATE INDEX "idx_goal_user_updated" ON "public"."Goal" USING "btree" ("userId",
 
 
 
-CREATE UNIQUE INDEX "idx_holdings_view_unique" ON "public"."holdings_view" USING "btree" ("user_id", "security_id", "account_id");
-
-
-
 CREATE INDEX "idx_investment_account_questrade" ON "public"."InvestmentAccount" USING "btree" ("userId", "isQuestradeConnected") WHERE ("isQuestradeConnected" = true);
 
 
@@ -3501,10 +3331,6 @@ CREATE INDEX "idx_planned_payment_date_status_user" ON "public"."PlannedPayment"
 
 
 CREATE INDEX "idx_planned_payment_user_id" ON "public"."PlannedPayment" USING "btree" ("userId");
-
-
-
-CREATE UNIQUE INDEX "idx_portfolio_summary_user" ON "public"."portfolio_summary_view" USING "btree" ("user_id");
 
 
 
@@ -3568,14 +3394,6 @@ CREATE OR REPLACE TRIGGER "subscription_cache_update_trigger" AFTER INSERT OR UP
 
 
 
-CREATE OR REPLACE TRIGGER "trigger_notify_holdings_refresh" AFTER INSERT OR DELETE OR UPDATE ON "public"."InvestmentTransaction" FOR EACH ROW EXECUTE FUNCTION "public"."notify_refresh_holdings"();
-
-
-
-CREATE OR REPLACE TRIGGER "trigger_notify_price_refresh" AFTER INSERT OR UPDATE ON "public"."SecurityPrice" FOR EACH STATEMENT EXECUTE FUNCTION "public"."notify_refresh_holdings"();
-
-
-
 CREATE OR REPLACE TRIGGER "update_plan_updated_at" BEFORE UPDATE ON "public"."Plan" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
 
 
@@ -3589,6 +3407,10 @@ CREATE OR REPLACE TRIGGER "update_subscription_updated_at" BEFORE UPDATE ON "pub
 
 
 CREATE OR REPLACE TRIGGER "update_user_updated_at" BEFORE UPDATE ON "public"."User" FOR EACH ROW EXECUTE FUNCTION "public"."update_updated_at_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "validate_plan_features_trigger" BEFORE INSERT OR UPDATE ON "public"."Plan" FOR EACH ROW EXECUTE FUNCTION "public"."validate_plan_features"();
 
 
 
@@ -5024,13 +4846,15 @@ GRANT ALL ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_plann
 
 
 
-GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "service_role";
-GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "service_role";
-GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" "text", "p_amount_numeric" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "service_role";
 
 
 
@@ -5075,18 +4899,6 @@ GRANT ALL ON FUNCTION "public"."get_user_admin_household_ids"() TO "service_role
 
 
 
-GRANT ALL ON FUNCTION "public"."get_user_asset_allocation"("p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_user_asset_allocation"("p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_user_asset_allocation"("p_user_id" "uuid") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."get_user_holdings_view"("p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_user_holdings_view"("p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_user_holdings_view"("p_user_id" "uuid") TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."get_user_household_ids"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_household_ids"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_household_ids"() TO "service_role";
@@ -5096,18 +4908,6 @@ GRANT ALL ON FUNCTION "public"."get_user_household_ids"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."get_user_household_role"("p_household_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."get_user_household_role"("p_household_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_household_role"("p_household_id" "uuid") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."get_user_portfolio_summary"("p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_user_portfolio_summary"("p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_user_portfolio_summary"("p_user_id" "uuid") TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."get_user_sector_allocation"("p_user_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_user_sector_allocation"("p_user_id" "uuid") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."get_user_sector_allocation"("p_user_id" "uuid") TO "service_role";
 
 
 
@@ -5137,19 +4937,9 @@ GRANT ALL ON FUNCTION "public"."is_household_member"("p_household_id" "uuid") TO
 
 
 
-GRANT ALL ON FUNCTION "public"."notify_refresh_holdings"() TO "service_role";
-GRANT ALL ON FUNCTION "public"."notify_refresh_holdings"() TO "authenticated";
-
-
-
 GRANT ALL ON FUNCTION "public"."prevent_emergency_fund_deletion"() TO "anon";
 GRANT ALL ON FUNCTION "public"."prevent_emergency_fund_deletion"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."prevent_emergency_fund_deletion"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."refresh_portfolio_views"() TO "service_role";
-GRANT ALL ON FUNCTION "public"."refresh_portfolio_views"() TO "authenticated";
 
 
 
@@ -5179,6 +4969,12 @@ GRANT ALL ON FUNCTION "public"."update_user_subscription_cache"("p_user_id" "uui
 GRANT ALL ON FUNCTION "public"."validate_invitation_token"("p_token" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."validate_invitation_token"("p_token" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."validate_invitation_token"("p_token" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."validate_plan_features"() TO "anon";
+GRANT ALL ON FUNCTION "public"."validate_plan_features"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."validate_plan_features"() TO "service_role";
 
 
 
@@ -5390,24 +5186,8 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."UserServiceSubscription" TO
 
 
 
-GRANT ALL ON TABLE "public"."holdings_view" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."asset_allocation_view" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."category_learning" TO "service_role";
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."category_learning" TO "authenticated";
-
-
-
-GRANT ALL ON TABLE "public"."portfolio_summary_view" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."sector_allocation_view" TO "service_role";
 
 
 

@@ -187,8 +187,8 @@ export default function InvestmentsPage() {
       console.log("[Investments Page] Accounts count:", accountsData?.length || 0);
       console.log("[Investments Page] Historical data points:", historical?.length || 0);
       
-      // Log if we're getting zero values
-      if (summary && summary.totalValue === 0 && summary.holdingsCount === 0) {
+      // Log if we're getting zero values (development only)
+      if (process.env.NODE_ENV === 'development' && summary && summary.totalValue === 0 && summary.holdingsCount === 0) {
         console.warn("[Investments Page] WARNING: Summary shows zero values. This might indicate a problem.");
       }
 

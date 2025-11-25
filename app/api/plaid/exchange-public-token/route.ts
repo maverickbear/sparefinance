@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase-server';
-import { exchangePublicToken } from '@/lib/api/plaid/connect';
+import { exchangePublicToken, syncAccountBalances } from '@/lib/api/plaid/connect';
 import { syncAccountTransactions } from '@/lib/api/plaid/sync';
 import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities';
 import { syncInvestmentAccounts } from '@/lib/api/plaid/investments';
 import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
 import { throwIfNotAllowed } from '@/lib/api/feature-guard';
-import { formatTimestamp } from '@/lib/utils/timestamp';
+import { formatTimestamp, formatDateOnly, parseDateWithoutTimezone } from '@/lib/utils/timestamp';
+import { getActiveCreditCardDebt, calculateNextDueDate } from '@/lib/utils/credit-card-debt';
+import { createDebt } from '@/lib/api/debts';
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +45,37 @@ export async function POST(req: NextRequest) {
     const supabase = await createServerClient();
     const now = formatTimestamp(new Date());
 
+    // Get active household ID for the user
+    const { getActiveHouseholdId } = await import('@/lib/utils/household');
+    const householdId = await getActiveHouseholdId(userId);
+    if (!householdId) {
+      console.error('[PLAID] No active household found for user:', userId);
+      return NextResponse.json(
+        { error: 'No active household found. Please contact support.' },
+        { status: 400 }
+      );
+    }
+
+    // Verify PlaidConnection exists for this itemId
+    // This ensures data integrity - accounts should only be created if connection exists
+    const { data: connectionCheck, error: connectionCheckError } = await supabase
+      .from('PlaidConnection')
+      .select('id, itemId')
+      .eq('itemId', itemId)
+      .single();
+
+    if (connectionCheckError || !connectionCheck) {
+      console.error('PlaidConnection not found for itemId:', itemId);
+      return NextResponse.json(
+        { error: 'Plaid connection not found. Please try connecting again.' },
+        { status: 400 }
+      );
+    }
+
+    // Determine default currency - use USD as default, will be overridden by account balances if available
+    // The currencyCode from account balances.iso_currency_code will be used when available
+    const defaultCurrency = 'USD';
+
     // Create or update accounts for each Plaid account
     const createdAccounts = [];
 
@@ -55,35 +88,96 @@ export async function POST(req: NextRequest) {
         .single();
 
       // Map Plaid account type to our account type
+      // Use subtype when available for more precise mapping
       let accountType = 'checking';
       if (plaidAccount.type === 'depository') {
-        if (plaidAccount.subtype === 'savings') {
+        // Use subtype to determine checking vs savings
+        if (plaidAccount.subtype === 'savings' || plaidAccount.subtype === 'cd' || plaidAccount.subtype === 'money market') {
           accountType = 'savings';
         } else {
+          // Default to checking for checking, paypal, prepaid, etc.
           accountType = 'checking';
         }
       } else if (plaidAccount.type === 'credit') {
         accountType = 'credit';
       } else if (plaidAccount.type === 'loan') {
-        accountType = 'loan';
+        // Note: 'loan' is not in our Account type enum, so map to 'other'
+        // The plaidSubtype will preserve the original loan subtype (mortgage, auto, student, etc.)
+        accountType = 'other';
       } else if (plaidAccount.type === 'investment') {
         accountType = 'investment';
+      } else {
+        // For other types (brokerage, etc.), default to 'other'
+        accountType = 'other';
       }
 
+      // Get currency code from Plaid balances
+      // According to Plaid docs: iso_currency_code and unofficial_currency_code are mutually exclusive
+      // If iso_currency_code is null, unofficial_currency_code will be set (for crypto, etc.)
+      const isoCurrencyCode = plaidAccount.balances?.iso_currency_code ?? null;
+      const unofficialCurrencyCode = plaidAccount.balances?.unofficial_currency_code ?? null;
+      
+      // Determine currency code based on Plaid response
+      // If ISO currency exists, use it; otherwise use unofficial (crypto), or default
+      let currencyCode: string | null;
+      let finalUnofficialCurrencyCode: string | null;
+      
+      if (isoCurrencyCode) {
+        currencyCode = isoCurrencyCode;
+        finalUnofficialCurrencyCode = null;
+      } else if (unofficialCurrencyCode) {
+        currencyCode = null; // Don't use default for crypto
+        finalUnofficialCurrencyCode = unofficialCurrencyCode;
+      } else {
+        currencyCode = defaultCurrency; // Fallback to default
+        finalUnofficialCurrencyCode = null;
+      }
+      
+      // Get credit limit from Plaid balances for credit accounts
+      // Note: balances come from /accounts/balance/get (real-time) not /accounts/get (cached)
+      // The limit property exists for credit accounts but may not be in the type definition
+      const creditLimit = accountType === 'credit' && (plaidAccount.balances as any)?.limit 
+        ? (plaidAccount.balances as any).limit 
+        : null;
+
+      // Get available balance (separate from current balance)
+      // Available balance is the amount that can be withdrawn
+      const availableBalance = plaidAccount.balances?.available ?? null;
+
+      // Get additional Plaid fields
+      const persistentAccountId = (plaidAccount as any).persistent_account_id || null;
+      const holderCategory = (plaidAccount as any).holder_category || null;
+      const verificationName = (plaidAccount as any).verification_name || null;
+
       if (existingAccount) {
-        // Update existing account
+        // Update existing account with all Plaid fields
+        const updateData: any = {
+          plaidItemId: itemId,
+          plaidAccountId: plaidAccount.account_id,
+          isConnected: true,
+          syncEnabled: true,
+          plaidMask: (plaidAccount as any).mask || null,
+          plaidOfficialName: (plaidAccount as any).official_name || null,
+          plaidVerificationStatus: (plaidAccount as any).verification_status || null,
+          plaidSubtype: plaidAccount.subtype || null,
+          currencyCode: currencyCode,
+          plaidUnofficialCurrencyCode: finalUnofficialCurrencyCode,
+          plaidAvailableBalance: availableBalance,
+          plaidPersistentAccountId: persistentAccountId,
+          plaidHolderCategory: holderCategory,
+          plaidVerificationName: verificationName,
+          householdId: householdId,
+          updatedAt: now,
+        };
+        
+        // Update credit limit if this is a credit account
+        if (accountType === 'credit' && creditLimit !== null) {
+          updateData.creditLimit = creditLimit;
+        }
+        
         const { error: updateError } = await supabase
           .from('Account')
-          .update({
-            plaidItemId: itemId,
-            plaidAccountId: plaidAccount.account_id,
-            isConnected: true,
-            syncEnabled: true,
-            plaidMask: (plaidAccount as any).mask || null,
-            plaidOfficialName: (plaidAccount as any).official_name || null,
-            plaidVerificationStatus: (plaidAccount as any).verification_status || null,
-            updatedAt: now,
-          })
+          .update(updateData)
           .eq('id', existingAccount.id);
 
         if (updateError) {
@@ -95,26 +189,45 @@ export async function POST(req: NextRequest) {
       } else {
         // Create new account
         const accountId = crypto.randomUUID();
-        const initialBalance = plaidAccount.balances.current || 0;
+        // Use current balance if available, otherwise fall back to available balance
+        // According to Plaid docs: "If current is null this field is guaranteed not to be null"
+        const currentBalance = plaidAccount.balances?.current ?? null;
+        const availableBalance = plaidAccount.balances?.available ?? null;
+        const initialBalance = currentBalance !== null ? currentBalance : (availableBalance ?? 0);
+
+        const insertData: any = {
+          id: accountId,
+          name: plaidAccount.name,
+          type: accountType,
+          plaidItemId: itemId,
+          plaidAccountId: plaidAccount.account_id,
+          isConnected: true,
+          syncEnabled: true,
+          initialBalance: accountType === 'checking' || accountType === 'savings' ? initialBalance : null,
+          plaidMask: (plaidAccount as any).mask || null,
+          plaidOfficialName: (plaidAccount as any).official_name || null,
+          plaidVerificationStatus: (plaidAccount as any).verification_status || null,
+          plaidSubtype: plaidAccount.subtype || null,
+          currencyCode: currencyCode,
+          plaidUnofficialCurrencyCode: finalUnofficialCurrencyCode,
+          plaidAvailableBalance: availableBalance,
+          plaidPersistentAccountId: persistentAccountId,
+          plaidHolderCategory: holderCategory,
+          plaidVerificationName: verificationName,
+          userId: userId,
+          householdId: householdId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        
+        // Set credit limit if this is a credit account
+        if (accountType === 'credit' && creditLimit !== null) {
+          insertData.creditLimit = creditLimit;
+        }
 
         const { error: insertError } = await supabase
           .from('Account')
-          .insert({
-            id: accountId,
-            name: plaidAccount.name,
-            type: accountType,
-            plaidItemId: itemId,
-            plaidAccountId: plaidAccount.account_id,
-            isConnected: true,
-            syncEnabled: true,
-            initialBalance: accountType === 'checking' || accountType === 'savings' ? initialBalance : null,
-            plaidMask: (plaidAccount as any).mask || null,
-            plaidOfficialName: (plaidAccount as any).official_name || null,
-            plaidVerificationStatus: (plaidAccount as any).verification_status || null,
-            userId: userId,
-            createdAt: now,
-            updatedAt: now,
-          });
+          .insert(insertData);
 
         if (insertError) {
           console.error('Error creating account:', insertError);
@@ -242,6 +355,18 @@ export async function POST(req: NextRequest) {
       // Don't fail the whole request if investment sync fails
     }
 
+    // Sync account balances to ensure they're updated in the database
+    // Note: We already get real-time balances in exchangePublicToken using /accounts/balance/get,
+    // but this call ensures all accounts have their balances properly synced after creation
+    let balanceSyncResult = null;
+    try {
+      balanceSyncResult = await syncAccountBalances(itemId, accessToken);
+      console.log('Balance sync result:', balanceSyncResult);
+    } catch (error) {
+      console.error('Error syncing account balances:', error);
+      // Don't fail the whole request if balance sync fails
+    }
+
     return NextResponse.json({
       success: true,
       itemId,
@@ -249,6 +374,7 @@ export async function POST(req: NextRequest) {
       syncResults,
       liabilitySync: liabilitySyncResult,
       investmentSync: investmentSyncResult,
+      balanceSync: balanceSyncResult,
     });
   } catch (error: any) {
     console.error('Error exchanging public token:', error);

@@ -7,7 +7,7 @@ export interface Database {
   Account: {
     id: string;
     name: string;
-    type: string;
+    type: 'cash' | 'checking' | 'savings' | 'credit' | 'investment' | 'other';
     createdAt: string;
     updatedAt: string;
     creditLimit: number | null;
@@ -21,6 +21,13 @@ export interface Database {
     plaidMask: string | null;
     plaidOfficialName: string | null;
     plaidVerificationStatus: string | null;
+    plaidSubtype: string | null;
+    currencyCode: string | null;
+    plaidUnofficialCurrencyCode: string | null;
+    plaidAvailableBalance: number | null;
+    plaidPersistentAccountId: string | null;
+    plaidHolderCategory: string | null;
+    plaidVerificationName: string | null;
     dueDayOfMonth: number | null;
     extraCredit: number;
   };
@@ -146,6 +153,9 @@ export interface Database {
     notes: string | null;
     transferToId: string | null;
     transferFromId: string | null;
+    plaidInvestmentTransactionId: string | null;
+    plaidSubtype: string | null;
+    currencyCode: string | null;
     createdAt: string;
     updatedAt: string;
   };
@@ -174,6 +184,10 @@ export interface Database {
     symbol: string;
     name: string;
     class: string;
+    sector: string | null;
+    closePrice: number | null;
+    closePriceAsOf: string | null;
+    currencyCode: string | null;
     createdAt: string;
     updatedAt: string;
   };

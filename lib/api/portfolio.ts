@@ -7,6 +7,7 @@ import { subDays, startOfDay, endOfDay } from "date-fns";
 import { unstable_cache } from "next/cache";
 import { getCurrentUserId } from "@/lib/api/feature-guard";
 import { cache } from "@/lib/services/redis";
+import { logger } from "@/lib/utils/logger";
 
 // Portfolio types - exported for use across the application
 export interface Holding {
@@ -134,7 +135,7 @@ export async function getPortfolioSummaryInternal(
     // Check for holdings with zero marketValue (potential data issue)
     const zeroValueHoldings = holdings.filter(h => !h.marketValue || h.marketValue === 0);
     if (zeroValueHoldings.length > 0) {
-      console.warn("[Portfolio Summary] WARNING: Found", zeroValueHoldings.length, "holdings with zero marketValue:", 
+      logger.warn("[Portfolio Summary] WARNING: Found", zeroValueHoldings.length, "holdings with zero marketValue:", 
         zeroValueHoldings.map(h => ({ symbol: h.symbol, quantity: h.quantity, lastPrice: h.lastPrice, avgPrice: h.avgPrice }))
       );
     }
@@ -236,11 +237,11 @@ export async function getPortfolioSummaryInternal(
       } else {
         // If no historical prices found, try to estimate from current prices
         // This is a fallback - dayChange will be 0 but at least we won't error
-        console.warn("No historical prices found for day change calculation");
+        logger.warn("No historical prices found for day change calculation");
       }
     }
   } catch (error) {
-    console.error("Error calculating day change:", error);
+    logger.error("Error calculating day change:", error);
     dayChange = 0;
     dayChangePercent = 0;
   }
@@ -281,7 +282,7 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
       }
     }
   } catch (error: any) {
-    console.warn("[Portfolio Summary] Could not get session tokens for cache check:", error?.message);
+    logger.warn("[Portfolio Summary] Could not get session tokens for cache check:", error?.message);
     // Continue without tokens - functions will try to get them themselves
   }
 
@@ -292,7 +293,7 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
     // OPTIMIZED: Removed unnecessary validation that called getHoldings() even when cache is valid
     // The cache is trusted - if it shows zero, it's likely correct (user has no holdings)
     // Cache invalidation happens when transactions are created/updated via invalidatePortfolioCache()
-    console.log("[Portfolio Summary] Using cached data:", cached);
+    logger.log("[Portfolio Summary] Using cached data:", cached);
     return cached;
   }
 
@@ -313,7 +314,7 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
         }
       }
     } catch (error: any) {
-      console.warn("[Portfolio Summary] Could not get session tokens:", error?.message);
+      logger.warn("[Portfolio Summary] Could not get session tokens:", error?.message);
       // Continue without tokens - functions will try to get them themselves
     }
   }
@@ -330,8 +331,8 @@ export async function getPortfolioSummary(): Promise<PortfolioSummary> {
 
   // Only log errors or warnings, not every successful calculation
   if (result.totalValue === 0 && result.holdingsCount > 0) {
-    console.error("[Portfolio Summary] ERROR: Total value is 0 but there are", result.holdingsCount, "holdings!");
-    console.error("[Portfolio Summary] This indicates holdings have zero marketValue. Check price data.");
+    logger.error("[Portfolio Summary] ERROR: Total value is 0 but there are", result.holdingsCount, "holdings!");
+    logger.error("[Portfolio Summary] This indicates holdings have zero marketValue. Check price data.");
   }
 
   // Store in Redis cache (5 minutes TTL)
@@ -360,7 +361,7 @@ export async function invalidatePortfolioCache(userId?: string): Promise<void> {
   clearHoldingsCache(targetUserId);
   
   if (process.env.NODE_ENV === "development") {
-    console.log("[Portfolio Cache] Invalidated cache for user:", targetUserId);
+    logger.log("[Portfolio Cache] Invalidated cache for user:", targetUserId);
   }
 }
 
@@ -556,7 +557,7 @@ export async function getPortfolioHistoricalDataInternal(
     }
   } catch (error) {
     // Fallback: use startDate if error finding first transaction
-    console.warn("Error finding first transaction, using startDate:", error);
+    logger.warn("Error finding first transaction, using startDate:", error);
     transactionsStartDate = startDate;
   }
   
@@ -759,7 +760,7 @@ export async function getPortfolioHistoricalDataInternal(
   if (hasQuestradeAccounts && data.length === 1 && data[0].date === today.toISOString().split("T")[0]) {
     // We already have today's value, which is good
     if (process.env.NODE_ENV === "development") {
-      console.log("[Portfolio Historical] Using Questrade account values, current value:", currentValue);
+      logger.log("[Portfolio Historical] Using Questrade account values, current value:", currentValue);
     }
   }
   
@@ -801,7 +802,7 @@ export async function getPortfolioHistoricalData(days: number = 365): Promise<Hi
       }
     }
   } catch (error: any) {
-    console.warn("[Portfolio Historical] Could not get session tokens:", error?.message);
+    logger.warn("[Portfolio Historical] Could not get session tokens:", error?.message);
     // Continue without tokens - functions will try to get them themselves
   }
 

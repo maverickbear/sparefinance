@@ -92,7 +92,11 @@ export function DeleteAccountWithTransferDialog({
           </Button>
           <Button
             variant="destructive"
-            onClick={onConfirm}
+            onClick={() => {
+              // Close dialog first, then call onConfirm
+              onOpenChange(false);
+              onConfirm();
+            }}
             disabled={
               !transferToAccountId || availableAccounts.length === 0
             }

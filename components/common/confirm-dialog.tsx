@@ -10,7 +10,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -35,28 +34,25 @@ export function ConfirmDialog({
   variant = "default",
   loading = false,
 }: ConfirmDialogProps) {
-  const [isLoading, setIsLoading] = React.useState(false);
-
   const handleConfirm = async () => {
-    setIsLoading(true);
+    // Close dialog immediately so user can continue using the app
+    onOpenChange(false);
+    
+    // Execute the action in the background (no loading state needed since dialog is closed)
     try {
       await onConfirm();
-      onOpenChange(false);
     } catch (error) {
       // Error handling is done by the caller
+      // Dialog is already closed, so we don't need to handle it here
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleCancel = () => {
-    if (!isLoading && !loading) {
+    if (!loading) {
       onOpenChange(false);
     }
   };
-
-  const isProcessing = isLoading || loading;
 
   return (
     <Dialog open={open} onOpenChange={handleCancel}>
@@ -71,23 +67,16 @@ export function ConfirmDialog({
           <Button
             variant="outline"
             onClick={handleCancel}
-            disabled={isProcessing}
+            disabled={loading}
           >
             {cancelLabel}
           </Button>
           <Button
             variant={variant === "destructive" ? "destructive" : "default"}
             onClick={handleConfirm}
-            disabled={isProcessing}
+            disabled={loading}
           >
-            {isProcessing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              confirmLabel
-            )}
+            {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
