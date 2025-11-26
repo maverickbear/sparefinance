@@ -7,6 +7,7 @@ import { createTransaction } from '@/lib/api/transactions';
 import { suggestCategory } from '@/lib/api/category-learning';
 import type { TransactionFormData } from '@/lib/validations/transaction';
 import type { PlaidTransactionMetadata } from './types';
+import { convertPlaidTransactionToCamelCase } from './utils';
 
 /**
  * Sync transactions from Plaid for a specific account
@@ -175,38 +176,223 @@ export async function syncAccountTransactions(
         // We also check transaction_code and category to be more accurate
         let isExpense: boolean;
         
+        const transactionCode = plaidTx.transaction_code;
+        const plaidTransactionType = (plaidTx as any).transaction_type || null;
+        const categories = Array.isArray(plaidTx.category) ? plaidTx.category : [];
+        const categoryPrimary = categories.length > 0 ? categories[0].toLowerCase() : '';
+        const categorySecondary = categories.length > 1 ? categories[1].toLowerCase() : '';
+        
+        // Plaid transaction_code values that indicate expenses
+        // According to Plaid docs: transaction_code is only populated for European institutions
+        const expenseTransactionCodes = [
+          'purchase',           // Purchase made with a debit or credit card
+          'bill payment',       // Payment of a bill
+          'bank charge',        // Charge or fee levied by the institution
+          'cashback',           // Cash withdrawal while making a debit card purchase
+          'direct debit',       // Automatic withdrawal of funds initiated by a third party
+          'standing order',     // Payment instructed by the account holder to a third party
+        ];
+        
+        // Plaid transaction_code values that indicate income
+        const incomeTransactionCodes = [
+          'interest',           // Interest earned (usually income, but can be expense for loans)
+        ];
+        
+        // Plaid transaction_code values that are ambiguous (need context)
+        const ambiguousTransactionCodes = [
+          'transfer',           // Transfer of money between accounts (can be expense or income)
+          'cash',              // Cash deposit or withdrawal (can be expense or income)
+          'atm',               // Cash deposit or withdrawal via ATM (can be expense or income)
+          'cheque',            // Cheque payment (can be expense or income)
+          'adjustment',        // Bank adjustment (can be expense or income)
+        ];
+        
+        // Check if transaction_code indicates expense or income
+        const transactionCodeLower = transactionCode ? transactionCode.toLowerCase() : '';
+        const codeIndicatesExpense = expenseTransactionCodes.includes(transactionCodeLower);
+        const codeIndicatesIncome = incomeTransactionCodes.includes(transactionCodeLower);
+        const codeIsAmbiguous = ambiguousTransactionCodes.includes(transactionCodeLower);
+        
+        // Plaid categories that indicate income (deposits, transfers in, interest, etc.)
+        const incomeCategories = [
+          'transfer', 'deposit', 'interest', 'dividend', 'salary', 'payroll',
+          'income', 'reimbursement', 'refund', 'payment', 'credit'
+        ];
+        
+        // Plaid categories that indicate expenses (purchases, bills, fees, etc.)
+        const expenseCategories = [
+          'food and drink', 'shops', 'gas stations', 'groceries', 'restaurants',
+          'general merchandise', 'entertainment', 'travel', 'bills', 'utilities',
+          'bank fees', 'atm', 'fees', 'service', 'tax', 'healthcare', 'transportation'
+        ];
+        
+        // Check if category indicates income or expense
+        const categoryIndicatesIncome = incomeCategories.some(cat => 
+          categoryPrimary.includes(cat) || categorySecondary.includes(cat)
+        );
+        const categoryIndicatesExpense = expenseCategories.some(cat => 
+          categoryPrimary.includes(cat) || categorySecondary.includes(cat)
+        );
+        
         if (account?.type === 'credit') {
           // For credit cards: positive amounts are purchases (expenses), negative are payments (income/transfers)
-          // But we also check transaction_code and category to be more accurate
-          const transactionCode = plaidTx.transaction_code;
-          const categories = Array.isArray(plaidTx.category) ? plaidTx.category : [];
-          const categoryPrimary = categories.length > 0 ? categories[0].toLowerCase() : '';
+          // But we also check transaction_type, transaction_code and category to be more accurate
           
-          // Payment/credit transactions typically have specific codes or categories
-          if (
-            transactionCode === 'payment' || 
-            transactionCode === 'credit' || 
-            transactionCode === 'transfer' ||
-            categoryPrimary === 'transfer' ||
-            categoryPrimary === 'payment' ||
-            categoryPrimary === 'bank fees' // Bank fees on credit cards are usually credits
-          ) {
-            isExpense = false; // Payment/credit is income (reduces debt)
+          // Use transaction_type as primary indicator (most reliable for US/Canada)
+          if (plaidTransactionType === 'place' || plaidTransactionType === 'digital') {
+            // "place" = physical purchase, "digital" = online purchase - both are expenses
+            isExpense = true;
+          } else if (plaidTransactionType === 'special') {
+            // "special" = ATM, transfer, etc. - need to check other indicators
+            // Use transaction_code as primary indicator if available (European institutions)
+            if (codeIndicatesExpense) {
+              isExpense = true;
+            } else if (codeIndicatesIncome) {
+              isExpense = false;
+            } else if (
+              transactionCode === 'payment' || 
+              transactionCode === 'credit' || 
+              (transactionCode === 'transfer' && plaidTx.amount < 0) ||
+              categoryIndicatesIncome
+            ) {
+              isExpense = false; // Payment/credit is income (reduces debt)
+            } else if (categoryIndicatesExpense) {
+              isExpense = true;
+            } else {
+              // For credit cards, positive amounts are usually purchases (expenses)
+              isExpense = plaidTx.amount > 0;
+            }
           } else {
-            // For credit cards, positive amounts are usually purchases (expenses)
-            // Negative amounts are usually payments/credits (income)
-            isExpense = plaidTx.amount > 0;
+            // transaction_type is null or "unresolved" - use other indicators
+            // Use transaction_code as primary indicator if available (European institutions)
+            if (codeIndicatesExpense) {
+              isExpense = true;
+            } else if (codeIndicatesIncome) {
+              isExpense = false;
+            } else if (
+              transactionCode === 'payment' || 
+              transactionCode === 'credit' || 
+              (transactionCode === 'transfer' && plaidTx.amount < 0) ||
+              categoryIndicatesIncome
+            ) {
+              isExpense = false; // Payment/credit is income (reduces debt)
+            } else if (categoryIndicatesExpense) {
+              isExpense = true; // Category clearly indicates expense
+            } else {
+              // For credit cards, positive amounts are usually purchases (expenses)
+              // Negative amounts are usually payments/credits (income)
+              isExpense = plaidTx.amount > 0;
+            }
           }
         } else {
-          // For deposit accounts: negative = expense, positive = income
-          isExpense = plaidTx.amount < 0;
+          // For deposit accounts: use transaction_type first (most reliable for US/Canada),
+          // then transaction_code (European institutions), category, merchant_name, description, and finally amount sign
+          // Some banks (especially Canadian) may return positive for expenses
+          
+          // Use transaction_type as primary indicator (most reliable for US/Canada)
+          if (plaidTransactionType === 'place' || plaidTransactionType === 'digital') {
+            // "place" = physical purchase, "digital" = online purchase - both are expenses
+            // This is the most reliable indicator for US/Canadian banks
+            isExpense = true;
+          } else if (plaidTransactionType === 'special') {
+            // "special" = ATM, transfer, etc. - need to check other indicators
+            // Use transaction_code as primary indicator if available (European institutions)
+            if (codeIndicatesExpense) {
+              isExpense = true;
+            } else if (codeIndicatesIncome) {
+              isExpense = false;
+            } else if (codeIsAmbiguous) {
+              // For ambiguous codes like 'transfer', 'cash', 'atm', use amount sign and context
+              const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+              if (categoryIndicatesExpense || (hasMerchantName && !categoryIndicatesIncome)) {
+                isExpense = true;
+              } else if (categoryIndicatesIncome) {
+                isExpense = false;
+              } else {
+                isExpense = plaidTx.amount < 0;
+              }
+            } else if (categoryIndicatesExpense) {
+              isExpense = true;
+            } else if (categoryIndicatesIncome) {
+              isExpense = false;
+            } else {
+              // If transaction has merchant_name, it's almost certainly an expense
+              const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+              if (hasMerchantName && !categoryIndicatesIncome) {
+                isExpense = true;
+              } else {
+                isExpense = plaidTx.amount < 0;
+              }
+            }
+          } else {
+            // transaction_type is null or "unresolved" - use other indicators
+            // Use transaction_code as primary indicator if available (European institutions)
+            if (codeIndicatesExpense) {
+              isExpense = true;
+            } else if (codeIndicatesIncome) {
+              isExpense = false;
+            } else if (codeIsAmbiguous) {
+              // For ambiguous codes, use amount sign and context
+              const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+              if (categoryIndicatesExpense || (hasMerchantName && !categoryIndicatesIncome)) {
+                isExpense = true;
+              } else if (categoryIndicatesIncome) {
+                isExpense = false;
+              } else {
+                isExpense = plaidTx.amount < 0;
+              }
+            } else if (categoryIndicatesExpense) {
+              isExpense = true; // Category clearly indicates expense
+            } else if (categoryIndicatesIncome) {
+              isExpense = false; // Category clearly indicates income
+            } else {
+              // If transaction has merchant_name, it's almost certainly an expense (purchase at a store/restaurant)
+              const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+              
+              if (hasMerchantName && !categoryIndicatesIncome) {
+                // If there's a merchant name (store, restaurant, etc.), it's almost certainly an expense
+                // This handles cases where Canadian banks return positive amounts for expenses
+                isExpense = true;
+              } else {
+                // Check description for common expense/income patterns
+                const description = (plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || '').toLowerCase();
+                const isLikelyExpense = description.includes('purchase') || 
+                                       description.includes('payment') || 
+                                       description.includes('debit') ||
+                                       description.includes('withdrawal') ||
+                                       description.includes('pos') ||
+                                       description.includes('purchase');
+                const isLikelyIncome = description.includes('deposit') || 
+                                       description.includes('credit') || 
+                                       description.includes('transfer in') ||
+                                       description.includes('salary') ||
+                                       description.includes('payroll') ||
+                                       description.includes('refund');
+                
+                if (isLikelyExpense && !isLikelyIncome) {
+                  isExpense = true;
+                } else if (isLikelyIncome && !isLikelyExpense) {
+                  isExpense = false;
+                } else {
+                  // Fall back to amount sign: negative = expense, positive = income
+                  // This is the standard Plaid behavior for most US banks
+                  // Note: Some Canadian banks may return positive for expenses, but we'll use category/description first
+                  isExpense = plaidTx.amount < 0;
+                }
+              }
+            }
+          }
         }
         
         console.log('[PLAID SYNC] Determining transaction type:', {
           accountType: account?.type,
           plaidAmount: plaidTx.amount,
+          plaidTransactionType, // Log transaction_type from Plaid
           transactionCode: plaidTx.transaction_code,
           category: plaidTx.category,
+          categoryPrimary,
+          categoryIndicatesExpense,
+          categoryIndicatesIncome,
           isExpense,
           description: (plaidTx.name || plaidTx.merchant_name || '').substring(0, 50),
         });
@@ -232,19 +418,53 @@ export async function syncAccountTransactions(
         const amount = Math.abs(plaidTx.amount);
         const type = isExpense ? 'expense' : 'income';
 
-        // Build Plaid metadata object
+        // Convert Plaid transaction to camelCase format for consistent storage
+        const convertedTx = convertPlaidTransactionToCamelCase(plaidTx);
+        
+        // Build Plaid metadata object in camelCase
         const plaidMetadata: PlaidTransactionMetadata = {
-          category: plaidTx.category || null,
-          category_id: plaidTx.category_id || null,
-          pending: plaidTx.pending || false,
-          authorized_date: plaidTx.authorized_date || null,
-          authorized_datetime: plaidTx.authorized_datetime || null,
-          datetime: plaidTx.datetime || null,
-          iso_currency_code: plaidTx.iso_currency_code || null,
-          unofficial_currency_code: plaidTx.unofficial_currency_code || null,
-          transaction_code: plaidTx.transaction_code || null,
-          account_owner: plaidTx.account_owner || null,
-          pending_transaction_id: plaidTx.pending_transaction_id || null,
+          // Categories
+          category: convertedTx.category || plaidTx.category || null,
+          categoryId: convertedTx.categoryId || plaidTx.category_id || null,
+          
+          // Transaction type and codes
+          transactionType: convertedTx.transactionType || plaidTx.transaction_type || null,
+          transactionCode: convertedTx.transactionCode || plaidTx.transaction_code || null,
+          
+          // Status and dates
+          pending: convertedTx.pending !== undefined ? convertedTx.pending : (plaidTx.pending || false),
+          authorizedDate: convertedTx.authorizedDate || plaidTx.authorized_date || null,
+          authorizedDatetime: convertedTx.authorizedDatetime || plaidTx.authorized_datetime || null,
+          datetime: convertedTx.datetime || plaidTx.datetime || null,
+          
+          // Currency
+          isoCurrencyCode: convertedTx.isoCurrencyCode || plaidTx.iso_currency_code || null,
+          unofficialCurrencyCode: convertedTx.unofficialCurrencyCode || plaidTx.unofficial_currency_code || null,
+          
+          // Merchant information
+          merchantName: convertedTx.merchantName || plaidTx.merchant_name || null,
+          merchantEntityId: convertedTx.merchantEntityId || plaidTx.merchant_entity_id || null,
+          logoUrl: convertedTx.logoUrl || plaidTx.logo_url || null,
+          website: convertedTx.website || plaidTx.website || null,
+          
+          // Personal finance category
+          personalFinanceCategory: convertedTx.personalFinanceCategory || plaidTx.personal_finance_category || null,
+          personalFinanceCategoryIconUrl: convertedTx.personalFinanceCategoryIconUrl || plaidTx.personal_finance_category_icon_url || null,
+          
+          // Location
+          location: convertedTx.location || plaidTx.location || null,
+          
+          // Counterparties
+          counterparties: convertedTx.counterparties || plaidTx.counterparties || null,
+          
+          // Payment information
+          paymentChannel: convertedTx.paymentChannel || plaidTx.payment_channel || null,
+          paymentMeta: convertedTx.paymentMeta || plaidTx.payment_meta || null,
+          
+          // Account and transaction relationships
+          accountOwner: convertedTx.accountOwner || plaidTx.account_owner || null,
+          pendingTransactionId: convertedTx.pendingTransactionId || plaidTx.pending_transaction_id || null,
+          checkNumber: convertedTx.checkNumber || plaidTx.check_number || null,
         };
 
         // Get category suggestion from learning model
@@ -320,7 +540,12 @@ export async function syncAccountTransactions(
           .eq('id', transactionId);
 
         if (updateError) {
-          console.error('Error updating transaction with metadata:', updateError);
+          console.error('Error updating transaction with metadata:', {
+            transactionId,
+            plaidTransactionId: plaidTx.transaction_id,
+            error: updateError,
+          });
+          errors++;
         } else {
           console.log('Transaction updated with Plaid metadata:', {
             transactionId,
@@ -329,29 +554,33 @@ export async function syncAccountTransactions(
             hasCategory: !!plaidMetadata.category,
             suggestedCategoryId: categorySuggestion?.categoryId,
           });
-        }
 
-        // Record sync
-        const syncId = crypto.randomUUID();
-        const now = formatTimestamp(new Date());
+          // Record sync only if update was successful
+          const syncId = crypto.randomUUID();
+          const now = formatTimestamp(new Date());
 
-        const { error: syncError } = await supabase
-          .from('TransactionSync')
-          .insert({
-            id: syncId,
-            accountId,
-            plaidTransactionId: plaidTx.transaction_id,
-            transactionId: transactionId,
-            householdId: account?.householdId || null,
-            syncDate: now,
-            status: 'synced',
-          });
+          const { error: syncError } = await supabase
+            .from('TransactionSync')
+            .insert({
+              id: syncId,
+              accountId,
+              plaidTransactionId: plaidTx.transaction_id,
+              transactionId: transactionId,
+              householdId: account?.householdId || null,
+              syncDate: now,
+              status: 'synced',
+            });
 
-        if (syncError) {
-          console.error('Error recording transaction sync:', syncError);
-          errors++;
-        } else {
-          synced++;
+          if (syncError) {
+            console.error('Error recording transaction sync:', {
+              transactionId,
+              plaidTransactionId: plaidTx.transaction_id,
+              error: syncError,
+            });
+            errors++;
+          } else {
+            synced++;
+          }
         }
       } catch (error) {
         console.error('Error syncing transaction:', plaidTx.transaction_id, error);
@@ -383,7 +612,17 @@ export async function syncAccountTransactions(
         // Transaction was modified but we don't have it - treat as new
         try {
           // Reuse the same processing logic as added transactions
-          const isExpense = plaidTx.amount < 0;
+          // Use transaction_type as primary indicator (most reliable for US/Canada)
+          const plaidTransactionType = (plaidTx as any).transaction_type || null;
+          let isExpense: boolean;
+          
+          if (plaidTransactionType === 'place' || plaidTransactionType === 'digital') {
+            // "place" = physical purchase, "digital" = online purchase - both are expenses
+            isExpense = true;
+          } else {
+            // For other types or null, use amount sign as fallback
+            isExpense = plaidTx.amount < 0;
+          }
           const plaidDate = new Date(plaidTx.date + 'T00:00:00');
           const description = plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || 'Plaid Transaction';
           const amount = Math.abs(plaidTx.amount);
@@ -404,38 +643,92 @@ export async function syncAccountTransactions(
           const transactionId = (transaction as any).id || (transaction as any).outgoing?.id || null;
           
           if (transactionId) {
+            // Convert Plaid transaction to camelCase format
+            const convertedTx = convertPlaidTransactionToCamelCase(plaidTx);
+            
             const plaidMetadata: PlaidTransactionMetadata = {
-              category: plaidTx.category || null,
-              category_id: plaidTx.category_id || null,
-              pending: plaidTx.pending || false,
-              authorized_date: plaidTx.authorized_date || null,
-              authorized_datetime: plaidTx.authorized_datetime || null,
-              datetime: plaidTx.datetime || null,
-              iso_currency_code: plaidTx.iso_currency_code || null,
-              unofficial_currency_code: plaidTx.unofficial_currency_code || null,
-              transaction_code: plaidTx.transaction_code || null,
-              account_owner: plaidTx.account_owner || null,
-              pending_transaction_id: plaidTx.pending_transaction_id || null,
+              // Categories
+              category: convertedTx.category || plaidTx.category || null,
+              categoryId: convertedTx.categoryId || plaidTx.category_id || null,
+              
+              // Transaction type and codes
+              transactionType: convertedTx.transactionType || plaidTx.transaction_type || null,
+              transactionCode: convertedTx.transactionCode || plaidTx.transaction_code || null,
+              
+              // Status and dates
+              pending: convertedTx.pending !== undefined ? convertedTx.pending : (plaidTx.pending || false),
+              authorizedDate: convertedTx.authorizedDate || plaidTx.authorized_date || null,
+              authorizedDatetime: convertedTx.authorizedDatetime || plaidTx.authorized_datetime || null,
+              datetime: convertedTx.datetime || plaidTx.datetime || null,
+              
+              // Currency
+              isoCurrencyCode: convertedTx.isoCurrencyCode || plaidTx.iso_currency_code || null,
+              unofficialCurrencyCode: convertedTx.unofficialCurrencyCode || plaidTx.unofficial_currency_code || null,
+              
+              // Merchant information
+              merchantName: convertedTx.merchantName || plaidTx.merchant_name || null,
+              merchantEntityId: convertedTx.merchantEntityId || plaidTx.merchant_entity_id || null,
+              logoUrl: convertedTx.logoUrl || plaidTx.logo_url || null,
+              website: convertedTx.website || plaidTx.website || null,
+              
+              // Personal finance category
+              personalFinanceCategory: convertedTx.personalFinanceCategory || plaidTx.personal_finance_category || null,
+              personalFinanceCategoryIconUrl: convertedTx.personalFinanceCategoryIconUrl || plaidTx.personal_finance_category_icon_url || null,
+              
+              // Location
+              location: convertedTx.location || plaidTx.location || null,
+              
+              // Counterparties
+              counterparties: convertedTx.counterparties || plaidTx.counterparties || null,
+              
+              // Payment information
+              paymentChannel: convertedTx.paymentChannel || plaidTx.payment_channel || null,
+              paymentMeta: convertedTx.paymentMeta || plaidTx.payment_meta || null,
+              
+              // Account and transaction relationships
+              accountOwner: convertedTx.accountOwner || plaidTx.account_owner || null,
+              pendingTransactionId: convertedTx.pendingTransactionId || plaidTx.pending_transaction_id || null,
+              checkNumber: convertedTx.checkNumber || plaidTx.check_number || null,
             };
 
-            await supabase
+            const { error: updateError2 } = await supabase
               .from('Transaction')
               .update({ plaidMetadata: plaidMetadata as any })
               .eq('id', transactionId);
 
-            await supabase
-              .from('TransactionSync')
-              .insert({
-                id: crypto.randomUUID(),
-                accountId,
+            if (updateError2) {
+              console.error('Error updating modified transaction (as new) with metadata:', {
+                transactionId,
                 plaidTransactionId: plaidTx.transaction_id,
-                transactionId: transactionId,
-                householdId: account?.householdId || null,
-                syncDate: formatTimestamp(new Date()),
-                status: 'synced',
+                error: updateError2,
+              });
+              errors++;
+            } else {
+              console.log('Modified transaction (as new) updated with Plaid metadata:', {
+                transactionId,
+                hasMetadata: !!plaidMetadata,
+                pending: plaidMetadata.pending,
               });
 
-            synced++;
+              const { error: syncError } = await supabase
+                .from('TransactionSync')
+                .insert({
+                  id: crypto.randomUUID(),
+                  accountId,
+                  plaidTransactionId: plaidTx.transaction_id,
+                  transactionId: transactionId,
+                  householdId: account?.householdId || null,
+                  syncDate: formatTimestamp(new Date()),
+                  status: 'synced',
+                });
+
+              if (syncError) {
+                console.error('Error creating TransactionSync record:', syncError);
+                errors++;
+              } else {
+                synced++;
+              }
+            }
           }
         } catch (error) {
           console.error('Error processing modified transaction (as new):', plaidTx.transaction_id, error);
@@ -445,48 +738,224 @@ export async function syncAccountTransactions(
           // Update existing transaction
         try {
           // Use same logic as for new transactions
+          // First, check transaction_type (most reliable for US/Canada)
+          const plaidTransactionType = (plaidTx as any).transaction_type || null;
+          
           let isExpense: boolean;
           
+          const transactionCode = plaidTx.transaction_code;
+          const categories = Array.isArray(plaidTx.category) ? plaidTx.category : [];
+          const categoryPrimary = categories.length > 0 ? categories[0].toLowerCase() : '';
+          const categorySecondary = categories.length > 1 ? categories[1].toLowerCase() : '';
+          
+          // Plaid transaction_code values that indicate expenses (European institutions)
+          const expenseTransactionCodes = [
+            'purchase', 'bill payment', 'bank charge', 'cashback', 'direct debit', 'standing order'
+          ];
+          const incomeTransactionCodes = ['interest'];
+          const ambiguousTransactionCodes = ['transfer', 'cash', 'atm', 'cheque', 'adjustment'];
+          
+          const transactionCodeLower = transactionCode ? transactionCode.toLowerCase() : '';
+          const codeIndicatesExpense = expenseTransactionCodes.includes(transactionCodeLower);
+          const codeIndicatesIncome = incomeTransactionCodes.includes(transactionCodeLower);
+          const codeIsAmbiguous = ambiguousTransactionCodes.includes(transactionCodeLower);
+          
+          // Plaid categories that indicate income (deposits, transfers in, interest, etc.)
+          const incomeCategories = [
+            'transfer', 'deposit', 'interest', 'dividend', 'salary', 'payroll',
+            'income', 'reimbursement', 'refund', 'payment', 'credit'
+          ];
+          
+          // Plaid categories that indicate expenses (purchases, bills, fees, etc.)
+          const expenseCategories = [
+            'food and drink', 'shops', 'gas stations', 'groceries', 'restaurants',
+            'general merchandise', 'entertainment', 'travel', 'bills', 'utilities',
+            'bank fees', 'atm', 'fees', 'service', 'tax', 'healthcare', 'transportation'
+          ];
+          
+          // Check if category indicates income or expense
+          const categoryIndicatesIncome = incomeCategories.some(cat => 
+            categoryPrimary.includes(cat) || categorySecondary.includes(cat)
+          );
+          const categoryIndicatesExpense = expenseCategories.some(cat => 
+            categoryPrimary.includes(cat) || categorySecondary.includes(cat)
+          );
+          
           if (account?.type === 'credit') {
-            const transactionCode = plaidTx.transaction_code;
-            const categories = Array.isArray(plaidTx.category) ? plaidTx.category : [];
-            const categoryPrimary = categories.length > 0 ? categories[0].toLowerCase() : '';
-            
-            if (
-              transactionCode === 'payment' || 
-              transactionCode === 'credit' || 
-              transactionCode === 'transfer' ||
-              categoryPrimary === 'transfer' ||
-              categoryPrimary === 'payment' ||
-              categoryPrimary === 'bank fees'
-            ) {
-              isExpense = false;
+            // Use transaction_type as primary indicator (most reliable for US/Canada)
+            if (plaidTransactionType === 'place' || plaidTransactionType === 'digital') {
+              isExpense = true;
+            } else if (plaidTransactionType === 'special') {
+              // Use transaction_code as primary indicator if available (European institutions)
+              if (codeIndicatesExpense) {
+                isExpense = true;
+              } else if (codeIndicatesIncome) {
+                isExpense = false;
+              } else if (
+                transactionCode === 'payment' || 
+                transactionCode === 'credit' || 
+                (transactionCode === 'transfer' && plaidTx.amount < 0) ||
+                categoryIndicatesIncome
+              ) {
+                isExpense = false;
+              } else if (categoryIndicatesExpense) {
+                isExpense = true;
+              } else {
+                isExpense = plaidTx.amount > 0;
+              }
             } else {
-              isExpense = plaidTx.amount > 0;
+              // transaction_type is null or "unresolved" - use other indicators
+              if (codeIndicatesExpense) {
+                isExpense = true;
+              } else if (codeIndicatesIncome) {
+                isExpense = false;
+              } else if (
+                transactionCode === 'payment' || 
+                transactionCode === 'credit' || 
+                (transactionCode === 'transfer' && plaidTx.amount < 0) ||
+                categoryIndicatesIncome
+              ) {
+                isExpense = false;
+              } else if (categoryIndicatesExpense) {
+                isExpense = true;
+              } else {
+                isExpense = plaidTx.amount > 0;
+              }
             }
           } else {
-            isExpense = plaidTx.amount < 0;
+            // For deposit accounts: use transaction_type first (most reliable for US/Canada)
+            if (plaidTransactionType === 'place' || plaidTransactionType === 'digital') {
+              // "place" = physical purchase, "digital" = online purchase - both are expenses
+              isExpense = true;
+            } else if (plaidTransactionType === 'special') {
+              // "special" = ATM, transfer, etc. - need to check other indicators
+              if (codeIndicatesExpense) {
+                isExpense = true;
+              } else if (codeIndicatesIncome) {
+                isExpense = false;
+              } else if (codeIsAmbiguous) {
+                const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+                if (categoryIndicatesExpense || (hasMerchantName && !categoryIndicatesIncome)) {
+                  isExpense = true;
+                } else if (categoryIndicatesIncome) {
+                  isExpense = false;
+                } else {
+                  isExpense = plaidTx.amount < 0;
+                }
+              } else if (categoryIndicatesExpense) {
+                isExpense = true;
+              } else if (categoryIndicatesIncome) {
+                isExpense = false;
+              } else {
+                const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+                if (hasMerchantName && !categoryIndicatesIncome) {
+                  isExpense = true;
+                } else {
+                  isExpense = plaidTx.amount < 0;
+                }
+              }
+            } else {
+              // transaction_type is null or "unresolved" - use other indicators
+              if (codeIndicatesExpense) {
+                isExpense = true;
+              } else if (codeIndicatesIncome) {
+                isExpense = false;
+              } else if (codeIsAmbiguous) {
+                const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+                if (categoryIndicatesExpense || (hasMerchantName && !categoryIndicatesIncome)) {
+                  isExpense = true;
+                } else if (categoryIndicatesIncome) {
+                  isExpense = false;
+                } else {
+                  isExpense = plaidTx.amount < 0;
+                }
+              } else if (categoryIndicatesExpense) {
+                isExpense = true;
+              } else if (categoryIndicatesIncome) {
+                isExpense = false;
+              } else {
+                const hasMerchantName = !!(plaidTx.merchant_name || plaidTx.name);
+                if (hasMerchantName && !categoryIndicatesIncome) {
+                  isExpense = true;
+                } else {
+                  const description = (plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || '').toLowerCase();
+                  const isLikelyExpense = description.includes('purchase') || 
+                                         description.includes('payment') || 
+                                         description.includes('debit') ||
+                                         description.includes('withdrawal') ||
+                                         description.includes('pos');
+                  const isLikelyIncome = description.includes('deposit') || 
+                                         description.includes('credit') || 
+                                         description.includes('transfer in') ||
+                                         description.includes('salary') ||
+                                         description.includes('payroll') ||
+                                         description.includes('refund');
+                  
+                  if (isLikelyExpense && !isLikelyIncome) {
+                    isExpense = true;
+                  } else if (isLikelyIncome && !isLikelyExpense) {
+                    isExpense = false;
+                  } else {
+                    isExpense = plaidTx.amount < 0;
+                  }
+                }
+              }
+            }
           }
           const plaidDate = new Date(plaidTx.date + 'T00:00:00');
           const description = plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || 'Plaid Transaction';
           const amount = Math.abs(plaidTx.amount);
           const type = isExpense ? 'expense' : 'income';
 
+          // Convert Plaid transaction to camelCase format
+          const convertedTx = convertPlaidTransactionToCamelCase(plaidTx);
+          
           const plaidMetadata: PlaidTransactionMetadata = {
-            category: plaidTx.category || null,
-            category_id: plaidTx.category_id || null,
-            pending: plaidTx.pending || false,
-            authorized_date: plaidTx.authorized_date || null,
-            authorized_datetime: plaidTx.authorized_datetime || null,
-            datetime: plaidTx.datetime || null,
-            iso_currency_code: plaidTx.iso_currency_code || null,
-            unofficial_currency_code: plaidTx.unofficial_currency_code || null,
-            transaction_code: plaidTx.transaction_code || null,
-            account_owner: plaidTx.account_owner || null,
-            pending_transaction_id: plaidTx.pending_transaction_id || null,
+            // Categories
+            category: convertedTx.category || plaidTx.category || null,
+            categoryId: convertedTx.categoryId || plaidTx.category_id || null,
+            
+            // Transaction type and codes
+            transactionType: convertedTx.transactionType || plaidTx.transaction_type || null,
+            transactionCode: convertedTx.transactionCode || plaidTx.transaction_code || null,
+            
+            // Status and dates
+            pending: convertedTx.pending !== undefined ? convertedTx.pending : (plaidTx.pending || false),
+            authorizedDate: convertedTx.authorizedDate || plaidTx.authorized_date || null,
+            authorizedDatetime: convertedTx.authorizedDatetime || plaidTx.authorized_datetime || null,
+            datetime: convertedTx.datetime || plaidTx.datetime || null,
+            
+            // Currency
+            isoCurrencyCode: convertedTx.isoCurrencyCode || plaidTx.iso_currency_code || null,
+            unofficialCurrencyCode: convertedTx.unofficialCurrencyCode || plaidTx.unofficial_currency_code || null,
+            
+            // Merchant information
+            merchantName: convertedTx.merchantName || plaidTx.merchant_name || null,
+            merchantEntityId: convertedTx.merchantEntityId || plaidTx.merchant_entity_id || null,
+            logoUrl: convertedTx.logoUrl || plaidTx.logo_url || null,
+            website: convertedTx.website || plaidTx.website || null,
+            
+            // Personal finance category
+            personalFinanceCategory: convertedTx.personalFinanceCategory || plaidTx.personal_finance_category || null,
+            personalFinanceCategoryIconUrl: convertedTx.personalFinanceCategoryIconUrl || plaidTx.personal_finance_category_icon_url || null,
+            
+            // Location
+            location: convertedTx.location || plaidTx.location || null,
+            
+            // Counterparties
+            counterparties: convertedTx.counterparties || plaidTx.counterparties || null,
+            
+            // Payment information
+            paymentChannel: convertedTx.paymentChannel || plaidTx.payment_channel || null,
+            paymentMeta: convertedTx.paymentMeta || plaidTx.payment_meta || null,
+            
+            // Account and transaction relationships
+            accountOwner: convertedTx.accountOwner || plaidTx.account_owner || null,
+            pendingTransactionId: convertedTx.pendingTransactionId || plaidTx.pending_transaction_id || null,
+            checkNumber: convertedTx.checkNumber || plaidTx.check_number || null,
           };
 
-          await supabase
+          const { error: updateError3 } = await supabase
             .from('Transaction')
             .update({
               date: formatTimestamp(plaidDate),
@@ -497,6 +966,36 @@ export async function syncAccountTransactions(
               updatedAt: formatTimestamp(new Date()),
             })
             .eq('id', existingTransactionId);
+
+          if (updateError3) {
+            console.error('Error updating existing transaction with metadata:', {
+              transactionId: existingTransactionId,
+              plaidTransactionId: plaidTx.transaction_id,
+              error: updateError3,
+            });
+            errors++;
+          } else {
+            console.log('Existing transaction updated with Plaid metadata:', {
+              transactionId: existingTransactionId,
+              hasMetadata: !!plaidMetadata,
+              pending: plaidMetadata.pending,
+            });
+
+            // Update TransactionSync record
+            const { error: syncUpdateError } = await supabase
+              .from('TransactionSync')
+              .update({
+                syncDate: formatTimestamp(new Date()),
+                status: 'synced',
+              })
+              .eq('transactionId', existingTransactionId)
+              .eq('plaidTransactionId', plaidTx.transaction_id);
+
+            if (syncUpdateError) {
+              console.error('Error updating TransactionSync record:', syncUpdateError);
+              // Don't increment errors for this, as the main transaction was updated successfully
+            }
+          }
         } catch (error) {
           console.error('Error updating modified transaction:', plaidTx.transaction_id, error);
           errors++;

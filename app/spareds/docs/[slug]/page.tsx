@@ -80,8 +80,9 @@ const color = getToken('component.button.primary.bg');`}</code>
   },
 };
 
-export default function DocPage({ params }: { params: { slug: string } }) {
-  const page = docPages[params.slug as keyof typeof docPages];
+export default function DocPage({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = React.use(params);
+  const page = docPages[resolvedParams.slug as keyof typeof docPages];
 
   if (!page) {
     return (

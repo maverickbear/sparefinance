@@ -19,6 +19,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes in seconds
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Get email from props or search params
@@ -38,6 +39,30 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   useEffect(() => {
     inputRefs.current[0]?.focus();
   }, []);
+
+  // Countdown timer for OTP expiration
+  useEffect(() => {
+    if (timeRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeRemaining]);
+
+  // Format time as MM:SS
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
 
   // Handle OTP input change
   const handleOtpChange = (index: number, value: string) => {
@@ -327,6 +352,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         inputRefs.current[0]?.focus();
         setError(null);
         setSuccessMessage("Code resent successfully! Please check your inbox.");
+        setTimeRemaining(300); // Reset timer to 5 minutes
         setTimeout(() => setSuccessMessage(null), 5000);
       } else {
         // If API route fails, show error (don't use fallback to avoid duplicate emails)
@@ -369,6 +395,16 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
           <p className="text-sm text-muted-foreground">
             Enter the 6-digit code sent to <span className="font-medium">{email}</span>
           </p>
+          {timeRemaining > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Code expires in: <span className="font-medium text-foreground">{formatTime(timeRemaining)}</span>
+            </p>
+          )}
+          {timeRemaining === 0 && (
+            <p className="text-sm text-destructive font-medium">
+              Code has expired. Please request a new one.
+            </p>
+          )}
         </div>
 
         <div className="flex gap-2 justify-center">

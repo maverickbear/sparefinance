@@ -21,7 +21,7 @@ const CsvImportDialog = dynamic(() => import("@/components/forms/csv-import-dial
 const CategorySelectionDialog = dynamic(() => import("@/components/transactions/category-selection-dialog").then(m => ({ default: m.CategorySelectionDialog })), { ssr: false });
 const BlockedFeature = dynamic(() => import("@/components/common/blocked-feature").then(m => ({ default: m.BlockedFeature })), { ssr: false });
 import { formatMoney } from "@/components/common/money";
-import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, ChevronLeft, ChevronRight, Filter, Calendar, Wallet, Tag, Type, XCircle, Receipt } from "lucide-react";
+import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, ChevronLeft, ChevronRight, Filter, Calendar, Wallet, Tag, Type, XCircle, Receipt, RefreshCw } from "lucide-react";
 import { TransactionsMobileCard } from "@/components/transactions/transactions-mobile-card";
 import {
   Select,
@@ -209,6 +209,7 @@ export default function TransactionsPage() {
 
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingMultiple, setDeletingMultiple] = useState(false);
   const [updatingTypes, setUpdatingTypes] = useState(false);
@@ -634,6 +635,43 @@ export default function TransactionsPage() {
       setActiveCategoryIds(activeCategories);
     } catch (error) {
       logger.error("Error loading data:", error);
+    }
+  }
+
+  async function handleSyncAll() {
+    try {
+      setSyncingAll(true);
+      const response = await fetch('/api/plaid/sync-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync transactions');
+      }
+
+      toast({
+        title: 'Transactions synced',
+        description: `Synced ${data.synced} new transactions from ${data.accounts} account${data.accounts !== 1 ? 's' : ''}. ${data.skipped} were skipped.`,
+        variant: 'success',
+      });
+
+      // Reload transactions to show newly synced ones
+      await loadTransactions(true);
+      
+      // Refresh router to update dashboard and other pages
+      router.refresh();
+    } catch (error: any) {
+      console.error('Error syncing transactions:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to sync transactions',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingAll(false);
     }
   }
 
@@ -1682,6 +1720,25 @@ export default function TransactionsPage() {
           <Button 
             variant="outline"
             size="medium"
+            onClick={handleSyncAll}
+            disabled={syncingAll}
+            className="text-xs md:text-sm"
+          >
+            {syncingAll ? (
+              <>
+                <Loader2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2 animate-spin" />
+                <span className="hidden md:inline">Syncing...</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+                <span className="hidden md:inline">Sync Accounts</span>
+              </>
+            )}
+          </Button>
+          <Button 
+            variant="outline"
+            size="medium"
             onClick={() => setIsFiltersModalOpen(true)} 
             className="text-xs md:text-sm hidden lg:flex"
           >
@@ -1867,9 +1924,12 @@ export default function TransactionsPage() {
             ) : (
               paginatedTransactions.map((tx) => {
                 const plaidMeta = tx.plaidMetadata as any;
+                // Support both camelCase (new) and snake_case (old) for backward compatibility
                 const isPending = plaidMeta?.pending;
-                const authorizedDate = plaidMeta?.authorized_date || plaidMeta?.authorized_datetime;
-                const currencyCode = plaidMeta?.iso_currency_code || plaidMeta?.unofficial_currency_code;
+                const authorizedDate = plaidMeta?.authorizedDate || plaidMeta?.authorizedDatetime || 
+                                      plaidMeta?.authorized_date || plaidMeta?.authorized_datetime;
+                const currencyCode = plaidMeta?.isoCurrencyCode || plaidMeta?.unofficialCurrencyCode ||
+                                     plaidMeta?.iso_currency_code || plaidMeta?.unofficial_currency_code;
                 
                 return (
               <TableRow key={tx.id}>

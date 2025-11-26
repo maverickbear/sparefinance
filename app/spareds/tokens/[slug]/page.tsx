@@ -26,8 +26,9 @@ const tokenPages = {
   },
 };
 
-export default function TokenPage({ params }: { params: { slug: string } }) {
-  const page = tokenPages[params.slug as keyof typeof tokenPages];
+export default function TokenPage({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = React.use(params);
+  const page = tokenPages[resolvedParams.slug as keyof typeof tokenPages];
 
   if (!page) {
     return (
