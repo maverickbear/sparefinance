@@ -1025,7 +1025,8 @@ COMMENT ON FUNCTION "public"."validate_invitation_token"("p_token" "text") IS 'V
 
 
 CREATE OR REPLACE FUNCTION "public"."validate_plan_features"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $$
 DECLARE
   required_features text[] := ARRAY[
@@ -1115,7 +1116,7 @@ $$;
 ALTER FUNCTION "public"."validate_plan_features"() OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."validate_plan_features"() IS 'Validates that Plan.features JSONB column has the correct structure and types. Ensures all required features exist and have correct types.';
+COMMENT ON FUNCTION "public"."validate_plan_features"() IS 'Secure function to validate plan features. Uses SET search_path = '' to prevent schema injection attacks.';
 
 
 SET default_tablespace = '';
@@ -1150,6 +1151,7 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
     "plaidVerificationName" "text",
     "plaidAvailableBalance" numeric,
     "plaidUnofficialCurrencyCode" "text",
+    CONSTRAINT "Account_currency_exclusive_check" CHECK ((NOT (("plaidUnofficialCurrencyCode" IS NOT NULL) AND ("plaidUnofficialCurrencyCode" <> ''::"text") AND (("currencyCode" IS NOT NULL) AND ("currencyCode" <> ''::"text"))))),
     CONSTRAINT "Account_type_check" CHECK (("type" = ANY (ARRAY['cash'::"text", 'checking'::"text", 'savings'::"text", 'credit'::"text", 'investment'::"text", 'other'::"text"])))
 );
 
@@ -1194,6 +1196,10 @@ COMMENT ON COLUMN "public"."Account"."plaidAvailableBalance" IS 'Available balan
 
 
 COMMENT ON COLUMN "public"."Account"."plaidUnofficialCurrencyCode" IS 'Unofficial currency code for cryptocurrencies and non-ISO currencies. Only set when iso_currency_code is null.';
+
+
+
+COMMENT ON CONSTRAINT "Account_currency_exclusive_check" ON "public"."Account" IS 'Ensures currencyCode and plaidUnofficialCurrencyCode are mutually exclusive. ISO currency codes take precedence over unofficial codes (crypto).';
 
 
 
@@ -2827,6 +2833,22 @@ CREATE INDEX "AccountOwner_ownerId_idx" ON "public"."AccountOwner" USING "btree"
 
 
 CREATE INDEX "Account_householdId_idx" ON "public"."Account" USING "btree" ("householdId");
+
+
+
+CREATE INDEX "Account_plaidAccountId_idx" ON "public"."Account" USING "btree" ("plaidAccountId") WHERE ("plaidAccountId" IS NOT NULL);
+
+
+
+COMMENT ON INDEX "public"."Account_plaidAccountId_idx" IS 'Performance index on plaidAccountId for faster lookups during transaction sync operations. Partial index (only when not null).';
+
+
+
+CREATE UNIQUE INDEX "Account_plaidAccountId_unique" ON "public"."Account" USING "btree" ("plaidAccountId") WHERE ("plaidAccountId" IS NOT NULL);
+
+
+
+COMMENT ON INDEX "public"."Account_plaidAccountId_unique" IS 'Unique index on plaidAccountId to prevent duplicate account imports from Plaid. Partial index (only when not null) to allow manual accounts.';
 
 
 

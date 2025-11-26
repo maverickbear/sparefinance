@@ -241,6 +241,32 @@ export default function TransactionsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // OPTIMIZED: Cache mobile detection to avoid repeated window.innerWidth checks
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Update mobile detection on mount and window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(typeof window !== 'undefined' && window.innerWidth < 1024);
+    };
+    
+    // Check on mount
+    checkMobile();
+    
+    // Listen for resize events (debounced)
+    let resizeTimeout: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(checkMobile, 150);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
+    };
+  }, []);
 
   // Focus date input when editing starts
   useEffect(() => {
@@ -334,8 +360,7 @@ export default function TransactionsPage() {
   // Infinite scroll for mobile - always loads 10 items at a time
   useEffect(() => {
     // Only enable infinite scroll on mobile
-    if (typeof window === 'undefined') return;
-    const isMobile = window.innerWidth < 1024; // lg breakpoint
+    // OPTIMIZED: Use cached mobile detection state
     if (!isMobile) return;
 
     // Don't load more if we're already loading, at the last page, or have no more transactions
@@ -360,7 +385,7 @@ export default function TransactionsPage() {
     return () => {
       observer.disconnect();
     };
-  }, [loading, loadingMore, currentPage, totalPages, transactions.length]);
+  }, [loading, loadingMore, currentPage, totalPages, transactions.length, isMobile]);
 
   // Reset loadingMore when transactions are loaded
   useEffect(() => {
@@ -698,7 +723,7 @@ export default function TransactionsPage() {
 
       // Add pagination parameters
       // For mobile infinite scroll, always use 10 items per page
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+      // OPTIMIZED: Use cached mobile detection state
       const limit = isMobile ? 10 : itemsPerPage;
       params.append("page", currentPage.toString());
       params.append("limit", limit.toString());
@@ -764,21 +789,37 @@ export default function TransactionsPage() {
         return;
       }
       
-      // For mobile infinite scroll: accumulate transactions
-      // For desktop: replace transactions (normal pagination)
-      if (currentPage === 1) {
-        // First page: replace all
-        setTransactions(newTransactions);
-        setAllTransactions(newTransactions);
+      // OPTIMIZED: Handle pagination differently for mobile vs desktop
+      // Mobile: accumulate transactions for infinite scroll
+      // Desktop: always replace transactions (normal pagination)
+      if (isMobile) {
+        // Mobile infinite scroll: accumulate transactions
+        if (currentPage === 1) {
+          // First page: replace all (reset accumulated list)
+          setTransactions(newTransactions);
+          setAllTransactions(newTransactions);
+        } else {
+          // Subsequent pages: add to accumulated list for infinite scroll
+          setTransactions(newTransactions);
+          setAllTransactions(prev => {
+            // Avoid duplicates by checking IDs
+            const existingIds = new Set(prev.map(t => t.id));
+            const uniqueNew = newTransactions.filter(t => !existingIds.has(t.id));
+            return [...prev, ...uniqueNew];
+          });
+        }
       } else {
-        // Subsequent pages: add to accumulated list for mobile
+        // Desktop: always replace transactions (normal pagination)
+        // Clear accumulated transactions to free memory
         setTransactions(newTransactions);
-        setAllTransactions(prev => {
-          // Avoid duplicates by checking IDs
-          const existingIds = new Set(prev.map(t => t.id));
-          const uniqueNew = newTransactions.filter(t => !existingIds.has(t.id));
-          return [...prev, ...uniqueNew];
-        });
+        // Only keep allTransactions if we're on page 1 (for consistency)
+        if (currentPage === 1) {
+          setAllTransactions(newTransactions);
+        } else {
+          // Clear accumulated transactions on desktop when navigating pages
+          // This prevents memory buildup when user navigates between pages
+          setAllTransactions([]);
+        }
       }
       
       // Mark data as loaded for performance tracking
@@ -2223,7 +2264,14 @@ export default function TransactionsPage() {
             <Button
               variant="outline"
               size="small"
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              onClick={() => {
+                const newPage = Math.max(1, currentPage - 1);
+                setCurrentPage(newPage);
+                // OPTIMIZED: Clear accumulated transactions on desktop when navigating pages
+                if (!isMobile && newPage !== currentPage) {
+                  setAllTransactions([]);
+                }
+              }}
               disabled={currentPage === 1 || loading}
               className="h-9"
             >
@@ -2249,7 +2297,13 @@ export default function TransactionsPage() {
                     key={pageNum}
                     variant={currentPage === pageNum ? "default" : "outline"}
                     size="small"
-                    onClick={() => setCurrentPage(pageNum)}
+                    onClick={() => {
+                      setCurrentPage(pageNum);
+                      // OPTIMIZED: Clear accumulated transactions on desktop when navigating pages
+                      if (!isMobile && pageNum !== currentPage) {
+                        setAllTransactions([]);
+                      }
+                    }}
                     disabled={loading}
                     className="h-9 w-9"
                   >
@@ -2262,7 +2316,14 @@ export default function TransactionsPage() {
             <Button
               variant="outline"
               size="small"
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              onClick={() => {
+                const newPage = Math.min(totalPages, currentPage + 1);
+                setCurrentPage(newPage);
+                // OPTIMIZED: Clear accumulated transactions on desktop when navigating pages
+                if (!isMobile && newPage !== currentPage) {
+                  setAllTransactions([]);
+                }
+              }}
               disabled={currentPage === totalPages || loading}
               className="h-9"
             >
