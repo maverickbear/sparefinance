@@ -197,23 +197,30 @@ export async function updateAllSecurityPrices() {
     // Check if price already exists for today
     const { data: existingPrice } = await supabase
       .from("SecurityPrice")
-      .select("id")
+      .select("id, price")
       .eq("securityId", security.id)
       .eq("date", todayTimestamp)
       .single();
 
     if (existingPrice) {
-      // Update existing price
-      const { error: updateError } = await supabase
-        .from("SecurityPrice")
-        .update({ price })
-        .eq("id", existingPrice.id);
+      // Only update if price has changed (avoid unnecessary updates)
+      const priceDifference = Math.abs(existingPrice.price - price);
+      const priceChangePercent = (priceDifference / existingPrice.price) * 100;
+      
+      // Update if price changed by more than 0.01% (to handle floating point precision)
+      if (priceChangePercent > 0.01) {
+        const { error: updateError } = await supabase
+          .from("SecurityPrice")
+          .update({ price })
+          .eq("id", existingPrice.id);
 
-      if (updateError) {
-        errors.push(`Failed to update price for ${security.symbol}: ${updateError.message}`);
-      } else {
-        updated++;
+        if (updateError) {
+          errors.push(`Failed to update price for ${security.symbol}: ${updateError.message}`);
+        } else {
+          updated++;
+        }
       }
+      // If price hasn't changed, don't count as updated
     } else {
       // Create new price entry
       const id = crypto.randomUUID();

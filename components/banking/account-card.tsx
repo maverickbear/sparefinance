@@ -11,12 +11,22 @@ import { cn } from "@/lib/utils";
 
 // Helper function to get initials from name
 function getInitials(name: string | null | undefined): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) {
-    return parts[0].substring(0, 2).toUpperCase();
+  try {
+    if (!name) return "?";
+    const trimmed = name.trim();
+    if (!trimmed) return "?";
+    const parts = trimmed.split(/\s+/).filter(p => p.length > 0);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) {
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+    const first = parts[0][0] || "";
+    const last = parts[parts.length - 1][0] || "";
+    return (first + last).toUpperCase() || "?";
+  } catch (error) {
+    console.error("Error getting initials:", error);
+    return "?";
   }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export interface AccountCardProps {
@@ -243,11 +253,23 @@ export function AccountCard({
               </div>
             </div>
           )}
-          {account.isConnected && account.lastSyncedAt && (
-            <div className="text-sm text-muted-foreground pt-2 border-t">
-              Last synced: {format(new Date(account.lastSyncedAt), 'MMM dd, HH:mm')}
-            </div>
-          )}
+          {account.isConnected && account.lastSyncedAt && (() => {
+            try {
+              const syncDate = new Date(account.lastSyncedAt);
+              // Check if date is valid
+              if (isNaN(syncDate.getTime())) {
+                return null;
+              }
+              return (
+                <div className="text-sm text-muted-foreground pt-2 border-t">
+                  Last synced: {format(syncDate, 'MMM dd, HH:mm')}
+                </div>
+              );
+            } catch (error) {
+              console.error("Error formatting lastSyncedAt:", error);
+              return null;
+            }
+          })()}
         </div>
       </CardContent>
     </Card>

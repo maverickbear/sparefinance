@@ -399,9 +399,19 @@ export default function InvestmentsPage() {
                       if (response.ok) {
                         const result = await response.json();
                         loadPortfolioData();
+                        
+                        // Build error message with details
+                        let errorMessage = "";
+                        if (result.errors && result.errors.length > 0) {
+                          const errorCount = result.errors.length;
+                          const firstErrors = result.errors.slice(0, 3).join("; ");
+                          const moreErrors = errorCount > 3 ? ` (and ${errorCount - 3} more)` : "";
+                          errorMessage = `. ${errorCount} error${errorCount > 1 ? "s" : ""} occurred: ${firstErrors}${moreErrors}`;
+                        }
+                        
                         toast({
                           title: "Prices updated",
-                          description: `Updated ${result.updated || 0} security prices${result.errors && result.errors.length > 0 ? `. ${result.errors.length} errors occurred.` : "."}`,
+                          description: `Updated ${result.updated || 0} security price${result.updated !== 1 ? "s" : ""}${errorMessage || "."}`,
                           variant: result.errors && result.errors.length > 0 ? "default" : "success",
                         });
                       } else {

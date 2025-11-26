@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Button } from "@/components/ui/button";
 import { Plus, CreditCard, Edit, Trash2, Loader2, RefreshCw, Unlink } from "lucide-react";
@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/components/common/money";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/common/error-boundary";
 
 interface Account {
   id: string;
@@ -52,12 +53,22 @@ interface Account {
 
 // Helper function to get initials from name
 function getInitials(name: string | null | undefined): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) {
-    return parts[0].substring(0, 2).toUpperCase();
+  try {
+    if (!name) return "?";
+    const trimmed = name.trim();
+    if (!trimmed) return "?";
+    const parts = trimmed.split(/\s+/).filter(p => p.length > 0);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) {
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+    const first = parts[0][0] || "";
+    const last = parts[parts.length - 1][0] || "";
+    return (first + last).toUpperCase() || "?";
+  } catch (error) {
+    console.error("Error getting initials:", error);
+    return "?";
   }
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export default function AccountsPage() {
@@ -82,11 +93,7 @@ export default function AccountsPage() {
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [isAddAccountSheetOpen, setIsAddAccountSheetOpen] = useState(false);
 
-  useEffect(() => {
-    loadAccounts();
-  }, []);
-
-  async function loadAccounts() {
+  const loadAccounts = useCallback(async () => {
     try {
       setLoading(true);
       const { getAccountsClient } = await import("@/lib/api/accounts-client");
@@ -94,15 +101,31 @@ export default function AccountsPage() {
       const data = await getAccountsClient({ includeInvestmentBalances: false });
       setAccounts(data);
       setHasLoaded(true);
-      perf.markDataLoaded();
+      // Safely call markDataLoaded - perf object should always exist but add safety check
+      if (perf?.markDataLoaded) {
+        perf.markDataLoaded();
+      }
     } catch (error) {
       console.error("Error loading accounts:", error);
       setHasLoaded(true);
-      perf.markDataLoaded();
+      // Safely call markDataLoaded even on error
+      if (perf?.markDataLoaded) {
+        perf.markDataLoaded();
+      }
+      // Show error toast to user
+      toast({
+        title: "Error loading accounts",
+        description: "Failed to load accounts. Please try refreshing the page.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
-  }
+  }, [perf, toast]);
+
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
 
   async function loadAccountLimit() {
     try {
@@ -347,10 +370,11 @@ export default function AccountsPage() {
 
 
   return (
-    <div>
-      <PageHeader
-        title="Accounts"
-      >
+    <ErrorBoundary>
+      <div>
+        <PageHeader
+          title="Accounts"
+        >
         <div className="flex gap-2">
           <ConnectBankButton
             onSuccess={() => {
@@ -590,11 +614,23 @@ export default function AccountsPage() {
                                 Connected
                               </Badge>
                             )}
-                            {account.isConnected && account.lastSyncedAt && (
-                              <div className="text-xs text-muted-foreground">
-                                {format(new Date(account.lastSyncedAt), 'MMM dd, HH:mm')}
-                              </div>
-                            )}
+                            {account.isConnected && account.lastSyncedAt && (() => {
+                              try {
+                                const syncDate = new Date(account.lastSyncedAt);
+                                // Check if date is valid
+                                if (isNaN(syncDate.getTime())) {
+                                  return null;
+                                }
+                                return (
+                                  <div className="text-xs text-muted-foreground">
+                                    {format(syncDate, 'MMM dd, HH:mm')}
+                                  </div>
+                                );
+                              } catch (error) {
+                                console.error("Error formatting lastSyncedAt:", error);
+                                return null;
+                              }
+                            })()}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -825,7 +861,8 @@ export default function AccountsPage() {
         }}
         canWrite={canWrite}
       />
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 

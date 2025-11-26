@@ -11,6 +11,8 @@ import Link from "next/link";
 import { Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { GoogleSignInButton } from "./google-signin-button";
 import { VerifyLoginOtpForm } from "./verify-login-otp-form";
+import { isTrustedBrowser } from "@/lib/utils/trusted-browser";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -143,32 +145,128 @@ function LoginFormContent() {
       setLoading(true);
       setError(null);
 
-      // Send OTP for login (this validates credentials first)
-      const response = await fetch("/api/auth/send-login-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-        }),
-      });
+      // Check if browser is trusted
+      const isTrusted = isTrustedBrowser(data.email);
 
-      const result = await response.json();
+      if (isTrusted) {
+        // Browser is trusted - sign in directly without OTP
+        console.log("[LOGIN] Trusted browser detected, signing in directly");
+        
+        const response = await fetch("/api/auth/login-trusted", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+          }),
+        });
 
-      if (!response.ok) {
-        setError(result.error || "Failed to send verification code");
+        const result = await response.json();
+
+        if (!response.ok) {
+          setError(result.error || "Failed to sign in");
+          setLoading(false);
+          return;
+        }
+
+        // Sign in successful - sync session and redirect
+        try {
+          // Sync session with server
+          await fetch("/api/auth/sync-session", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          // Preload user data
+          await preloadUserData();
+
+          // Check maintenance mode
+          let isMaintenanceMode = false;
+          try {
+            const maintenanceResponse = await fetch("/api/system-settings/public");
+            if (maintenanceResponse.ok) {
+              const maintenanceData = await maintenanceResponse.json();
+              isMaintenanceMode = maintenanceData.maintenanceMode || false;
+            }
+          } catch (maintenanceError) {
+            console.error("Error checking maintenance mode:", maintenanceError);
+          }
+
+          // If maintenance mode is active, check if user is super_admin
+          if (isMaintenanceMode) {
+            const { getUserRoleClient } = await import("@/lib/api/members-client");
+            const role = await getUserRoleClient();
+
+            if (role !== "super_admin") {
+              router.push("/maintenance");
+              return;
+            }
+          }
+
+          // Handle invitation if present
+          if (invitationToken) {
+            try {
+              const acceptResponse = await fetch("/api/members/invite/accept", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token: invitationToken }),
+              });
+
+              if (acceptResponse.ok) {
+                console.log("Invitation accepted after login");
+              }
+            } catch (acceptError) {
+              console.error("Error accepting invitation:", acceptError);
+            }
+          }
+
+          // Store that password was the last used authentication method
+          if (typeof window !== "undefined") {
+            localStorage.setItem("lastAuthMethod", "password");
+          }
+
+          // Redirect to dashboard
+          const timestamp = Date.now();
+          window.location.replace(`/dashboard?_t=${timestamp}`);
+        } catch (error) {
+          console.error("Error after trusted login:", error);
+          // Even if there's an error, try to redirect
+          const timestamp = Date.now();
+          window.location.replace(`/dashboard?_t=${timestamp}`);
+        }
+      } else {
+        // Browser is not trusted - proceed with OTP flow
+        const response = await fetch("/api/auth/send-login-otp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          setError(result.error || "Failed to send verification code");
+          setLoading(false);
+          return;
+        }
+
+        // OTP sent successfully - show OTP form
+        setLoginEmail(data.email);
+        setShowOtpForm(true);
         setLoading(false);
-        return;
       }
-
-      // OTP sent successfully - show OTP form
-      setLoginEmail(data.email);
-      setShowOtpForm(true);
-      setLoading(false);
     } catch (error) {
-      console.error("Error sending login OTP:", error);
+      console.error("Error during login:", error);
       setError("An unexpected error occurred");
       setLoading(false);
     }

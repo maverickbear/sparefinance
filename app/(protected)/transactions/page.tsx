@@ -227,7 +227,6 @@ export default function TransactionsPage() {
   const loadTransactionsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dateInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
   const descriptionInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
-  const loadMoreRef = useRef<HTMLDivElement>(null);
   const pullToRefreshRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number>(0);
   const touchCurrentY = useRef<number>(0);
@@ -357,42 +356,20 @@ export default function TransactionsPage() {
     return Math.ceil(totalTransactions / itemsPerPage);
   }, [totalTransactions, itemsPerPage]);
 
-  // Infinite scroll for mobile - always loads 10 items at a time
-  useEffect(() => {
-    // Only enable infinite scroll on mobile
-    // OPTIMIZED: Use cached mobile detection state
-    if (!isMobile) return;
-
-    // Don't load more if we're already loading, at the last page, or have no more transactions
-    if (loading || loadingMore || currentPage >= totalPages || transactions.length === 0 || totalPages === 0) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !loading && !loadingMore && currentPage < totalPages) {
-          setLoadingMore(true);
-          setCurrentPage(prev => prev + 1);
-        }
-      },
-      { rootMargin: "200px" } // Start loading 200px before reaching the end
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [loading, loadingMore, currentPage, totalPages, transactions.length, isMobile]);
-
   // Reset loadingMore when transactions are loaded
   useEffect(() => {
     if (!loading) {
       setLoadingMore(false);
     }
   }, [loading]);
+
+  // Handle Load More button click for mobile
+  const handleLoadMore = () => {
+    if (!isMobile) return;
+    if (loading || loadingMore || currentPage >= totalPages) return;
+    setLoadingMore(true);
+    setCurrentPage(prev => prev + 1);
+  };
 
   // Pull to refresh for mobile
   useEffect(() => {
@@ -1783,9 +1760,9 @@ export default function TransactionsPage() {
           </Button>
           <Button 
             variant="outline"
-            size="medium"
+            size="small"
             onClick={() => setIsFiltersModalOpen(true)} 
-            className="text-xs md:text-sm hidden lg:flex"
+            className="text-xs md:text-sm"
           >
             <Filter className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
             <span className="hidden md:inline">Filters</span>
@@ -1919,12 +1896,24 @@ export default function TransactionsPage() {
               />
             );
             })}
-            {/* Infinite scroll sentinel */}
-            {currentPage < totalPages && (
-              <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
-                {loadingMore && (
-                  <div className="text-sm text-muted-foreground">Loading more...</div>
-                )}
+            {/* Load More button for mobile */}
+            {isMobile && currentPage < totalPages && (
+              <div className="flex items-center justify-center py-6">
+                <Button
+                  onClick={handleLoadMore}
+                  disabled={loading || loadingMore}
+                  variant="outline"
+                  className="w-full max-w-xs"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Load More"
+                  )}
+                </Button>
               </div>
             )}
           </>
@@ -2632,25 +2621,6 @@ export default function TransactionsPage() {
       {DeleteConfirmDialog}
       {DeleteMultipleConfirmDialog}
 
-      {/* Filter Button - Fixed above bottom nav on mobile */}
-      {transactions.length > 0 && (
-        <div className="fixed bottom-[64px] left-0 right-0 z-[50] lg:hidden bg-card border-t shadow-sm">
-          <Button 
-            variant="default"
-            size="small"
-            onClick={() => setIsFiltersModalOpen(true)}
-            className="w-full rounded-none text-xs h-12"
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-            {(filters.accountId !== "all" || filters.search || filters.recurring !== "all" || dateRange !== "all-dates" || customDateRange || filters.categoryId !== "all") && (
-              <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
-                Active
-              </Badge>
-            )}
-          </Button>
-        </div>
-      )}
 
     </SimpleTabs>
   );

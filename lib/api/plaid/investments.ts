@@ -6,6 +6,35 @@ import { formatTimestamp } from '@/lib/utils/timestamp';
 import { InvestmentTransactionType } from 'plaid';
 
 /**
+ * Map Plaid security type to our security class
+ */
+function mapPlaidSecurityTypeToClass(plaidType: string | undefined | null): "stock" | "etf" | "crypto" | "bond" | "reit" {
+  if (!plaidType) return "stock";
+  
+  const normalizedType = plaidType.toLowerCase().trim();
+  
+  // Map common Plaid types to our classes
+  if (normalizedType.includes("etf") || normalizedType === "etf") {
+    return "etf";
+  }
+  if (normalizedType.includes("crypto") || normalizedType === "crypto") {
+    return "crypto";
+  }
+  if (normalizedType.includes("bond") || normalizedType === "bond") {
+    return "bond";
+  }
+  if (normalizedType.includes("reit") || normalizedType === "reit") {
+    return "reit";
+  }
+  if (normalizedType.includes("mutual") || normalizedType === "mutual fund") {
+    return "etf"; // Treat mutual funds as ETFs
+  }
+  
+  // Default to stock
+  return "stock";
+}
+
+/**
  * Sync investment accounts, holdings, and transactions from Plaid
  */
 export async function syncInvestmentAccounts(
@@ -126,14 +155,16 @@ export async function syncInvestmentAccounts(
         // Find or create the account in our database
         const { data: existingAccount } = await supabase
           .from('Account')
-          .select('id')
+          .select('id, householdId')
           .eq('plaidAccountId', plaidAccount.account_id)
           .single();
 
         let accountId: string;
+        let householdId: string | null = null;
 
         if (existingAccount) {
           accountId = existingAccount.id;
+          householdId = existingAccount.householdId;
         } else {
           // Account should have been created in exchange-public-token
           // But if it wasn't, we'll skip it
@@ -160,13 +191,30 @@ export async function syncInvestmentAccounts(
               continue;
             }
 
+            // Normalize symbol for matching - Plaid may use different formats
+            const plaidSymbol = security.ticker_symbol || security.name || '';
+            const normalizedPlaidSymbol = plaidSymbol.toUpperCase().trim();
+            
             // Find or create Security in our database
+            // Try exact match first, then try case-insensitive match
             let securityId: string;
-            const { data: existingSecurity } = await supabase
+            let { data: existingSecurity } = await supabase
               .from('Security')
               .select('id')
-              .eq('symbol', security.ticker_symbol || security.name)
+              .eq('symbol', normalizedPlaidSymbol)
               .single();
+
+            // If not found, try case-insensitive search
+            if (!existingSecurity && normalizedPlaidSymbol) {
+              const { data: securitiesList } = await supabase
+                .from('Security')
+                .select('id, symbol')
+                .ilike('symbol', normalizedPlaidSymbol);
+              
+              if (securitiesList && securitiesList.length > 0) {
+                existingSecurity = securitiesList[0];
+              }
+            }
 
             if (existingSecurity) {
               securityId = existingSecurity.id;
@@ -194,11 +242,15 @@ export async function syncInvestmentAccounts(
             } else {
               // Create new Security
               securityId = crypto.randomUUID();
+              const securityClass = mapPlaidSecurityTypeToClass(security.type);
+              
+              console.log(`[PLAID INVESTMENTS] Creating new security: ${normalizedPlaidSymbol} (${security.name || 'Unknown'}) - type: ${security.type} -> class: ${securityClass}`);
+              
               const { error: securityError } = await supabase.from('Security').insert({
                 id: securityId,
-                symbol: security.ticker_symbol || security.name || 'UNKNOWN',
+                symbol: normalizedPlaidSymbol || 'UNKNOWN',
                 name: security.name || security.ticker_symbol || 'Unknown Security',
-                class: security.type || 'other',
+                class: securityClass,
                 sector: null, // Plaid doesn't provide sector
                 closePrice: (security as any).close_price || null,
                 closePriceAsOf: (security as any).close_price ? formatTimestamp(new Date()) : null,
@@ -208,17 +260,90 @@ export async function syncInvestmentAccounts(
               });
 
               if (securityError) {
-                console.error('Error creating security:', securityError);
+                console.error(`[PLAID INVESTMENTS] Error creating security ${normalizedPlaidSymbol}:`, securityError);
                 errors++;
                 continue;
               }
             }
 
-            // Sum the holding value to total account value
+            // Calculate holding values
+            const holdingQuantity = holding.quantity || 0;
             const holdingValue = holding.institution_value || 0;
-            totalAccountValue += holdingValue;
+            const currentPrice = holdingValue > 0 && holdingQuantity > 0 
+              ? holdingValue / holdingQuantity 
+              : (security as any).close_price || 0;
+            const averagePrice = holding.cost_basis?.amount 
+              ? holding.cost_basis.amount / (holdingQuantity || 1)
+              : currentPrice;
+            const totalCost = holding.cost_basis?.amount || (averagePrice * holdingQuantity);
+            const openPnl = holdingValue - totalCost;
 
-            holdingsSynced++;
+            // Store or update Position (holding) in database
+            const now = formatTimestamp(new Date());
+            const { data: existingPosition } = await supabase
+              .from('Position')
+              .select('id')
+              .eq('accountId', accountId)
+              .eq('securityId', securityId)
+              .single();
+
+            if (existingPosition) {
+              // Update existing position
+              const { error: positionError } = await supabase
+                .from('Position')
+                .update({
+                  openQuantity: holdingQuantity,
+                  currentMarketValue: holdingValue,
+                  currentPrice: currentPrice,
+                  averageEntryPrice: averagePrice,
+                  totalCost: totalCost,
+                  openPnl: openPnl,
+                  lastUpdatedAt: now,
+                  updatedAt: now,
+                })
+                .eq('id', existingPosition.id);
+
+              if (positionError) {
+                console.error('Error updating position:', positionError);
+                errors++;
+              } else {
+                holdingsSynced++;
+              }
+            } else {
+              // Create new position
+              const positionId = crypto.randomUUID();
+              const { error: positionError } = await supabase
+                .from('Position')
+                .insert({
+                  id: positionId,
+                  accountId: accountId,
+                  securityId: securityId,
+                  openQuantity: holdingQuantity,
+                  closedQuantity: 0,
+                  currentMarketValue: holdingValue,
+                  currentPrice: currentPrice,
+                  averageEntryPrice: averagePrice,
+                  closedPnl: 0,
+                  openPnl: openPnl,
+                  totalCost: totalCost,
+                  isRealTime: false,
+                  isUnderReorg: false,
+                  lastUpdatedAt: now,
+                  createdAt: now,
+                  updatedAt: now,
+                  householdId: householdId,
+                });
+
+              if (positionError) {
+                console.error('Error creating position:', positionError);
+                errors++;
+              } else {
+                holdingsSynced++;
+              }
+            }
+
+            // Sum the holding value to total account value
+            totalAccountValue += holdingValue;
           } catch (error) {
             console.error('Error processing holding:', error);
             errors++;
@@ -301,16 +426,33 @@ export async function syncInvestmentAccounts(
             // Find or create Security
             const security = securities.find((s) => s.security_id === plaidTx.security_id);
             if (!security) {
-              console.warn(`Security not found for transaction: ${plaidTx.security_id}`);
+              console.warn(`[PLAID INVESTMENTS] Security not found for transaction: ${plaidTx.security_id}`);
               continue;
             }
 
+            // Normalize symbol for matching - same as for holdings
+            const plaidTxSymbol = security.ticker_symbol || security.name || '';
+            const normalizedTxSymbol = plaidTxSymbol.toUpperCase().trim();
+            
             let securityId: string;
-            const { data: existingSecurity } = await supabase
+            // Try exact match first, then try case-insensitive match
+            let { data: existingSecurity } = await supabase
               .from('Security')
               .select('id')
-              .eq('symbol', security.ticker_symbol || security.name)
+              .eq('symbol', normalizedTxSymbol)
               .single();
+
+            // If not found, try case-insensitive search
+            if (!existingSecurity && normalizedTxSymbol) {
+              const { data: securitiesList } = await supabase
+                .from('Security')
+                .select('id, symbol')
+                .ilike('symbol', normalizedTxSymbol);
+              
+              if (securitiesList && securitiesList.length > 0) {
+                existingSecurity = securitiesList[0];
+              }
+            }
 
             if (existingSecurity) {
               securityId = existingSecurity.id;
@@ -338,11 +480,16 @@ export async function syncInvestmentAccounts(
             } else {
               // Create new Security
               securityId = crypto.randomUUID();
+              const normalizedTxSymbol = (security.ticker_symbol || security.name || '').toUpperCase().trim();
+              const securityClass = mapPlaidSecurityTypeToClass(security.type);
+              
+              console.log(`[PLAID INVESTMENTS] Creating new security from transaction: ${normalizedTxSymbol} (${security.name || 'Unknown'}) - type: ${security.type} -> class: ${securityClass}`);
+              
               await supabase.from('Security').insert({
                 id: securityId,
-                symbol: security.ticker_symbol || security.name || 'UNKNOWN',
+                symbol: normalizedTxSymbol || 'UNKNOWN',
                 name: security.name || security.ticker_symbol || 'Unknown Security',
-                class: security.type || 'other',
+                class: securityClass,
                 sector: null,
                 closePrice: (security as any).close_price || null,
                 closePriceAsOf: (security as any).close_price ? formatTimestamp(new Date()) : null,

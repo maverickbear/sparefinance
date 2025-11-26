@@ -62,7 +62,6 @@ export function PlannedPaymentList() {
   const [incomeCount, setIncomeCount] = useState(0);
   const [transferCount, setTransferCount] = useState(0);
   
-  const loadMoreRef = useRef<HTMLDivElement>(null);
   const pullToRefreshRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number>(0);
   const touchCurrentY = useRef<number>(0);
@@ -114,34 +113,19 @@ export function PlannedPaymentList() {
     // Note: We don't reload counts when tab changes because counts are totals for all types
   }, [activeTab]);
 
-  // Infinite scroll for mobile
+  // Mobile detection state
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Update mobile detection on mount and window resize
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const isMobile = window.innerWidth < 1024;
-    if (!isMobile) return;
-
-    if (loading || loadingMore || currentPage >= totalPages || payments.length === 0 || totalPages === 0) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !loading && !loadingMore && currentPage < totalPages) {
-          setLoadingMore(true);
-          setCurrentPage(prev => prev + 1);
-        }
-      },
-      { rootMargin: "200px" }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
     };
-  }, [loading, loadingMore, currentPage, totalPages, payments.length]);
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Reset loadingMore when payments are loaded
   useEffect(() => {
@@ -149,6 +133,14 @@ export function PlannedPaymentList() {
       setLoadingMore(false);
     }
   }, [loading]);
+
+  // Handle Load More button click for mobile
+  const handleLoadMore = () => {
+    if (!isMobile) return;
+    if (loading || loadingMore || currentPage >= totalPages) return;
+    setLoadingMore(true);
+    setCurrentPage(prev => prev + 1);
+  };
 
   // Load payments when page changes
   useEffect(() => {
@@ -266,7 +258,6 @@ export function PlannedPaymentList() {
       params.append("type", activeTab);
       
       // Add pagination parameters
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
       const limit = isMobile ? 10 : itemsPerPage;
       params.append("page", currentPage.toString());
       params.append("limit", limit.toString());
@@ -669,12 +660,24 @@ export function PlannedPaymentList() {
                     </div>
                   );
                 })}
-              {/* Infinite scroll sentinel */}
-              {currentPage < totalPages && (
-                <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
-                  {loadingMore && (
-                    <div className="text-sm text-muted-foreground">Loading more...</div>
-                  )}
+              {/* Load More button for mobile */}
+              {isMobile && currentPage < totalPages && (
+                <div className="flex items-center justify-center py-6">
+                  <Button
+                    onClick={handleLoadMore}
+                    disabled={loading || loadingMore}
+                    variant="outline"
+                    className="w-full max-w-xs"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      "Load More"
+                    )}
+                  </Button>
                 </div>
               )}
             </>
