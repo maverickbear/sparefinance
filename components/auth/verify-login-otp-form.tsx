@@ -317,8 +317,8 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Verify session one more time before preloading data
-      const { data: { user: verifyUser }, error: verifyError } = await supabase.auth.getUser();
-      if (verifyError || !verifyUser) {
+      const { data: { user: verifyUser }, error: verifySessionError } = await supabase.auth.getUser();
+      if (verifySessionError || !verifyUser) {
         console.warn("[LOGIN-OTP] Session verification failed before preload, retrying...");
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
