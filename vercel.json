@@ -27,12 +27,6 @@
       "source": "/api/health",
       "destination": "/api/health"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/import-jobs/process",
-      "schedule": "*/5 * * * *"
-    }
   ]
 }
 
