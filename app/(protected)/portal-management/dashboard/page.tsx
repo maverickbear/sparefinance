@@ -15,11 +15,26 @@ export default function DashboardPage() {
   } | null>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [systemSettings, setSystemSettings] = useState<{ maintenanceMode: boolean } | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboard();
     loadSystemSettings();
+    loadVersion();
   }, []);
+
+  async function loadVersion() {
+    try {
+      const response = await fetch("/api/version");
+      if (response.ok) {
+        const data = await response.json();
+        // Use version (incremental: v0.0.1, v0.0.2, etc.)
+        setVersion(data.version || null);
+      }
+    } catch (error) {
+      console.error("Error loading version:", error);
+    }
+  }
 
   async function loadDashboard() {
     try {
@@ -58,7 +73,14 @@ export default function DashboardPage() {
     <div className="w-full p-4 lg:p-8">
       <div className="space-y-6">
         <div className="space-y-2">
-          <h2 className="text-2xl font-semibold tracking-tight">System Overview</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            System Overview
+            {version && (
+              <span className="ml-2 text-base font-normal text-muted-foreground">
+                v{version}
+              </span>
+            )}
+          </h2>
           <p className="text-sm text-muted-foreground">
             Key metrics and statistics about the platform
           </p>

@@ -6,10 +6,10 @@ import packageJson from '../../package.json';
 
 /**
  * Gets the current application version
- * Uses package.json version, which is incremented on each production deploy
+ * Uses version.json which is incremented on each production deploy
  */
 export function getAppVersion(): string {
-  return process.env.NEXT_PUBLIC_APP_VERSION || packageJson.version;
+  return process.env.NEXT_PUBLIC_APP_VERSION || packageJson.version || '0.0.1';
 }
 
 /**

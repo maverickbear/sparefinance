@@ -8,13 +8,50 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true',
 });
 
-// Get version from package.json
-let appVersion = '0.0.0';
+// Get and increment version from version.json
+let appVersion = '0.0.1';
+const versionFilePath = join(process.cwd(), 'version.json');
+
 try {
-  const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
-  appVersion = packageJson.version;
-} catch (error) {
-  console.warn('Could not read version from package.json:', error);
+  // Read current version
+  const versionData = JSON.parse(readFileSync(versionFilePath, 'utf-8'));
+  appVersion = versionData.version || '0.0.1';
+  
+  // Increment version (only on Vercel deployments, not local builds)
+  if (process.env.VERCEL) {
+    const [major, minor, patch] = appVersion.split('.').map(Number);
+    const newPatch = patch + 1;
+    const newVersion = `${major}.${minor}.${newPatch}`;
+    
+    // Write incremented version back to file
+    const { writeFileSync } = require('fs');
+    writeFileSync(
+      versionFilePath,
+      JSON.stringify({ version: newVersion }, null, 2) + '\n',
+      'utf-8'
+    );
+    
+    console.log(`Version incremented: ${appVersion} → ${newVersion}`);
+    appVersion = newVersion;
+  }
+} catch (error: any) {
+  // If version.json doesn't exist, create it with default version
+  if (error?.code === 'ENOENT') {
+    try {
+      const { writeFileSync } = require('fs');
+      writeFileSync(
+        versionFilePath,
+        JSON.stringify({ version: '0.0.1' }, null, 2) + '\n',
+        'utf-8'
+      );
+      appVersion = '0.0.1';
+      console.log('Created version.json with initial version 0.0.1');
+    } catch (writeError) {
+      console.warn('Could not create version.json:', writeError);
+    }
+  } else {
+    console.warn('Could not read version from version.json:', error);
+  }
 }
 
 // Generate build number from timestamp (unique for each build)
