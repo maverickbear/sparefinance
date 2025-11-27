@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient, createServiceRoleClient } from '@/lib/supabase-server';
 import { getCurrentUserId } from '@/lib/api/feature-guard';
 import { syncAccountTransactionsBatched } from '@/lib/api/plaid/sync-batched';
 import { formatTimestamp } from '@/lib/utils/timestamp';
@@ -28,7 +28,11 @@ async function processImportJobs(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = await createServerClient();
+    // Use service role client for cron jobs (bypasses RLS)
+    // Use regular server client for authenticated users (respects RLS)
+    const supabase = (isCronAuth || isVercelCron) 
+      ? createServiceRoleClient() 
+      : await createServerClient();
     
     // Get pending jobs or failed jobs ready for retry
     // If triggered by authenticated user, only process their own jobs
