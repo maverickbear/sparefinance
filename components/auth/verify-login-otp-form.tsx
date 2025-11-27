@@ -509,7 +509,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
               htmlFor="trust-browser"
               className="text-sm text-foreground cursor-pointer select-none"
             >
-              Trust this browser
+              Don't ask again for this browser
             </label>
             <Tooltip>
               <TooltipTrigger asChild>

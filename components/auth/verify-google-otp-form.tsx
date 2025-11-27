@@ -4,8 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, AlertCircle, Mail } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Loader2, AlertCircle, Mail, HelpCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { setTrustedBrowser } from "@/lib/utils/trusted-browser";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -68,6 +71,7 @@ export function VerifyGoogleOtpForm() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes in seconds
+  const [trustBrowser, setTrustBrowser] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const email = searchParams.get("email") || "";
@@ -389,6 +393,11 @@ export function VerifyGoogleOtpForm() {
         localStorage.setItem("lastAuthMethod", "google");
       }
 
+      // Store trusted browser if user checked the option
+      if (trustBrowser && email) {
+        setTrustedBrowser(email);
+      }
+
       // Wait additional time to ensure session is fully propagated to Supabase backend
       // This is critical to avoid "Session not found" errors when calling getUserClient()
       console.log("[GOOGLE-OTP] Waiting for session to propagate to Supabase backend...");
@@ -556,11 +565,45 @@ export function VerifyGoogleOtpForm() {
           </div>
         </div>
 
-        <Button 
-          onClick={handleVerify}
-          className="w-full h-11 text-base font-medium" 
-          disabled={loading || otp.join("").length !== 6}
-        >
+        <div className="space-y-4">
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id="trust-browser"
+              checked={trustBrowser}
+              onCheckedChange={(checked) => setTrustBrowser(checked === true)}
+              disabled={loading}
+              className="mt-0.5"
+            />
+            <div className="flex items-center gap-1.5 flex-1">
+              <label
+                htmlFor="trust-browser"
+                className="text-sm text-foreground cursor-pointer select-none"
+              >
+                Don't ask again for this browser
+              </label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    disabled={loading}
+                    tabIndex={-1}
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-[280px] whitespace-normal">
+                  Only enable this on personal or trusted devices. We'll still ask for your password on future logins, but we won't require a verification code on this browser for a while.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <Button 
+            onClick={handleVerify}
+            className="w-full h-11 text-base font-medium" 
+            disabled={loading || otp.join("").length !== 6}
+          >
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -569,7 +612,8 @@ export function VerifyGoogleOtpForm() {
           ) : (
             "Verify and Sign In"
           )}
-        </Button>
+          </Button>
+        </div>
 
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">
