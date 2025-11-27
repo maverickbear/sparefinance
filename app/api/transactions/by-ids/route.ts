@@ -52,7 +52,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Decrypt descriptions and format amounts
-    const formattedTransactions = (transactions || []).map((tx: any) => ({
+    interface TransactionWithAccount {
+      id: string;
+      date: string;
+      amount: number | string;
+      description: string | null;
+      account: { id: string; name: string } | { id: string; name: string }[] | null;
+    }
+
+    const formattedTransactions = (transactions || []).map((tx: TransactionWithAccount) => ({
       id: tx.id,
       date: tx.date,
       amount: getTransactionAmount(tx.amount) ?? 0,
@@ -69,4 +77,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 

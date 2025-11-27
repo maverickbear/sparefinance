@@ -24,8 +24,22 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+// Nav item type definition
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isToggle?: boolean;
+  isBack?: boolean;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
 // Base nav sections (without Portal Management)
-const baseNavSections = [
+const baseNavSections: NavSection[] = [
   {
     title: "Overview",
     items: [
@@ -107,9 +121,16 @@ const navUserDataCache = {
   roleTimestamp: 0,
 };
 
+// Extend Window interface for navUserDataCache
+declare global {
+  interface Window {
+    navUserDataCache?: typeof navUserDataCache;
+  }
+}
+
 // Expose cache for preloading during login
 if (typeof window !== 'undefined') {
-  (window as any).navUserDataCache = navUserDataCache;
+  window.navUserDataCache = navUserDataCache;
 }
 
 function NavComponent({ hasSubscription = true }: NavProps) {
@@ -293,7 +314,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
   const user = userData?.user;
 
   // Portal Management items
-  const portalManagementSections = [
+  const portalManagementSections: NavSection[] = [
     {
       title: "Portal Management",
       items: [
@@ -311,7 +332,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
   ];
 
   // Build nav sections - toggle between normal and portal management items
-  const navSections = useMemo(() => {
+  const navSections = useMemo((): NavSection[] => {
     if (!isSuperAdmin) {
       return baseNavSections;
     }
@@ -362,11 +383,11 @@ function NavComponent({ hasSubscription = true }: NavProps) {
               )}
             >
               {isCollapsed ? (
-                <Link href="/" prefetch={true} className="flex items-center justify-center w-full h-full">
+                <Link href="/dashboard" prefetch={true} className="flex items-center justify-center w-full h-full">
                   <Logo variant="icon" color="auto" width={40} height={40} />
                 </Link>
               ) : (
-                <Link href="/" prefetch={true} className="flex items-center justify-center w-full h-full">
+                <Link href="/dashboard" prefetch={true} className="flex items-center justify-center w-full h-full">
                   <Logo variant="wordmark" color="auto" width={150} height={40} />
                 </Link>
               )}
@@ -385,8 +406,8 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                   )}
                   {section.items.map((item) => {
                     const Icon = item.icon;
-                    const isToggle = (item as any).isToggle;
-                    const isBack = (item as any).isBack;
+                    const isToggle = item.isToggle;
+                    const isBack = item.isBack;
                     
                     // Handle Portal Management toggle button (show normal items)
                     if (isToggle && !isBack) {

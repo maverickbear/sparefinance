@@ -57,7 +57,6 @@ export function LandingFeaturesSection() {
       tag: "Budget Management",
       tagColor: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
       mockup: <BudgetManagementMockup />,
-      cta: "Set Budget →",
     },
     {
       title: "Smart Debt Management",
@@ -66,7 +65,6 @@ export function LandingFeaturesSection() {
       tag: "Debt Management",
       tagColor: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400",
       mockup: <DebtManagementMockup />,
-      cta: "Track Debt →",
     },
     {
       title: "Investment Portfolio Tracking",
@@ -75,7 +73,6 @@ export function LandingFeaturesSection() {
       tag: "Investments",
       tagColor: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
       mockup: <InvestmentPortfolioMockup />,
-      cta: "View Portfolio →",
     },
     {
       title: "Smart Transaction Categorization",
@@ -84,7 +81,6 @@ export function LandingFeaturesSection() {
       tag: "AI-Powered",
       tagColor: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
       mockup: <CategorizationMockup />,
-      cta: "Learn More →",
     },
     {
       title: "Subscription & Planned Payments",
@@ -93,7 +89,6 @@ export function LandingFeaturesSection() {
       tag: "Subscriptions",
       tagColor: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400",
       mockup: <SubscriptionsMockup />,
-      cta: "Manage →",
     },
     {
       title: "CSV Import & Export",
@@ -102,7 +97,6 @@ export function LandingFeaturesSection() {
       tag: "Data Control",
       tagColor: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400",
       mockup: <CsvImportExportMockup />,
-      cta: "Export Data →",
     },
   ];
 
@@ -190,29 +184,21 @@ export function LandingFeaturesSection() {
 
                   {/* Content */}
                   <div className="px-6 pb-6 flex-grow flex flex-col">
-                    <div className="flex-shrink-0">
-                      <h4 className="text-xl font-bold mb-3">
-                        {feature.title}
-                      </h4>
-                      <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                        {feature.description}
-                      </p>
-                    </div>
-                    
-                    {/* Mockup - Always at bottom */}
+                    {/* Mockup - At top */}
                     {feature.mockup && (
-                      <div className="bg-muted/80 dark:bg-muted/60 rounded-xl p-4 mb-6 h-[220px] flex items-center justify-center overflow-hidden mt-auto flex-shrink-0">
+                      <div className="bg-muted/80 dark:bg-muted/60 rounded-xl p-4 mb-6 h-[220px] flex items-center justify-center overflow-hidden flex-shrink-0">
                         {feature.mockup}
                       </div>
                     )}
                     
-                    <a
-                      href="/auth/signup"
-                      className="text-sm font-semibold text-primary hover:underline inline-flex items-center gap-1.5 w-fit flex-shrink-0"
-                    >
-                      {feature.cta}
-                      <ArrowRight className="w-4 h-4" />
-                    </a>
+                    <div className="flex-shrink-0">
+                      <h4 className="text-xl font-bold mb-3">
+                        {feature.title}
+                      </h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {feature.description}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );

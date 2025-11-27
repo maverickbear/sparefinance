@@ -1288,7 +1288,7 @@ CREATE TABLE IF NOT EXISTS "public"."Candle" (
 ALTER TABLE "public"."Candle" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."Candle" IS 'Stores historical price data (candles) from Questrade';
+COMMENT ON TABLE "public"."Candle" IS 'Stores historical price data (candles) for securities';
 
 
 
@@ -1360,7 +1360,7 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     CONSTRAINT "Debt_interestPaid_check" CHECK (("interestPaid" >= (0)::double precision)),
     CONSTRAINT "Debt_interestRate_check" CHECK (("interestRate" >= (0)::double precision)),
     CONSTRAINT "Debt_loanType_check" CHECK (("loanType" = ANY (ARRAY['mortgage'::"text", 'car_loan'::"text", 'personal_loan'::"text", 'credit_card'::"text", 'student_loan'::"text", 'business_loan'::"text", 'other'::"text"]))),
-    CONSTRAINT "Debt_monthlyPayment_check" CHECK (("monthlyPayment" > (0)::double precision)),
+    CONSTRAINT "Debt_monthlyPayment_check" CHECK ((("monthlyPayment" > (0)::double precision) OR (("loanType" = 'credit_card'::"text") AND ("monthlyPayment" >= (0)::double precision)))),
     CONSTRAINT "Debt_paymentAmount_check" CHECK ((("paymentAmount" > (0)::double precision) OR ("paymentAmount" IS NULL))),
     CONSTRAINT "Debt_paymentFrequency_check" CHECK (("paymentFrequency" = ANY (ARRAY['monthly'::"text", 'biweekly'::"text", 'weekly'::"text", 'semimonthly'::"text", 'daily'::"text"]))),
     CONSTRAINT "Debt_principalPaid_check" CHECK (("principalPaid" >= (0)::double precision)),
@@ -1399,7 +1399,6 @@ COMMENT ON CONSTRAINT "debt_next_due_date_valid" ON "public"."Debt" IS 'Valida q
 CREATE TABLE IF NOT EXISTS "public"."Execution" (
     "id" "text" NOT NULL,
     "accountId" "text" NOT NULL,
-    "questradeExecutionId" bigint NOT NULL,
     "symbolId" bigint NOT NULL,
     "symbol" "text" NOT NULL,
     "quantity" numeric(15,4) DEFAULT 0 NOT NULL,
@@ -1428,7 +1427,7 @@ CREATE TABLE IF NOT EXISTS "public"."Execution" (
 ALTER TABLE "public"."Execution" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."Execution" IS 'Stores order executions from Questrade';
+COMMENT ON TABLE "public"."Execution" IS 'Stores order executions for investment accounts';
 
 
 
@@ -1590,6 +1589,38 @@ COMMENT ON COLUMN "public"."HouseholdMemberNew"."acceptedAt" IS 'When the invita
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."ImportJob" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "userId" "uuid" NOT NULL,
+    "accountId" "text",
+    "type" "text" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "progress" integer DEFAULT 0,
+    "totalItems" integer DEFAULT 0,
+    "processedItems" integer DEFAULT 0,
+    "syncedItems" integer DEFAULT 0,
+    "skippedItems" integer DEFAULT 0,
+    "errorItems" integer DEFAULT 0,
+    "errorMessage" "text",
+    "metadata" "jsonb",
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "completedAt" timestamp with time zone,
+    "retryCount" integer DEFAULT 0,
+    "nextRetryAt" timestamp with time zone,
+    CONSTRAINT "ImportJob_progress_check" CHECK ((("progress" >= 0) AND ("progress" <= 100))),
+    CONSTRAINT "ImportJob_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'processing'::"text", 'completed'::"text", 'failed'::"text"]))),
+    CONSTRAINT "ImportJob_type_check" CHECK (("type" = ANY (ARRAY['plaid_sync'::"text", 'csv_import'::"text", 'investment_sync'::"text"])))
+);
+
+
+ALTER TABLE "public"."ImportJob" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."ImportJob" IS 'Tracks background import jobs for bank accounts and transactions to prevent system overload';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
@@ -1598,9 +1629,6 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "userId" "uuid" NOT NULL,
-    "questradeAccountNumber" "text",
-    "questradeConnectionId" "text",
-    "isQuestradeConnected" boolean DEFAULT false,
     "cash" numeric(15,2),
     "marketValue" numeric(15,2),
     "totalEquity" numeric(15,2),
@@ -1620,18 +1648,6 @@ COMMENT ON COLUMN "public"."InvestmentAccount"."updatedAt" IS 'Timestamp de últ
 
 
 COMMENT ON COLUMN "public"."InvestmentAccount"."userId" IS 'User ID - obrigatório para RLS policies';
-
-
-
-COMMENT ON COLUMN "public"."InvestmentAccount"."questradeAccountNumber" IS 'Questrade account number for this investment account';
-
-
-
-COMMENT ON COLUMN "public"."InvestmentAccount"."questradeConnectionId" IS 'Reference to QuestradeConnection for this account';
-
-
-
-COMMENT ON COLUMN "public"."InvestmentAccount"."isQuestradeConnected" IS 'Whether this account is connected to Questrade';
 
 
 
@@ -1659,7 +1675,7 @@ COMMENT ON COLUMN "public"."InvestmentAccount"."currency" IS 'Currency of the ac
 
 
 
-COMMENT ON COLUMN "public"."InvestmentAccount"."balanceLastUpdatedAt" IS 'Last time balance information was updated from Questrade';
+COMMENT ON COLUMN "public"."InvestmentAccount"."balanceLastUpdatedAt" IS 'Last time balance information was updated';
 
 
 
@@ -1712,7 +1728,6 @@ COMMENT ON CONSTRAINT "check_security_required" ON "public"."InvestmentTransacti
 CREATE TABLE IF NOT EXISTS "public"."Order" (
     "id" "text" NOT NULL,
     "accountId" "text" NOT NULL,
-    "questradeOrderId" bigint NOT NULL,
     "symbolId" bigint NOT NULL,
     "symbol" "text" NOT NULL,
     "totalQuantity" numeric(15,4) DEFAULT 0 NOT NULL,
@@ -1761,7 +1776,7 @@ CREATE TABLE IF NOT EXISTS "public"."Order" (
 ALTER TABLE "public"."Order" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."Order" IS 'Stores orders from Questrade';
+COMMENT ON TABLE "public"."Order" IS 'Stores orders for investment accounts';
 
 
 
@@ -1920,7 +1935,7 @@ CREATE TABLE IF NOT EXISTS "public"."Position" (
 ALTER TABLE "public"."Position" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."Position" IS 'Stores current positions (holdings) from Questrade';
+COMMENT ON TABLE "public"."Position" IS 'Stores current positions (holdings) for investment accounts';
 
 
 
@@ -1944,26 +1959,6 @@ CREATE TABLE IF NOT EXISTS "public"."PromoCode" (
 
 
 ALTER TABLE "public"."PromoCode" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."QuestradeConnection" (
-    "id" "text" NOT NULL,
-    "userId" "uuid" NOT NULL,
-    "accessToken" "text" NOT NULL,
-    "refreshToken" "text" NOT NULL,
-    "apiServerUrl" "text" NOT NULL,
-    "tokenExpiresAt" timestamp(3) without time zone NOT NULL,
-    "lastSyncedAt" timestamp(3) without time zone,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
-);
-
-
-ALTER TABLE "public"."QuestradeConnection" OWNER TO "postgres";
-
-
-COMMENT ON TABLE "public"."QuestradeConnection" IS 'Stores Questrade API connections with encrypted tokens';
-
 
 
 CREATE TABLE IF NOT EXISTS "public"."Security" (
@@ -2596,11 +2591,6 @@ ALTER TABLE ONLY "public"."Execution"
 
 
 
-ALTER TABLE ONLY "public"."Execution"
-    ADD CONSTRAINT "Execution_questradeExecutionId_accountId_unique" UNIQUE ("questradeExecutionId", "accountId");
-
-
-
 ALTER TABLE ONLY "public"."Feedback"
     ADD CONSTRAINT "Feedback_pkey" PRIMARY KEY ("id");
 
@@ -2626,6 +2616,11 @@ ALTER TABLE ONLY "public"."Household"
 
 
 
+ALTER TABLE ONLY "public"."ImportJob"
+    ADD CONSTRAINT "ImportJob_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."InvestmentAccount"
     ADD CONSTRAINT "InvestmentAccount_pkey" PRIMARY KEY ("id");
 
@@ -2638,11 +2633,6 @@ ALTER TABLE ONLY "public"."InvestmentTransaction"
 
 ALTER TABLE ONLY "public"."Order"
     ADD CONSTRAINT "Order_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."Order"
-    ADD CONSTRAINT "Order_questradeOrderId_accountId_unique" UNIQUE ("questradeOrderId", "accountId");
 
 
 
@@ -2698,11 +2688,6 @@ ALTER TABLE ONLY "public"."PromoCode"
 
 ALTER TABLE ONLY "public"."PromoCode"
     ADD CONSTRAINT "PromoCode_stripeCouponId_key" UNIQUE ("stripeCouponId");
-
-
-
-ALTER TABLE ONLY "public"."QuestradeConnection"
-    ADD CONSTRAINT "QuestradeConnection_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3028,10 +3013,6 @@ CREATE INDEX "InvestmentAccount_householdId_idx" ON "public"."InvestmentAccount"
 
 
 
-CREATE INDEX "InvestmentAccount_questradeConnectionId_idx" ON "public"."InvestmentAccount" USING "btree" ("questradeConnectionId") WHERE ("questradeConnectionId" IS NOT NULL);
-
-
-
 CREATE INDEX "InvestmentAccount_userId_idx" ON "public"."InvestmentAccount" USING "btree" ("userId") WHERE ("userId" IS NOT NULL);
 
 
@@ -3128,10 +3109,6 @@ CREATE INDEX "Position_securityId_idx" ON "public"."Position" USING "btree" ("se
 
 
 
-CREATE INDEX "QuestradeConnection_userId_idx" ON "public"."QuestradeConnection" USING "btree" ("userId");
-
-
-
 CREATE INDEX "SecurityPrice_securityId_date_idx" ON "public"."SecurityPrice" USING "btree" ("securityId", "date");
 
 
@@ -3189,6 +3166,14 @@ CREATE INDEX "Subscription_userId_idx" ON "public"."Subscription" USING "btree" 
 
 
 CREATE INDEX "TransactionSync_accountId_idx" ON "public"."TransactionSync" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "TransactionSync_accountId_plaidTransactionId_idx" ON "public"."TransactionSync" USING "btree" ("accountId", "plaidTransactionId");
+
+
+
+COMMENT ON INDEX "public"."TransactionSync_accountId_plaidTransactionId_idx" IS 'Composite index for faster lookups of Plaid transactions by account. Improves performance of queries filtering by accountId and plaidTransactionId simultaneously, which is common during transaction sync operations when processing removed transactions.';
 
 
 
@@ -3336,7 +3321,19 @@ CREATE INDEX "idx_goal_user_updated" ON "public"."Goal" USING "btree" ("userId",
 
 
 
-CREATE INDEX "idx_investment_account_questrade" ON "public"."InvestmentAccount" USING "btree" ("userId", "isQuestradeConnected") WHERE ("isQuestradeConnected" = true);
+CREATE INDEX "idx_import_job_account" ON "public"."ImportJob" USING "btree" ("accountId") WHERE ("accountId" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_import_job_next_retry" ON "public"."ImportJob" USING "btree" ("nextRetryAt") WHERE (("status" = 'failed'::"text") AND ("nextRetryAt" IS NOT NULL));
+
+
+
+CREATE INDEX "idx_import_job_status" ON "public"."ImportJob" USING "btree" ("status") WHERE ("status" = ANY (ARRAY['pending'::"text", 'processing'::"text"]));
+
+
+
+CREATE INDEX "idx_import_job_user_status" ON "public"."ImportJob" USING "btree" ("userId", "status");
 
 
 
@@ -3591,6 +3588,16 @@ ALTER TABLE ONLY "public"."Household"
 
 
 
+ALTER TABLE ONLY "public"."ImportJob"
+    ADD CONSTRAINT "ImportJob_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."ImportJob"
+    ADD CONSTRAINT "ImportJob_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."InvestmentAccount"
     ADD CONSTRAINT "InvestmentAccount_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "public"."Account"("id") ON UPDATE CASCADE ON DELETE SET NULL;
 
@@ -3598,11 +3605,6 @@ ALTER TABLE ONLY "public"."InvestmentAccount"
 
 ALTER TABLE ONLY "public"."InvestmentAccount"
     ADD CONSTRAINT "InvestmentAccount_householdId_fkey" FOREIGN KEY ("householdId") REFERENCES "public"."Household"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."InvestmentAccount"
-    ADD CONSTRAINT "InvestmentAccount_questradeConnectionId_fkey" FOREIGN KEY ("questradeConnectionId") REFERENCES "public"."QuestradeConnection"("id") ON DELETE SET NULL;
 
 
 
@@ -3708,11 +3710,6 @@ ALTER TABLE ONLY "public"."Position"
 
 ALTER TABLE ONLY "public"."Position"
     ADD CONSTRAINT "Position_securityId_fkey" FOREIGN KEY ("securityId") REFERENCES "public"."Security"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."QuestradeConnection"
-    ADD CONSTRAINT "QuestradeConnection_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
 
 
 
@@ -3951,6 +3948,9 @@ ALTER TABLE "public"."Household" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."HouseholdMemberNew" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "public"."ImportJob" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."InvestmentAccount" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4028,9 +4028,6 @@ CREATE POLICY "Public and super admins can read promo codes" ON "public"."PromoC
    FROM "public"."User"
   WHERE (("User"."id" = ( SELECT "auth"."uid"() AS "uid")) AND ("User"."role" = 'super_admin'::"text"))))));
 
-
-
-ALTER TABLE "public"."QuestradeConnection" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."Security" ENABLE ROW LEVEL SECURITY;
@@ -4239,6 +4236,10 @@ CREATE POLICY "Users can create households" ON "public"."Household" FOR INSERT W
 
 
 
+CREATE POLICY "Users can create their own import jobs" ON "public"."ImportJob" FOR INSERT WITH CHECK (("auth"."uid"() = "userId"));
+
+
+
 CREATE POLICY "Users can delete account owners" ON "public"."AccountOwner" FOR DELETE USING ((("ownerId" = ( SELECT "auth"."uid"() AS "uid")) OR ("public"."get_account_user_id"("accountId") = ( SELECT "auth"."uid"() AS "uid"))));
 
 
@@ -4364,10 +4365,6 @@ CREATE POLICY "Users can delete their own Plaid connections" ON "public"."PlaidC
 CREATE POLICY "Users can delete their own Plaid liabilities" ON "public"."PlaidLiability" FOR DELETE USING ((EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "PlaidLiability"."accountId") AND (("Account"."userId" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."can_access_account_via_accountowner"("Account"."id") OR "public"."can_access_household_data"("Account"."householdId", 'delete'::"text"))))));
-
-
-
-CREATE POLICY "Users can delete their own Questrade connections" ON "public"."QuestradeConnection" FOR DELETE USING (("userId" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
@@ -4503,10 +4500,6 @@ CREATE POLICY "Users can insert their own Plaid connections" ON "public"."PlaidC
 CREATE POLICY "Users can insert their own Plaid liabilities" ON "public"."PlaidLiability" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM "public"."Account"
   WHERE (("Account"."id" = "PlaidLiability"."accountId") AND (("Account"."userId" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."can_access_account_via_accountowner"("Account"."id") OR "public"."can_access_household_data"("Account"."householdId", 'write'::"text"))))));
-
-
-
-CREATE POLICY "Users can insert their own Questrade connections" ON "public"."QuestradeConnection" FOR INSERT WITH CHECK (("userId" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
@@ -4654,7 +4647,7 @@ CREATE POLICY "Users can update their own Plaid liabilities" ON "public"."PlaidL
 
 
 
-CREATE POLICY "Users can update their own Questrade connections" ON "public"."QuestradeConnection" FOR UPDATE USING (("userId" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK (("userId" = ( SELECT "auth"."uid"() AS "uid")));
+CREATE POLICY "Users can update their own import jobs" ON "public"."ImportJob" FOR UPDATE USING (("auth"."uid"() = "userId"));
 
 
 
@@ -4813,7 +4806,7 @@ CREATE POLICY "Users can view their own Plaid connections" ON "public"."PlaidCon
 
 
 
-CREATE POLICY "Users can view their own Questrade connections" ON "public"."QuestradeConnection" FOR SELECT USING (("userId" = ( SELECT "auth"."uid"() AS "uid")));
+CREATE POLICY "Users can view their own import jobs" ON "public"."ImportJob" FOR SELECT USING (("auth"."uid"() = "userId"));
 
 
 
@@ -5077,6 +5070,11 @@ GRANT ALL ON TABLE "public"."HouseholdMemberNew" TO "service_role";
 
 
 
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."ImportJob" TO "authenticated";
+GRANT ALL ON TABLE "public"."ImportJob" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."InvestmentAccount" TO "service_role";
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."InvestmentAccount" TO "authenticated";
 
@@ -5121,11 +5119,6 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."Position" TO "authenticated
 GRANT ALL ON TABLE "public"."PromoCode" TO "service_role";
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."PromoCode" TO "authenticated";
 GRANT SELECT ON TABLE "public"."PromoCode" TO "anon";
-
-
-
-GRANT ALL ON TABLE "public"."QuestradeConnection" TO "service_role";
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."QuestradeConnection" TO "authenticated";
 
 
 

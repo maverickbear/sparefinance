@@ -1,276 +1,95 @@
 /**
  * Script to manually process pending ImportJob records
  * 
+ * This script calls the API endpoint to process jobs, avoiding
+ * Next.js cookie dependencies that don't work in standalone scripts.
+ * 
  * Usage:
- *   npx tsx scripts/process-import-jobs.ts
+ *   npx tsx --env-file=.env.local scripts/process-import-jobs.ts
  * 
  * Or with specific job ID:
- *   npx tsx scripts/process-import-jobs.ts <jobId>
+ *   npx tsx --env-file=.env.local scripts/process-import-jobs.ts <jobId>
  */
 
-import { createServiceRoleClient } from '@/lib/supabase-server';
-import { syncAccountTransactionsBatched } from '@/lib/api/plaid/sync-batched';
-import { formatTimestamp } from '@/lib/utils/timestamp';
-import { createTransaction } from '@/lib/api/transactions';
-import { TransactionFormData, transactionSchema } from '@/lib/validations/transaction';
+// Get environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const cronSecret = process.env.CRON_SECRET;
+const apiUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+if (!supabaseUrl) {
+  console.error('❌ Missing required environment variable: NEXT_PUBLIC_SUPABASE_URL');
+  console.error('\nPlease ensure this variable is set in .env.local');
+  process.exit(1);
+}
 
 const MAX_JOBS_PER_RUN = 5;
 
-async function processPlaidSyncJob(supabase: any, job: any) {
-  const { accountId, metadata } = job;
-  const { plaidAccountId, itemId } = metadata;
+/**
+ * Call the API endpoint to process import jobs
+ */
+async function callProcessEndpoint(jobId?: string) {
+  const url = `${apiUrl}/api/import-jobs/process`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
 
-  if (!plaidAccountId || !itemId) {
-    throw new Error('Missing plaidAccountId or itemId in job metadata');
+  // Use CRON_SECRET if available, otherwise the endpoint will check for authenticated user
+  if (cronSecret) {
+    headers['Authorization'] = `Bearer ${cronSecret}`;
   }
 
-  // Get access token from PlaidConnection
-  const { data: connection, error: connectionError } = await supabase
-    .from('PlaidConnection')
-    .select('accessToken')
-    .eq('itemId', itemId)
-    .single();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+    });
 
-  if (connectionError || !connection?.accessToken) {
-    throw new Error('Access token not found for Plaid connection');
-  }
-
-  console.log(`Processing Plaid sync job ${job.id} for account ${accountId}...`);
-
-  // Process sync with batched function
-  const result = await syncAccountTransactionsBatched(
-    accountId,
-    plaidAccountId,
-    connection.accessToken,
-    job.id
-  );
-
-  // Update job as completed
-  await supabase
-    .from('ImportJob')
-    .update({
-      status: 'completed',
-      progress: 100,
-      processedItems: result.totalProcessed,
-      syncedItems: result.synced,
-      skippedItems: result.skipped,
-      errorItems: result.errors,
-      completedAt: formatTimestamp(new Date()),
-      updatedAt: formatTimestamp(new Date()),
-    })
-    .eq('id', job.id);
-
-  console.log(`Job ${job.id} completed:`, result);
-  return result;
-}
-
-async function processCsvImportJob(supabase: any, job: any) {
-  const { metadata } = job;
-  const transactions = metadata?.transactions || [];
-
-  if (!transactions || transactions.length === 0) {
-    throw new Error('No transactions found in job metadata');
-  }
-
-  console.log(`Processing CSV import job ${job.id} with ${transactions.length} transactions...`);
-
-  let synced = 0;
-  let skipped = 0;
-  let errors = 0;
-  const batchSize = 50;
-
-  // Process transactions in batches
-  for (let i = 0; i < transactions.length; i += batchSize) {
-    const batch = transactions.slice(i, i + batchSize);
-
-    for (const tx of batch) {
-      try {
-        const data: TransactionFormData = {
-          date: tx.date instanceof Date ? tx.date : new Date(tx.date),
-          type: tx.type,
-          amount: tx.amount,
-          accountId: tx.accountId,
-          toAccountId: tx.toAccountId,
-          categoryId: tx.categoryId || undefined,
-          subcategoryId: tx.subcategoryId || undefined,
-          description: tx.description || undefined,
-          recurring: tx.recurring || false,
-          expenseType: tx.expenseType || undefined,
-        };
-
-        const validatedData = transactionSchema.parse(data);
-        await createTransaction(validatedData);
-        synced++;
-      } catch (error) {
-        errors++;
-        console.error(`Error importing CSV transaction:`, error);
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API request failed: ${response.status} ${response.statusText}\n${errorText}`);
     }
 
-    // Update job progress after each batch
-    const processed = i + batch.length;
-    const progress = transactions.length > 0 
-      ? Math.round((processed / transactions.length) * 100)
-      : 100;
-
-    await supabase
-      .from('ImportJob')
-      .update({
-        progress,
-        processedItems: processed,
-        syncedItems: synced,
-        skippedItems: skipped,
-        errorItems: errors,
-        updatedAt: formatTimestamp(new Date()),
-      })
-      .eq('id', job.id);
-
-    console.log(`Progress: ${progress}% (${processed}/${transactions.length})`);
-
-    // Small delay between batches
-    if (i + batchSize < transactions.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    const result = await response.json();
+    return result;
+  } catch (error: any) {
+    if (error.message?.includes('fetch')) {
+      throw new Error(`Failed to connect to API at ${url}. Make sure the server is running or set NEXT_PUBLIC_APP_URL correctly.`);
     }
+    throw error;
   }
-
-  // Update job as completed
-  await supabase
-    .from('ImportJob')
-    .update({
-      status: 'completed',
-      progress: 100,
-      processedItems: transactions.length,
-      syncedItems: synced,
-      skippedItems: skipped,
-      errorItems: errors,
-      completedAt: formatTimestamp(new Date()),
-      updatedAt: formatTimestamp(new Date()),
-    })
-    .eq('id', job.id);
-
-  console.log(`Job ${job.id} completed: ${synced} synced, ${skipped} skipped, ${errors} errors`);
-  return { synced, skipped, errors, totalProcessed: transactions.length };
 }
 
 async function main() {
   const jobId = process.argv[2];
-  const supabase = createServiceRoleClient();
 
   try {
+    console.log('Calling API endpoint to process import jobs...');
     if (jobId) {
-      // Process specific job
-      console.log(`Fetching job ${jobId}...`);
-      const { data: job, error } = await supabase
-        .from('ImportJob')
-        .select('*')
-        .eq('id', jobId)
-        .single();
+      console.log(`Note: Processing all pending jobs (job ID ${jobId} will be processed if it's pending)`);
+    }
 
-      if (error || !job) {
-        console.error('Job not found:', error);
-        process.exit(1);
-      }
+    const result = await callProcessEndpoint(jobId);
 
-      if (job.status === 'completed') {
-        console.log('Job is already completed');
-        process.exit(0);
-      }
-
-      if (job.status === 'processing') {
-        console.log('Job is currently processing');
-        process.exit(0);
-      }
-
-      // Update job status to processing
-      await supabase
-        .from('ImportJob')
-        .update({ 
-          status: 'processing',
-          updatedAt: formatTimestamp(new Date()),
-        })
-        .eq('id', job.id);
-
-      try {
-        if (job.type === 'plaid_sync') {
-          await processPlaidSyncJob(supabase, job);
-        } else if (job.type === 'csv_import') {
-          await processCsvImportJob(supabase, job);
-        } else {
-          throw new Error(`Unknown job type: ${job.type}`);
-        }
-        console.log('Job processed successfully');
-      } catch (error: any) {
-        console.error('Error processing job:', error);
-        await supabase
-          .from('ImportJob')
-          .update({
-            status: 'failed',
-            errorMessage: error.message || 'Unknown error',
-            updatedAt: formatTimestamp(new Date()),
-          })
-          .eq('id', job.id);
-        process.exit(1);
-      }
+    if (result.processed === 0) {
+      console.log('No pending jobs to process');
     } else {
-      // Process all pending jobs
-      console.log('Fetching pending jobs...');
-      const now = new Date().toISOString();
-      const { data: jobs, error } = await supabase
-        .from('ImportJob')
-        .select('*')
-        .or(`status.eq.pending,and(status.eq.failed,nextRetryAt.lte.${now})`)
-        .order('createdAt', { ascending: true })
-        .limit(MAX_JOBS_PER_RUN);
-
-      if (error) {
-        console.error('Error fetching jobs:', error);
-        process.exit(1);
-      }
-
-      if (!jobs || jobs.length === 0) {
-        console.log('No pending jobs found');
-        process.exit(0);
-      }
-
-      console.log(`Found ${jobs.length} job(s) to process`);
-
-      for (const job of jobs) {
-        try {
-          console.log(`\nProcessing job ${job.id} (type: ${job.type}, status: ${job.status})...`);
-          
-          // Update job status to processing
-          await supabase
-            .from('ImportJob')
-            .update({ 
-              status: 'processing',
-              updatedAt: formatTimestamp(new Date()),
-            })
-            .eq('id', job.id);
-
-          if (job.type === 'plaid_sync') {
-            await processPlaidSyncJob(supabase, job);
-          } else if (job.type === 'csv_import') {
-            await processCsvImportJob(supabase, job);
+      console.log(`\n✅ Processed ${result.processed} job(s)`);
+      if (result.results && result.results.length > 0) {
+        console.log('\nResults:');
+        result.results.forEach((r: any) => {
+          if (r.error) {
+            console.log(`  ❌ Job ${r.jobId}: ${r.error}`);
           } else {
-            throw new Error(`Unknown job type: ${job.type}`);
+            console.log(`  ✅ Job ${r.jobId}: ${r.synced || 0} synced, ${r.skipped || 0} skipped, ${r.errors || 0} errors`);
           }
-        } catch (error: any) {
-          console.error(`Error processing job ${job.id}:`, error);
-          await supabase
-            .from('ImportJob')
-            .update({
-              status: 'failed',
-              errorMessage: error.message || 'Unknown error',
-              updatedAt: formatTimestamp(new Date()),
-            })
-            .eq('id', job.id);
-        }
+        });
       }
-
-      console.log('\nAll jobs processed');
     }
   } catch (error: any) {
-    console.error('Fatal error:', error);
+    console.error('❌ Error:', error.message);
+    if (error.message?.includes('connect to API')) {
+      console.error('\n💡 Tip: Make sure your Next.js server is running, or set NEXT_PUBLIC_APP_URL to your production URL');
+    }
     process.exit(1);
   }
 }
