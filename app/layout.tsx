@@ -10,7 +10,7 @@ import { PlaidLinkProvider } from "@/components/banking/plaid-link-context";
 import { ServiceWorkerRegister } from "./sw-register";
 import { BreakpointLogger } from "@/components/breakpoint-logger";
 import { CookieConsentBanner } from "@/components/cookie/CookieConsentBanner";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SpeedInsightsWrapper } from "@/components/speed-insights-wrapper";
 // PlanLimitsProvider removed - SubscriptionProvider in protected layout handles this
 
 const inter = Inter({ 
@@ -92,7 +92,7 @@ export default function RootLayout({
             <KBarWrapper />
             <ServiceWorkerRegister />
             <CookieConsentBanner />
-            <SpeedInsights />
+            <SpeedInsightsWrapper />
           </ToastProvider>
           </PlaidLinkProvider>
           </StripeProvider>
