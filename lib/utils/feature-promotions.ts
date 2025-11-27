@@ -15,13 +15,8 @@ export interface FeaturePromotion {
 export const featurePromotions: Record<string, FeaturePromotion> = {
   Investments: {
     headline: "Stop losing track of your investments across multiple platforms",
-    subheadline: "Tired of logging into different broker accounts just to see your portfolio? Connect Questrade once and see all your investments, performance, and asset allocation in one place. Know exactly how your money is growing—or where it's not.",
+    subheadline: "Track all your investments, performance, and asset allocation in one place. Know exactly how your money is growing—or where it's not.",
     benefits: [
-      {
-        title: "Questrade auto-sync",
-        description: "Connect your Questrade account and watch transactions sync automatically. No more manual entry of trades, dividends, or contributions.",
-        icon: "BarChart3",
-      },
       {
         title: "Real-time portfolio tracking",
         description: "See your total portfolio value update in real-time. Track day-to-day changes, total returns, and performance metrics all in one dashboard.",
@@ -35,7 +30,7 @@ export const featurePromotions: Record<string, FeaturePromotion> = {
     ],
     preview: {
       title: "Investment Portfolio",
-      description: "Read about compatible investment accounts, how to connect Questrade, and how to track your portfolio performance over time",
+      description: "Read about investment accounts and how to track your portfolio performance over time",
     },
   },
   "Advanced Reports": {

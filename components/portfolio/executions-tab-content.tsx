@@ -28,7 +28,7 @@ interface Execution {
   orderId: number;
   account?: {
     name: string;
-    questradeAccountNumber: string;
+    accountNumber: string;
   };
   security?: {
     symbol: string;
@@ -47,11 +47,8 @@ export function ExecutionsTabContent() {
   async function loadExecutions() {
     try {
       setLoading(true);
-      const response = await fetch("/api/questrade/executions");
-      if (response.ok) {
-        const data = await response.json();
-        setExecutions(data.executions || []);
-      }
+      // Executions data is no longer available
+      setExecutions([]);
     } catch (error) {
       console.error("Error loading executions:", error);
     } finally {

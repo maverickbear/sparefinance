@@ -40,35 +40,47 @@ export default async function ProtectedLayout({
     redirect(redirectUrl);
   }
 
-  // Verify user exists in User table
-  const { exists, userId } = await verifyUserExists();
-  
-  if (!exists) {
-    // Get current pathname for redirect
+  // PERFORMANCE OPTIMIZATION: Combine user verification and data fetching into single query
+  // This avoids multiple sequential queries to the User table
+  let userData: { id: string; isBlocked: boolean; role: string } | null = null;
+  try {
+    const { data, error: userError } = await supabase
+      .from("User")
+      .select("id, isBlocked, role")
+      .eq("id", user.id)
+      .single();
+
+    if (userError || !data) {
+      // User doesn't exist in User table, log out
+      console.warn(`[PROTECTED-LAYOUT] User ${user.id} authenticated but not found in User table. Logging out.`);
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutError) {
+        log.error("Error signing out:", signOutError);
+      }
+      const headersList = await headers();
+      const pathname = headersList.get("x-pathname") || headersList.get("referer") || "";
+      const redirectUrl = pathname ? `/auth/login?redirect=${encodeURIComponent(pathname)}` : "/auth/login";
+      redirect(redirectUrl);
+    }
+
+    userData = data;
+  } catch (error) {
+    log.error("Error fetching user data:", error);
     const headersList = await headers();
     const pathname = headersList.get("x-pathname") || headersList.get("referer") || "";
     const redirectUrl = pathname ? `/auth/login?redirect=${encodeURIComponent(pathname)}` : "/auth/login";
     redirect(redirectUrl);
   }
 
-  // Check if user is blocked
-  try {
-    const { data: userData } = await supabase
-      .from("User")
-      .select("isBlocked, role")
-      .eq("id", user.id)
-      .single();
+  const userId = userData.id;
 
-    // If user is blocked and not super_admin, prevent access
-    if (userData?.isBlocked && userData?.role !== "super_admin") {
-      log.debug("User is blocked, redirecting to account blocked page");
-      // Sign out the user
-      await supabase.auth.signOut();
-      redirect("/account-blocked");
-    }
-  } catch (error) {
-    // If error checking blocked status, log but don't block access
-    log.error("Error checking user blocked status:", error);
+  // Check if user is blocked
+  if (userData.isBlocked && userData.role !== "super_admin") {
+    log.debug("User is blocked, redirecting to account blocked page");
+    // Sign out the user
+    await supabase.auth.signOut();
+    redirect("/account-blocked");
   }
 
   // Check maintenance mode
@@ -88,13 +100,7 @@ export default async function ProtectedLayout({
   }
 
   if (isMaintenanceMode) {
-    // Check if user is super_admin
-    const { data: userData } = await supabase
-      .from("User")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
+    // Use already fetched userData instead of querying again
     // If not super_admin, redirect to maintenance page
     // Note: redirect() throws a special error that Next.js uses for navigation
     // We don't catch it here so Next.js can handle it properly

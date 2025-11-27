@@ -31,7 +31,7 @@ interface Order {
   updateTime: string;
   account?: {
     name: string;
-    questradeAccountNumber: string;
+    accountNumber: string;
   };
   security?: {
     symbol: string;
@@ -50,11 +50,8 @@ export function OrdersTabContent() {
   async function loadOrders() {
     try {
       setLoading(true);
-      const response = await fetch("/api/questrade/orders");
-      if (response.ok) {
-        const data = await response.json();
-        setOrders(data.orders || []);
-      }
+      // Orders data is no longer available
+      setOrders([]);
     } catch (error) {
       console.error("Error loading orders:", error);
     } finally {

@@ -68,7 +68,6 @@
 - **Interest Tracking**: Monitor total interest paid
 
 ### 📈 Investment Portfolio
-- **Questrade Integration**: Sync Canadian broker accounts
 - **Position Tracking**: Real-time holdings
 - **Performance Charts**: Track investment growth
 - **Asset Allocation**: Diversification analysis
@@ -166,9 +165,6 @@
    
    # OpenAI (optional)
    OPENAI_API_KEY=your_openai_key
-   
-   # Encryption
-   ENCRYPTION_KEY=your_32_character_encryption_key
    ```
 
 4. **Set up the database**

@@ -14,7 +14,7 @@ import { getActiveHouseholdId } from "@/lib/utils/household";
 // Prevents duplicate calls within a short time window (2 seconds)
 // This helps when multiple components call getAccounts() simultaneously
 const requestCache = new Map<string, { promise: Promise<any[]>; timestamp: number }>();
-const CACHE_TTL = 2000; // 2 seconds - shorter than Questrade because accounts change more frequently
+const CACHE_TTL = 2000; // 2 seconds - accounts change frequently
 
 // Clean up expired cache entries periodically
 function cleanAccountsCache() {
@@ -138,44 +138,44 @@ async function fetchAccountsInternal(
   // Handle investment accounts separately - calculate from holdings
   const investmentAccounts = accounts.filter((acc: any) => acc.type === "investment");
   if (investmentAccounts.length > 0) {
-    const investmentAccountIds = investmentAccounts.map((acc: any) => acc.id);
+    const investmentAccountIds: string[] = investmentAccounts.map((acc: any) => acc.id);
     
-    // 1. First, try to get values from InvestmentAccount (Questrade connected accounts)
-    const { data: questradeAccounts } = await supabase
+    // 1. First, try to get values from InvestmentAccount
+    const { data: investmentAccountData } = await supabase
       .from("InvestmentAccount")
       .select("accountId, totalEquity, marketValue, cash")
       .in("accountId", investmentAccountIds)
       .not("accountId", "is", null);
     
-    if (questradeAccounts) {
-      for (const questradeAccount of questradeAccounts) {
-        if (questradeAccount.accountId) {
-          const totalEquity = questradeAccount.totalEquity != null 
-            ? Number(questradeAccount.totalEquity) 
+    if (investmentAccountData) {
+      for (const investmentAccount of investmentAccountData) {
+        if (investmentAccount.accountId) {
+          const totalEquity = investmentAccount.totalEquity != null 
+            ? Number(investmentAccount.totalEquity) 
             : null;
-          const marketValue = questradeAccount.marketValue != null 
-            ? Number(questradeAccount.marketValue) 
+          const marketValue = investmentAccount.marketValue != null 
+            ? Number(investmentAccount.marketValue) 
             : 0;
-          const cash = questradeAccount.cash != null 
-            ? Number(questradeAccount.cash) 
+          const cash = investmentAccount.cash != null 
+            ? Number(investmentAccount.cash) 
             : 0;
           
           const accountValue = totalEquity ?? (marketValue + cash);
-          balances.set(questradeAccount.accountId, accountValue);
+          balances.set(investmentAccount.accountId, accountValue);
         }
       }
     }
     
-    // 2. For accounts without Questrade data, try AccountInvestmentValue (simple investments)
-    const accountsWithoutQuestrade = investmentAccountIds.filter(
+    // 2. For accounts without InvestmentAccount data, try AccountInvestmentValue (simple investments)
+    const accountsWithoutInvestmentAccount = investmentAccountIds.filter(
       (accountId: string) => !balances.has(accountId)
     );
     
-    if (accountsWithoutQuestrade.length > 0) {
+    if (accountsWithoutInvestmentAccount.length > 0) {
       const { data: investmentValues } = await supabase
         .from("AccountInvestmentValue")
         .select("accountId, totalValue")
-        .in("accountId", accountsWithoutQuestrade);
+        .in("accountId", accountsWithoutInvestmentAccount);
       
       if (investmentValues) {
         for (const investmentValue of investmentValues) {
@@ -201,8 +201,8 @@ async function fetchAccountsInternal(
       
       logger.debug(`[getAccounts] Fetched ${holdings.length} holdings for ${investmentAccountIds.length} investment accounts`);
       
-      // Create a map from InvestmentAccount.id to Account.id for Questrade accounts
-      // Holdings from Questrade use InvestmentAccount.id, but we need Account.id
+      // Create a map from InvestmentAccount.id to Account.id
+      // Holdings may use InvestmentAccount.id, but we need Account.id
       const investmentAccountMap = new Map<string, string>();
       if (investmentAccounts.length > 0) {
         const { data: investmentAccountsData } = await supabase
@@ -222,7 +222,7 @@ async function fetchAccountsInternal(
       
       // Calculate value for each account based on holdings
       for (const accountId of investmentAccountIds) {
-        // Holdings may have accountId as InvestmentAccount.id (from Questrade) or Account.id (from transactions)
+        // Holdings may have accountId as InvestmentAccount.id or Account.id (from transactions)
         // We need to check both
         const accountHoldings = holdings.filter((h: any) => {
           // Direct match (from transactions)

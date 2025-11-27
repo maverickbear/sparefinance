@@ -1,36 +1,43 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase-server";
+import type { User } from "@supabase/supabase-js";
 
 /**
- * Verifica se o usuário autenticado existe na tabela User
- * Se não existir, faz logout e retorna false
+ * Verifies if the authenticated user exists in the User table
+ * If not, logs out and returns false
  * 
+ * PERFORMANCE OPTIMIZATION: Accepts optional user parameter to avoid duplicate getUser() calls
+ * 
+ * @param user - Optional user object from auth.getUser() to avoid duplicate calls
  * @returns {Promise<{ exists: boolean; userId: string | null }>}
  */
-export async function verifyUserExists(): Promise<{ exists: boolean; userId: string | null }> {
+export async function verifyUserExists(user?: User | null): Promise<{ exists: boolean; userId: string | null }> {
   try {
     const supabase = await createServerClient();
     
-    // Verifica se o usuário está autenticado
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return { exists: false, userId: null };
+    // Get user if not provided (backward compatibility)
+    let authUser = user;
+    if (!authUser) {
+      const { data: { user: fetchedUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || !fetchedUser) {
+        return { exists: false, userId: null };
+      }
+      authUser = fetchedUser;
     }
 
-    // Verifica se o usuário existe na tabela User
+    // Verify user exists in User table
     const { data: userData, error: userError } = await supabase
       .from("User")
       .select("id")
       .eq("id", authUser.id)
       .single();
 
-    // Se o usuário não existe na tabela User, faz logout
+    // If user doesn't exist in User table, log out
     if (userError || !userData) {
       console.warn(`[verifyUserExists] User ${authUser.id} authenticated but not found in User table. Logging out.`);
       
-      // Faz logout para limpar a sessão
+      // Log out to clear session
       try {
         await supabase.auth.signOut();
       } catch (signOutError) {

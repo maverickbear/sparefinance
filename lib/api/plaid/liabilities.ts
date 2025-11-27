@@ -182,7 +182,7 @@ export async function syncAccountLiabilities(
                   interestRate: apr || 0,
                   totalMonths: null,
                   firstPaymentDate: formatDateOnly(nextDueDate),
-                  monthlyPayment: creditCard.minimum_payment_amount || 0,
+                  monthlyPayment: creditCard.minimum_payment_amount || 0, // Credit cards: minimum payment (informational only - user can pay any amount)
                   accountId: account.id,
                   priority: "Medium",
                   status: "active",
@@ -421,6 +421,17 @@ export async function syncAccountLiabilities(
     return { synced, updated, errors };
   } catch (error: any) {
     console.error('Error syncing liabilities:', error);
+    
+    // Check if it's a product authorization error
+    const errorCode = error.response?.data?.error_code;
+    const errorType = error.response?.data?.error_type;
+    
+    if (errorCode === 'INVALID_PRODUCT' || errorType === 'INVALID_INPUT') {
+      console.warn('[PLAID LIABILITIES] Liabilities product not authorized for this client. Skipping liability sync.');
+      // Return empty result instead of throwing - this is not a critical error
+      return { synced: 0, updated: 0, errors: 0 };
+    }
+    
     throw new Error(error.message || 'Failed to sync liabilities');
   }
 }

@@ -194,7 +194,7 @@ export function ExpensesByCategoryWidget({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 lg:gap-6">
+        <div className="flex flex-row items-center lg:items-start gap-4 lg:gap-6">
           {/* Donut Chart */}
           <div className="relative flex-shrink-0 w-[140px] h-[140px] lg:w-[180px] lg:h-[180px]">
             <svg
@@ -237,7 +237,7 @@ export function ExpensesByCategoryWidget({
 
           {/* Legend */}
           <div className="flex-1 min-w-0 w-full relative">
-            <div className="space-y-1 max-h-[200px] overflow-y-auto">
+            <div className="space-y-1">
               {expensesData.map((item, index) => {
                 return (
                   <Tooltip key={index}>

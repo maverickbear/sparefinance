@@ -3,6 +3,8 @@ import { createTransaction } from "@/lib/api/transactions";
 import { TransactionFormData, transactionSchema } from "@/lib/validations/transaction";
 import { ZodError } from "zod";
 import { getCurrentUserId, guardFeatureAccess } from "@/lib/api/feature-guard";
+import { createServerClient } from "@/lib/supabase-server";
+import { formatTimestamp } from "@/lib/utils/timestamp";
 
 interface ImportRequest {
   transactions: Array<{
@@ -51,12 +53,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const TRANSACTION_THRESHOLD = 20;
+
+    // For large imports (>= 20 transactions), create a background job
+    if (transactions.length >= TRANSACTION_THRESHOLD) {
+      const supabase = await createServerClient();
+      
+      // Get accountId from first transaction (all should have same accountId for CSV import)
+      const accountId = transactions[0]?.accountId;
+      if (!accountId) {
+        return NextResponse.json(
+          { error: "Missing accountId in transactions" },
+          { status: 400 }
+        );
+      }
+
+      // Create import job
+      const jobId = crypto.randomUUID();
+      const { error: jobError } = await supabase
+        .from('ImportJob')
+        .insert({
+          id: jobId,
+          userId: userId,
+          accountId: accountId,
+          type: 'csv_import',
+          status: 'pending',
+          totalItems: transactions.length,
+          metadata: {
+            transactions: transactions.map(tx => ({
+              date: tx.date instanceof Date ? tx.date.toISOString() : tx.date,
+              type: tx.type,
+              amount: tx.amount,
+              accountId: tx.accountId,
+              toAccountId: tx.toAccountId,
+              categoryId: tx.categoryId || null,
+              subcategoryId: tx.subcategoryId || null,
+              description: tx.description || null,
+              recurring: tx.recurring || false,
+              expenseType: tx.expenseType || null,
+              rowIndex: tx.rowIndex,
+              fileName: tx.fileName,
+            })),
+          },
+        });
+
+      if (jobError) {
+        console.error('Error creating import job:', jobError);
+        return NextResponse.json(
+          { error: "Failed to create import job" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        jobId: jobId,
+        message: `Import queued for background processing. ${transactions.length} transactions will be imported.`,
+      });
+    }
+
+    // Small imports: process immediately
     let successCount = 0;
     let errorCount = 0;
     const errors: Array<{ rowIndex: number; fileName?: string; error: string }> = [];
 
     // Process transactions in batches to avoid rate limiting
-    const batchSize = 20; // Increased batch size
+    const batchSize = 20;
     for (let i = 0; i < transactions.length; i += batchSize) {
       const batch = transactions.slice(i, i + batchSize);
       

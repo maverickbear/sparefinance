@@ -5,7 +5,7 @@ import { usePagePerformance } from "@/hooks/use-page-performance";
 import { SubscriptionCard } from "@/components/subscriptions/subscription-card";
 import { SubscriptionForm } from "@/components/forms/subscription-form";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, Edit, Trash2, Pause, Play, MoreVertical } from "lucide-react";
+import { Plus, Loader2, Edit, Trash2, Pause, Play, MoreVertical, Search, Check, X, ArrowLeft, Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/empty-state";
@@ -17,9 +17,21 @@ import {
   deleteUserSubscriptionClient,
   pauseUserSubscriptionClient,
   resumeUserSubscriptionClient,
+  detectSubscriptionsClient,
+  createUserSubscriptionClient,
   type UserServiceSubscription,
+  type DetectedSubscription,
 } from "@/lib/api/user-subscriptions-client";
 import { useToast } from "@/components/toast-provider";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -49,6 +61,20 @@ export default function SubscriptionsPage() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pausingId, setPausingId] = useState<string | null>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectedSubscriptions, setDetectedSubscriptions] = useState<DetectedSubscription[]>([]);
+  const [isDetectionDialogOpen, setIsDetectionDialogOpen] = useState(false);
+  const [selectedDetectedSubscriptions, setSelectedDetectedSubscriptions] = useState<Set<string>>(new Set());
+  const [isImporting, setIsImporting] = useState(false);
+  const [viewingSubscriptionIndex, setViewingSubscriptionIndex] = useState<number | null>(null);
+  const [subscriptionTransactions, setSubscriptionTransactions] = useState<Array<{
+    id: string;
+    date: string;
+    amount: number;
+    description: string | null;
+    account: { id: string; name: string } | null;
+  }>>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   useEffect(() => {
     loadSubscriptions();
@@ -180,24 +206,180 @@ export default function SubscriptionsPage() {
     return null;
   };
 
+  async function handleDetectSubscriptions() {
+    if (!checkWriteAccess()) return;
+    
+    setIsDetecting(true);
+    try {
+      const detected = await detectSubscriptionsClient();
+      setDetectedSubscriptions(detected);
+      setSelectedDetectedSubscriptions(new Set(detected.map((s, i) => i.toString())));
+      setIsDetectionDialogOpen(true);
+    } catch (error) {
+      console.error("Error detecting subscriptions:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to detect subscriptions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDetecting(false);
+    }
+  }
+
+  async function handleImportDetectedSubscriptions() {
+    if (selectedDetectedSubscriptions.size === 0) {
+      toast({
+        title: "No subscriptions selected",
+        description: "Please select at least one subscription to import",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsImporting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const indexStr of selectedDetectedSubscriptions) {
+        const index = parseInt(indexStr);
+        const detected = detectedSubscriptions[index];
+        
+        if (!detected) continue;
+
+        try {
+          await createUserSubscriptionClient({
+            serviceName: detected.merchantName,
+            amount: detected.amount,
+            billingFrequency: detected.frequency,
+            billingDay: detected.billingDay || null,
+            accountId: detected.accountId,
+            firstBillingDate: new Date(detected.firstBillingDate),
+            description: detected.description || null,
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Error importing subscription ${detected.merchantName}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast({
+          title: "Success",
+          description: `Successfully imported ${successCount} subscription(s)${errorCount > 0 ? `. ${errorCount} failed.` : ""}`,
+          variant: "success",
+        });
+        setIsDetectionDialogOpen(false);
+        loadSubscriptions();
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to import subscriptions. ${errorCount} error(s) occurred.`,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  function toggleDetectedSubscription(index: string) {
+    const newSet = new Set(selectedDetectedSubscriptions);
+    if (newSet.has(index)) {
+      newSet.delete(index);
+    } else {
+      newSet.add(index);
+    }
+    setSelectedDetectedSubscriptions(newSet);
+  }
+
+  async function handleViewTransactions(index: number) {
+    const detected = detectedSubscriptions[index];
+    if (!detected || !detected.transactionIds || detected.transactionIds.length === 0) {
+      toast({
+        title: "Error",
+        description: "No transactions found for this subscription",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoadingTransactions(true);
+    setViewingSubscriptionIndex(index);
+
+    try {
+      const response = await fetch("/api/transactions/by-ids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: detected.transactionIds }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch transactions");
+      }
+
+      const transactions = await response.json();
+      setSubscriptionTransactions(transactions);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to load transactions",
+        variant: "destructive",
+      });
+      setViewingSubscriptionIndex(null);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  }
+
+  function handleBackToSubscriptions() {
+    setViewingSubscriptionIndex(null);
+    setSubscriptionTransactions([]);
+  }
+
   return (
     <div>
       <PageHeader
         title="Subscriptions"
       >
-        {filteredSubscriptions.length > 0 && canWrite && (
-          <Button
-            size="medium"
-            onClick={() => {
-              if (!checkWriteAccess()) return;
-              setSelectedSubscription(null);
-              setIsFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Subscription
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {canWrite && (
+            <Button
+              size="medium"
+              variant="outline"
+              onClick={handleDetectSubscriptions}
+              disabled={isDetecting}
+            >
+              {isDetecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Detecting...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Detect Subscriptions
+                </>
+              )}
+            </Button>
+          )}
+          {canWrite && (
+            <Button
+              size="medium"
+              onClick={() => {
+                if (!checkWriteAccess()) return;
+                setSelectedSubscription(null);
+                setIsFormOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Subscription
+            </Button>
+          )}
+        </div>
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
@@ -490,6 +672,206 @@ export default function SubscriptionsPage() {
           setSelectedSubscription(null);
         }}
       />
+
+      {/* Detection Dialog */}
+      <Dialog 
+        open={isDetectionDialogOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsDetectionDialogOpen(false);
+            setViewingSubscriptionIndex(null);
+            setSubscriptionTransactions([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          {viewingSubscriptionIndex === null ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Detected Subscriptions</DialogTitle>
+                <DialogDescription>
+                  We found {detectedSubscriptions.length} potential subscription(s) from your transaction history. 
+                  Select the ones you want to import.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4 px-6">
+            {detectedSubscriptions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No subscriptions detected. Make sure you have connected bank accounts with transaction history.
+              </div>
+            ) : (
+              detectedSubscriptions.map((detected, index) => {
+                const isSelected = selectedDetectedSubscriptions.has(index.toString());
+                const confidenceColors = {
+                  high: "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400",
+                  medium: "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400",
+                  low: "bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400",
+                };
+                
+                return (
+                  <Card key={index} className={isSelected ? "border-primary" : ""}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-4">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleDetectedSubscription(index.toString())}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            {detected.logoUrl && (
+                              <img
+                                src={detected.logoUrl}
+                                alt={detected.merchantName}
+                                className="h-10 w-10 object-contain rounded"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                }}
+                              />
+                            )}
+                            <div className="flex-1">
+                              <h4 className="font-semibold">{detected.merchantName}</h4>
+                              <p className="text-sm text-muted-foreground">{detected.accountName}</p>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold">{formatMoney(detected.amount)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {billingFrequencyLabels[detected.frequency]}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <Badge variant="outline" className={confidenceColors[detected.confidence]}>
+                              {detected.confidence} confidence
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {detected.transactionCount} transaction(s)
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              First: {new Date(detected.firstBillingDate).toLocaleDateString()}
+                            </span>
+                            {detected.billingDay !== undefined && (
+                              <span className="text-xs text-muted-foreground">
+                                {detected.frequency === "monthly" || detected.frequency === "semimonthly"
+                                  ? `Day ${detected.billingDay}`
+                                  : dayOfWeekLabels[detected.billingDay]}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {detected.description && (
+                            <p className="text-xs text-muted-foreground mt-2">{detected.description}</p>
+                          )}
+                          
+                          <Button
+                            variant="ghost"
+                            size="small"
+                            className="mt-3 text-xs"
+                            onClick={() => handleViewTransactions(index)}
+                          >
+                            <Receipt className="mr-2 h-3 w-3" />
+                            View {detected.transactionCount} transaction(s)
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDetectionDialogOpen(false)}
+              disabled={isImporting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportDetectedSubscriptions}
+              disabled={isImporting || selectedDetectedSubscriptions.size === 0}
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Import Selected ({selectedDetectedSubscriptions.size})
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleBackToSubscriptions}
+                    className="h-8 w-8"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex-1">
+                    <DialogTitle>
+                      {detectedSubscriptions[viewingSubscriptionIndex]?.merchantName} - Transactions
+                    </DialogTitle>
+                    <DialogDescription>
+                      {subscriptionTransactions.length} transaction(s) used for detection
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+              
+              <div className="py-4 px-6">
+                {loadingTransactions ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : subscriptionTransactions.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No transactions found
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {subscriptionTransactions.map((tx) => (
+                      <Card key={tx.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium">{tx.description || "No description"}</div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                {tx.account?.name || "Unknown Account"}
+                              </div>
+                            </div>
+                            <div className="text-right ml-4">
+                              <div className="font-semibold">{formatMoney(tx.amount)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(tx.date).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {ConfirmDialog}
     </div>
   );

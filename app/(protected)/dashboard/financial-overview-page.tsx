@@ -263,7 +263,7 @@ export function FinancialOverviewPage({
   // ASSETS: totalBalance includes ALL account types:
   // - Checking accounts (calculated from transactions)
   // - Savings accounts (calculated from transactions)
-  // - Investment accounts (calculated from Questrade, AccountInvestmentValue, or Holdings)
+  // - Investment accounts (calculated from InvestmentAccount, AccountInvestmentValue, or Holdings)
   // - All other account types
   //
   // The getAccounts() function already calculates investment account values correctly,

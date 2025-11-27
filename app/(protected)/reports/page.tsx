@@ -52,12 +52,14 @@ function getDateRange(period: ReportPeriod): { startDate: Date; endDate: Date } 
 }
 
 async function ReportsContentWrapper({ period }: { period: ReportPeriod }) {
+  // PERFORMANCE: Get subscription data once and pass to both loadReportsData and ReportsContent
+  // This avoids duplicate getCurrentUserSubscriptionData() call
+  const subscriptionData = await getCurrentUserSubscriptionData();
+  const { limits } = subscriptionData;
+  
   const data = await loadReportsData(period);
   const now = new Date();
   const dateRange = getDateRange(period);
-
-  // Get subscription limits
-  const { limits } = await getCurrentUserSubscriptionData();
 
   return (
     <ReportsContent

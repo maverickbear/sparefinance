@@ -398,7 +398,6 @@ export function RefactoredFeaturesSection() {
               benefits={[
                 "Portfolio value tracking and calculations",
                 "Performance calculations and return analysis",
-                "Questrade integration for Canadian investors",
                 "Investment account and holdings management"
               ]}
               demoComponent={<InvestmentsDemo />}

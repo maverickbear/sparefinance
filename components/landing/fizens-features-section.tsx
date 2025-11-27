@@ -70,7 +70,7 @@ export function LandingFeaturesSection() {
     },
     {
       title: "Investment Portfolio Tracking",
-      description: "Sync Questrade accounts automatically. Track positions, performance, and asset allocation to see your complete investment picture.",
+      description: "Track positions, performance, and asset allocation to see your complete investment picture.",
       icon: TrendingUp,
       tag: "Investments",
       tagColor: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",

@@ -2,22 +2,15 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { formatMoney } from "@/components/common/money";
-import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, Upload, Plug, RefreshCw } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, Upload, RefreshCw } from "lucide-react";
 import { PortfolioSummary } from "@/lib/api/portfolio";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
 
 interface PortfolioSummaryCardsProps {
   summary: PortfolioSummary;
   onAddClick?: () => void;
   onImportClick?: () => void;
-  integrationProps?: {
-    initialStatus?: { isConnected: boolean; accountsCount: number } | null;
-    onSync?: () => void;
-    onDisconnect?: () => void;
-    onSuccess?: () => void;
-  };
   onUpdatePrices?: () => void;
   isUpdatingPrices?: boolean;
 }
@@ -26,7 +19,6 @@ export function PortfolioSummaryCards({
   summary,
   onAddClick,
   onImportClick,
-  integrationProps,
   onUpdatePrices,
   isUpdatingPrices = false,
 }: PortfolioSummaryCardsProps) {
@@ -213,23 +205,6 @@ export function PortfolioSummaryCards({
             <Upload className="h-5 w-5" />
             <span className="text-xs">Import</span>
           </Button>
-          {integrationProps && (
-            <IntegrationDropdown
-              initialStatus={integrationProps.initialStatus}
-              onSync={integrationProps.onSync}
-              onDisconnect={integrationProps.onDisconnect}
-              onSuccess={integrationProps.onSuccess}
-              customTrigger={
-                <Button
-                  variant="outline"
-                  className="flex flex-col items-center justify-center gap-2 h-auto py-3 w-full"
-                >
-                  <Plug className="h-5 w-5" />
-                  <span className="text-xs">Integration</span>
-                </Button>
-              }
-            />
-          )}
         </div>
       </div>
       <div className="flex items-center justify-between mb-4">

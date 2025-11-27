@@ -156,46 +156,46 @@ export async function getAccountsClient(options?: { includeInvestmentBalances?: 
 
   // Handle investment accounts separately
   if (investmentAccounts.length > 0) {
-    const investmentAccountIds = investmentAccounts.map(acc => acc.id);
+    const investmentAccountIds: string[] = investmentAccounts.map((acc: any) => acc.id);
     
-    // 1. First, try to get values from InvestmentAccount (Questrade connected accounts)
-    const { data: questradeAccounts } = await supabase
+    // 1. First, try to get values from InvestmentAccount
+    const { data: investmentAccountData } = await supabase
       .from("InvestmentAccount")
       .select("accountId, totalEquity, marketValue, cash")
       .in("accountId", investmentAccountIds)
       .not("accountId", "is", null);
     
-    if (questradeAccounts) {
-      for (const questradeAccount of questradeAccounts) {
-        if (questradeAccount.accountId) {
+    if (investmentAccountData) {
+      for (const investmentAccount of investmentAccountData) {
+        if (investmentAccount.accountId) {
           // Convert numeric values to numbers (they may come as strings from Supabase)
-          const totalEquity = questradeAccount.totalEquity != null 
-            ? Number(questradeAccount.totalEquity) 
+          const totalEquity = investmentAccount.totalEquity != null 
+            ? Number(investmentAccount.totalEquity) 
             : null;
-          const marketValue = questradeAccount.marketValue != null 
-            ? Number(questradeAccount.marketValue) 
+          const marketValue = investmentAccount.marketValue != null 
+            ? Number(investmentAccount.marketValue) 
             : 0;
-          const cash = questradeAccount.cash != null 
-            ? Number(questradeAccount.cash) 
+          const cash = investmentAccount.cash != null 
+            ? Number(investmentAccount.cash) 
             : 0;
           
           // Use totalEquity if available, otherwise use marketValue + cash
           const accountValue = totalEquity ?? (marketValue + cash);
-          balances.set(questradeAccount.accountId, accountValue);
+          balances.set(investmentAccount.accountId, accountValue);
         }
       }
     }
     
-    // 2. For accounts without Questrade data, try AccountInvestmentValue (simple investments)
-    const accountsWithoutQuestrade = investmentAccountIds.filter(
-      accountId => !balances.has(accountId)
+    // 2. For accounts without InvestmentAccount data, try AccountInvestmentValue (simple investments)
+    const accountsWithoutInvestmentAccount = investmentAccountIds.filter(
+      (accountId: string) => !balances.has(accountId)
     );
     
-    if (accountsWithoutQuestrade.length > 0) {
+    if (accountsWithoutInvestmentAccount.length > 0) {
       const { data: investmentValues } = await supabase
         .from("AccountInvestmentValue")
         .select("accountId, totalValue")
-        .in("accountId", accountsWithoutQuestrade);
+        .in("accountId", accountsWithoutInvestmentAccount);
       
       if (investmentValues) {
         for (const investmentValue of investmentValues) {
@@ -208,17 +208,17 @@ export async function getAccountsClient(options?: { includeInvestmentBalances?: 
       }
     }
     
-    // 3. For accounts without Questrade or AccountInvestmentValue, calculate from holdings
+    // 3. For accounts without InvestmentAccount or AccountInvestmentValue, calculate from holdings
     // OPTIMIZED: Only fetch holdings if we actually have accounts that need it AND if includeInvestmentBalances is true
     // This avoids expensive API calls when investment balances aren't needed (e.g., in Transactions page)
     const accountsWithoutValue = investmentAccountIds.filter(
-      accountId => !balances.has(accountId)
+      (accountId: string) => !balances.has(accountId)
     );
     
     if (accountsWithoutValue.length > 0 && includeInvestmentBalances) {
       try {
         // OPTIMIZED: Use a more efficient approach - only fetch if we have accounts that need it
-        // Note: This is a fallback for accounts without Questrade or AccountInvestmentValue
+        // Note: This is a fallback for accounts without InvestmentAccount or AccountInvestmentValue
         // In most cases, accounts will have values from steps 1 or 2, so this call is rarely needed
         // OPTIMIZED: Skip this expensive call if investment balances aren't needed
         const holdingsResponse = await fetch("/api/portfolio/holdings", { 
@@ -256,7 +256,7 @@ export async function getAccountsClient(options?: { includeInvestmentBalances?: 
     }
     
     // 4. For accounts without any value, set to 0
-    investmentAccounts.forEach(account => {
+    investmentAccounts.forEach((account: any) => {
       if (!balances.has(account.id)) {
         balances.set(account.id, 0);
       }

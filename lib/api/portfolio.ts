@@ -86,7 +86,7 @@ export async function convertSupabaseHoldingToHolding(supabaseHolding: SupabaseH
 interface PortfolioInternalData {
   holdings: import("@/lib/api/investments").Holding[]; // Use the Holding type from investments
   accounts: any[];
-  questradeAccounts: any[];
+  investmentAccounts: any[];
 }
 
 // Internal function to get shared portfolio data (holdings, accounts, etc.)
@@ -100,19 +100,18 @@ export async function getPortfolioInternalData(
   const supabase = await createServerClient(accessToken, refreshToken);
 
   // Fetch all data in parallel to avoid sequential calls
-  const [holdings, accounts, questradeAccountsResult] = await Promise.all([
+  const [holdings, accounts, investmentAccountsResult] = await Promise.all([
     getHoldings(undefined, accessToken, refreshToken),
     getInvestmentAccounts(accessToken, refreshToken),
     supabase
       .from("InvestmentAccount")
       .select("totalEquity, marketValue, cash, id")
-      .eq("isQuestradeConnected", true)
   ]);
 
   return {
     holdings,
     accounts,
-    questradeAccounts: questradeAccountsResult.data || [],
+    investmentAccounts: investmentAccountsResult.data || [],
   };
 }
 
@@ -128,7 +127,7 @@ export async function getPortfolioSummaryInternal(
 
   // Use shared data if provided, otherwise fetch it
   const data = sharedData || await getPortfolioInternalData(accessToken, refreshToken);
-  const { holdings, accounts: allAccounts, questradeAccounts } = data;
+  const { holdings, accounts: allAccounts, investmentAccounts } = data;
   
   // Only log warnings/errors, not every calculation
   if (holdings.length > 0) {
@@ -142,21 +141,21 @@ export async function getPortfolioSummaryInternal(
   }
   
   let totalValue: number;
-  if (questradeAccounts && questradeAccounts.length > 0) {
-    // Sum totalEquity from all Questrade accounts
-    const questradeValue = questradeAccounts.reduce((sum, account) => {
+  if (investmentAccounts && investmentAccounts.length > 0) {
+    // Sum totalEquity from all investment accounts
+    const investmentValue = investmentAccounts.reduce((sum, account) => {
       const accountValue = account.totalEquity ?? 
         ((account.marketValue || 0) + (account.cash || 0));
       return sum + accountValue;
     }, 0);
     
-    // Also calculate value from holdings for non-Questrade accounts
-    const questradeAccountIds = new Set(questradeAccounts.map(qa => qa.id));
-    const nonQuestradeHoldingsValue = holdings
-      .filter(h => !questradeAccountIds.has(h.accountId))
+    // Also calculate value from holdings for accounts without investment account data
+    const investmentAccountIds = new Set(investmentAccounts.map(ia => ia.id));
+    const holdingsValue = holdings
+      .filter(h => !investmentAccountIds.has(h.accountId))
       .reduce((sum, h) => sum + h.marketValue, 0);
     
-    totalValue = questradeValue + nonQuestradeHoldingsValue;
+    totalValue = investmentValue + holdingsValue;
     
     // Removed verbose development logging
   } else {
@@ -377,30 +376,29 @@ export async function getPortfolioAccountsInternal(
   sharedData: PortfolioInternalData,
   supabase: any
 ): Promise<Account[]> {
-  const { holdings, accounts, questradeAccounts } = sharedData;
+  const { holdings, accounts, investmentAccounts } = sharedData;
 
-  // Get full Questrade account details for display
-  const { data: questradeAccountsFull } = await supabase
+  // Get full investment account details for display
+  const { data: investmentAccountsFull } = await supabase
     .from("InvestmentAccount")
-    .select("*")
-    .eq("isQuestradeConnected", true);
+    .select("*");
 
-  // Create a map of account values from Questrade balances
-  const questradeAccountValues = new Map<string, number>();
-  if (questradeAccountsFull) {
-    for (const account of questradeAccountsFull) {
+  // Create a map of account values from investment account balances
+  const investmentAccountValues = new Map<string, number>();
+  if (investmentAccountsFull) {
+    for (const account of investmentAccountsFull) {
       // Use totalEquity if available, otherwise use marketValue + cash
       const accountValue = account.totalEquity ?? 
         ((account.marketValue || 0) + (account.cash || 0));
-      questradeAccountValues.set(account.id, accountValue);
+      investmentAccountValues.set(account.id, accountValue);
     }
   }
 
   // Calculate total value from all accounts
   const accountValues = accounts.map((account) => {
-    // Use Questrade balance if available, otherwise calculate from holdings
-    if (questradeAccountValues.has(account.id)) {
-      return questradeAccountValues.get(account.id)!;
+    // Use investment account balance if available, otherwise calculate from holdings
+    if (investmentAccountValues.has(account.id)) {
+      return investmentAccountValues.get(account.id)!;
     } else {
       const accountHoldings = holdings.filter((h) => h.accountId === account.id);
       return accountHoldings.reduce((sum, h) => sum + h.marketValue, 0);
@@ -464,7 +462,7 @@ export async function getPortfolioHistoricalDataInternal(
   
   // Use shared data if provided, otherwise fetch it
   const sharedPortfolioData = sharedData || await getPortfolioInternalData(accessToken, refreshToken);
-  const { holdings: supabaseHoldings, accounts: allAccounts, questradeAccounts } = sharedPortfolioData;
+  const { holdings: supabaseHoldings, accounts: allAccounts, investmentAccounts } = sharedPortfolioData;
   
   // Get current portfolio value using the same logic as getPortfolioSummaryInternal
   // OPTIMIZED: Pass shared data to avoid recalculating
@@ -484,12 +482,12 @@ export async function getPortfolioHistoricalDataInternal(
   // Note: portfolioHoldings is converted from SupabaseHolding, where id = securityId
   const securityIds = Array.from(new Set(portfolioHoldings.map(h => h.id)));
   
-  // If we have Questrade accounts, we should use their values
+  // If we have investment accounts, we should use their values
   // For historical data, we'll calculate from holdings but ensure today's value is accurate
-  const hasQuestradeAccounts = questradeAccounts && questradeAccounts.length > 0;
+  const hasInvestmentAccounts = investmentAccounts && investmentAccounts.length > 0;
   
-  if (securityIds.length === 0 && !hasQuestradeAccounts) {
-    // No holdings and no Questrade accounts, return empty array
+  if (securityIds.length === 0 && !hasInvestmentAccounts) {
+    // No holdings and no investment accounts, return empty array
     return [];
   }
   
@@ -703,7 +701,7 @@ export async function getPortfolioHistoricalDataInternal(
     let portfolioValue = 0;
     
     if (dateKey === todayKey) {
-      // Today - use current value from summary (includes Questrade accounts)
+      // Today - use current value from summary (includes investment accounts)
       portfolioValue = currentValue;
     } else if (pricesForDate && holdingsOverTime.size > 0) {
       // Use historical prices if available
@@ -738,7 +736,7 @@ export async function getPortfolioHistoricalDataInternal(
     const todayKey = today.toISOString().split("T")[0];
     const todayIndex = data.findIndex(d => d.date === todayKey);
     if (todayIndex >= 0) {
-      // Override with accurate current value from summary (includes Questrade accounts)
+      // Override with accurate current value from summary (includes investment accounts)
       data[todayIndex].value = currentValue;
     } else {
       // Add today's value if not already in the data
@@ -755,12 +753,12 @@ export async function getPortfolioHistoricalDataInternal(
     });
   }
   
-  // If we have Questrade accounts but no historical data, add a point for today
+  // If we have investment accounts but no historical data, add a point for today
   // This ensures the chart shows at least the current value
-  if (hasQuestradeAccounts && data.length === 1 && data[0].date === today.toISOString().split("T")[0]) {
+  if (hasInvestmentAccounts && data.length === 1 && data[0].date === today.toISOString().split("T")[0]) {
     // We already have today's value, which is good
     if (process.env.NODE_ENV === "development") {
-      logger.log("[Portfolio Historical] Using Questrade account values, current value:", currentValue);
+      logger.log("[Portfolio Historical] Using investment account values, current value:", currentValue);
     }
   }
   

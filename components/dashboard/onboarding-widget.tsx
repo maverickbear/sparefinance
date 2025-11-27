@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AccountForm } from "@/components/forms/account-form";
@@ -32,6 +33,7 @@ interface OnboardingWidgetProps {
 }
 
 export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
+  const router = useRouter();
   const [status, setStatus] = useState<OnboardingStatus | null>(initialStatus || null);
   const [isAccountFormOpen, setIsAccountFormOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -171,20 +173,20 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
 
   const actions = [
     {
-      id: "account",
-      title: "Create Account",
-      description: "Add at least one account to start tracking your finances",
-      icon: Wallet,
-      completed: status.hasAccount,
-      action: () => setIsAccountFormOpen(true),
-    },
-    {
       id: "profile",
       title: "Complete Profile",
       description: "Add your name to personalize your experience",
       icon: User,
       completed: status.hasCompleteProfile,
       action: () => setIsProfileModalOpen(true),
+    },
+    {
+      id: "account",
+      title: "Create or Connect your Bank Account",
+      description: "Add at least one account to start tracking your finances",
+      icon: Wallet,
+      completed: status.hasAccount,
+      action: () => router.push("/accounts"),
     },
   ];
 

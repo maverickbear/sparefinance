@@ -146,3 +146,40 @@ export async function resumeUserSubscriptionClient(
   return await response.json();
 }
 
+/**
+ * Detected subscription from transaction analysis
+ */
+export interface DetectedSubscription {
+  merchantName: string;
+  merchantEntityId?: string | null;
+  logoUrl?: string | null;
+  amount: number;
+  frequency: "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily";
+  billingDay?: number;
+  firstBillingDate: string;
+  accountId: string;
+  accountName: string;
+  transactionCount: number;
+  lastTransactionDate: string;
+  confidence: "high" | "medium" | "low";
+  description?: string | null;
+  transactionIds: string[]; // IDs of transactions used for detection
+}
+
+/**
+ * Detect subscriptions from transactions
+ */
+export async function detectSubscriptionsClient(): Promise<DetectedSubscription[]> {
+  try {
+    const response = await fetch("/api/subscriptions/detect");
+    if (!response.ok) {
+      throw new Error("Failed to detect subscriptions");
+    }
+    const data = await response.json();
+    return data.subscriptions || [];
+  } catch (error) {
+    console.error("Error detecting subscriptions:", error);
+    throw error;
+  }
+}
+

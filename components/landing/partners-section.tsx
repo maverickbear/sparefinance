@@ -16,7 +16,6 @@ export function PartnersSection() {
         <div className="flex items-center justify-center gap-8 md:gap-12 flex-wrap opacity-60">
           <div className="text-base font-medium text-muted-foreground">Plaid</div>
           <div className="text-base font-medium text-muted-foreground">Stripe</div>
-          <div className="text-base font-medium text-muted-foreground">Questrade</div>
         </div>
       </div>
     </section>

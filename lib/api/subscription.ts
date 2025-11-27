@@ -29,6 +29,7 @@ export interface SubscriptionData {
 
 // Cache configuration
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const PLANS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes - plans change rarely
 const plansCache = new Map<string, Plan>();
 let plansCacheTimestamp = 0;
 
@@ -144,7 +145,8 @@ export async function invalidateSubscriptionsForPlan(planId: string): Promise<vo
 export async function getPlans(): Promise<Plan[]> {
   try {
     const now = Date.now();
-    if (plansCache.size === 0 || (now - plansCacheTimestamp) > CACHE_TTL) {
+    // PERFORMANCE: Use longer TTL for plans cache (plans change rarely)
+    if (plansCache.size === 0 || (now - plansCacheTimestamp) > PLANS_CACHE_TTL) {
       await refreshPlansCache();
     }
     
@@ -168,7 +170,8 @@ export async function getPlanById(planId: string): Promise<Plan | null> {
 
     // Refresh cache if needed
     const now = Date.now();
-    if (plansCache.size === 0 || (now - plansCacheTimestamp) > CACHE_TTL) {
+    // PERFORMANCE: Use longer TTL for plans cache (plans change rarely)
+    if (plansCache.size === 0 || (now - plansCacheTimestamp) > PLANS_CACHE_TTL) {
       await refreshPlansCache();
     }
 
@@ -321,19 +324,23 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
     const cacheAge = now - subscriptionUpdatedAtTime;
     const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
     
-    // FIXED: Handle future timestamps and invalid dates properly
-    // If timestamp is in the future (clock skew or data issue), treat as expired
-    // If timestamp is invalid (NaN), treat as expired
+    // PERFORMANCE: Handle future timestamps (clock skew or timezone issues)
+    // If timestamp is in the future, treat as valid cache (likely clock skew or timezone difference)
+    // Only reject if timestamp is invalid (NaN) or extremely old (>1 hour in past)
     const isValidTimestamp = !isNaN(subscriptionUpdatedAtTime) && subscriptionUpdatedAtTime > 0;
     const isFutureTimestamp = cacheAge < 0;
     const isRecentCache = cacheAge >= 0 && cacheAge < CACHE_MAX_AGE;
+    const isVeryOldCache = cacheAge > 60 * 60 * 1000; // More than 1 hour old
     
-    if (isValidTimestamp && !isFutureTimestamp && isRecentCache) {
+    // Use cache if: valid timestamp AND (recent OR future timestamp OR not very old)
+    // Future timestamps are accepted as valid (clock skew/timezone issues)
+    if (isValidTimestamp && (isRecentCache || isFutureTimestamp || !isVeryOldCache)) {
       log.debug("Using cached subscription data from User table", {
         userId,
         planId: user.effectivePlanId,
         status: user.effectiveSubscriptionStatus,
         cacheAge: `${Math.round(cacheAge / 1000)}s`,
+        isFutureTimestamp: isFutureTimestamp,
       });
 
       // Get plan details
@@ -375,24 +382,26 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
         };
       }
     } else {
-      // Log if cache is expired (negative age = future timestamp, invalid timestamp, or too old)
-      const reason = !isValidTimestamp 
-        ? "invalid_timestamp" 
-        : isFutureTimestamp 
-        ? "future_timestamp" 
-        : "too_old";
-      
-      log.debug("Cache expired, falling back to full query", {
-        userId,
-        cacheAge: `${Math.round(cacheAge / 1000)}s`,
-        reason,
-        subscriptionUpdatedAt: user.subscriptionUpdatedAt,
-        isValidTimestamp,
-      });
+      // Only log if cache is truly expired (invalid timestamp or very old)
+      // Future timestamps are now accepted, so we only log if it's invalid or very old
+      if (!isValidTimestamp || isVeryOldCache) {
+        const reason = !isValidTimestamp 
+          ? "invalid_timestamp" 
+          : "too_old";
+        
+        log.debug("Cache expired, falling back to full query", {
+          userId,
+          cacheAge: `${Math.round(cacheAge / 1000)}s`,
+          reason,
+          subscriptionUpdatedAt: user.subscriptionUpdatedAt,
+          isValidTimestamp,
+        });
+      }
       
       // If cache is very stale (>1 hour) or invalid, refresh it in background
       // This helps prevent future cache misses without blocking the current request
-      if (!isValidTimestamp || isFutureTimestamp || cacheAge > 60 * 60 * 1000) {
+      // Note: Future timestamps are now accepted, so we don't refresh for those
+      if (!isValidTimestamp || isVeryOldCache) {
         void Promise.resolve(supabase.rpc('update_user_subscription_cache', { p_user_id: userId }))
           .then(() => {
             log.debug("Background cache refresh completed", { userId });

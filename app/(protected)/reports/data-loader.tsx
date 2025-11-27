@@ -75,13 +75,12 @@ async function loadReportsDataInternal(
   const dateRange = getDateRange(period, now);
   const historicalStartDate = dateRange.startDate;
 
-  // Fetch all data in parallel
+  // PERFORMANCE: Fetch accounts first, then use it for goals to avoid duplicate getAccounts() call
   const [
     currentMonthTransactionsResult,
     historicalTransactionsResult,
     budgets,
     debts,
-    goals,
     accounts,
   ] = await Promise.all([
     getTransactionsInternal(
@@ -108,15 +107,17 @@ async function loadReportsDataInternal(
       logger.error("Error fetching debts:", error);
       return [];
     }),
-    getGoalsInternal(accessToken, refreshToken, undefined).catch((error) => {
-      logger.error("Error fetching goals:", error);
-      return [];
-    }),
     getAccounts(accessToken, refreshToken).catch((error) => {
       logger.error("Error fetching accounts:", error);
       return [];
     }),
   ]);
+
+  // Fetch goals using already-loaded accounts (avoids duplicate getAccounts() call)
+  const goals = await getGoalsInternal(accessToken, refreshToken, accounts).catch((error) => {
+    logger.error("Error fetching goals:", error);
+    return [];
+  });
 
   // Extract transactions arrays from results
   const currentMonthTransactions = Array.isArray(currentMonthTransactionsResult)
@@ -186,14 +187,17 @@ async function loadReportsDataInternal(
           tokens.refreshToken
         );
 
+        // PERFORMANCE: Use holdings from sharedData instead of calling getPortfolioHoldings again
+        // This avoids duplicate getHoldings() call
+        const { convertSupabaseHoldingToHolding } = await import("@/lib/api/portfolio");
+        
         // Calculate all portfolio data using shared data
-        const [summary, holdings, historical] = await Promise.all([
+        const [summary, historical] = await Promise.all([
           getPortfolioSummaryInternal(
             tokens.accessToken,
             tokens.refreshToken,
             sharedData
           ).catch(() => null),
-          getPortfolioHoldings(tokens.accessToken, tokens.refreshToken).catch(() => []),
           getPortfolioHistoricalDataInternal(
             365,
             tokens.accessToken,
@@ -201,6 +205,11 @@ async function loadReportsDataInternal(
             sharedData
           ).catch(() => []),
         ]);
+
+        // Convert holdings from sharedData (already fetched, no need to call getHoldings again)
+        const holdings = await Promise.all(
+          sharedData.holdings.map(convertSupabaseHoldingToHolding)
+        );
 
         portfolioSummary = summary;
         portfolioHoldings = holdings;

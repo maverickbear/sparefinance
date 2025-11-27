@@ -19,7 +19,6 @@ interface Security {
   symbol: string;
   name: string;
   symbolId?: number;
-  questradeSymbolId?: number;
 }
 
 export function MarketDataTabContent() {
@@ -34,15 +33,8 @@ export function MarketDataTabContent() {
   async function loadSecurities() {
     try {
       setLoading(true);
-      const response = await fetch("/api/questrade/market-data/securities");
-      if (response.ok) {
-        const data = await response.json();
-        const secs = data.securities || [];
-        setSecurities(secs);
-        if (secs.length > 0 && !selectedSecurityId) {
-          setSelectedSecurityId(secs[0].id);
-        }
-      }
+      // Market data features are no longer available
+      setSecurities([]);
     } catch (error) {
       console.error("Error loading securities:", error);
     } finally {
@@ -74,8 +66,7 @@ export function MarketDataTabContent() {
                   No securities found.
                 <br />
                   <span className="text-xs">
-                    Connect your Questrade account and sync positions to view
-                    historical data.
+                    Market data features are not currently available.
                   </span>
                 </div>
               </CardContent>

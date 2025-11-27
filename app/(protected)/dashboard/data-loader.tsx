@@ -134,63 +134,25 @@ async function loadDashboardDataInternal(
   }
 
   // Helper function to get debts with tokens
+  // PERFORMANCE: Use optimized getDebts function instead of direct query
+  // This ensures consistent field selection and calculation logic
   async function getDebtsWithTokens(accessToken?: string, refreshToken?: string) {
-    const supabase = await createServerClient(accessToken, refreshToken);
-    const { data: debts, error } = await supabase
-      .from("Debt")
-      .select("*")
-      .order("priority", { ascending: false })
-      .order("createdAt", { ascending: false });
-
-    if (error || !debts || debts.length === 0) {
-      return [];
-    }
-
-    // Import debt calculation utilities
-    const { calculateDebtMetrics } = await import('@/lib/utils/debts');
-    type DebtForCalculation = import('@/lib/utils/debts').DebtForCalculation;
-    
-    const debtsWithCalculations = await Promise.all(
-      debts.map(async (debt: any) => {
-        const debtForCalculation: DebtForCalculation = {
-          id: debt.id,
-          name: debt.name,
-          initialAmount: debt.initialAmount,
-          downPayment: debt.downPayment,
-          currentBalance: debt.currentBalance,
-          interestRate: debt.interestRate,
-          totalMonths: debt.totalMonths,
-          firstPaymentDate: debt.firstPaymentDate,
-          monthlyPayment: debt.monthlyPayment,
-          paymentFrequency: debt.paymentFrequency,
-          paymentAmount: debt.paymentAmount,
-          principalPaid: debt.principalPaid,
-          interestPaid: debt.interestPaid,
-          additionalContributions: debt.additionalContributions ?? false,
-          additionalContributionAmount: debt.additionalContributionAmount,
-          priority: debt.priority ?? "Medium",
-          isPaused: debt.isPaused ?? false,
-          isPaidOff: debt.isPaidOff ?? false,
-          description: debt.description,
-        };
-
-        const metrics = calculateDebtMetrics(debtForCalculation);
-        return {
-          ...debt,
-          ...metrics,
-        };
-      })
-    );
-
-    return debtsWithCalculations;
+    // Use the optimized getDebts function which:
+    // 1. Selects only necessary fields (not *)
+    // 2. Includes proper calculations
+    // 3. Has consistent error handling
+    const { getDebts } = await import('@/lib/api/debts');
+    return await getDebts(accessToken, refreshToken);
   }
 
   // Helper function to check onboarding status with tokens
   // OPTIMIZED: Reuses accounts from Promise.all to avoid duplicate query
+  // PERFORMANCE: Accepts optional user parameter to avoid duplicate getUser() call
   async function checkOnboardingStatusWithTokens(
     accounts: any[],
     accessToken?: string, 
-    refreshToken?: string
+    refreshToken?: string,
+    user?: { id: string } | null
   ) {
     try {
       const hasAccount = accounts.length > 0;
@@ -198,21 +160,27 @@ async function loadDashboardDataInternal(
 
       // Get profile with tokens
       const supabase = await createServerClient(accessToken, refreshToken);
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        logger.warn("Could not get user for onboarding status check:", userError?.message);
-        return {
-          hasAccount: false,
-          hasCompleteProfile: false,
-          completedCount: 0,
-          totalCount: 2,
-        };
+      
+      // PERFORMANCE: Use provided user or fetch if not provided
+      let authUser = user;
+      if (!authUser) {
+        const { data: { user: fetchedUser }, error: userError } = await supabase.auth.getUser();
+        if (userError || !fetchedUser) {
+          logger.warn("Could not get user for onboarding status check:", userError?.message);
+          return {
+            hasAccount: false,
+            hasCompleteProfile: false,
+            completedCount: 0,
+            totalCount: 2,
+          };
+        }
+        authUser = fetchedUser;
       }
 
       const { data: profileData, error: profileError } = await supabase
         .from("User")
         .select("name")
-        .eq("id", user.id)
+        .eq("id", authUser.id)
         .single();
 
       if (profileError) {

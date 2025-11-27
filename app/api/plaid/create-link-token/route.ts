@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // Parse request body to get account type and country
     const body = await req.json().catch(() => ({}));
-    const accountType = body.accountType || 'bank'; // 'bank' or 'investment'
+    const accountType = body.accountType || 'bank'; // 'bank', 'investment', or 'both'
     const country = body.country || 'US'; // 'US' or 'CA'
     
     // Map country string to CountryCode

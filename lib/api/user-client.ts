@@ -53,10 +53,11 @@ export async function getUserClient(): Promise<{
   }
 
   // Optimized: Fetch User, Subscription, and Plan in parallel (faster than sequential)
+  // PERFORMANCE: Select only necessary fields instead of * to reduce payload size
   const [userResult, subscriptionResult] = await Promise.all([
     supabase
       .from("User")
-      .select("*")
+      .select("id, email, name, avatarUrl, phoneNumber, dateOfBirth, role, createdAt, updatedAt")
       .eq("id", authUser.id)
       .single(),
     supabase

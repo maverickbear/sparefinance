@@ -334,9 +334,10 @@ export async function getCurrentUser(): Promise<User | null> {
       return null;
     }
 
+    // PERFORMANCE: Select only necessary fields instead of * to reduce payload size
     const { data: userData, error: userError } = await supabase
       .from("User")
-      .select("*")
+      .select("id, email, name, avatarUrl, phoneNumber, dateOfBirth, role, createdAt, updatedAt")
       .eq("id", authUser.id)
       .single();
 

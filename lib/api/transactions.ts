@@ -92,7 +92,7 @@ export async function createTransaction(data: TransactionFormData) {
   // Get active household ID
   const householdId = await getActiveHouseholdId(userId);
 
-  // For transfers, use SQL function for atomic creation
+  // For transfers with toAccountId (outgoing), use SQL function for atomic creation
   if (data.type === "transfer" && data.toAccountId) {
     const { data: transferResult, error: transferError } = await supabase.rpc(
       'create_transfer_with_limit',
@@ -246,7 +246,135 @@ export async function createTransaction(data: TransactionFormData) {
     return outgoingTransaction;
   }
 
-  // Regular transaction (expense or income) - use SQL function for atomic creation
+  // For transfers with transferFromId (incoming, e.g., credit card payments)
+  // Create a single transaction on the destination account with transferFromId set
+  if (data.type === "transfer" && data.transferFromId) {
+    const { data: transactionResult, error: transactionError } = await supabase.rpc(
+      'create_transaction_with_limit',
+      {
+        p_id: id,
+        p_date: transactionDate,
+        p_type: 'transfer',
+        p_amount: data.amount,
+        p_account_id: data.accountId,
+        p_user_id: userId,
+        p_category_id: null, // Transfers don't have categories
+        p_subcategory_id: null,
+        p_description: encryptedDescription,
+        p_description_search: descriptionSearch,
+        p_recurring: data.recurring ?? false,
+        p_expense_type: null,
+        p_created_at: now,
+        p_updated_at: now,
+        p_max_transactions: limits.maxTransactions,
+      }
+    );
+
+    if (transactionError) {
+      logger.error("Error creating transfer transaction via SQL function:", transactionError);
+      throw new Error(`Failed to create transfer transaction: ${transactionError.message || JSON.stringify(transactionError)}`);
+    }
+
+    // Fetch the created transaction
+    const { data: transaction, error: fetchError } = await supabase
+      .from("Transaction")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !transaction) {
+      logger.error("Error fetching created transfer transaction:", fetchError);
+      throw new Error("Failed to fetch created transfer transaction");
+    }
+
+    // Update transaction with transferFromId
+    const { error: updateTransferError } = await supabase
+      .from("Transaction")
+      .update({ 
+        transferFromId: data.transferFromId,
+        householdId: householdId || transaction.householdId,
+      })
+      .eq("id", id);
+
+    if (updateTransferError) {
+      logger.error("Error updating transfer with transferFromId:", updateTransferError);
+      throw new Error(`Failed to update transfer transaction: ${updateTransferError.message || JSON.stringify(updateTransferError)}`);
+    }
+
+    // Handle credit card payment - update debt if this is a credit card account
+    try {
+      const { data: account } = await supabase
+        .from('Account')
+        .select('type')
+        .eq('id', data.accountId)
+        .single();
+
+      if (account?.type === 'credit') {
+        const activeDebt = await getActiveCreditCardDebt(data.accountId);
+        if (activeDebt) {
+          const paymentAmount = data.amount;
+          const remainingDebt = activeDebt.currentBalance;
+          let newBalance = remainingDebt - paymentAmount;
+          let newStatus = "active";
+          let newExtraCredit = 0;
+
+          if (paymentAmount < remainingDebt) {
+            newBalance = Math.max(0, newBalance);
+            newStatus = "active";
+          } else if (paymentAmount === remainingDebt) {
+            newBalance = 0;
+            newStatus = "closed";
+          } else {
+            const overPayment = paymentAmount - remainingDebt;
+            newBalance = 0;
+            newStatus = "closed";
+            const { data: creditAccount } = await supabase
+              .from('Account')
+              .select('extraCredit')
+              .eq('id', data.accountId)
+              .single();
+            newExtraCredit = (creditAccount?.extraCredit || 0) + overPayment;
+          }
+
+          const updateData: Record<string, unknown> = {
+            currentBalance: newBalance,
+            status: newStatus,
+            updatedAt: formatTimestamp(new Date()),
+          };
+
+          if (newStatus === "closed") {
+            updateData.isPaidOff = true;
+            if (!activeDebt.paidOffAt) {
+              updateData.paidOffAt = formatTimestamp(new Date());
+            }
+          }
+
+          await supabase
+            .from("Debt")
+            .update(updateData)
+            .eq("id", activeDebt.id);
+
+          if (newExtraCredit > 0) {
+            await supabase
+              .from("Account")
+              .update({ extraCredit: newExtraCredit })
+              .eq("id", data.accountId);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error("Error handling credit card payment via transfer:", error);
+      // Don't fail transaction creation
+    }
+
+    // Invalidate cache
+    const { invalidateTransactionCaches } = await import('@/lib/services/cache-manager');
+    invalidateTransactionCaches();
+
+    return transaction;
+  }
+
+  // Regular transaction (expense, income, or transfer without transferFromId) - use SQL function for atomic creation
   // Note: householdId was already declared above (line 94) and is available here
   const { data: transactionResult, error: transactionError } = await supabase.rpc(
     'create_transaction_with_limit',
@@ -296,6 +424,82 @@ export async function createTransaction(data: TransactionFormData) {
     if (updateError) {
       logger.error("Error updating transaction with householdId:", updateError);
       // Don't fail the transaction creation if householdId update fails
+    }
+  }
+
+  // Handle credit card payment (transfer without transferFromId) - update debt if this is a credit card account
+  if (data.type === "transfer" && !data.transferFromId) {
+    try {
+      const { data: account } = await supabase
+        .from('Account')
+        .select('type')
+        .eq('id', data.accountId)
+        .single();
+
+      if (account?.type === 'credit') {
+        const activeDebt = await getActiveCreditCardDebt(data.accountId);
+        if (activeDebt) {
+          const paymentAmount = data.amount;
+          const remainingDebt = activeDebt.currentBalance;
+          let newBalance = remainingDebt - paymentAmount;
+          let newStatus = "active";
+          let newExtraCredit = 0;
+
+          if (paymentAmount < remainingDebt) {
+            newBalance = Math.max(0, newBalance);
+            newStatus = "active";
+          } else if (paymentAmount === remainingDebt) {
+            newBalance = 0;
+            newStatus = "closed";
+          } else {
+            const overPayment = paymentAmount - remainingDebt;
+            newBalance = 0;
+            newStatus = "closed";
+            const { data: creditAccount } = await supabase
+              .from('Account')
+              .select('extraCredit')
+              .eq('id', data.accountId)
+              .single();
+            newExtraCredit = (creditAccount?.extraCredit || 0) + overPayment;
+          }
+
+          const updateData: Record<string, unknown> = {
+            currentBalance: newBalance,
+            status: newStatus,
+            updatedAt: formatTimestamp(new Date()),
+          };
+
+          if (newStatus === "closed") {
+            updateData.isPaidOff = true;
+            if (!activeDebt.paidOffAt) {
+              updateData.paidOffAt = formatTimestamp(new Date());
+            }
+          }
+
+          await supabase
+            .from("Debt")
+            .update(updateData)
+            .eq("id", activeDebt.id);
+
+          if (newExtraCredit > 0) {
+            await supabase
+              .from("Account")
+              .update({ extraCredit: newExtraCredit })
+              .eq("id", data.accountId);
+          }
+
+          logger.log("Updated credit card debt from transfer payment:", {
+            debtId: activeDebt.id,
+            paymentAmount,
+            oldBalance: remainingDebt,
+            newBalance,
+            newStatus,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Error handling credit card payment via transfer (no transferFromId):", error);
+      // Don't fail transaction creation
     }
   }
 
@@ -513,6 +717,8 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     // Amount is no longer encrypted - store directly as numeric
     updateData.amount = data.amount;
   }
+  if (data.toAccountId !== undefined) updateData.transferToId = data.toAccountId || null;
+  if (data.transferFromId !== undefined) updateData.transferFromId = data.transferFromId || null;
   if (data.accountId !== undefined) updateData.accountId = data.accountId;
   if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || null;
   if (data.subcategoryId !== undefined) updateData.subcategoryId = data.subcategoryId || null;

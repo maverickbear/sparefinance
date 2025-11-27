@@ -13,6 +13,7 @@ import { Wallet, Building2, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { usePlaidLinkContext } from "@/components/banking/plaid-link-context";
 import { useSubscription } from "@/hooks/use-subscription";
+import { ImportProgress } from "@/components/accounts/import-progress";
 
 interface AddAccountSheetProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function AddAccountSheet({
   const [showManualForm, setShowManualForm] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [importJobIds, setImportJobIds] = useState<string[]>([]);
 
   const handleManualAccountSuccess = () => {
     setShowManualForm(false);
@@ -66,13 +68,26 @@ export function AddAccountSheet({
         }
 
         setIsConnecting(false);
-        onOpenChange(false);
-        onSuccess?.();
-        toast({
-          title: 'Bank account connected',
-          description: 'Your bank account has been connected successfully.',
-          variant: 'success',
-        });
+
+        // Check if there are import jobs (large imports)
+        if (data.importJobs && data.importJobs.length > 0) {
+          setImportJobIds(data.importJobs);
+          toast({
+            title: 'Bank account connected',
+            description: 'Your account is connected. Importing transactions in the background...',
+            variant: 'success',
+          });
+          // Don't close the sheet yet - show progress
+        } else {
+          // Small import completed immediately
+          onOpenChange(false);
+          onSuccess?.();
+          toast({
+            title: 'Bank account connected',
+            description: 'Your bank account has been connected successfully.',
+            variant: 'success',
+          });
+        }
       } catch (error: any) {
         setIsConnecting(false);
         toast({
@@ -219,6 +234,17 @@ export function AddAccountSheet({
         </SheetHeader>
 
         <div className="px-6 py-6 space-y-3 overflow-y-auto flex-1">
+          {importJobIds.length > 0 && (
+            <ImportProgress
+              jobIds={importJobIds}
+              onComplete={() => {
+                setImportJobIds([]);
+                onOpenChange(false);
+                onSuccess?.();
+              }}
+            />
+          )}
+
           <Button
             variant="outline"
             className="w-full h-auto p-4 flex items-center gap-3"

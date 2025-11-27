@@ -74,6 +74,18 @@ export const debtSchema = z.object({
 }, {
   message: "Start Date is required for this loan type",
   path: ["startDate"],
+}).refine((data) => {
+  // Credit Card: monthlyPayment can be 0 (flexible payment - user can pay any amount)
+  const loanTypeLower = (data.loanType || "").toLowerCase();
+  const isCreditCard = loanTypeLower.includes("credit") || loanTypeLower.includes("card");
+  if (isCreditCard) {
+    return true; // monthlyPayment can be 0 for credit cards (flexible payment)
+  }
+  // All other loan types: monthlyPayment must be > 0
+  return (data.monthlyPayment ?? 0) > 0;
+}, {
+  message: "Monthly payment must be greater than 0 for this loan type",
+  path: ["monthlyPayment"],
 });
 
 export type DebtFormData = z.infer<typeof debtSchema>;

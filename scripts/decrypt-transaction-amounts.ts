@@ -16,9 +16,8 @@ import { createClient } from '@supabase/supabase-js';
 import { decryptAmount } from '../lib/utils/transaction-encryption';
 import { logger } from '../lib/utils/logger';
 
-// Load environment variables from .env.local or .env
+// Load environment variables from .env.local
 config({ path: resolve(process.cwd(), '.env.local') });
-config({ path: resolve(process.cwd(), '.env') });
 
 // Get environment variables
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,7 +27,7 @@ if (!supabaseUrl || !supabaseServiceKey) {
   console.error('❌ Missing required environment variables:');
   console.error('   NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✓' : '✗');
   console.error('   SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✓' : '✗');
-  console.error('\nPlease ensure these variables are set in .env.local or .env');
+  console.error('\nPlease ensure these variables are set in .env.local');
   process.exit(1);
 }
 

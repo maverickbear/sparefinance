@@ -219,6 +219,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           amount: amount,
           accountId: transaction.accountId || "",
           toAccountId: (transaction as any).toAccountId || undefined,
+          transferFromId: (transaction as any).transferFromId || undefined,
           categoryId: transaction.categoryId || undefined,
           subcategoryId: transaction.subcategoryId || undefined,
           description: transaction.description || "",
@@ -610,6 +611,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
             amount: data.amount,
             accountId: data.accountId,
             toAccountId: data.type === "transfer" ? (data.toAccountId || null) : null,
+            transferFromId: data.type === "transfer" ? (data.transferFromId || null) : null,
             categoryId: data.type === "transfer" ? null : (data.categoryId || null),
             subcategoryId: data.type === "transfer" ? null : (data.subcategoryId || null),
             description: data.description || null,
@@ -1007,37 +1009,91 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
               </div>
             </div>
 
-            {/* To Account (only for transfers) */}
-            {form.watch("type") === "transfer" && (
-              <div className="space-y-1">
-                <label className="text-sm font-medium">
-                  To Account
-                </label>
-                <Select
-                  value={form.watch("toAccountId") || ""}
-                  onValueChange={(value) => form.setValue("toAccountId", value)}
-                  required
-                >
-                  <SelectTrigger className="h-12">
-                    <SelectValue placeholder="Select destination account" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts
-                      .filter((account) => account.id !== form.watch("accountId"))
-                      .map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.name} ({formatAccountType(account.type)})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.toAccountId && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.toAccountId.message}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Transfer Account Fields */}
+            {form.watch("type") === "transfer" && (() => {
+              const selectedAccount = accounts.find(acc => acc.id === form.watch("accountId"));
+              const isCreditCard = selectedAccount?.type === "credit";
+              const hasTransferFromId = !!form.watch("transferFromId");
+              
+              // Show "From Account" if it's a credit card or if transferFromId already exists
+              // Show "To Account" for regular transfers
+              if (isCreditCard || hasTransferFromId) {
+                return (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">
+                      From Account <span className="text-gray-400 text-xs">(optional)</span>
+                    </label>
+                    <Select
+                      value={form.watch("transferFromId") || ""}
+                      onValueChange={(value) => {
+                        form.setValue("transferFromId", value || undefined);
+                        // Clear toAccountId when setting transferFromId
+                        if (value) {
+                          form.setValue("toAccountId", undefined);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select source account (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None (add later)</SelectItem>
+                        {accounts
+                          .filter((account) => account.id !== form.watch("accountId") && account.type !== "credit")
+                          .map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.name} ({formatAccountType(account.type)})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {form.formState.errors.transferFromId && (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors.transferFromId.message}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Select the account where the payment came from (e.g., checking or savings)
+                    </p>
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">
+                      To Account
+                    </label>
+                    <Select
+                      value={form.watch("toAccountId") || ""}
+                      onValueChange={(value) => {
+                        form.setValue("toAccountId", value);
+                        // Clear transferFromId when setting toAccountId
+                        form.setValue("transferFromId", undefined);
+                      }}
+                      required
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select destination account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts
+                          .filter((account) => account.id !== form.watch("accountId"))
+                          .map((account) => (
+                            <SelectItem key={account.id} value={account.id}>
+                              {account.name} ({formatAccountType(account.type)})
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {form.formState.errors.toAccountId && (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors.toAccountId.message}
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+            })()}
 
             {/* Category and Subcategory (only for non-transfers) */}
             {form.watch("type") !== "transfer" && (

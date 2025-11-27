@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 import { Toast, ToastContainer } from "@/components/ui/toast";
 
 interface ToastContextType {
-  toast: (props: Omit<Toast, "id"> & { variant?: "default" | "destructive" | "success" }) => void;
+  toast: (props: Omit<Toast, "id">) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -15,7 +15,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const toast = useCallback(
     ({ title, description, variant = "default" }: Omit<Toast, "id">) => {
       const id = Math.random().toString(36).substring(7);
-      const newToast: Toast = { id, title, description, variant: variant as "default" | "destructive" | "success" };
+      const newToast: Toast = { id, title, description, variant };
       
       setToasts((prev) => [...prev, newToast]);
     },

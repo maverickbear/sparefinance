@@ -53,44 +53,8 @@ export function QuotesTable() {
     try {
       setLoading(true);
       
-      // First, get user's securities
-      const securitiesResponse = await fetch(
-        "/api/questrade/market-data/securities"
-      );
-      if (!securitiesResponse.ok) {
-        throw new Error("Failed to fetch securities");
-      }
-      
-      const securitiesData = await securitiesResponse.json();
-      const securities = securitiesData.securities || [];
-      
-      if (securities.length === 0) {
-        setQuotes([]);
-        return;
-      }
-
-      // Get symbolIds (assuming symbolId is stored in the security)
-      const symbolIds = securities
-        .map((s: any) => {
-          // Try to get symbolId from different possible fields
-          return s.symbolId || s.questradeSymbolId || null;
-        })
-        .filter((id: any) => id !== null);
-
-      if (symbolIds.length === 0) {
-        setQuotes([]);
-        return;
-      }
-
-      // Fetch quotes from Questrade
-      const quotesResponse = await fetch(
-        `/api/questrade/market-data/quotes?symbolIds=${symbolIds.join(",")}`
-      );
-      
-      if (quotesResponse.ok) {
-        const quotesData = await quotesResponse.json();
-        setQuotes(quotesData.quotes || []);
-      }
+      // Market data features are no longer available
+      setQuotes([]);
     } catch (error) {
       console.error("Error loading quotes:", error);
     } finally {
@@ -144,7 +108,7 @@ export function QuotesTable() {
               No quotes available.
               <br />
               <span className="text-xs">
-                Connect your Questrade account and sync positions to see quotes.
+                Market quotes are not currently available.
               </span>
             </div>
           </div>

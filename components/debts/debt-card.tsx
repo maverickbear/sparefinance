@@ -240,16 +240,25 @@ export function DebtCard({
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">
-                {debt.paymentFrequency && debt.paymentFrequency !== "monthly"
+                {debt.loanType === "credit_card" 
+                  ? (debt.monthlyPayment > 0 ? "Minimum Payment" : "Flexible Payment")
+                  : debt.paymentFrequency && debt.paymentFrequency !== "monthly"
                   ? `${paymentFrequencyLabels[debt.paymentFrequency] || debt.paymentFrequency} Payment`
                   : "Monthly Payment"}
               </p>
               <p className="font-semibold text-base">
-                {debt.paymentAmount && debt.paymentAmount > 0
+                {debt.loanType === "credit_card" && debt.monthlyPayment === 0
+                  ? "Any amount"
+                  : debt.paymentAmount && debt.paymentAmount > 0
                   ? formatMoney(debt.paymentAmount)
                   : formatMoney(debt.monthlyPayment)}
               </p>
-              {debt.paymentFrequency && debt.paymentFrequency !== "monthly" && debt.paymentAmount && (
+              {debt.loanType === "credit_card" && debt.monthlyPayment > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  You can pay any amount (minimum, partial, full, or more)
+                </p>
+              )}
+              {debt.paymentFrequency && debt.paymentFrequency !== "monthly" && debt.paymentAmount && debt.loanType !== "credit_card" && (
                 <p className="text-xs text-muted-foreground">
                   {formatMoney(debt.monthlyPayment)}/mo
                 </p>

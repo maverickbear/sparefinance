@@ -154,8 +154,16 @@ function DebtCard({ debt }: { debt: DebtWithCalculations }) {
 
         <div className="grid grid-cols-2 gap-4 pt-2 text-sm">
           <div>
-            <p className="text-muted-foreground">Monthly Payment</p>
-            <p className="font-medium">{formatMoney(debt.monthlyPayment)}</p>
+            <p className="text-muted-foreground">
+              {debt.loanType === "credit_card" 
+                ? (debt.monthlyPayment > 0 ? "Minimum Payment" : "Payment")
+                : "Monthly Payment"}
+            </p>
+            <p className="font-medium">
+              {debt.loanType === "credit_card" && debt.monthlyPayment === 0
+                ? "Flexible"
+                : formatMoney(debt.monthlyPayment)}
+            </p>
           </div>
           {debt.monthsRemaining !== null && (
             <div>

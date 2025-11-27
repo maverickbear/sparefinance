@@ -373,13 +373,13 @@ function NavComponent({ hasSubscription = true }: NavProps) {
             </div>
 
             <nav className={cn(
-              "flex-1 space-y-6 px-3 py-4",
+              "flex-1 space-y-5 px-3 py-4",
               isCollapsed ? "overflow-visible" : "overflow-y-auto"
             )}>
               {navSections.map((section) => (
                 <div key={section.title} className="space-y-1">
                   {!isCollapsed && (
-                    <h3 className="px-3 pb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    <h3 className="px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       {section.title}
                     </h3>
                   )}

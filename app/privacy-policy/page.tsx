@@ -109,7 +109,6 @@ export default async function PrivacyPolicyPage() {
                   <li>Investment data: securities (stocks, ETFs, bonds), holdings, positions, portfolio values, investment transactions (buys, sells, dividends, transfers), market prices, asset allocation</li>
                   <li>Debt tracking data: loan types, balances, interest rates, payment schedules, minimum payments, due dates, payment history, principal and interest paid</li>
                   <li>Bank account data (when connected via Plaid): account numbers (masked), transaction history, balances, account types, liability information (credit cards, loans)</li>
-                  <li>Investment account data (when connected via Questrade): account numbers, holdings, positions, transactions, portfolio values, cash balances, market values, buying power</li>
                   <li>Category learning data: historical transaction patterns used for AI-powered categorization suggestions</li>
                   <li>AI interaction data: queries, responses, and insights generated through AI features</li>
                 </ul>
@@ -142,7 +141,6 @@ export default async function PrivacyPolicyPage() {
                 <li>Provide, maintain, and improve our services</li>
                 <li>Process transactions and manage your account</li>
                 <li>Sync bank account data through Plaid integration ({essentialPlanName} and {proPlanName} plans)</li>
-                <li>Sync investment account data through Questrade integration ({essentialPlanName} and {proPlanName} plans)</li>
                 <li>Provide AI-powered category suggestions and financial insights using OpenAI</li>
                 <li>Manage household member accounts and permissions ({proPlanName} plan)</li>
                 <li>Calculate budgets, goals, investments, and debt tracking</li>
@@ -176,9 +174,6 @@ export default async function PrivacyPolicyPage() {
                     We do not store payment card information - all payment data is handled by Stripe.</li>
                     <li><strong>Plaid:</strong> For secure bank account connections ({essentialPlanName} and {proPlanName} plans only). 
                     We only receive account information, transactions, and balances - we never access your bank credentials.</li>
-                    <li><strong>Questrade:</strong> For investment account connections ({essentialPlanName} and {proPlanName} plans only). 
-                    We receive investment account data, holdings, positions, and transactions through the Questrade API. 
-                    We store encrypted authorization tokens to maintain connections.</li>
                     <li><strong>OpenAI:</strong> For AI-powered categorization and financial insights. 
                     Transaction data and patterns may be processed by OpenAI to generate category suggestions and insights. 
                     We do not share personally identifiable information with OpenAI beyond what is necessary for the service.</li>
@@ -256,7 +251,7 @@ export default async function PrivacyPolicyPage() {
                     <li>We do not have access to your bank login credentials (username, password, PIN, or security questions)</li>
                     <li>Plaid uses bank-level encryption and security standards (SOC 2 Type 2 certified)</li>
                     <li>Transaction data is automatically synced and categorized using our AI-powered categorization system</li>
-                    <li>We store encrypted Plaid access tokens to maintain your connection</li>
+                    <li>We store Plaid access tokens to maintain your connection</li>
                     <li>You can disconnect your bank account at any time through your account settings, which will stop all data synchronization</li>
                     <li>When you disconnect, we retain historical transaction data that was already imported, but no new data will be collected</li>
                   </ul>
@@ -264,30 +259,6 @@ export default async function PrivacyPolicyPage() {
                     For more information about how Plaid handles your financial data, please review 
                     <a href="https://plaid.com/legal/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
                       Plaid's Privacy Policy
-                    </a>.
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-semibold mb-2">Questrade - Investment Account Connection</h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    We use Questrade API to securely connect your investment accounts (available on {essentialPlanName} and {proPlanName} plans). 
-                    When you connect your Questrade account:
-                  </p>
-                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                    <li>You provide a Questrade authorization token that you generate through the Questrade API Centre</li>
-                    <li>We receive investment account information (account numbers, types, balances), holdings (positions), transactions, portfolio values, and market data</li>
-                    <li>We store encrypted authorization tokens (access token and refresh token) to maintain your connection</li>
-                    <li>Tokens are automatically refreshed when needed to maintain the connection</li>
-                    <li>Investment data is automatically synced on a regular basis</li>
-                    <li>You can disconnect your Questrade account at any time through your account settings</li>
-                    <li>When you disconnect, we retain historical investment data that was already imported, but no new data will be collected</li>
-                    <li>We do not have access to your Questrade account login credentials</li>
-                  </ul>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    For more information about Questrade's data practices, please review 
-                    <a href="https://www.questrade.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">
-                      Questrade's Privacy Policy
                     </a>.
                   </p>
                 </div>
@@ -363,15 +334,14 @@ export default async function PrivacyPolicyPage() {
               </p>
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                 <li>End-to-end encryption for data transmission (TLS 1.2+)</li>
-                <li>Secure data storage with encryption at rest (AES-256-GCM for sensitive data)</li>
+                <li>Secure data storage with encryption at rest</li>
                 <li>Row Level Security (RLS) at the database level to ensure data isolation between users and households</li>
                 <li>Secure authentication via Supabase Auth with password hashing and email verification (OTP)</li>
-                <li>Encrypted storage of sensitive tokens (Plaid access tokens, Questrade authorization tokens) using AES-256-GCM</li>
+                <li>Secure storage of sensitive tokens (Plaid access tokens)</li>
                 <li>Regular security audits and vulnerability assessments</li>
                 <li>Access controls and authentication mechanisms</li>
                 <li>Compliance with financial data protection regulations (PIPEDA, GDPR, CCPA)</li>
                 <li>Bank credentials are never stored - all bank authentication is handled by Plaid</li>
-                <li>Questrade authorization tokens are encrypted before storage</li>
                 <li>Household member data is isolated and only accessible to authorized members</li>
                 <li>Security logging and audit trails for account actions (blocks, suspensions, deletions)</li>
                 <li>Rate limiting to prevent abuse and unauthorized access</li>
@@ -444,7 +414,7 @@ export default async function PrivacyPolicyPage() {
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                 <li><strong>Active Accounts:</strong> Data is retained while your account is active and needed for service provision</li>
                 <li><strong>Account Deletion:</strong> Upon account deletion request, all data is permanently deleted immediately</li>
-                <li><strong>Connected Services:</strong> When you disconnect Plaid or Questrade, we retain historical data but stop collecting new data</li>
+                <li><strong>Connected Services:</strong> When you disconnect Plaid, we retain historical data but stop collecting new data</li>
                 <li><strong>Security Logs:</strong> Security and audit logs (including account blocks and suspensions) may be retained longer for security and compliance purposes</li>
                 <li><strong>Legal Requirements:</strong> Data may be retained longer if required by law, regulation, or legitimate business purposes (e.g., tax records, dispute resolution)</li>
                 <li><strong>Backup Data:</strong> Our database provider (Supabase) maintains automatic backups for disaster recovery. Backup retention is managed by Supabase according to their service terms (typically 7-30 days depending on the service plan). We do not maintain separate backup copies beyond the provider's automatic backup system</li>

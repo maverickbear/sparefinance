@@ -163,9 +163,26 @@ export async function syncAccountTransactions(
 
     // Process added transactions
     for (const plaidTx of accountAdded) {
-      // Skip if already synced
+      // Skip if already synced (first check - in-memory map)
       if (syncedMap.has(plaidTx.transaction_id)) {
         skipped++;
+        continue;
+      }
+
+      // CRITICAL: Double-check in database to prevent race conditions
+      // This prevents duplicates when multiple syncs happen simultaneously
+      const { data: existingSync } = await supabase
+        .from('TransactionSync')
+        .select('plaidTransactionId, transactionId')
+        .eq('plaidTransactionId', plaidTx.transaction_id)
+        .eq('accountId', accountId)
+        .single();
+
+      if (existingSync) {
+        // Transaction already exists - update map and skip
+        syncedMap.set(plaidTx.transaction_id, existingSync.transactionId);
+        skipped++;
+        console.log('[PLAID SYNC] Skipping duplicate transaction (found in DB):', plaidTx.transaction_id);
         continue;
       }
 
@@ -416,7 +433,33 @@ export async function syncAccountTransactions(
         const userId = accountData?.userId;
         const description = plaidTx.name || plaidTx.merchant_name || plaidTx.original_description || 'Plaid Transaction';
         const amount = Math.abs(plaidTx.amount);
-        const type = isExpense ? 'expense' : 'income';
+        
+        // Detect credit card payments - these should be transfers, not income
+        let type: 'expense' | 'income' | 'transfer' = isExpense ? 'expense' : 'income';
+        if (account?.type === 'credit' && !isExpense) {
+          // Check if this is a credit card payment (negative amount on credit card = payment)
+          const isCreditCardPayment = (
+            transactionCode === 'payment' || 
+            transactionCode === 'credit' ||
+            (plaidTx.amount < 0 && (
+              categoryPrimary.includes('payment') ||
+              categoryPrimary.includes('transfer') ||
+              description.toLowerCase().includes('payment') ||
+              description.toLowerCase().includes('credit card payment')
+            ))
+          );
+
+          if (isCreditCardPayment) {
+            // Credit card payments should be transfers, not income
+            // transferFromId will be set by user later if needed
+            type = 'transfer';
+            console.log('[PLAID SYNC] Detected credit card payment, classifying as transfer:', {
+              description: description.substring(0, 50),
+              amount,
+              transactionCode,
+            });
+          }
+        }
 
         // Convert Plaid transaction to camelCase format for consistent storage
         const convertedTx = convertPlaidTransactionToCamelCase(plaidTx);
@@ -498,6 +541,9 @@ export async function syncAccountTransactions(
           categoryId: undefined,
           subcategoryId: undefined,
           recurring: false,
+          // For credit card payments (transfers), transferFromId will be null initially
+          // User can add it later via the form
+          transferFromId: undefined,
         };
 
         console.log('Creating transaction from Plaid:', {
@@ -556,12 +602,13 @@ export async function syncAccountTransactions(
           });
 
           // Record sync only if update was successful
+          // Use upsert to handle race conditions - if another sync created it, just update
           const syncId = crypto.randomUUID();
           const now = formatTimestamp(new Date());
 
           const { error: syncError } = await supabase
             .from('TransactionSync')
-            .insert({
+            .upsert({
               id: syncId,
               accountId,
               plaidTransactionId: plaidTx.transaction_id,
@@ -569,17 +616,29 @@ export async function syncAccountTransactions(
               householdId: account?.householdId || null,
               syncDate: now,
               status: 'synced',
+            }, {
+              onConflict: 'plaidTransactionId',
+              ignoreDuplicates: false,
             });
 
           if (syncError) {
-            console.error('Error recording transaction sync:', {
-              transactionId,
-              plaidTransactionId: plaidTx.transaction_id,
-              error: syncError,
-            });
-            errors++;
+            // Check if it's a duplicate key error (race condition)
+            if (syncError.code === '23505' || syncError.message?.includes('duplicate') || syncError.message?.includes('unique')) {
+              console.warn('[PLAID SYNC] TransactionSync already exists (race condition):', plaidTx.transaction_id);
+              // Transaction was already synced by another process - this is OK
+              skipped++;
+            } else {
+              console.error('Error recording transaction sync:', {
+                transactionId,
+                plaidTransactionId: plaidTx.transaction_id,
+                error: syncError,
+              });
+              errors++;
+            }
           } else {
             synced++;
+            // Update in-memory map to prevent duplicates in same batch
+            syncedMap.set(plaidTx.transaction_id, transactionId);
           }
         }
       } catch (error) {

@@ -41,9 +41,9 @@ export default async function AuthRequiredLayout({
 
   console.log("[AUTH-REQUIRED-LAYOUT] User authenticated:", user.id);
 
-  // Verify user exists in User table
+  // Verify user exists in User table (pass user to avoid duplicate getUser() call)
   console.log("[AUTH-REQUIRED-LAYOUT] Verifying user exists in User table");
-  const { exists, userId } = await verifyUserExists();
+  const { exists, userId } = await verifyUserExists(user);
   
   if (!exists) {
     console.log("[AUTH-REQUIRED-LAYOUT] User does not exist in User table, redirecting to login");

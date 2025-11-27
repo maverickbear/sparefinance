@@ -69,12 +69,12 @@ export async function getHoldings(
 
   // NOTE: Materialized view (holdings_view) is disabled because it calculates
   // book_value incorrectly for sell transactions (uses sell price instead of avg cost).
-  // We use Questrade positions when available, or calculate from transactions (correct).
+  // We use positions when available, or calculate from transactions (correct).
   // See: docs/ANALISE_PORTFOLIO_CALCULOS.md for details.
 
-  // First, try to get holdings from Questrade positions (more accurate and faster)
+  // First, try to get holdings from positions (more accurate and faster)
   // OPTIMIZED: Select only necessary fields instead of * to reduce payload size
-  const { data: questradePositions, error: positionsError } = await supabase
+  const { data: positions, error: positionsError } = await supabase
     .from("Position")
     .select(`
       securityId,
@@ -92,19 +92,19 @@ export async function getHoldings(
     .gt("openQuantity", 0)
     .order("lastUpdatedAt", { ascending: false });
   
-  logger.log("[getHoldings] Questrade positions:", questradePositions?.length || 0, positionsError ? `(error: ${positionsError.message})` : "");
+  logger.log("[getHoldings] Positions:", positions?.length || 0, positionsError ? `(error: ${positionsError.message})` : "");
 
-  if (!positionsError && questradePositions && questradePositions.length > 0) {
-    // Questrade positions found - use them directly
+  if (!positionsError && positions && positions.length > 0) {
+    // Positions found - use them directly
     
     // Filter by accountId if provided
-    let positions = questradePositions;
+    let filteredPositions = positions;
     if (accountId) {
-      positions = positions.filter((p: any) => p.accountId === accountId);
+      filteredPositions = positions.filter((p: any) => p.accountId === accountId);
     }
 
     // Convert positions to holdings format
-    const holdings: Holding[] = positions.map((position: any) => {
+    const holdings: Holding[] = filteredPositions.map((position: any) => {
       const security = position.security || {};
       const account = position.account || {};
       const assetType = security.class || "Stock";
@@ -137,7 +137,7 @@ export async function getHoldings(
     return holdings;
   }
 
-  // Fallback to calculating from transactions if no Questrade positions
+  // Fallback to calculating from transactions if no positions
   // Note: This fallback is slower but necessary if views/positions are not available
 
   // OPTIMIZED: Select only necessary fields instead of * to reduce payload size

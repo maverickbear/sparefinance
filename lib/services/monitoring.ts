@@ -169,7 +169,6 @@ export interface HealthCheckResult {
     externalApis?: {
       plaid?: boolean;
       stripe?: boolean;
-      questrade?: boolean;
     };
   };
   timestamp: Date;

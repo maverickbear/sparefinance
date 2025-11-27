@@ -75,6 +75,12 @@ const DialogContent = React.forwardRef<
           "sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]",
           className
         )}
+        onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+        }}
         {...props}
       >
         {header}

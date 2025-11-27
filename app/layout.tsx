@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -34,12 +34,20 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   manifest: "/manifest.json",
-  themeColor: "#4A4AF2",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Spare Finance",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#4A4AF2",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -50,17 +58,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
-        {/* Google Tag Manager */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-MNDDKZ23');`,
-          }}
-        />
-        {/* End Google Tag Manager */}
         {/* Resource hints for external domains - improve connection speed */}
         {/* DNS prefetch for faster connections */}
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
@@ -76,20 +73,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Spare Finance" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+        {/* Viewport is now handled by viewport export above */}
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className={`${inter.className} bg-background text-foreground`}>
-        {/* Google Tag Manager (noscript) */}
-        <noscript>
-          <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-MNDDKZ23"
-            height="0"
-            width="0"
-            style={{ display: "none", visibility: "hidden" }}
-          />
-        </noscript>
-        {/* End Google Tag Manager (noscript) */}
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

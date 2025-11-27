@@ -140,11 +140,10 @@ export default async function TermsOfServicePage() {
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                   <li><strong>Bank Integration (Plaid):</strong> Available on {essentialPlanName} and {proPlanName} plans. By connecting your bank accounts, you authorize us to access your account information, transactions, and balances through Plaid. You understand that we do not store your bank credentials and that Plaid handles all authentication securely. Bank data is synced automatically and you can disconnect at any time.</li>
-                  <li><strong>Investment Integration (Questrade):</strong> Available on {essentialPlanName} and {proPlanName} plans. You may connect your Questrade investment accounts to automatically sync holdings, transactions, and portfolio values. You are responsible for maintaining the security of your Questrade authorization tokens and for ensuring you have the right to connect such accounts.</li>
                   <li><strong>Household Members:</strong> Available on the {proPlanName} plan. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions. The account owner can view and manage all household members' data.</li>
                   <li><strong>AI-Powered Features:</strong> The Service uses OpenAI-powered artificial intelligence to provide category suggestions, financial insights, and automated categorization based on your historical data. These are suggestions only, and you are responsible for verifying and approving all AI-generated content. We do not guarantee the accuracy of AI suggestions.</li>
                   <li><strong>CSV Import/Export:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may import and export your financial data in CSV format. You are responsible for the accuracy of imported data and for maintaining backups of exported data. Imported data may require manual verification and categorization.</li>
-                  <li><strong>Investment Tracking:</strong> You may track investments, securities, positions, and portfolio performance. Investment data may be synced from Questrade or entered manually. We do not provide investment advice and are not responsible for investment decisions made based on data displayed in the Service.</li>
+                  <li><strong>Investment Tracking:</strong> You may track investments, securities, positions, and portfolio performance. Investment data may be entered manually. We do not provide investment advice and are not responsible for investment decisions made based on data displayed in the Service.</li>
                   <li><strong>Debt Management:</strong> You may track loans, mortgages, credit cards, and other debts. Debt information may be synced from Plaid or entered manually. We do not provide debt management advice.</li>
                   <li><strong>Plan Limits:</strong> Your subscription plan includes specific limits (e.g., number of transactions per month, number of accounts). You agree not to exceed these limits and understand that exceeding limits may result in service restrictions or require plan upgrades.</li>
                 </ul>
@@ -312,12 +311,6 @@ export default async function TermsOfServicePage() {
                 the accuracy of category suggestions or AI-generated insights.
               </p>
               <p className="text-sm text-muted-foreground">
-                <strong>Investment Integration Disclaimer:</strong> Questrade integration is provided as a convenience feature. 
-                We are not responsible for the availability, accuracy, or security of Questrade's services. 
-                Investment data is provided "as is" and we do not guarantee the accuracy or completeness of 
-                synced investment information. You are responsible for verifying all investment data.
-              </p>
-              <p className="text-sm text-muted-foreground">
                 <strong>Investment Advice Disclaimer:</strong> The Service does not provide investment, financial, legal, or tax advice. 
                 All investment data, portfolio information, and financial insights are for informational purposes only. 
                 You should consult with qualified financial advisors before making investment decisions.
@@ -376,7 +369,7 @@ export default async function TermsOfServicePage() {
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                   <li>Your right to use the Service will immediately cease</li>
                   <li>Your account and all data will be permanently deleted immediately</li>
-                  <li>All connected services (Plaid, Questrade) will be disconnected</li>
+                  <li>All connected services (Plaid) will be disconnected</li>
                   <li>Your subscription will be cancelled and no further charges will occur</li>
                   <li>You may export your data before termination</li>
                 </ul>

@@ -2,16 +2,21 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { usePlaidLinkContext } from '@/components/banking/plaid-link-context';
+import { usePlaidConnectionStatus } from '@/hooks/use-plaid-connection-status';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/toast-provider';
 import { useSubscription } from '@/hooks/use-subscription';
-import { Loader2, ChevronDown } from 'lucide-react';
+import { Loader2, ChevronDown, Unlink } from 'lucide-react';
+import { RemovePlaidDialog } from '@/components/accounts/remove-plaid-dialog';
+import { AccountMappingDialog } from '@/components/accounts/account-mapping-dialog';
 
 interface ConnectBankButtonProps {
   onSuccess?: () => void;
@@ -24,14 +29,29 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
   const { limits, plan, checking: limitsLoading } = useSubscription();
   const [linkToken, setLinkToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [removingIntegration, setRemovingIntegration] = useState(false);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
+  const [previewData, setPreviewData] = useState<{
+    publicToken: string;
+    metadata: any;
+    itemId: string;
+    accounts: any[];
+    institutionName: string;
+  } | null>(null);
   const { initialize, open, ready, isInitialized } = usePlaidLinkContext();
+  
+  // PERFORMANCE: Use shared hook to avoid duplicate API calls across multiple component instances
+  const { connectionStatus, loading: loadingStatus, refresh: refreshConnectionStatus } = usePlaidConnectionStatus();
 
   const onSuccessCallback = useCallback(
     async (publicToken: string, metadata: any) => {
       try {
         setIsLoading(true);
 
-        const response = await fetch('/api/plaid/exchange-public-token', {
+        // First, preview accounts to show confirmation dialog
+        console.log('[PLAID LINK] Previewing accounts...');
+        const previewResponse = await fetch('/api/plaid/preview-accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -40,10 +60,15 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
           }),
         });
 
-        const data = await response.json();
+        const previewData = await previewResponse.json();
+        console.log('[PLAID LINK] Preview response:', {
+          ok: previewResponse.ok,
+          accountCount: previewData.accounts?.length,
+          hasError: !!previewData.error,
+        });
 
-        if (!response.ok) {
-          if (response.status === 403 && data.planError) {
+        if (!previewResponse.ok) {
+          if (previewResponse.status === 403 && previewData.planError) {
             // Fetch plan names dynamically
             fetch("/api/billing/plans/public")
               .then(res => res.json())
@@ -75,6 +100,67 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
               });
             return;
           }
+          throw new Error(previewData.error || 'Failed to preview accounts');
+        }
+
+        // Store preview data and show mapping dialog
+        console.log('[PLAID LINK] Showing mapping dialog:', {
+          itemId: previewData.itemId,
+          accountCount: previewData.accounts?.length,
+          institution: previewData.institution?.name,
+        });
+        
+        setPreviewData({
+          publicToken, // Keep for reference but won't be used in final import
+          metadata,
+          itemId: previewData.itemId, // Store itemId to use in final import
+          accounts: previewData.accounts,
+          institutionName: previewData.institution?.name || 'Bank',
+        });
+        setShowMappingDialog(true);
+        setIsLoading(false);
+      } catch (error: any) {
+        console.error('Error previewing accounts:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to preview accounts',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+      }
+    },
+    [toast]
+  );
+
+  const handleConfirmImport = useCallback(
+    async (accountMappings: Record<string, 'checking' | 'savings' | 'credit' | 'investment' | 'other'>) => {
+      if (!previewData) {
+        console.error('[PLAID LINK] No preview data available for import');
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setShowMappingDialog(false);
+
+        console.log('[PLAID LINK] Confirming import:', {
+          itemId: previewData.itemId,
+          accountMappings,
+          accountCount: Object.keys(accountMappings).length,
+        });
+
+        const response = await fetch('/api/plaid/exchange-public-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            itemId: previewData.itemId, // Use itemId from preview instead of publicToken
+            accountTypeMappings: accountMappings,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
           throw new Error(data.error || 'Failed to connect bank account');
         }
 
@@ -85,11 +171,21 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
           variant: 'success',
         });
 
+        // Refresh connection status
+        await refreshConnectionStatus();
+
+        // Clear preview data on success
+        setPreviewData(null);
+
         if (onSuccess) {
           onSuccess();
         }
       } catch (error: any) {
-        console.error('Error exchanging public token:', error);
+        console.error('[PLAID LINK] Error exchanging public token:', error);
+        
+        // Clean up preview data on error to prevent state inconsistency
+        setPreviewData(null);
+        
         toast({
           title: 'Error',
           description: error.message || 'Failed to connect bank account',
@@ -99,7 +195,7 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
         setIsLoading(false);
       }
     },
-    [toast, onSuccess]
+    [previewData, toast, onSuccess, refreshConnectionStatus]
   );
 
   const onErrorCallback = useCallback(
@@ -170,7 +266,7 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
     }
   }, [toast]);
 
-  const handleConnect = useCallback(async (accountType: 'bank' | 'investment', country?: 'US' | 'CA') => {
+  const handleConnect = useCallback(async (accountType: 'bank' | 'investment' | 'both', country?: 'US' | 'CA') => {
     try {
       setIsLoading(true);
 
@@ -281,6 +377,48 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
   // Only disable if loading
   const isDisabled = isLoading;
 
+  // Handle remove all Plaid integration
+  const handleRemoveAll = useCallback(async () => {
+    try {
+      setRemovingIntegration(true);
+      const response = await fetch('/api/plaid/disconnect-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to remove Plaid integration');
+      }
+
+      toast({
+        title: 'Plaid integration removed',
+        description: `Successfully disconnected ${data.accountsDisconnected} account${data.accountsDisconnected !== 1 ? 's' : ''} and removed ${data.connectionsRemoved} connection${data.connectionsRemoved !== 1 ? 's' : ''}.`,
+        variant: 'success',
+      });
+
+      // Refresh connection status
+      await refreshConnectionStatus();
+
+      // Refresh accounts if callback provided
+      if (onSuccess) {
+        onSuccess();
+      }
+
+      setShowRemoveDialog(false);
+    } catch (error: any) {
+      console.error('Error removing Plaid integration:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove Plaid integration',
+        variant: 'destructive',
+      });
+    } finally {
+      setRemovingIntegration(false);
+    }
+  }, [toast, refreshConnectionStatus, onSuccess]);
+
   // Open Plaid Link when token is ready and Plaid Link is initialized
   useEffect(() => {
     if (linkToken && ready && open && isInitialized) {
@@ -315,7 +453,64 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="min-w-[240px]">
+          {/* Connection Status Section */}
+          {connectionStatus?.hasConnections && (
+            <>
+              <div className="px-2 py-1.5">
+                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+                  Plaid Integration
+                </DropdownMenuLabel>
+              </div>
+              <div className="px-2 py-1.5 space-y-1">
+                <div className="text-xs text-muted-foreground">
+                  {connectionStatus.connectionCount} connection{connectionStatus.connectionCount !== 1 ? 's' : ''} • {connectionStatus.accountCount} account{connectionStatus.accountCount !== 1 ? 's' : ''}
+                </div>
+                {connectionStatus.institutions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {connectionStatus.institutions.slice(0, 3).map((institution, index) => {
+                      // Validate logo - must be a valid URL or data URL
+                      const isValidLogo = institution.logo && (
+                        institution.logo.startsWith('http://') ||
+                        institution.logo.startsWith('https://') ||
+                        institution.logo.startsWith('data:image/')
+                      );
+                      
+                      return (
+                        <div
+                          key={`${institution.id}-${index}`}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-xs"
+                        >
+                          {isValidLogo && (
+                            <img
+                              src={institution.logo!}
+                              alt={institution.name || 'Institution'}
+                              className="h-3 w-3 rounded object-contain"
+                              onError={(e) => {
+                                // Hide image on error
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          )}
+                          <span className="truncate max-w-[80px]">
+                            {institution.name || 'Unknown'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {connectionStatus.institutions.length > 3 && (
+                      <div className="px-1.5 py-0.5 rounded bg-muted text-xs text-muted-foreground">
+                        +{connectionStatus.institutions.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+            </>
+          )}
+
+          {/* Connect Options */}
           <DropdownMenuItem
             onClick={() => handleConnect('bank', 'CA')}
             disabled={isDisabled}
@@ -328,8 +523,74 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
           >
             Investment Account
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => handleConnect('both', 'CA')}
+            disabled={isDisabled}
+          >
+            Both (Bank & Investment)
+          </DropdownMenuItem>
+
+          {/* Remove Integration Option */}
+          {connectionStatus?.hasConnections && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setShowRemoveDialog(true)}
+                disabled={isDisabled || removingIntegration}
+                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              >
+                <Unlink className="mr-2 h-4 w-4" />
+                Remove Plaid Integration
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Remove Plaid Dialog */}
+      {connectionStatus?.hasConnections && (
+        <RemovePlaidDialog
+          open={showRemoveDialog}
+          onOpenChange={setShowRemoveDialog}
+          onConfirm={handleRemoveAll}
+          connectionCount={connectionStatus.connectionCount}
+          accountCount={connectionStatus.accountCount}
+          institutions={connectionStatus.institutions}
+          loading={removingIntegration}
+        />
+      )}
+
+      {/* Account Mapping Dialog */}
+      {previewData && (
+        <AccountMappingDialog
+          open={showMappingDialog}
+          onOpenChange={async (open) => {
+            setShowMappingDialog(open);
+            if (!open) {
+              // User cancelled - clean up orphaned connection
+              // The connection was created in preview but no accounts were imported
+              try {
+                console.log('[PLAID LINK] User cancelled import, cleaning up orphaned connection:', previewData.itemId);
+                await fetch('/api/plaid/cancel-preview', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    itemId: previewData.itemId,
+                  }),
+                });
+              } catch (error) {
+                console.error('[PLAID LINK] Error cleaning up orphaned connection:', error);
+                // Don't show error to user - cleanup is best effort
+              }
+              setPreviewData(null);
+              setIsLoading(false);
+            }
+          }}
+          accounts={previewData.accounts}
+          institutionName={previewData.institutionName}
+          onConfirm={handleConfirmImport}
+        />
+      )}
     </>
   );
 }

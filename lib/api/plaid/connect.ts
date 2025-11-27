@@ -102,12 +102,12 @@ export async function searchInstitutions(
 /**
  * Create a Plaid Link token for the current user
  * @param userId - User ID
- * @param accountType - 'bank' for regular bank accounts (Transactions), 'investment' for investment accounts (Investments)
+ * @param accountType - 'bank' for regular bank accounts (Transactions), 'investment' for investment accounts (Investments), 'both' for both types
  * @param countryCode - Country code (default: US). Use CountryCode.Ca for Canada
  */
 export async function createLinkToken(
   userId: string, 
-  accountType: 'bank' | 'investment' = 'bank',
+  accountType: 'bank' | 'investment' | 'both' = 'bank',
   countryCode: CountryCode = CountryCode.Us
 ): Promise<string> {
   try {
@@ -120,17 +120,20 @@ export async function createLinkToken(
     // Build products array based on account type
     // For bank accounts: use Transactions (shows regular banks)
     // For investment accounts: use Investments (shows brokers)
+    // For 'both': include both Transactions and Investments (useful for institutions like Wealthsimple that offer both)
     const products: Array<Products> = [];
     
-    if (accountType === 'bank') {
+    if (accountType === 'bank' || accountType === 'both') {
       products.push(Products.Transactions);
-    } else if (accountType === 'investment') {
+    }
+    
+    if (accountType === 'investment' || accountType === 'both') {
       products.push(Products.Investments);
     }
     
     // Only add Liabilities if explicitly enabled (some Plaid accounts don't have access)
     // You can enable this by setting PLAID_ENABLE_LIABILITIES=true in environment
-    if (process.env.PLAID_ENABLE_LIABILITIES === 'true' && accountType === 'bank') {
+    if (process.env.PLAID_ENABLE_LIABILITIES === 'true' && (accountType === 'bank' || accountType === 'both')) {
       products.push(Products.Liabilities);
     }
 
@@ -152,7 +155,7 @@ export async function createLinkToken(
     // Add transactions configuration for bank accounts
     // This specifies how many days of transaction history to request
     // Default is 90 days, max is 730 days (2 years)
-    if (accountType === 'bank') {
+    if (accountType === 'bank' || accountType === 'both') {
       linkTokenConfig.transactions = {
         days_requested: 90, // Request 90 days of transaction history
       };
@@ -587,6 +590,17 @@ export async function syncAccountBalances(
     return { synced, errors };
   } catch (error: any) {
     console.error('[PLAID BALANCE SYNC] Error syncing balances:', error);
+    
+    // Check if it's a product authorization error
+    const errorCode = error.response?.data?.error_code;
+    const errorType = error.response?.data?.error_type;
+    
+    if (errorCode === 'INVALID_PRODUCT' || errorType === 'INVALID_INPUT') {
+      console.warn('[PLAID BALANCE SYNC] Balance product not authorized for this client. Skipping balance sync.');
+      // Return empty result instead of throwing - balances were already set during account creation
+      return { synced: 0, errors: 0 };
+    }
+    
     console.error('Error details:', {
       message: error.message,
       response: error.response?.data,

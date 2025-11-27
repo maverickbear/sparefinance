@@ -181,7 +181,7 @@ export function RecurringPaymentsWidget({
 
             {/* Legend */}
             <div className="flex-1 min-w-0 w-full relative">
-              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+              <div className="space-y-1">
                 {donutData.map((item, index) => {
                   return (
                     <Tooltip key={index}>

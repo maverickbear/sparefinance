@@ -8,7 +8,6 @@ import { PortfolioSummaryCards } from "@/components/portfolio/portfolio-summary-
 import { Loader2 } from "lucide-react";
 import type { Holding as SupabaseHolding } from "@/lib/api/investments";
 import { convertSupabaseHoldingToHolding, type Holding, type Account, type HistoricalDataPoint } from "@/lib/api/portfolio";
-import { IntegrationDropdown } from "@/components/banking/integration-dropdown";
 import { SimpleTabs, SimpleTabsList, SimpleTabsTrigger, SimpleTabsContent } from "@/components/ui/simple-tabs";
 import { FixedTabsWrapper } from "@/components/common/fixed-tabs-wrapper";
 import { Button } from "@/components/ui/button";
@@ -63,71 +62,10 @@ export default function InvestmentsPage() {
   const [showImportUpgradeModal, setShowImportUpgradeModal] = useState(false);
   const [isUpdatingPrices, setIsUpdatingPrices] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  // OPTIMIZED: Share questrade status between IntegrationDropdown instances
-  const [questradeStatus, setQuestradeStatus] = useState<{ isConnected: boolean; accountsCount: number } | null>(null);
   
   useEffect(() => {
     loadPortfolioData();
-    loadQuestradeStatus();
   }, []);
-  
-  async function loadQuestradeStatus() {
-    try {
-      const response = await fetch("/api/questrade/accounts");
-      if (response.status === 404) {
-        setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-        return;
-      }
-      // Handle 403 (plan restriction) gracefully - just set status to not connected
-      if (response.status === 403) {
-        setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-        return;
-      }
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Questrade accounts: ${response.status}`);
-      }
-      
-      // Check if response has content before parsing JSON
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-        return;
-      }
-      
-      // Get text first to check if it's empty
-      const text = await response.text();
-      if (!text || text.trim().length === 0) {
-        setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-        return;
-      }
-      
-      // Parse JSON only if we have valid content
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseError) {
-        console.error("Error parsing Questrade accounts response:", parseError);
-        setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-        return;
-      }
-      
-      if (data.accounts) {
-        const connectedAccounts = data.accounts.filter((acc: any) => acc.connected);
-        setQuestradeStatus({
-          isConnected: connectedAccounts.length > 0,
-          accountsCount: connectedAccounts.length,
-        });
-      } else {
-        setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-      }
-    } catch (error) {
-      // Don't log 403 errors (plan restrictions) as errors
-      if (error instanceof Error && !error.message.includes("404") && !error.message.includes("403")) {
-        console.error("Error loading Questrade connection status:", error);
-      }
-      setQuestradeStatus({ isConnected: false, accountsCount: 0 });
-    }
-  }
 
   async function loadPortfolioData() {
     try {
@@ -268,21 +206,6 @@ export default function InvestmentsPage() {
             title="Portfolio Management"
           >
           <div className="flex items-center gap-2">
-            <IntegrationDropdown
-              initialStatus={questradeStatus}
-              onSync={() => {
-                loadPortfolioData();
-                loadQuestradeStatus();
-              }}
-              onDisconnect={() => {
-                loadPortfolioData();
-                loadQuestradeStatus();
-              }}
-              onSuccess={() => {
-                loadPortfolioData();
-                loadQuestradeStatus();
-              }}
-            />
             {canWrite && (
               <>
                 <Button
@@ -373,21 +296,6 @@ export default function InvestmentsPage() {
                       return;
                     }
                     setShowImportDialog(true);
-                  }}
-                  integrationProps={{
-                    initialStatus: questradeStatus,
-                    onSync: () => {
-                      loadPortfolioData();
-                      loadQuestradeStatus();
-                    },
-                    onDisconnect: () => {
-                      loadPortfolioData();
-                      loadQuestradeStatus();
-                    },
-                    onSuccess: () => {
-                      loadPortfolioData();
-                      loadQuestradeStatus();
-                    },
                   }}
                   onUpdatePrices={async () => {
                     if (!checkWriteAccess()) return;

@@ -22,6 +22,7 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { Loader2, AlertCircle, CheckCircle2, X, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ImportProgress } from "@/components/accounts/import-progress";
 
 interface Account {
   id: string;
@@ -69,6 +70,7 @@ export function CsvImportDialog({
   const [defaultAccountId, setDefaultAccountId] = useState<string>("");
   const [uniqueAccountNames, setUniqueAccountNames] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [importJobId, setImportJobId] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [importSuccess, setImportSuccess] = useState<{ success: number; errors: number } | null>(null);
   const { limits, checking: limitsLoading } = useSubscription();
@@ -336,6 +338,21 @@ export function CsvImportDialog({
       }
 
       const result = await response.json();
+      
+      // Check if a job was created (large import)
+      if (result.jobId) {
+        setImportJobId(result.jobId);
+        toast({
+          title: "Import queued",
+          description: result.message || `Import queued for background processing. ${allTransactions.length} transactions will be imported.`,
+          variant: "success",
+        });
+        // Don't close dialog - show progress
+        setIsImporting(false);
+        return;
+      }
+      
+      // Small import completed immediately
       const successCount = result.imported || 0;
       const errorCount = result.errors || 0;
       
@@ -402,6 +419,17 @@ export function CsvImportDialog({
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+            {importJobId && (
+              <ImportProgress
+                jobIds={[importJobId]}
+                onComplete={() => {
+                  setImportJobId(null);
+                  onSuccess?.();
+                  onOpenChange(false);
+                }}
+              />
+            )}
+            
             {!hasCsvAccess && !limitsLoading && (
               <div className="p-4 text-center text-muted-foreground">
                 CSV import is not available in your current plan.

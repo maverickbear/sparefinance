@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Button } from "@/components/ui/button";
 import { Plus, CreditCard, Edit, Trash2, Loader2, RefreshCw, Unlink } from "lucide-react";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { ConnectBankButton } from "@/components/banking/connect-bank-button";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
+import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
 import { DeleteAccountWithTransferDialog } from "@/components/accounts/delete-account-with-transfer-dialog";
 import { AccountCard } from "@/components/banking/account-card";
 import { AddAccountSheet } from "@/components/accounts/add-account-sheet";
@@ -73,6 +74,7 @@ function getInitials(name: string | null | undefined): string {
 
 export default function AccountsPage() {
   const perf = usePagePerformance("Accounts");
+  const perfRef = useRef(perf);
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
   const { checkWriteAccess, canWrite } = useWriteGuard();
@@ -93,6 +95,11 @@ export default function AccountsPage() {
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [isAddAccountSheetOpen, setIsAddAccountSheetOpen] = useState(false);
 
+  // Update ref when perf changes (but don't trigger re-renders)
+  useEffect(() => {
+    perfRef.current = perf;
+  }, [perf]);
+
   const loadAccounts = useCallback(async () => {
     try {
       setLoading(true);
@@ -102,15 +109,15 @@ export default function AccountsPage() {
       setAccounts(data);
       setHasLoaded(true);
       // Safely call markDataLoaded - perf object should always exist but add safety check
-      if (perf?.markDataLoaded) {
-        perf.markDataLoaded();
+      if (perfRef.current?.markDataLoaded) {
+        perfRef.current.markDataLoaded();
       }
     } catch (error) {
       console.error("Error loading accounts:", error);
       setHasLoaded(true);
       // Safely call markDataLoaded even on error
-      if (perf?.markDataLoaded) {
-        perf.markDataLoaded();
+      if (perfRef.current?.markDataLoaded) {
+        perfRef.current.markDataLoaded();
       }
       // Show error toast to user
       toast({
@@ -121,7 +128,7 @@ export default function AccountsPage() {
     } finally {
       setLoading(false);
     }
-  }, [perf, toast]);
+  }, [toast]);
 
   useEffect(() => {
     loadAccounts();
@@ -376,17 +383,19 @@ export default function AccountsPage() {
           title="Accounts"
         >
         <div className="flex gap-2">
-          <ConnectBankButton
-            onSuccess={() => {
-              loadAccounts();
-              toast({
-                title: 'Bank account connected',
-                description: 'Your bank account has been connected successfully.',
-                variant: 'success',
-              });
-            }}
-            variant="outline"
-          />
+          {accounts.length > 0 && (
+            <ConnectBankButton
+              onSuccess={() => {
+                loadAccounts();
+                toast({
+                  title: 'Bank account connected',
+                  description: 'Your bank account has been connected successfully.',
+                  variant: 'success',
+                });
+              }}
+              variant="outline"
+            />
+          )}
           {accounts.length > 0 && canWrite && (
             <Button
               size="medium"
@@ -400,6 +409,7 @@ export default function AccountsPage() {
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
+        <ImportStatusBanner />
         <div className="space-y-4">
           {/* Filters - Only show when we have accounts or are loading */}
           {(accounts.length > 0 || loading) && (
@@ -838,7 +848,7 @@ export default function AccountsPage() {
       {ConfirmDialog}
 
       {/* Mobile Fixed Button - Above bottom nav */}
-      {canWrite && (
+      {canWrite && accounts.length > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-[60] lg:hidden px-4">
           <Button
             size="small"

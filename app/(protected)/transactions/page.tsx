@@ -39,6 +39,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -70,6 +71,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
+import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
 
 interface Account {
   id: string;
@@ -198,7 +200,7 @@ export default function TransactionsPage() {
     endDate: "",
     accountId: "all",
     categoryId: "all",
-    type: "all",
+    type: "expense", // Default to expense instead of "all"
     search: "",
     recurring: "all",
   });
@@ -676,6 +678,7 @@ export default function TransactionsPage() {
       setSyncingAll(false);
     }
   }
+
 
   async function loadTransactions(forceRefresh: boolean = false) {
     // Cancel any previous request
@@ -1602,9 +1605,12 @@ export default function TransactionsPage() {
     return count;
   }, [dateRange, customDateRange, filters]);
 
+  // Default to "expense" if type is "all" (for display purposes)
+  const activeTab = filters.type === "all" ? "expense" : filters.type;
+  
   return (
     <SimpleTabs 
-      value={filters.type === "all" ? "all" : filters.type} 
+      value={activeTab} 
       onValueChange={(value) => setFilters({ ...filters, type: value })}
       className="w-full"
     >
@@ -1719,45 +1725,56 @@ export default function TransactionsPage() {
             </>
           )}
           <Button 
-            variant="outline" 
-            size="medium" 
-            onClick={() => {
-              // Check if user has access to CSV import
-              const hasAccess = limits.hasCsvImport === true || String(limits.hasCsvImport) === "true";
-              if (!hasAccess) {
-                setShowImportUpgradeModal(true);
-                return;
-              }
-              setIsImportOpen(true);
-            }} 
-            className="text-xs md:text-sm"
-          >
-            <Upload className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-            <span className="hidden md:inline">Import CSV</span>
-          </Button>
-          <Button variant="outline" size="medium" onClick={handleExport} className="text-xs md:text-sm" disabled={transactions.length === 0}>
-            <Download className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-            <span className="hidden md:inline">Export CSV</span>
-          </Button>
-          <Button 
             variant="outline"
-            size="medium"
+            size="icon"
             onClick={handleSyncAll}
             disabled={syncingAll}
-            className="text-xs md:text-sm"
+            className="h-9 w-9"
+            title="Sync Accounts"
           >
             {syncingAll ? (
-              <>
-                <Loader2 className="h-3 w-3 md:h-4 md:w-4 md:mr-2 animate-spin" />
-                <span className="hidden md:inline">Syncing...</span>
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <RefreshCw className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
-                <span className="hidden md:inline">Sync Accounts</span>
-              </>
+              <RefreshCw className="h-4 w-4" />
             )}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline" 
+                size="medium" 
+                className="text-xs md:text-sm"
+              >
+                <Download className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
+                <span className="hidden md:inline">Manual Data</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Manual Data</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  // Check if user has access to CSV import
+                  const hasAccess = limits.hasCsvImport === true || String(limits.hasCsvImport) === "true";
+                  if (!hasAccess) {
+                    setShowImportUpgradeModal(true);
+                    return;
+                  }
+                  setIsImportOpen(true);
+                }}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleExport}
+                disabled={transactions.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button 
             variant="outline"
             size="small"
@@ -1791,10 +1808,11 @@ export default function TransactionsPage() {
         </div>
       </PageHeader>
 
+      <ImportStatusBanner />
+
       {/* Fixed Tabs - Desktop only */}
       <FixedTabsWrapper>
         <SimpleTabsList>
-          <SimpleTabsTrigger value="all">All</SimpleTabsTrigger>
           <SimpleTabsTrigger value="expense">Expense</SimpleTabsTrigger>
           <SimpleTabsTrigger value="income">Income</SimpleTabsTrigger>
           <SimpleTabsTrigger value="transfer">Transfer</SimpleTabsTrigger>
@@ -1814,9 +1832,6 @@ export default function TransactionsPage() {
           }}
         >
           <SimpleTabsList className="min-w-max px-4" style={{ scrollSnapAlign: 'start' }}>
-            <SimpleTabsTrigger value="all" className="flex-shrink-0 whitespace-nowrap">
-              All
-            </SimpleTabsTrigger>
             <SimpleTabsTrigger value="expense" className="flex-shrink-0 whitespace-nowrap">
               Expense
             </SimpleTabsTrigger>

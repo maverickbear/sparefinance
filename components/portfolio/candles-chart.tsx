@@ -109,14 +109,8 @@ export function CandlesChart({ securityId, symbol }: CandlesChartProps) {
 
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/questrade/market-data/candles?securityId=${selectedSecurityId}&interval=${interval}&limit=100`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        // Reverse to show oldest first
-        setCandles((data.candles || []).reverse());
-      }
+      // Market data features are no longer available
+      setCandles([]);
     } catch (error) {
       console.error("Error loading candles:", error);
     } finally {
@@ -208,7 +202,7 @@ export function CandlesChart({ securityId, symbol }: CandlesChartProps) {
               No candle data available for this security.
               <br />
               <span className="text-xs">
-                Data will appear after syncing from Questrade.
+                Historical candle data is not currently available.
               </span>
             </div>
           </div>

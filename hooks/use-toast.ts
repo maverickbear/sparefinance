@@ -6,7 +6,7 @@ export interface Toast {
   id: string;
   title: string;
   description?: string;
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "success";
 }
 
 export function useToast() {

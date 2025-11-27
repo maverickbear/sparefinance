@@ -20,7 +20,8 @@ const transactionSchemaBase = z.object({
   type: z.enum(["expense", "income", "transfer"]),
   amount: z.number().positive("Amount must be positive"),
   accountId: z.string().min(1, "Account is required"),
-  toAccountId: z.string().optional(), // For transfer transactions
+  toAccountId: z.string().optional(), // For transfer transactions (outgoing)
+  transferFromId: z.string().optional(), // For transfer transactions (incoming, e.g., credit card payments)
   categoryId: z.string().optional(),
   subcategoryId: z.string().optional(),
   description: z.string().optional(),
@@ -31,13 +32,15 @@ const transactionSchemaBase = z.object({
 
 // Full schema with refinements for creating transactions
 export const transactionSchema = transactionSchemaBase.refine((data) => {
-  // If type is transfer, toAccountId is required
+  // If type is transfer, either toAccountId (outgoing) or transferFromId (incoming) is required
   if (data.type === "transfer") {
-    return !!data.toAccountId && data.toAccountId !== data.accountId;
+    const hasToAccount = !!data.toAccountId && data.toAccountId !== data.accountId;
+    const hasFromAccount = !!data.transferFromId && data.transferFromId !== data.accountId;
+    return hasToAccount || hasFromAccount;
   }
   return true;
 }, {
-  message: "Transfer requires a different destination account",
+  message: "Transfer requires either a destination account (toAccountId) or source account (transferFromId)",
   path: ["toAccountId"],
 }).refine((data) => {
   // expenseType should only be set if type is expense
@@ -63,13 +66,18 @@ export type TransactionFormData = z.infer<typeof transactionSchema>;
 
 // Partial schema for updates (all fields optional except validation rules)
 export const transactionUpdateSchema = transactionSchemaBase.partial().refine((data) => {
-  // If type is transfer and toAccountId is provided, validate it
-  if (data.type === "transfer" && data.toAccountId !== undefined) {
-    return !!data.toAccountId && data.toAccountId !== data.accountId;
+  // If type is transfer, validate either toAccountId or transferFromId
+  if (data.type === "transfer") {
+    const hasToAccount = data.toAccountId !== undefined && !!data.toAccountId && data.toAccountId !== data.accountId;
+    const hasFromAccount = data.transferFromId !== undefined && !!data.transferFromId && data.transferFromId !== data.accountId;
+    // Allow updates if either is valid, or if both are undefined (partial update)
+    if (data.toAccountId !== undefined || data.transferFromId !== undefined) {
+      return hasToAccount || hasFromAccount;
+    }
   }
   return true;
 }, {
-  message: "Transfer requires a different destination account",
+  message: "Transfer requires either a destination account (toAccountId) or source account (transferFromId)",
   path: ["toAccountId"],
 }).refine((data) => {
   // If amount is provided, it must be positive

@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
  * - Consolidated subscriptions into a single channel (reduces realtime.list_changes calls)
  * - Increased debouncing from 500ms to 2000ms (reduces refresh frequency)
  * - Added lazy loading delay (1s) before creating subscriptions (improves initial load)
- * - Hybrid approach: Realtime for Transaction/Account, Polling for Budget/Goal
+ * - Hybrid approach: Realtime for Transaction/Account/Budget/UserServiceSubscription, Polling for Goal
  * - Circuit breaker with fallback to polling
  * - Performance logging for monitoring outliers
  */
@@ -126,8 +126,9 @@ export function DashboardRealtime() {
       }
     };
 
-    // OPTIMIZED: Hybrid approach - Polling for Budget and Goal (less critical, change less frequently)
-    // This reduces load on Realtime system
+    // OPTIMIZED: Hybrid approach - Polling for Goal (less critical, change less frequently)
+    // Budget now uses Realtime for immediate updates when created
+    // This reduces load on Realtime system while ensuring critical data updates immediately
     const startPolling = () => {
       pollingIntervalRef.current = setInterval(() => {
         scheduleRefresh();
@@ -159,8 +160,8 @@ export function DashboardRealtime() {
 
       try {
         // OPTIMIZED: Consolidate critical subscriptions into a single channel
-        // Only Transaction and Account use Realtime (change frequently)
-        // Budget and Goal use polling (change less frequently)
+        // Transaction, Account, Budget, and UserServiceSubscription use Realtime (change frequently or need immediate updates)
+        // Goal uses polling (change less frequently)
         subscriptionRef.current = supabase
           .channel(`dashboard-critical-${instanceIdRef.current}`)
           .on(
@@ -187,6 +188,30 @@ export function DashboardRealtime() {
               scheduleRefresh();
             }
           )
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "Budget",
+            },
+            () => {
+              recordSuccess();
+              scheduleRefresh();
+            }
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "UserServiceSubscription",
+            },
+            () => {
+              recordSuccess();
+              scheduleRefresh();
+            }
+          )
           .subscribe((status) => {
             const duration = performance.now() - startTime;
             logPerformance("Subscription setup", duration);
@@ -194,7 +219,7 @@ export function DashboardRealtime() {
 
             if (status === "SUBSCRIBED") {
               recordSuccess();
-              console.info(`[DashboardRealtime-${instanceIdRef.current}] Realtime subscriptions active for Transaction and Account (took ${duration.toFixed(2)}ms)`);
+              console.info(`[DashboardRealtime-${instanceIdRef.current}] Realtime subscriptions active for Transaction, Account, Budget, and UserServiceSubscription (took ${duration.toFixed(2)}ms)`);
             } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
               recordFailure();
               console.warn(`[DashboardRealtime-${instanceIdRef.current}] Subscription error: ${status}, falling back to polling`);
@@ -216,12 +241,12 @@ export function DashboardRealtime() {
       }
     }, 1000); // Wait 1 second before creating subscriptions
 
-    // Start polling for Budget and Goal (after delay)
+    // Start polling for Goal (after delay)
     // CRITICAL FIX: Only start polling if not already running
     if (!pollingIntervalRef.current) {
       pollingTimeoutRef.current = setTimeout(() => {
         if (pathname === "/dashboard" && !subscriptionRef.current) {
-          console.log(`[DashboardRealtime-${instanceIdRef.current}] Starting polling for Budget and Goal`);
+          console.log(`[DashboardRealtime-${instanceIdRef.current}] Starting polling for Goal`);
           startPolling();
         }
       }, 1000);
