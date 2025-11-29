@@ -23,7 +23,7 @@ import type {
   CashFlowMonthlyData,
   TrendData,
 } from "@/src/domain/reports/reports.types";
-import type { Transaction } from "@/src/domain/transactions/transactions.types";
+import type { Transaction, TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
 import type { Budget } from "@/src/domain/budgets/budgets.types";
 import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
@@ -135,12 +135,44 @@ export class ReportsService {
     ]);
 
     // Extract transactions arrays
-    const currentMonthTransactions = Array.isArray(currentMonthTransactionsResult)
+    const currentMonthTransactionsRaw = Array.isArray(currentMonthTransactionsResult)
       ? currentMonthTransactionsResult
       : (currentMonthTransactionsResult?.transactions || []);
-    const historicalTransactions = Array.isArray(historicalTransactionsResult)
+    const historicalTransactionsRaw = Array.isArray(historicalTransactionsResult)
       ? historicalTransactionsResult
       : (historicalTransactionsResult?.transactions || []);
+
+    // Convert TransactionWithRelations to Transaction (normalize date to string)
+    const convertToTransaction = (tx: TransactionWithRelations): Transaction => {
+      const dateStr = typeof tx.date === 'string' ? tx.date : tx.date.toISOString().split('T')[0];
+      return {
+        id: tx.id,
+        date: dateStr,
+        type: tx.type as string,
+        amount: tx.amount,
+        accountId: tx.accountId,
+        categoryId: tx.categoryId ?? undefined,
+        subcategoryId: tx.subcategoryId ?? undefined,
+        description: tx.description ?? undefined,
+        recurring: tx.recurring ?? undefined,
+        expenseType: tx.expenseType as "fixed" | "variable" | null | undefined,
+        transferToId: tx.transferToId ?? undefined,
+        transferFromId: tx.transferFromId ?? undefined,
+        createdAt: tx.createdAt,
+        updatedAt: tx.updatedAt,
+        suggestedCategoryId: tx.suggestedCategoryId ?? undefined,
+        suggestedSubcategoryId: tx.suggestedSubcategoryId ?? undefined,
+        plaidMetadata: tx.plaidMetadata ?? undefined,
+        account: tx.account ? { id: tx.account.id, name: tx.account.name } : null,
+        category: tx.category ? { id: tx.category.id, name: tx.category.name } : null,
+        subcategory: tx.subcategory ? { id: tx.subcategory.id, name: tx.subcategory.name } : null,
+        suggestedCategory: undefined,
+        suggestedSubcategory: undefined,
+      };
+    };
+
+    const currentMonthTransactions: Transaction[] = currentMonthTransactionsRaw.map(convertToTransaction);
+    const historicalTransactions: Transaction[] = historicalTransactionsRaw.map(convertToTransaction);
 
     // Fetch goals
     const goals = await goalsService.getGoals(accessToken, refreshToken).catch((error) => {

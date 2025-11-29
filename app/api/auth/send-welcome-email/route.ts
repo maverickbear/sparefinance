@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../src/infrastructure/database/supabase-server";
+import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { sendWelcomeEmail } from "@/lib/utils/email";
 
 /**

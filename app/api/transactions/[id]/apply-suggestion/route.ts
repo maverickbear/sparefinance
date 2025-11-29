@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateTransaction } from "@/lib/api/transactions";
-import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
-import { formatTimestamp } from "../../../../src/infrastructure/utils/timestamp";
-import { requireTransactionOwnership } from "../../../../src/infrastructure/utils/security";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
+import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
 
 /**
  * Apply suggested category to a transaction

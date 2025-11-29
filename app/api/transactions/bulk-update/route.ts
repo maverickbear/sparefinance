@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateTransaction } from "@/lib/api/transactions";
-import { requireTransactionOwnership } from "../../../../src/infrastructure/utils/security";
+import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
 
 export async function PATCH(request: NextRequest) {
   try {

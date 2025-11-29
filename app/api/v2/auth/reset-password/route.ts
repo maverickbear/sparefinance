@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { resetPasswordSchema, ResetPasswordFormData } from "@/src/domain/auth/auth.validations";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";

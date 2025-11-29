@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
-import { getTransactionAmount, decryptDescription } from "../../../../src/infrastructure/utils/transaction-encryption";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getTransactionAmount, decryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
 
 /**
  * POST /api/transactions/by-ids

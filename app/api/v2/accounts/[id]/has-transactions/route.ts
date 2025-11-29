@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { makeAccountsService } from "@/src/application/accounts/accounts.factory";
-import { requireAccountOwnership } from "../../../../src/infrastructure/utils/security";
+import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
 
 /**
  * GET /api/v2/accounts/[id]/has-transactions

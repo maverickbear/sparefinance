@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeAccountsService } from "@/src/application/accounts/accounts.factory";
 import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
-import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
-import { requireAccountOwnership } from "../../../../src/infrastructure/utils/security";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
 
 export async function GET(
   request: NextRequest,

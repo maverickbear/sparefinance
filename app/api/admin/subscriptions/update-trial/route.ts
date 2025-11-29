@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createServiceRoleClient } from "../../../../src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { updateSubscriptionTrial } from "@/lib/api/stripe";
 
 async function isSuperAdmin(): Promise<boolean> {

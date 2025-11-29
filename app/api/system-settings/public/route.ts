@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../../src/infrastructure/database/supabase-server";
+import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 
 /**
  * GET /api/system-settings/public
