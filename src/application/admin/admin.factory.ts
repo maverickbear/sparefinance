@@ -4,7 +4,7 @@
  */
 
 import { AdminService } from "./admin.service";
-import { AdminRepository } from "../../infrastructure/database/repositories/admin.repository";
+import { AdminRepository } from "@/src/infrastructure/database/repositories/admin.repository";
 
 /**
  * Create an AdminService instance with all dependencies

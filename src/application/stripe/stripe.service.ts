@@ -4,8 +4,8 @@
  * Orchestrates Stripe operations including checkout, subscriptions, and webhooks
  */
 
-import { getStripeClient } from "../../infrastructure/external/stripe/stripe-client";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { getStripeClient } from "@/src/infrastructure/external/stripe/stripe-client";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { CheckoutSessionResult, WebhookEventResult } from "../../domain/stripe/stripe.types";
 import Stripe from "stripe";
 import { logger } from "@/src/infrastructure/utils/logger";

@@ -4,7 +4,7 @@
  */
 
 import { PlaidService } from "./plaid.service";
-import { PlaidRepository } from "../../infrastructure/database/repositories/plaid.repository";
+import { PlaidRepository } from "@/src/infrastructure/database/repositories/plaid.repository";
 
 /**
  * Create a PlaidService instance with all dependencies

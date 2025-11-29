@@ -4,7 +4,7 @@
  */
 
 import { ReceiptsService } from "./receipts.service";
-import { OpenAIClient } from "../../infrastructure/external/openai/openai-client";
+import { OpenAIClient } from "@/src/infrastructure/external/openai/openai-client";
 
 /**
  * Create a ReceiptsService instance with all dependencies

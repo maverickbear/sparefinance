@@ -4,7 +4,7 @@
  */
 
 import { BaseUser } from "../../domain/auth/auth.types";
-import { UserRow } from "../../infrastructure/database/repositories/auth.repository";
+import { UserRow } from "@/src/infrastructure/database/repositories/auth.repository";
 
 export class AuthMapper {
   /**

@@ -3,16 +3,16 @@
  * Business logic for debt management
  */
 
-import { DebtsRepository } from "../../infrastructure/database/repositories/debts.repository";
+import { DebtsRepository } from "@/src/infrastructure/database/repositories/debts.repository";
 import { DebtsMapper } from "./debts.mapper";
 import { DebtFormData } from "../../domain/debts/debts.validations";
 import { BaseDebt, DebtWithCalculations } from "../../domain/debts/debts.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { requireDebtOwnership } from "@/src/infrastructure/utils/security";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { invalidateDebtCaches } from "../../infrastructure/cache/cache.manager";
+import { invalidateDebtCaches } from "@/src/infrastructure/cache/cache.manager";
 import {
   calculateDebtMetrics,
   calculatePaymentsFromDate,

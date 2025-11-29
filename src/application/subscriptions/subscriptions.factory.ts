@@ -4,7 +4,7 @@
  */
 
 import { SubscriptionsService } from "./subscriptions.service";
-import { SubscriptionsRepository } from "../../infrastructure/database/repositories/subscriptions.repository";
+import { SubscriptionsRepository } from "@/src/infrastructure/database/repositories/subscriptions.repository";
 
 /**
  * Create a SubscriptionsService instance with all dependencies

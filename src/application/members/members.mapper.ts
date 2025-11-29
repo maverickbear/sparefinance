@@ -4,7 +4,7 @@
  */
 
 import { BaseHouseholdMember } from "../../domain/members/members.types";
-import { HouseholdMemberRow } from "../../infrastructure/database/repositories/members.repository";
+import { HouseholdMemberRow } from "@/src/infrastructure/database/repositories/members.repository";
 
 export class MembersMapper {
   /**

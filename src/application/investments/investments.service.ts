@@ -4,11 +4,11 @@
  * Note: getHoldings is complex and kept here for now, but could be refactored into a separate calculator
  */
 
-import { InvestmentsRepository } from "../../infrastructure/database/repositories/investments.repository";
+import { InvestmentsRepository } from "@/src/infrastructure/database/repositories/investments.repository";
 import { InvestmentsMapper } from "./investments.mapper";
 import { InvestmentTransactionFormData, SecurityPriceFormData, InvestmentAccountFormData } from "../../domain/investments/investments.validations";
 import { BaseHolding, BaseInvestmentTransaction, BaseSecurity, BaseSecurityPrice } from "../../domain/investments/investments.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { mapClassToSector, normalizeAssetType } from "@/lib/utils/portfolio-utils";
 import { logger } from "@/src/infrastructure/utils/logger";

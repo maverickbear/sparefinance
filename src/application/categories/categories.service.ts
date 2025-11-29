@@ -3,11 +3,11 @@
  * Business logic for category management
  */
 
-import { CategoriesRepository } from "../../infrastructure/database/repositories/categories.repository";
+import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
 import { CategoriesMapper } from "./categories.mapper";
 import { CategoryFormData, SubcategoryFormData, GroupFormData } from "../../domain/categories/categories.validations";
 import { BaseCategory, BaseSubcategory, BaseGroup, CategoryWithRelations, SubcategoryWithRelations } from "../../domain/categories/categories.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { getCurrentTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { logger } from "@/src/infrastructure/utils/logger";
@@ -18,7 +18,7 @@ async function canUserWrite(userId: string): Promise<boolean> {
   const service = makeSubscriptionsService();
   return service.canUserWrite(userId);
 }
-import { invalidateCache } from "../../infrastructure/cache/cache.manager";
+import { invalidateCache } from "@/src/infrastructure/cache/cache.manager";
 
 // In-memory cache for categories
 const categoriesCache = new Map<string, { data: any[]; timestamp: number; userId: string | null }>();

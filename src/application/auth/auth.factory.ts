@@ -4,7 +4,7 @@
  */
 
 import { AuthService } from "./auth.service";
-import { AuthRepository } from "../../infrastructure/database/repositories/auth.repository";
+import { AuthRepository } from "@/src/infrastructure/database/repositories/auth.repository";
 
 /**
  * Create an AuthService instance with all dependencies

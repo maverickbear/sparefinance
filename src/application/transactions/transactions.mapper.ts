@@ -4,7 +4,7 @@
  */
 
 import { BaseTransaction, TransactionWithRelations } from "../../domain/transactions/transactions.types";
-import { TransactionRow } from "../../infrastructure/database/repositories/transactions.repository";
+import { TransactionRow } from "@/src/infrastructure/database/repositories/transactions.repository";
 
 export class TransactionsMapper {
   /**

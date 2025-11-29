@@ -4,7 +4,7 @@
  */
 
 import { BaseCategory, BaseSubcategory, BaseGroup, CategoryWithRelations, SubcategoryWithRelations } from "../../domain/categories/categories.types";
-import { CategoryRow, SubcategoryRow, GroupRow } from "../../infrastructure/database/repositories/categories.repository";
+import { CategoryRow, SubcategoryRow, GroupRow } from "@/src/infrastructure/database/repositories/categories.repository";
 
 export class CategoriesMapper {
   /**

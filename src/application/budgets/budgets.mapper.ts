@@ -4,7 +4,7 @@
  */
 
 import { BaseBudget, BudgetWithRelations } from "../../domain/budgets/budgets.types";
-import { BudgetRow } from "../../infrastructure/database/repositories/budgets.repository";
+import { BudgetRow } from "@/src/infrastructure/database/repositories/budgets.repository";
 
 export class BudgetsMapper {
   /**

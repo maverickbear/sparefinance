@@ -4,7 +4,7 @@
  */
 
 import { TransactionsService } from "./transactions.service";
-import { TransactionsRepository } from "../../infrastructure/database/repositories/transactions.repository";
+import { TransactionsRepository } from "@/src/infrastructure/database/repositories/transactions.repository";
 
 /**
  * Create a TransactionsService instance with all dependencies

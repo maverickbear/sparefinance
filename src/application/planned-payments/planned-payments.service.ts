@@ -3,11 +3,11 @@
  * Business logic for planned payments management
  */
 
-import { PlannedPaymentsRepository } from "../../infrastructure/database/repositories/planned-payments.repository";
+import { PlannedPaymentsRepository } from "@/src/infrastructure/database/repositories/planned-payments.repository";
 import { PlannedPaymentsMapper } from "./planned-payments.mapper";
 import { PlannedPaymentFormData } from "../../domain/planned-payments/planned-payments.validations";
 import { BasePlannedPayment } from "../../domain/planned-payments/planned-payments.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { encryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
 import { getActiveHouseholdId } from "@/lib/utils/household";

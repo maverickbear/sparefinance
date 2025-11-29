@@ -3,7 +3,7 @@
  * Business logic for onboarding feature
  */
 
-import { HouseholdRepository } from "../../infrastructure/database/repositories/household.repository";
+import { HouseholdRepository } from "@/src/infrastructure/database/repositories/household.repository";
 import { OnboardingMapper } from "./onboarding.mapper";
 import { ExpectedIncomeRange } from "../../domain/onboarding/onboarding.types";
 import { expectedIncomeRangeSchema } from "../../domain/onboarding/onboarding.validations";

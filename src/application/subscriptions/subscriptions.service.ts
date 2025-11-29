@@ -4,13 +4,13 @@
  * This is the SINGLE SOURCE OF TRUTH for subscription, plans, and limits
  */
 
-import { SubscriptionsRepository } from "../../infrastructure/database/repositories/subscriptions.repository";
+import { SubscriptionsRepository } from "@/src/infrastructure/database/repositories/subscriptions.repository";
 import { SubscriptionsMapper } from "./subscriptions.mapper";
 import { BaseSubscription, BasePlan, BaseSubscriptionData, BaseLimitCheckResult, BasePlanFeatures } from "../../domain/subscriptions/subscriptions.types";
 import { SUBSCRIPTION_CACHE_TTL, PLANS_CACHE_TTL } from "../../domain/subscriptions/subscriptions.constants";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 // In-memory caches
 const plansCache = new Map<string, BasePlan>();

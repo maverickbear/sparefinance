@@ -4,7 +4,7 @@
  */
 
 import { ProfileService } from "./profile.service";
-import { ProfileRepository } from "../../infrastructure/database/repositories/profile.repository";
+import { ProfileRepository } from "@/src/infrastructure/database/repositories/profile.repository";
 
 /**
  * Create a ProfileService instance with all dependencies

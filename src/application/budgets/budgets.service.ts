@@ -3,16 +3,16 @@
  * Business logic for budget management
  */
 
-import { BudgetsRepository } from "../../infrastructure/database/repositories/budgets.repository";
+import { BudgetsRepository } from "@/src/infrastructure/database/repositories/budgets.repository";
 import { BudgetsMapper } from "./budgets.mapper";
 import { BudgetFormData } from "../../domain/budgets/budgets.validations";
 import { BaseBudget, BudgetWithRelations } from "../../domain/budgets/budgets.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp } from "@/lib/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { requireBudgetOwnership } from "@/lib/utils/security";
 import { logger } from "@/lib/utils/logger";
-import { invalidateBudgetCaches } from "../../infrastructure/cache/cache.manager";
+import { invalidateBudgetCaches } from "@/src/infrastructure/cache/cache.manager";
 import { getTransactionAmount } from "@/lib/utils/transaction-encryption";
 
 export class BudgetsService {

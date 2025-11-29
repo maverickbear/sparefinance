@@ -3,11 +3,11 @@
  * Business logic for user profile management
  */
 
-import { ProfileRepository } from "../../infrastructure/database/repositories/profile.repository";
+import { ProfileRepository } from "@/src/infrastructure/database/repositories/profile.repository";
 import { ProfileMapper } from "./profile.mapper";
 import { ProfileFormData } from "../../domain/profile/profile.validations";
 import { BaseProfile } from "../../domain/profile/profile.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { logger } from "@/src/infrastructure/utils/logger";
 

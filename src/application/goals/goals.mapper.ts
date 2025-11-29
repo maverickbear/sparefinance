@@ -4,7 +4,7 @@
  */
 
 import { BaseGoal, GoalWithCalculations } from "../../domain/goals/goals.types";
-import { GoalRow } from "../../infrastructure/database/repositories/goals.repository";
+import { GoalRow } from "@/src/infrastructure/database/repositories/goals.repository";
 
 export class GoalsMapper {
   /**

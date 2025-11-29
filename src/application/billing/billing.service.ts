@@ -6,7 +6,7 @@
 
 import { BaseBillingData, BaseLimitCheckResult } from "../../domain/billing/billing.types";
 import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {

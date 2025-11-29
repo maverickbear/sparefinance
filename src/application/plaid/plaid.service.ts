@@ -4,8 +4,8 @@
  * Orchestrates Plaid operations including connection, sync, and institution management
  */
 
-import { PlaidRepository } from "../../infrastructure/database/repositories/plaid.repository";
-import { getPlaidClient } from "../../infrastructure/external/plaid/plaid-client";
+import { PlaidRepository } from "@/src/infrastructure/database/repositories/plaid.repository";
+import { getPlaidClient } from "@/src/infrastructure/external/plaid/plaid-client";
 import { PlaidConnection, PlaidInstitution, PlaidSyncResult } from "../../domain/plaid/plaid.types";
 import { CountryCode, Products } from "plaid";
 

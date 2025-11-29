@@ -4,7 +4,7 @@
  */
 
 import { CategoriesService } from "./categories.service";
-import { CategoriesRepository } from "../../infrastructure/database/repositories/categories.repository";
+import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
 
 /**
  * Create a CategoriesService instance with all dependencies

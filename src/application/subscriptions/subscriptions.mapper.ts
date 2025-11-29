@@ -4,7 +4,7 @@
  */
 
 import { BaseSubscription, BasePlan, BasePlanFeatures } from "../../domain/subscriptions/subscriptions.types";
-import { SubscriptionRow, PlanRow } from "../../infrastructure/database/repositories/subscriptions.repository";
+import { SubscriptionRow, PlanRow } from "@/src/infrastructure/database/repositories/subscriptions.repository";
 import { normalizeAndValidateFeatures } from "@/src/application/shared/plan-features-service";
 
 export class SubscriptionsMapper {

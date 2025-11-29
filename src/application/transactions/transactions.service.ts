@@ -3,17 +3,17 @@
  * Business logic for transaction management
  */
 
-import { TransactionsRepository } from "../../infrastructure/database/repositories/transactions.repository";
+import { TransactionsRepository } from "@/src/infrastructure/database/repositories/transactions.repository";
 import { TransactionsMapper } from "./transactions.mapper";
 import { TransactionFormData, TransactionUpdateData } from "../../domain/transactions/transactions.validations";
 import { BaseTransaction, TransactionWithRelations, TransactionFilters, TransactionQueryResult } from "../../domain/transactions/transactions.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { guardTransactionLimit, throwIfNotAllowed, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { invalidateTransactionCaches } from "../../infrastructure/cache/cache.manager";
+import { invalidateTransactionCaches } from "@/src/infrastructure/cache/cache.manager";
 import { encryptDescription, decryptDescription, normalizeDescription } from "@/src/infrastructure/utils/transaction-encryption";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 
@@ -23,7 +23,7 @@ async function getUserSubscriptionData(userId: string) {
   return service.getUserSubscriptionData(userId);
 }
 import { suggestCategory } from "@/src/application/shared/category-learning";
-import { TransactionRow } from "../../infrastructure/database/repositories/transactions.repository";
+import { TransactionRow } from "@/src/infrastructure/database/repositories/transactions.repository";
 
 export class TransactionsService {
   constructor(private repository: TransactionsRepository) {}

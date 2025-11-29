@@ -4,7 +4,7 @@
  */
 
 import { BaseProfile } from "../../domain/profile/profile.types";
-import { UserRow } from "../../infrastructure/database/repositories/profile.repository";
+import { UserRow } from "@/src/infrastructure/database/repositories/profile.repository";
 
 export class ProfileMapper {
   /**

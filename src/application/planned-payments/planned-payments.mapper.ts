@@ -4,7 +4,7 @@
  */
 
 import { BasePlannedPayment } from "../../domain/planned-payments/planned-payments.types";
-import { PlannedPaymentRow } from "../../infrastructure/database/repositories/planned-payments.repository";
+import { PlannedPaymentRow } from "@/src/infrastructure/database/repositories/planned-payments.repository";
 import { decryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
 
 export class PlannedPaymentsMapper {

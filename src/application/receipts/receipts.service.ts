@@ -3,7 +3,7 @@
  * Business logic for receipt scanning
  */
 
-import { OpenAIClient } from "../../infrastructure/external/openai/openai-client";
+import { OpenAIClient } from "@/src/infrastructure/external/openai/openai-client";
 import { ReceiptData, ReceiptScanResult } from "../../domain/receipts/receipts.types";
 import { MAX_RECEIPT_FILE_SIZE } from "../../domain/receipts/receipts.constants";
 import { validateImageFile } from "@/lib/utils/file-validation";

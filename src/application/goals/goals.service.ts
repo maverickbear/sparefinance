@@ -3,16 +3,16 @@
  * Business logic for goal management
  */
 
-import { GoalsRepository } from "../../infrastructure/database/repositories/goals.repository";
+import { GoalsRepository } from "@/src/infrastructure/database/repositories/goals.repository";
 import { GoalsMapper } from "./goals.mapper";
 import { GoalFormData } from "../../domain/goals/goals.validations";
 import { BaseGoal, GoalWithCalculations } from "../../domain/goals/goals.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { requireGoalOwnership } from "@/lib/utils/security";
 import { logger } from "@/lib/utils/logger";
-import { invalidateGoalCaches } from "../../infrastructure/cache/cache.manager";
+import { invalidateGoalCaches } from "@/src/infrastructure/cache/cache.manager";
 import { calculateProgress } from "@/lib/utils/goals";
 import { startOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
 import { getTransactionAmount } from "@/lib/utils/transaction-encryption";

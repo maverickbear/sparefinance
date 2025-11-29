@@ -4,7 +4,7 @@
  */
 
 import { BaseHolding, BaseInvestmentTransaction, BaseSecurity, BaseSecurityPrice } from "../../domain/investments/investments.types";
-import { InvestmentTransactionRow, SecurityRow, SecurityPriceRow, PositionRow } from "../../infrastructure/database/repositories/investments.repository";
+import { InvestmentTransactionRow, SecurityRow, SecurityPriceRow, PositionRow } from "@/src/infrastructure/database/repositories/investments.repository";
 import { mapClassToSector } from "@/lib/utils/portfolio-utils";
 
 export class InvestmentsMapper {

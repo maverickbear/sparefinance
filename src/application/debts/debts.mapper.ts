@@ -4,7 +4,7 @@
  */
 
 import { BaseDebt, DebtWithCalculations } from "../../domain/debts/debts.types";
-import { DebtRow } from "../../infrastructure/database/repositories/debts.repository";
+import { DebtRow } from "@/src/infrastructure/database/repositories/debts.repository";
 
 export class DebtsMapper {
   /**

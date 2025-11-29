@@ -4,7 +4,7 @@
  */
 
 import { GoalsService } from "./goals.service";
-import { GoalsRepository } from "../../infrastructure/database/repositories/goals.repository";
+import { GoalsRepository } from "@/src/infrastructure/database/repositories/goals.repository";
 
 /**
  * Create a GoalsService instance with all dependencies

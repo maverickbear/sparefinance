@@ -3,11 +3,11 @@
  * Business logic for authentication
  */
 
-import { AuthRepository } from "../../infrastructure/database/repositories/auth.repository";
+import { AuthRepository } from "@/src/infrastructure/database/repositories/auth.repository";
 import { AuthMapper } from "./auth.mapper";
 import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData, ChangePasswordFormData } from "../../domain/auth/auth.validations";
 import { BaseUser, AuthResult } from "../../domain/auth/auth.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";

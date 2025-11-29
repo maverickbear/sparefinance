@@ -7,7 +7,7 @@
 import { BasePortfolioHolding, BasePortfolioSummary, BasePortfolioAccount, BaseHistoricalDataPoint, BasePortfolioTransaction } from "../../domain/portfolio/portfolio.types";
 import { makeInvestmentsService } from "../investments/investments.factory";
 import { BaseHolding } from "../../domain/investments/investments.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatDateStart, formatDateEnd } from "@/src/infrastructure/utils/timestamp";
 import { subDays } from "date-fns";
 import { logger } from "@/src/infrastructure/utils/logger";

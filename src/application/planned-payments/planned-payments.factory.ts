@@ -4,7 +4,7 @@
  */
 
 import { PlannedPaymentsService } from "./planned-payments.service";
-import { PlannedPaymentsRepository } from "../../infrastructure/database/repositories/planned-payments.repository";
+import { PlannedPaymentsRepository } from "@/src/infrastructure/database/repositories/planned-payments.repository";
 
 /**
  * Create a PlannedPaymentsService instance with all dependencies

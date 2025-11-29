@@ -113,9 +113,21 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
       setLoading(true);
       setError(null);
 
-      // TODO: Migrate to API route when available
-      const { signUpClient } = await import("@/lib/api/auth-client" as any);
-      const result = await signUpClient(data);
+      // Call signup API route
+      const response = await fetch("/api/v2/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        setError(result.error || "Failed to sign up");
+        return;
+      }
 
       if (result.error) {
         setError(result.error);

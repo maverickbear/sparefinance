@@ -4,7 +4,7 @@
  */
 
 import { DebtsService } from "./debts.service";
-import { DebtsRepository } from "../../infrastructure/database/repositories/debts.repository";
+import { DebtsRepository } from "@/src/infrastructure/database/repositories/debts.repository";
 
 /**
  * Create a DebtsService instance with all dependencies

@@ -4,7 +4,7 @@
  */
 
 import { MembersService } from "./members.service";
-import { MembersRepository } from "../../infrastructure/database/repositories/members.repository";
+import { MembersRepository } from "@/src/infrastructure/database/repositories/members.repository";
 
 /**
  * Create a MembersService instance with all dependencies

@@ -4,7 +4,7 @@
  */
 
 import { BaseAccount, AccountWithBalance } from "../../domain/accounts/accounts.types";
-import { AccountRow, AccountOwnerRow } from "../../infrastructure/database/repositories/accounts.repository";
+import { AccountRow, AccountOwnerRow } from "@/src/infrastructure/database/repositories/accounts.repository";
 
 export class AccountsMapper {
   /**

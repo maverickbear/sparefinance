@@ -3,17 +3,17 @@
  * Business logic for account management
  */
 
-import { AccountsRepository } from "../../infrastructure/database/repositories/accounts.repository";
+import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
 import { AccountsMapper } from "./accounts.mapper";
 import { AccountFormData } from "../../domain/accounts/accounts.validations";
 import { AccountWithBalance, BaseAccount } from "../../domain/accounts/accounts.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { guardAccountLimit, throwIfNotAllowed, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { invalidateAccountCaches, invalidateTransactionCaches } from "../../infrastructure/cache/cache.manager";
+import { invalidateAccountCaches, invalidateTransactionCaches } from "@/src/infrastructure/cache/cache.manager";
 import { revalidateTag } from "next/cache";
 
 // Simple in-memory cache for request deduplication

@@ -3,11 +3,11 @@
  * Business logic for household member management
  */
 
-import { MembersRepository } from "../../infrastructure/database/repositories/members.repository";
+import { MembersRepository } from "@/src/infrastructure/database/repositories/members.repository";
 import { MembersMapper } from "./members.mapper";
 import { MemberInviteFormData, MemberUpdateFormData } from "../../domain/members/members.validations";
 import { BaseHouseholdMember, UserHouseholdInfo } from "../../domain/members/members.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { guardHouseholdMembers, throwIfNotAllowed } from "@/src/application/shared/feature-guard";

@@ -4,7 +4,7 @@
  */
 
 import { BudgetsService } from "./budgets.service";
-import { BudgetsRepository } from "../../infrastructure/database/repositories/budgets.repository";
+import { BudgetsRepository } from "@/src/infrastructure/database/repositories/budgets.repository";
 
 /**
  * Create a BudgetsService instance with all dependencies

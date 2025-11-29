@@ -4,7 +4,7 @@
  */
 
 import { OnboardingService } from "./onboarding.service";
-import { HouseholdRepository } from "../../infrastructure/database/repositories/household.repository";
+import { HouseholdRepository } from "@/src/infrastructure/database/repositories/household.repository";
 import { BudgetGenerator } from "./budget-generator";
 import { CategoryHelper } from "./category-helper";
 

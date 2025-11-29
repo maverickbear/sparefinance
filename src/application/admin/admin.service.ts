@@ -4,9 +4,9 @@
  * Orchestrates admin operations including users, promo codes, and system categories
  */
 
-import { AdminRepository } from "../../infrastructure/database/repositories/admin.repository";
+import { AdminRepository } from "@/src/infrastructure/database/repositories/admin.repository";
 import { AdminUser, PromoCode, SystemGroup, SystemCategory, SystemSubcategory } from "../../domain/admin/admin.types";
-import { createServerClient } from "../../infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import Stripe from "stripe";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
 

@@ -4,7 +4,7 @@
  */
 
 import { AccountsService } from "./accounts.service";
-import { AccountsRepository } from "../../infrastructure/database/repositories/accounts.repository";
+import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
 
 /**
  * Create an AccountsService instance with all dependencies
