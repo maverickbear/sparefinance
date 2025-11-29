@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
+  SheetTitle,
 } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -202,6 +203,7 @@ export function MoreMenuSheet({
         side="bottom" 
         className="max-h-[90vh] flex flex-col p-0"
       >
+        <SheetTitle className="sr-only">More Menu</SheetTitle>
         {/* Drag Handle */}
         <div className="flex justify-center pt-3 pb-2 relative">
           <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full" />

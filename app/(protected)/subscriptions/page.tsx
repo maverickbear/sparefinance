@@ -301,13 +301,27 @@ export default function SubscriptionsPage() {
     setIsDetecting(true);
     try {
       const response = await fetch("/api/subscriptions/detect", {
-        method: "POST",
+        method: "GET",
       });
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to detect subscriptions");
+        let errorMessage = "Failed to detect subscriptions";
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const error = await response.json();
+            errorMessage = error.error || errorMessage;
+          } else {
+            const text = await response.text();
+            errorMessage = text || errorMessage;
+          }
+        } catch (parseError) {
+          // If parsing fails, use status text or default message
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
-      const detected = await response.json();
+      const data = await response.json();
+      const detected = data.subscriptions || [];
       setDetectedSubscriptions(detected);
       setSelectedDetectedSubscriptions(new Set(detected.map((s: DetectedSubscription, i: number) => i.toString())));
       setIsDetectionDialogOpen(true);

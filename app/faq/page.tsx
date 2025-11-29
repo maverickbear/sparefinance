@@ -279,7 +279,7 @@ export default function FAQPage() {
             </Link>
             <Button
               variant="ghost"
-              size="sm"
+              size="small"
               asChild
               className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
             >
@@ -322,7 +322,7 @@ export default function FAQPage() {
                 {searchQuery && (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="small"
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 p-0"
                     onClick={() => setSearchQuery("")}
                   >
