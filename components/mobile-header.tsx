@@ -260,6 +260,7 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       "/feedback": "Feedback",
       "/help-support": "Help & Support",
       "/portal-management": "Portal Management",
+      "/portal-management/seo": "SEO Settings",
     };
 
     // Check exact match first

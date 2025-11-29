@@ -16,6 +16,9 @@ import {
   ChevronRight, 
   User,
   ChevronDown,
+  Target,
+  Calendar,
+  Repeat,
 } from "lucide-react";
 import {
   Tooltip,
@@ -46,16 +49,18 @@ const navSections = [
   {
     title: "Money Management",
     items: [
+      { href: "/accounts", label: "Bank Accounts", icon: Wallet },
       { href: "/transactions", label: "Transactions", icon: Receipt },
+      { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
+      { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
       { href: "/categories", label: "Categories", icon: FolderTree },
-      { href: "/accounts", label: "Accounts", icon: Wallet },
-      { href: "/members", label: "Households", icon: Users },
+      { href: "/members", label: "Household", icon: Users },
     ],
   },
   {
     title: "Planning",
     items: [
-      { href: "/planning/budgets", label: "Budgets", icon: PiggyBank },
+      { href: "/planning/budgets", label: "Budgets", icon: Target },
       { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
       { href: "/investments", label: "Investments", icon: TrendingUp },
@@ -76,25 +81,24 @@ export function DashboardDemo() {
           <aside
             className={cn(
               "border-r bg-card transition-all duration-300 flex-shrink-0",
-              isCollapsed ? "w-16" : "md:w-56 lg:w-64"
+              isCollapsed ? "w-16" : "w-64"
             )}
           >
             <div className="flex h-full flex-col">
-              <div
-                className={cn(
-                  "flex h-16 items-center border-b px-4 relative",
-                  isCollapsed ? "justify-center" : "justify-between"
-                )}
-              >
-                {isCollapsed ? (
-                  <Logo variant="icon" color="auto" width={32} height={32} />
-                ) : (
-                  <Logo variant="wordmark" color="auto" height={32} />
-                )}
-              </div>
+            <div
+              className={cn(
+                "flex h-16 min-h-[64px] items-center border-b px-4 relative justify-center"
+              )}
+            >
+              {isCollapsed ? (
+                <Logo variant="icon" color="auto" width={40} height={40} />
+              ) : (
+                <Logo variant="wordmark" color="auto" width={150} height={40} />
+              )}
+            </div>
 
               <nav className={cn(
-                "flex-1 space-y-6 px-3 py-4 overflow-hidden",
+                "flex-1 space-y-5 px-3 py-4 overflow-hidden",
                 isCollapsed && "overflow-visible"
               )}>
                 {navSections.map((section) => {
@@ -114,7 +118,7 @@ export function DashboardDemo() {
                             return next;
                           });
                         }}
-                        className="flex items-center justify-between w-full px-3 pb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                        className="flex items-center justify-between w-full px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
                       >
                         <span>{section.title}</span>
                         <ChevronDown
@@ -137,8 +141,8 @@ export function DashboardDemo() {
                           className={cn(
                             "flex items-center rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
                             isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                              ? "bg-primary text-primary-foreground translate-x-0"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-1 translate-x-0",
                             isCollapsed
                               ? "justify-center px-3 py-2"
                               : "space-x-3 px-3 py-2"
@@ -173,15 +177,15 @@ export function DashboardDemo() {
                 })}
               </nav>
 
-              <div className="border-t p-3">
+              <div className="p-3">
                 <div
                   className={cn(
-                    "flex items-center",
-                    isCollapsed ? "justify-center" : "space-x-3 px-3 py-2"
+                    "flex items-center w-full border border-border shadow rounded-lg",
+                    isCollapsed ? "justify-center p-2" : "space-x-3 px-3 py-2"
                   )}
                 >
-                  <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold border">
-                    <User className="h-6 w-6" />
+                  <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold border flex-shrink-0">
+                    <User className="h-5 w-5" />
                   </div>
                   {!isCollapsed && (
                     <div className="flex-1 min-w-0 text-left">
@@ -202,8 +206,8 @@ export function DashboardDemo() {
             <TooltipTrigger asChild>
               <button
                 className={cn(
-                  "absolute top-4 h-5 w-5 z-50 bg-card border border-border shadow-sm flex items-center justify-center",
-                  isCollapsed ? "left-16" : "md:left-56 lg:left-64"
+                  "absolute top-4 h-5 w-5 z-50 bg-card border border-border shadow-sm flex items-center justify-center transition-opacity duration-200",
+                  isCollapsed ? "left-16" : "left-64"
                 )}
                 style={{ transform: 'translateX(-50%)', pointerEvents: 'none' }}
                 onClick={() => {}}
@@ -247,11 +251,9 @@ export function DashboardDemo() {
       <div className="md:hidden h-[600px] bg-background overflow-hidden pointer-events-none flex flex-col">
         {/* Mobile Header */}
         <div className="flex-shrink-0 border-b bg-card px-4 py-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold">Welcome, John Doe</h1>
-            <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-semibold border">
-              <User className="h-4 w-4" />
-            </div>
+          <div className="flex items-center gap-3 min-h-[44px] flex-1">
+            <Logo variant="icon" color="auto" width={32} height={32} />
+            <h1 className="text-base font-semibold">Welcome, John Doe</h1>
           </div>
         </div>
 
@@ -262,22 +264,18 @@ export function DashboardDemo() {
 
         {/* Bottom Navigation */}
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card">
-          <div className="flex h-14 items-center justify-around">
-            <div className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 text-[10px] font-medium text-primary">
+          <div className="flex h-16 items-center justify-around">
+            <div className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-primary">
               <LayoutDashboard className="h-5 w-5" />
               <span>Dashboard</span>
             </div>
-            <div className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+            <div className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-muted-foreground">
               <Receipt className="h-5 w-5" />
               <span>Transactions</span>
             </div>
-            <div className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 text-[10px] font-medium text-muted-foreground">
-              <PiggyBank className="h-5 w-5" />
-              <span>Budgets</span>
-            </div>
-            <div className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 text-[10px] font-medium text-muted-foreground">
-              <CreditCard className="h-5 w-5" />
-              <span>Debts</span>
+            <div className="flex flex-col items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-muted-foreground">
+              <FileText className="h-5 w-5" />
+              <span>Reports</span>
             </div>
           </div>
         </div>

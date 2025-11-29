@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { LandingMainFooter } from "@/components/landing/landing-main-footer";
 import { LandingMobileFooter } from "@/components/landing/landing-mobile-footer";
+import { StructuredData } from "@/src/presentation/components/seo/structured-data";
 import { getCurrentUser } from "@/lib/api/auth";
 import { startServerPagePerformance } from "@/lib/utils/performance";
 import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
@@ -18,10 +19,124 @@ const PricingSection = nextDynamic(() => import("@/components/landing/pricing-se
 
 export const dynamic = 'force-dynamic';
 
-export const metadata = {
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.sparefinance.com';
+
+// Default SEO settings (used as fallback)
+const defaultSEOSettings = {
   title: "Spare Finance - Powerful Tools for Easy Money Management",
-  description: "Simple, modern, and designed to put you in control of your future. Track expenses, manage budgets, and achieve your financial goals.",
+  titleTemplate: "%s | Spare Finance",
+  description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together with your household. Start your 30-day free trial today.",
+  keywords: [
+    "personal finance",
+    "expense tracking",
+    "budget management",
+    "financial planning",
+    "money management",
+    "household finance",
+    "savings goals",
+    "investment tracking",
+    "debt management",
+    "financial dashboard",
+    "budget app",
+    "finance software",
+    "money tracker",
+    "expense manager",
+  ],
+  author: "Spare Finance",
+  publisher: "Spare Finance",
+  openGraph: {
+    title: "Spare Finance - Powerful Tools for Easy Money Management",
+    description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together with your household.",
+    image: "/og-image.png",
+    imageWidth: 1200,
+    imageHeight: 630,
+    imageAlt: "Spare Finance - Personal Finance Management Platform",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Spare Finance - Powerful Tools for Easy Money Management",
+    description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together.",
+    image: "/og-image.png",
+    creator: "@sparefinance",
+  },
 };
+
+// Fetch SEO settings from database
+async function getSEOSettings() {
+  try {
+    const supabase = createServiceRoleClient();
+    const { data: settings } = await supabase
+      .from("SystemSettings")
+      .select("seoSettings")
+      .eq("id", "default")
+      .single();
+    
+    if (settings?.seoSettings) {
+      return settings.seoSettings;
+    }
+  } catch (error) {
+    console.error("Error fetching SEO settings:", error);
+  }
+  return null;
+}
+
+// Generate metadata dynamically
+export async function generateMetadata() {
+  const seoSettings = await getSEOSettings();
+  const settings = seoSettings || defaultSEOSettings;
+
+  return {
+    metadataBase: new URL(baseUrl),
+    title: {
+      default: settings.title,
+      template: settings.titleTemplate,
+    },
+    description: settings.description,
+    keywords: settings.keywords,
+    authors: [{ name: settings.author }],
+    creator: settings.author,
+    publisher: settings.publisher,
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
+    openGraph: {
+      type: "website",
+      locale: "en_US",
+      url: baseUrl,
+      siteName: "Spare Finance",
+      title: settings.openGraph.title,
+      description: settings.openGraph.description,
+      images: [
+        {
+          url: settings.openGraph.image,
+          width: settings.openGraph.imageWidth,
+          height: settings.openGraph.imageHeight,
+          alt: settings.openGraph.imageAlt,
+        },
+      ],
+    },
+    twitter: {
+      card: settings.twitter.card as "summary" | "summary_large_image",
+      title: settings.twitter.title,
+      description: settings.twitter.description,
+      images: [settings.twitter.image],
+      creator: settings.twitter.creator,
+    },
+    alternates: {
+      canonical: baseUrl,
+    },
+    category: "Finance",
+    classification: "Business",
+  };
+}
 
 /**
  * Landing Page
@@ -54,23 +169,44 @@ export default async function LandingPage() {
     console.error("Error checking maintenance mode:", error);
   }
   
+  // Fetch SEO settings from database
+  let seoSettings = null;
+  try {
+    const supabase = createServiceRoleClient();
+    const { data: settings } = await supabase
+      .from("SystemSettings")
+      .select("seoSettings")
+      .eq("id", "default")
+      .single();
+    
+    if (settings?.seoSettings) {
+      seoSettings = settings.seoSettings;
+    }
+  } catch (error) {
+    // If error, use defaults (handled in StructuredData component)
+    console.error("Error fetching SEO settings:", error);
+  }
+  
   perf.end();
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <LandingHeader isAuthenticated={false} />
-      <main className="flex-1 pb-20 md:pb-0">
-        <LandingHeroSection />
-        <StatisticsSection />
-        <LandingFeaturesSection />
-        <BenefitsSection />
-        <HowItWorksSection />
-        <LandingTestimonialsSection />
-        {!isMaintenanceMode && <PricingSection />}
-      </main>
-      <LandingMainFooter />
-      <LandingMobileFooter isAuthenticated={false} />
-    </div>
+    <>
+      <StructuredData seoSettings={seoSettings} />
+      <div className="min-h-screen flex flex-col">
+        <LandingHeader isAuthenticated={false} />
+        <main className="flex-1 pb-20 md:pb-0">
+          <LandingHeroSection />
+          <StatisticsSection />
+          <LandingFeaturesSection />
+          <BenefitsSection />
+          <HowItWorksSection />
+          <LandingTestimonialsSection />
+          {!isMaintenanceMode && <PricingSection />}
+        </main>
+        <LandingMainFooter />
+        <LandingMobileFooter isAuthenticated={false} />
+      </div>
+    </>
   );
 }
 

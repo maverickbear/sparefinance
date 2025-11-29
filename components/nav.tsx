@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, createContext, useContext, memo, useMemo, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet, Calendar, Repeat, Tag, Mail, Star, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet, Calendar, Repeat, Tag, Mail, Star, ChevronDown, Search } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
 import { TrialWidget, calculateTrialDaysRemaining, calculateTrialProgress } from "@/components/billing/trial-widget";
@@ -344,6 +344,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
         { href: "/portal-management/feedback", label: "Feedback", icon: Star },
         { href: "/portal-management/plans", label: "Plans", icon: CreditCard },
         { href: "/portal-management/subscription-services", label: "Subscription Services", icon: Settings2 },
+        { href: "/portal-management/seo", label: "SEO Settings", icon: Search },
       ],
     },
   ];

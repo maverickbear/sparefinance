@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { SubscriptionProvider } from "@/contexts/subscription-context";
-import { FinancialSummaryWidget } from "@/app/(protected)/dashboard/widgets/financial-summary-widget";
+import { SummaryCards } from "@/app/(protected)/dashboard/summary-cards";
 import { FinancialHealthScoreWidget } from "@/app/(protected)/dashboard/widgets/financial-health-score-widget";
 import { ExpensesByCategoryWidget } from "@/app/(protected)/dashboard/widgets/expenses-by-category-widget";
 import { CashFlowTimelineWidget } from "@/app/(protected)/dashboard/widgets/cash-flow-timeline-widget";
@@ -11,7 +11,7 @@ import { RecurringPaymentsWidget } from "@/app/(protected)/dashboard/widgets/rec
 import { SavingsGoalsWidget } from "@/app/(protected)/dashboard/widgets/savings-goals-widget";
 import { SubscriptionsWidget } from "@/app/(protected)/dashboard/widgets/subscriptions-widget";
 import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
-import { PortfolioPerformanceWidget } from "@/app/(protected)/dashboard/widgets/portfolio-performance-widget";
+import { InvestmentPortfolioWidget } from "@/app/(protected)/dashboard/widgets/investment-portfolio-widget";
 import { calculateTotalIncome, calculateTotalExpenses } from "@/app/(protected)/dashboard/utils/transaction-helpers";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
@@ -224,6 +224,24 @@ export function DashboardDemoStatic() {
   const liabilities: any[] = [];
   const debts: any[] = [];
 
+  // Mock accounts for SummaryCards
+  const mockAccounts = [
+    {
+      id: "demo-account-1",
+      name: "Checking Account",
+      balance: 5500,
+      type: "checking",
+      userId: "demo-user",
+    },
+    {
+      id: "demo-account-2",
+      name: "Savings Account",
+      balance: 25000,
+      type: "savings",
+      userId: "demo-user",
+    },
+  ];
+
   // Calculate income and expenses using helper functions
   const currentIncome = useMemo(() => {
     return calculateTotalIncome(mockSelectedMonthTransactions);
@@ -286,16 +304,25 @@ export function DashboardDemoStatic() {
     >
       <div className="space-y-4 md:space-y-6">
         {/* Financial Overview Title */}
-        <h2 className="text-2xl font-semibold">Financial Overview</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl md:text-2xl font-semibold">
+            <span className="md:hidden">Overview</span>
+            <span className="hidden md:inline">Financial Overview</span>
+          </h2>
+        </div>
         
         {/* Financial Summary - Full Width */}
-        <FinancialSummaryWidget
+        <SummaryCards
+          selectedMonthTransactions={mockSelectedMonthTransactions}
+          lastMonthTransactions={mockLastMonthTransactions}
+          savings={savings}
           totalBalance={totalBalance}
-          monthlyIncome={currentIncome}
-          monthlyExpense={currentExpenses}
-          totalSavings={savings}
-          lastMonthIncome={lastMonthIncome}
-          lastMonthExpense={lastMonthExpenses}
+          lastMonthTotalBalance={lastMonthTotalBalance}
+          accounts={mockAccounts}
+          selectedMemberId={null}
+          householdMembers={[]}
+          isLoadingMembers={false}
+          financialHealth={mockFinancialHealth}
         />
 
         {/* Top Widgets - Spare Score and Expenses by Category side by side */}
@@ -304,6 +331,7 @@ export function DashboardDemoStatic() {
             financialHealth={mockFinancialHealth}
             selectedMonthTransactions={mockSelectedMonthTransactions}
             lastMonthTransactions={mockLastMonthTransactions}
+            expectedIncomeRange={null}
           />
           <ExpensesByCategoryWidget
             selectedMonthTransactions={mockSelectedMonthTransactions}
@@ -348,8 +376,9 @@ export function DashboardDemoStatic() {
                 totalAssets={totalAssets}
                 totalDebts={totalDebts}
               />
-              <PortfolioPerformanceWidget
+              <InvestmentPortfolioWidget
                 savings={savings}
+                demoMode={true}
               />
             </div>
           </div>
