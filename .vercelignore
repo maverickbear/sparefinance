@@ -19,6 +19,6 @@ tests/
 *.spec.ts
 *.spec.tsx
 
-# Infrastructure files
-infrastructure/
+# Infrastructure files (only root-level infrastructure folder, not src/infrastructure)
+/infrastructure/
 

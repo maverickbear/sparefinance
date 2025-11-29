@@ -2,7 +2,6 @@ import { createServerClient } from "@/src/infrastructure/database/supabase-serve
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { encryptDescription, decryptDescription, getTransactionAmount } from "@/src/infrastructure/utils/transaction-encryption";
-import { createTransaction } from "./transactions";
 import type { TransactionFormData } from "@/src/domain/transactions/transactions.validations";
 import type { PlannedPayment, PlannedPaymentFormData } from "./planned-payments-types";
 import { PLANNED_HORIZON_DAYS } from "./planned-payments-types";
@@ -301,7 +300,11 @@ export async function markPlannedPaymentAsPaid(
   const description = decryptDescription(plannedPayment.description);
 
   // Create transaction from planned payment
-  const transactionData: TransactionFormData = {
+  // Use TransactionsService to avoid circular dependency with lib/api/transactions
+  const { makeTransactionsService } = await import("@/src/application/transactions/transactions.factory");
+  const transactionsService = makeTransactionsService();
+  
+  const transaction = await transactionsService.createTransaction({
     date: new Date(plannedPayment.date),
     type: plannedPayment.type,
     amount: plannedPayment.amount,
@@ -311,9 +314,7 @@ export async function markPlannedPaymentAsPaid(
     subcategoryId: plannedPayment.type === "transfer" ? undefined : (plannedPayment.subcategoryId || undefined),
     description: description || undefined,
     recurring: false, // Planned payments are not recurring
-  };
-
-  const transaction = await createTransaction(transactionData);
+  });
 
   // Update planned payment status and link transaction
   const now = formatTimestamp(new Date());

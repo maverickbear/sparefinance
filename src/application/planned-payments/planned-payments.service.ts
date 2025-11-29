@@ -231,13 +231,15 @@ export class PlannedPaymentsService {
     }
 
     // Create transaction from planned payment
-    // Note: This is a temporary import until Transactions is fully migrated
-    const { createTransaction } = await import("@/lib/api/transactions");
+    const { makeTransactionsService } = await import("@/src/application/transactions/transactions.factory");
+    const { decryptDescription } = await import("@/src/infrastructure/utils/transaction-encryption");
 
     const description = plannedPayment.description ? 
-      (await import("@/lib/utils/transaction-encryption")).decryptDescription(plannedPayment.description) : null;
+      decryptDescription(plannedPayment.description) : null;
 
-    const transactionData = {
+    const transactionsService = makeTransactionsService();
+    
+    const transaction = await transactionsService.createTransaction({
       date: new Date(plannedPayment.date),
       type: plannedPayment.type,
       amount: plannedPayment.amount,
@@ -247,9 +249,7 @@ export class PlannedPaymentsService {
       subcategoryId: plannedPayment.type === "transfer" ? undefined : (plannedPayment.subcategoryId || undefined),
       description: description || undefined,
       recurring: false,
-    };
-
-    const transaction = await createTransaction(transactionData);
+    });
 
     // Update planned payment
     const updatedRow = await this.repository.update(id, {
