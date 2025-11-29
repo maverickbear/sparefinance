@@ -3,7 +3,7 @@ import {
   getUserSubscriptions,
   createUserSubscription,
 } from "@/lib/api/user-subscriptions";
-import { invalidateSubscriptionCaches } from "../../src/infrastructure/cache/cache.manager";
+import { invalidateSubscriptionCaches } from "../../../src/infrastructure/cache/cache.manager";
 
 export async function GET(request: NextRequest) {
   try {

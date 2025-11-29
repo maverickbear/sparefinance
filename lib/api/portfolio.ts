@@ -2,12 +2,12 @@
 
 import { getHoldings, getInvestmentAccounts, getInvestmentTransactions } from "@/lib/api/investments";
 import { Holding as SupabaseHolding } from "@/lib/api/investments";
-import { formatDateStart, formatDateEnd } from "../../src/infrastructure/utils/timestamp";
+import { formatDateStart, formatDateEnd } from "@/src/infrastructure/utils/timestamp";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 import { unstable_cache } from "next/cache";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { cache } from "../../src/infrastructure/external/redis";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { cache } from "@/src/infrastructure/external/redis";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 // Portfolio types - exported for use across the application
 export interface Holding {

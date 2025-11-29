@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserSubscriptionData, checkTransactionLimit, checkAccountLimit } from "@/lib/api/subscription";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {

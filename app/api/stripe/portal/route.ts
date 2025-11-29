@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPortalSession } from "@/lib/api/stripe";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
 
 export async function POST(request: NextRequest) {
   try {

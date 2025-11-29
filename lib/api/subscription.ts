@@ -12,9 +12,9 @@
  * - This API provides a unified interface to access both
  */
 
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { Plan, PlanFeatures, Subscription } from "@/src/domain/subscriptions/subscriptions.validations";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 import { normalizeAndValidateFeatures } from "@/src/application/shared/plan-features-service";
 

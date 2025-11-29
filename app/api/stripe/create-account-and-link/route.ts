@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "../../../../src/infrastructure/database/supabase-server";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
-import { formatTimestamp } from "../../src/infrastructure/utils/timestamp";
+import { formatTimestamp } from "../../../../src/infrastructure/utils/timestamp";
 import { randomUUID } from "crypto";
 import Stripe from "stripe";
 

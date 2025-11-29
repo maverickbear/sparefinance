@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { guardFeatureAccessReadOnly } from "@/src/application/shared/feature-guard";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../src/infrastructure/database/supabase-server";
 import { 
   getPortfolioSummaryInternal, 
   getPortfolioAccountsInternal,
@@ -9,7 +9,7 @@ import {
   getPortfolioInternalData,
   convertSupabaseHoldingToHolding
 } from "@/lib/api/portfolio";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { logger } from "../../../src/infrastructure/utils/logger";
 
 // In-memory cache for request deduplication
 // Prevents duplicate calls within a short time window (5 seconds)

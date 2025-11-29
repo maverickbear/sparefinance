@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient, createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { invalidateAllCategoriesCache } from "@/lib/api/categories";
 import Stripe from "stripe";
 

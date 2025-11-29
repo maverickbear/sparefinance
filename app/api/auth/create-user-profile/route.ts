@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
-import { createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../src/infrastructure/database/supabase-server";
+import { createServiceRoleClient } from "../../../src/infrastructure/database/supabase-server";
 
 /**
  * POST /api/auth/create-user-profile

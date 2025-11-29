@@ -7,7 +7,7 @@
 
 import { planFeaturesSchema, type PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 const log = logger.withPrefix("PLAN-FEATURES-SERVICE");
 

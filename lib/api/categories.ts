@@ -1,9 +1,9 @@
 "use server";
 
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
-import { getCurrentTimestamp } from "../../src/infrastructure/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getCurrentTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getUserSubscriptionData } from "@/lib/api/subscription";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 // Cache for categories (they don't change frequently)
 const categoriesCache = new Map<string, { data: any[]; timestamp: number; userId: string | null }>();

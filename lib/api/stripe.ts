@@ -1,7 +1,7 @@
 "use server";
 
 import Stripe from "stripe";
-import { createServerClient, createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 
 if (!process.env.STRIPE_SECRET_KEY) {

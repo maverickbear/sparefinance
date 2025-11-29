@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
 import { updateSubscriptionTrial } from "@/lib/api/stripe";
 
 export async function POST(request: NextRequest) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
-import { formatTimestamp } from "../../src/infrastructure/utils/timestamp";
+import { createServiceRoleClient } from "../../../src/infrastructure/database/supabase-server";
+import { formatTimestamp } from "../../../src/infrastructure/utils/timestamp";
 import { randomUUID } from "crypto";
 
 /**

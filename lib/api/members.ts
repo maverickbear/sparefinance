@@ -1,15 +1,15 @@
 "use server";
 
-import { createServerClient, createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { MemberInviteFormData, MemberUpdateFormData } from "@/src/domain/members/members.validations";
-import { formatTimestamp } from "../../src/infrastructure/utils/timestamp";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 // checkPlanLimits removed - not used in this file
 import { sendInvitationEmail } from "@/lib/utils/email";
 import { guardHouseholdMembers, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { getActiveHouseholdId } from "@/lib/utils/household";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface HouseholdMember {
   id: string;

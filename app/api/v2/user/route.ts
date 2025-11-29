@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
 import { makeMembersService } from "@/src/application/members/members.factory";
 
 /**

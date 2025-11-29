@@ -1,13 +1,13 @@
 "use server";
 
 import { unstable_cache, revalidateTag } from "next/cache";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
-import { formatTimestamp, formatDateStart, formatDateEnd } from "../../src/infrastructure/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp, formatDateStart, formatDateEnd } from "@/src/infrastructure/utils/timestamp";
 import { startOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
 import { getTransactions } from "./transactions";
 import { calculateProgress as calculateGoalProgress } from "@/lib/utils/goals";
-import { requireGoalOwnership } from "../../src/infrastructure/utils/security";
-import { logger } from "../../src/infrastructure/utils/logger";
+import { requireGoalOwnership } from "@/src/infrastructure/utils/security";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface Goal {
   id: string;

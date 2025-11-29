@@ -2,18 +2,18 @@
 
 import { unstable_cache, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { TransactionFormData } from "@/src/domain/transactions/transactions.validations";
-import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp, parseDateInput } from "../../src/infrastructure/utils/timestamp";
+import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp, parseDateInput } from "@/src/infrastructure/utils/timestamp";
 import { getDebts } from "@/lib/api/debts";
 import { calculateNextPaymentDates, type DebtForCalculation } from "@/lib/utils/debts";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
 import { getPlannedPayments, PLANNED_HORIZON_DAYS, generatePlannedPaymentsFromRecurringTransaction } from "@/lib/api/planned-payments";
 import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
-import { requireTransactionOwnership } from "../../src/infrastructure/utils/security";
+import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
 import { suggestCategory, updateCategoryLearning } from "@/src/application/shared/category-learning";
-import { logger } from "../../src/infrastructure/utils/logger";
-import { encryptDescription, decryptDescription, decryptAmount, normalizeDescription, getTransactionAmount } from "../../src/infrastructure/utils/transaction-encryption";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { encryptDescription, decryptDescription, decryptAmount, normalizeDescription, getTransactionAmount } from "@/src/infrastructure/utils/transaction-encryption";
 import { getUserSubscriptionData } from "@/lib/api/subscription";
 import { 
   getActiveCreditCardDebt, 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient } from "../../../../src/infrastructure/database/supabase-server";
 import { invalidateSubscriptionCache } from "@/lib/api/subscription";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import Stripe from "stripe";

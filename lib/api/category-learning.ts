@@ -1,8 +1,8 @@
 "use server";
 
-import { createServerClient } from "../../src/infrastructure/database/supabase-server";
-import { formatDateStart } from "../../src/infrastructure/utils/timestamp";
-import { normalizeDescription } from "../../src/infrastructure/utils/transaction-encryption";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatDateStart } from "@/src/infrastructure/utils/timestamp";
+import { normalizeDescription } from "@/src/infrastructure/utils/transaction-encryption";
 
 export type ConfidenceLevel = "high" | "medium" | "low" | "none";
 

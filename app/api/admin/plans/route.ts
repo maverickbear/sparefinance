@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createServiceRoleClient } from "../../src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "../../../../src/infrastructure/database/supabase-server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { planFeaturesSchema } from "@/src/domain/subscriptions/subscriptions.validations";
 import { invalidatePlansCache } from "@/lib/api/subscription";
