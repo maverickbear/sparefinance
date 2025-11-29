@@ -1,6 +1,6 @@
-import { planFeaturesSchema } from "@/lib/validations/plan";
+import { planFeaturesSchema } from "@/src/domain/subscriptions/subscriptions.validations";
 import { getDefaultFeatures } from "./plan-features";
-import type { PlanFeatures } from "@/lib/validations/plan";
+import type { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 
 /**
  * Get all feature keys from the schema
@@ -38,6 +38,7 @@ export function getFeatureConfigs(): FeatureConfig[] {
     hasBankIntegration: "Bank Integration",
     hasHousehold: "Household Members",
     hasBudgets: "Budgets",
+    hasReceiptScanner: "Receipt Scanner",
   };
 
   return keys.map((key) => {

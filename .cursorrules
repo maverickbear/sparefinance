@@ -1,0 +1,479 @@
+# Cursor Rules for SpareFinanceApp
+
+## Architecture Overview
+
+This application follows Clean Architecture with Domain-Driven Design (DDD). Four layers:
+1. **Domain** (`src/domain/`) - Pure business logic, types, validations
+2. **Application** (`src/application/`) - Business services, orchestration
+3. **Infrastructure** (`src/infrastructure/`) - Data access, external services
+4. **Presentation** (`src/presentation/`) - UI components, hooks, API routes
+
+## Layer Rules (CRITICAL - NEVER VIOLATE)
+
+### Domain Layer
+- ✅ ONLY: Types, Zod validations, constants
+- ❌ FORBIDDEN: Infrastructure, UI, external services, business logic
+- ✅ Zero dependencies (except Zod)
+
+### Application Layer
+- ✅ Business logic and orchestration
+- ✅ Uses repositories from infrastructure
+- ✅ Validates using domain validations
+- ❌ FORBIDDEN: Direct database access, UI components, API routes
+
+### Infrastructure Layer
+- ✅ Data access (repositories ONLY)
+- ✅ External services (Plaid, Stripe, OpenAI)
+- ✅ Cache, security, utilities
+- ❌ FORBIDDEN: Business logic (must be in Application layer)
+
+### Presentation Layer
+- ✅ API routes (thin - HTTP concerns only)
+- ✅ React components and hooks
+- ✅ Uses Application Services via factories
+- ❌ FORBIDDEN: Business logic, direct database access
+
+## Golden Rules
+
+1. **Business logic → Application Services ONLY**
+2. **Data access → Repositories ONLY**
+3. **Client components → API Routes (`/api/v2/<feature>`)**
+4. **Server components → Application Services (via factories)**
+5. **NEVER direct database access from Presentation Layer**
+6. **NEVER business logic in API routes or components**
+7. **NEVER use client-side APIs (`lib/api/*-client.ts`) in new code**
+
+## New Feature Implementation
+
+### Step 1: Domain Layer
+```
+src/domain/<feature>/
+├── types.ts          # TypeScript interfaces
+├── validations.ts    # Zod schemas
+└── constants.ts      # Constants (if needed)
+```
+
+### Step 2: Infrastructure Layer
+```
+src/infrastructure/database/repositories/<feature>.repository.ts
+```
+- Only data access (CRUD)
+- No business logic
+- Maps database to domain types
+
+### Step 3: Application Layer
+```
+src/application/<feature>/
+├── <feature>.service.ts    # Business logic
+├── <feature>.mapper.ts     # Domain ↔ Infrastructure mapping
+└── <feature>.factory.ts   # Dependency injection
+```
+
+### Step 4: Presentation Layer
+```
+app/api/v2/<feature>/route.ts                    # API routes
+src/presentation/components/features/<feature>/  # Components
+src/presentation/hooks/<feature>/                # Hooks
+```
+
+## API Route Pattern (MANDATORY)
+
+```typescript
+// app/api/v2/<feature>/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { makeFeatureService } from "@/src/application/<feature>/<feature>.factory";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+
+export async function GET(request: NextRequest) {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
+    const service = makeFeatureService(); // ALWAYS use factory
+    const data = await service.getAll(userId);
+    
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Rules:**
+- ✅ ALWAYS use factory: `makeFeatureService()`
+- ✅ ALWAYS check authentication: `getCurrentUserId()`
+- ✅ NEVER put business logic in API routes
+- ✅ NEVER access database directly
+- ✅ Add cache headers for GET requests
+
+## Client Component Pattern (MANDATORY)
+
+```typescript
+"use client";
+
+import { useEffect, useState } from "react";
+import { Account } from "@/src/domain/accounts/types";
+
+export function AccountList() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  useEffect(() => {
+    async function loadAccounts() {
+      try {
+        const response = await fetch("/api/v2/accounts");
+        if (!response.ok) {
+          throw new Error("Failed to fetch accounts");
+        }
+        const data = await response.json();
+        setAccounts(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Unknown error"));
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAccounts();
+  }, []);
+  
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+  
+  return (
+    <div>
+      {accounts.map(account => (
+        <div key={account.id}>{account.name}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Rules:**
+- ✅ ALWAYS use `fetch("/api/v2/<feature>")`
+- ✅ ALWAYS handle loading and error states
+- ✅ NEVER use `get*Client()` functions
+- ✅ NEVER access database directly
+- ✅ Use domain types for TypeScript
+
+## Server Component Pattern (MANDATORY)
+
+```typescript
+// app/(protected)/<feature>/page.tsx
+import { makeFeatureService } from "@/src/application/<feature>/<feature>.factory";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { redirect } from "next/navigation";
+
+export default async function FeaturePage() {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    redirect("/auth/login");
+  }
+  
+  const service = makeFeatureService();
+  const data = await service.getAll(userId);
+  
+  return <FeatureList initialData={data} />;
+}
+```
+
+**Rules:**
+- ✅ CAN call Application Services directly via factories
+- ✅ NEVER use `"use client"` directive
+- ✅ Use `unstable_cache` for caching when appropriate
+
+## Service Pattern (MANDATORY)
+
+```typescript
+// src/application/<feature>/<feature>.service.ts
+import { FeatureRepository } from "@/src/infrastructure/database/repositories/<feature>.repository";
+import { FeatureFormData } from "@/src/domain/<feature>/validations";
+import { Feature } from "@/src/domain/<feature>/types";
+
+export class FeatureService {
+  constructor(private repository: FeatureRepository) {}
+  
+  async getAll(userId: string): Promise<Feature[]> {
+    // Business logic here
+    const items = await this.repository.findAll(userId);
+    return items.filter(item => item.isActive); // Example business rule
+  }
+  
+  async create(userId: string, data: unknown): Promise<Feature> {
+    // Validate input
+    const validated = featureSchema.parse(data);
+    
+    // Business logic
+    if (validated.amount < 0) {
+      throw new Error("Amount cannot be negative");
+    }
+    
+    // Save via repository
+    return this.repository.create(userId, validated);
+  }
+}
+```
+
+**Rules:**
+- ✅ All business logic goes here
+- ✅ Use repositories for data access
+- ✅ Validate using domain schemas
+- ✅ Return domain types
+
+## Repository Pattern (MANDATORY)
+
+```typescript
+// src/infrastructure/database/repositories/<feature>.repository.ts
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { Feature } from "@/src/domain/<feature>/types";
+
+export class FeatureRepository {
+  async findAll(userId: string): Promise<Feature[]> {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+      .from("Feature")
+      .select("*")
+      .eq("userId", userId);
+    
+    if (error) throw error;
+    return data.map(this.mapToDomain);
+  }
+  
+  private mapToDomain(row: any): Feature {
+    return {
+      id: row.id,
+      name: row.name,
+      // ... map all fields
+    };
+  }
+}
+```
+
+**Rules:**
+- ✅ ONLY data access (CRUD)
+- ✅ NO business logic
+- ✅ Map database to domain types
+- ✅ Use `createServerClient()` for database access
+
+## Migration Rules (When Migrating Client-side APIs)
+
+### Checklist
+1. ✅ Verify API route exists at `/api/v2/<feature>/route.ts`
+2. ✅ Verify API route uses `makeFeatureService()`
+3. ✅ Replace `get*Client()` with `fetch("/api/v2/<feature>")`
+4. ✅ Remove imports of `*-client.ts` files
+5. ✅ Add error handling (`response.ok` check)
+6. ✅ Add loading states
+7. ✅ Test functionality
+
+### Example Migration
+
+**OLD (WRONG):**
+```typescript
+import { getAccountsClient } from "@/lib/api/accounts-client";
+const accounts = await getAccountsClient();
+```
+
+**NEW (CORRECT):**
+```typescript
+const response = await fetch("/api/v2/accounts");
+if (!response.ok) {
+  throw new Error("Failed to fetch accounts");
+}
+const accounts = await response.json();
+```
+
+## Naming Conventions
+
+- **Files**: kebab-case for components/hooks (`account-list.tsx`), camelCase for services (`accounts.service.ts`)
+- **Classes**: PascalCase (`AccountService`, `AccountsRepository`)
+- **Functions**: camelCase (`getAccounts`, `createAccount`)
+- **Constants**: UPPER_SNAKE_CASE (`MAX_ACCOUNTS`, `CACHE_TTL`)
+- **Types/Interfaces**: PascalCase (`AccountType`, `CreateAccountInput`)
+- **Components**: PascalCase (`AccountList`, `AccountCard`)
+
+## Error Handling
+
+### Application Services
+```typescript
+import { AppError } from "@/src/application/shared/app-error";
+
+if (!account) {
+  throw new AppError("Account not found", 404);
+}
+```
+
+### API Routes
+```typescript
+try {
+  // ... logic
+} catch (error) {
+  if (error instanceof AppError) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: error.statusCode }
+    );
+  }
+  return NextResponse.json(
+    { error: "Internal server error" },
+    { status: 500 }
+  );
+}
+```
+
+### Client Components
+```typescript
+try {
+  const response = await fetch("/api/v2/accounts");
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch accounts");
+  }
+  const data = await response.json();
+} catch (error) {
+  console.error("Error:", error);
+  toast({
+    title: "Error",
+    description: error instanceof Error ? error.message : "Unknown error",
+    variant: "destructive",
+  });
+}
+```
+
+## Common Mistakes (AVOID)
+
+### ❌ DON'T
+
+1. **Business logic in API routes**
+   ```typescript
+   // ❌ WRONG
+   export async function POST(request: NextRequest) {
+     const data = await request.json();
+     if (data.balance < 0) { // Business logic in API route - WRONG!
+       return NextResponse.json({ error: "Invalid" }, { status: 400 });
+     }
+   }
+   ```
+
+2. **Use client-side APIs**
+   ```typescript
+   // ❌ WRONG
+   import { getAccountsClient } from "@/lib/api/accounts-client";
+   const accounts = await getAccountsClient();
+   ```
+
+3. **Direct database access from components**
+   ```typescript
+   // ❌ WRONG
+   "use client";
+   import { supabase } from "@/lib/supabase";
+   const { data } = await supabase.from("Account").select("*");
+   ```
+
+4. **Skip validation**
+   ```typescript
+   // ❌ WRONG
+   export async function POST(request: NextRequest) {
+     const data = await request.json();
+     await service.create(data); // No validation - WRONG!
+   }
+   ```
+
+### ✅ DO
+
+1. **Use Application Services**
+   ```typescript
+   // ✅ CORRECT
+   export async function POST(request: NextRequest) {
+     const data = await request.json();
+     const service = makeAccountsService();
+     const account = await service.create(userId, data);
+     return NextResponse.json(account, { status: 201 });
+   }
+   ```
+
+2. **Use API routes**
+   ```typescript
+   // ✅ CORRECT
+   const response = await fetch("/api/v2/accounts");
+   const accounts = await response.json();
+   ```
+
+3. **Validate input**
+   ```typescript
+   // ✅ CORRECT
+   const body = await request.json();
+   const validated = accountSchema.parse(body);
+   await service.create(userId, validated);
+   ```
+
+## File Organization
+
+### Domain
+- `src/domain/<feature>/types.ts`
+- `src/domain/<feature>/validations.ts`
+- `src/domain/<feature>/constants.ts`
+
+### Infrastructure
+- `src/infrastructure/database/repositories/<feature>.repository.ts`
+- `src/infrastructure/external/<service>/`
+- `src/infrastructure/utils/`
+
+### Application
+- `src/application/<feature>/<feature>.service.ts`
+- `src/application/<feature>/<feature>.mapper.ts`
+- `src/application/<feature>/<feature>.factory.ts`
+
+### Presentation
+- `app/api/v2/<feature>/route.ts`
+- `src/presentation/components/features/<feature>/`
+- `src/presentation/hooks/<feature>/`
+
+## Quick Checklist for New Features
+
+- [ ] Domain types and validations created
+- [ ] Repository created in infrastructure
+- [ ] Service, mapper, and factory created in application
+- [ ] API route created using factory
+- [ ] Components created using API route
+- [ ] Error handling added
+- [ ] Loading states added
+- [ ] Tested functionality
+
+## Quick Checklist for Migrations
+
+- [ ] API route exists and uses factory
+- [ ] Component uses `fetch()` instead of client API
+- [ ] Error handling added
+- [ ] Loading states added
+- [ ] Types updated (if needed)
+- [ ] Tested functionality
+- [ ] No linter errors
+
+## Language
+
+- Always write code, comments, documentation, and explanations in **English**.
+- The user may write in Portuguese, but you must respond in **English** by default unless explicitly requested otherwise.
+
+## Design System
+
+- Always use existing design tokens for colors, spacing, typography, radii, and shadows.
+- Do not hardcode raw values directly in components. Prefer tokens and central configuration.
+- If a new value is needed, propose a new token instead of inlining styles.
+
+## Reusable Components
+
+- Prefer reusable, composable UI components over inline markup.
+- Reuse existing design system components (Button, Input, Card, etc.) whenever possible.
+- If you detect repetition, refactor into a shared component inside the components library.
+

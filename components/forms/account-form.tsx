@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { accountSchema, AccountFormData } from "@/lib/validations/account";
+import { accountSchema, AccountFormData } from "@/src/domain/accounts/accounts.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -122,10 +122,13 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
 
   async function loadUserRole() {
     try {
-      const { getUserRoleClient } = await import("@/lib/api/members-client");
-      const role = await getUserRoleClient();
-      if (role) {
-        setUserRole(role);
+      const response = await fetch("/api/v2/members");
+      if (!response.ok) {
+        throw new Error("Failed to fetch user role");
+      }
+      const { userRole } = await response.json();
+      if (userRole) {
+        setUserRole(userRole);
       } else {
         // Default to admin if no role found (user is owner)
         setUserRole("admin");
@@ -140,13 +143,16 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
   async function loadHouseholds() {
     try {
       setLoadingHouseholds(true);
-      const { getHouseholdMembersClient } = await import("@/lib/api/members-client");
-      const members = await getHouseholdMembersClient();
+      const response = await fetch("/api/v2/members");
+      if (!response.ok) {
+        throw new Error("Failed to fetch members");
+      }
+      const { members } = await response.json();
       
       // Transform household members into households format
       const householdsList: Household[] = members
-        .filter(member => member.status === "active" && member.memberId) // Only include active members with memberId
-        .map(member => ({
+        .filter((member: any) => member.status === "active" && member.memberId) // Only include active members with memberId
+        .map((member: any) => ({
           id: member.memberId!, // memberId is guaranteed to exist due to filter
           name: member.name || member.email,
           email: member.email,

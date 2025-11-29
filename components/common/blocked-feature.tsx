@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSubscription } from "@/hooks/use-subscription";
-import { Plan, PlanFeatures } from "@/lib/validations/plan";
+import { Plan, PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { getFeaturePromotion } from "@/lib/utils/feature-promotions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -80,6 +80,7 @@ function getFeatureDisplayName(feature?: keyof PlanFeatures, featureName?: strin
     hasBankIntegration: "Bank Integration",
     hasHousehold: "Household Members",
     hasBudgets: "Budgets",
+    hasReceiptScanner: "Receipt Scanner",
   };
 
   return names[feature] || "Feature";

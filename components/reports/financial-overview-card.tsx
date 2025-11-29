@@ -5,8 +5,8 @@ import { formatMoney } from "@/components/common/money";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { TrendingUp, TrendingDown, DollarSign, PiggyBank } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "@/lib/api/transactions-client";
-import type { FinancialHealthData } from "@/lib/api/financial-health";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
+import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 interface FinancialOverviewCardProps {
   currentMonthTransactions: Transaction[];

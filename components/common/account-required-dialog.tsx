@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { getAccountsClient } from "@/lib/api/accounts-client";
+// Using API route instead of client-side API
 import { AccountForm } from "@/components/forms/account-form";
 
 interface AccountRequiredDialogProps {
@@ -37,7 +37,11 @@ export function AccountRequiredDialog({
   async function checkAccounts() {
     setIsChecking(true);
     try {
-      const accounts = await getAccountsClient();
+      const response = await fetch("/api/v2/accounts?includeHoldings=false");
+      if (!response.ok) {
+        throw new Error("Failed to fetch accounts");
+      }
+      const accounts = await response.json();
       setHasAccount(accounts.length > 0);
     } catch (error) {
       console.error("Error checking accounts:", error);

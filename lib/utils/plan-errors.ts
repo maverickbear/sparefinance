@@ -1,4 +1,4 @@
-import { PlanFeatures } from "@/lib/validations/plan";
+import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 
 export interface PlanError {
   code: string;

@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { AlertTriangle, Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { deleteAccountClient } from "@/lib/api/profile-client";
 
 interface DeleteAccountDialogProps {
   open: boolean;
@@ -47,7 +46,19 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
     setLoading(true);
 
     try {
-      const result = await deleteAccountClient(password);
+      const response = await fetch("/api/profile/delete-account", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || result.message || "Failed to delete account");
+      }
       
       if (result.success) {
         toast({

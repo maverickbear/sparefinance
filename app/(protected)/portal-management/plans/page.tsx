@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { PlansTable } from "@/components/admin/plans-table";
 import { PlanDialog } from "@/components/admin/plan-dialog";
-import type { Plan } from "@/lib/validations/plan";
+import type { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 
 export default function PlansPage() {
   const [plans, setPlans] = useState<Plan[]>([]);

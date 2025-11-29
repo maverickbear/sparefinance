@@ -1,9 +1,9 @@
 "use server";
 
-import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { Household, HouseholdMemberNew, UserActiveHousehold } from "@/lib/types/household";
-import { guardHouseholdMembers, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { guardHouseholdMembers, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { sendInvitationEmail } from "@/lib/utils/email";
 
 /**

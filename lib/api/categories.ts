@@ -1,9 +1,9 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { getCurrentTimestamp } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getCurrentTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getUserSubscriptionData } from "@/lib/api/subscription";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 // Cache for categories (they don't change frequently)
 const categoriesCache = new Map<string, { data: any[]; timestamp: number; userId: string | null }>();
@@ -786,9 +786,4 @@ export async function deleteGroup(id: string) {
   await invalidateCategoriesCache(authUser.id);
 
   return true;
-}
-
-// Deprecated: Use deleteGroup instead
-export async function deleteMacro(id: string) {
-  return deleteGroup(id);
 }

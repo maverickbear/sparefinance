@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAccount, getAccounts } from "@/lib/api/accounts";
-import { AccountFormData } from "@/lib/validations/account";
+import { makeAccountsService } from "@/src/application/accounts/accounts.factory";
+import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
 import { ZodError } from "zod";
-import { getCurrentUserId, guardAccountLimit, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardAccountLimit, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const includeHoldings = searchParams.get("includeHoldings") !== "false"; // Default to true for backward compatibility
     
-    const accounts = await getAccounts(undefined, undefined, { includeHoldings });
+    const service = makeAccountsService();
+    const accounts = await service.getAccounts(undefined, undefined, { includeHoldings });
     return NextResponse.json(accounts, { status: 200 });
   } catch (error) {
     console.error("Error fetching accounts:", error);
@@ -33,7 +34,8 @@ export async function POST(request: NextRequest) {
 
     const data: AccountFormData = await request.json();
     
-    const account = await createAccount(data);
+    const service = makeAccountsService();
+    const account = await service.createAccount(data);
     
     return NextResponse.json(account, { status: 201 });
   } catch (error) {

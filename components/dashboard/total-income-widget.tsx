@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { TrendingUp } from "lucide-react";
 import { formatMoney } from "@/components/common/money";
 import { cn } from "@/lib/utils";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface TotalIncomeWidgetProps {
   transactions: any[];

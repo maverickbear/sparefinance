@@ -4,7 +4,7 @@
  * This ensures consistency across the entire application
  */
 
-import { TransactionWithRelations, TransactionSummary } from '@/lib/types/transaction.types';
+import { TransactionWithRelations, TransactionSummary } from '@/src/domain/transactions/transactions.types';
 
 /**
  * Safely parses a transaction amount, handling various input types

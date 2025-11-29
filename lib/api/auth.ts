@@ -1,10 +1,10 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData, ChangePasswordFormData } from "@/lib/validations/auth";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData, ChangePasswordFormData } from "@/src/domain/auth/auth.validations";
 import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { cookies } from "next/headers";
 
 export interface User {

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { formatDateInput } from "@/lib/utils/timestamp";
+import { formatDateInput } from "@/src/infrastructure/utils/timestamp";
 
 export type DateRangePreset = 
   | "all-dates"

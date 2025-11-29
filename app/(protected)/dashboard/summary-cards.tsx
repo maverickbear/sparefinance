@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, TrendingUp, Wallet, MoreVertical } from "lucide-react";
 import { AccountsBreakdownModal } from "@/components/dashboard/accounts-breakdown-modal";
 import { cn } from "@/lib/utils";
-import { logger } from "@/lib/utils/logger";
 import { startOfMonth, endOfMonth, format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { HouseholdMember } from "@/src/domain/members/members.types";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { formatExpectedIncomeRange } from "@/src/presentation/utils/format-expected-income";
 
 interface SummaryCardsProps {
   selectedMonthTransactions: any[];
@@ -18,6 +21,12 @@ interface SummaryCardsProps {
   totalBalance: number;
   lastMonthTotalBalance: number;
   accounts: any[];
+  selectedMemberId?: string | null;
+  onMemberChange?: (memberId: string | null) => void;
+  householdMembers?: HouseholdMember[];
+  isLoadingMembers?: boolean;
+  financialHealth?: any;
+  expectedIncomeRange?: string | null;
 }
 
 export function SummaryCards({ 
@@ -27,12 +36,16 @@ export function SummaryCards({
   totalBalance,
   lastMonthTotalBalance,
   accounts,
+  selectedMemberId = null,
+  onMemberChange,
+  householdMembers = [],
+  isLoadingMembers = false,
+  financialHealth,
+  expectedIncomeRange,
 }: SummaryCardsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
   
   // Get selected month from URL or use current month (same logic as MonthSelector)
   const monthParam = searchParams.get("month");
@@ -54,109 +67,19 @@ export function SummaryCards({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Helper function to parse date from Supabase format
-  // Supabase returns dates as "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DDTHH:MM:SS"
-  const parseTransactionDate = (dateStr: string | Date): Date => {
-    if (dateStr instanceof Date) {
-      return dateStr;
-    }
-    // Handle both "YYYY-MM-DD HH:MM:SS" and "YYYY-MM-DDTHH:MM:SS" formats
-    const normalized = dateStr.replace(' ', 'T').split('.')[0]; // Remove milliseconds if present
-    return new Date(normalized);
+  const handleMemberChange = (value: string) => {
+    const memberId = value === "all" ? null : value;
+    onMemberChange?.(memberId);
   };
 
-  // Filter transactions to only include those with date <= today
-  // Exclude future transactions as they haven't happened yet
-  const pastTransactions = selectedMonthTransactions.filter((t) => {
-    if (!t.date) return false;
-    try {
-      const txDate = parseTransactionDate(t.date);
-      txDate.setHours(0, 0, 0, 0);
-      return txDate <= today;
-    } catch (error) {
-      logger.error("Error parsing transaction date:", t.date, error);
-      return false; // Exclude if date parsing fails
-    }
-  });
-
-  const pastLastMonthTransactions = lastMonthTransactions.filter((t) => {
-    if (!t.date) return false;
-    try {
-      const txDate = parseTransactionDate(t.date);
-      txDate.setHours(0, 0, 0, 0);
-      return txDate <= today;
-    } catch (error) {
-      logger.error("Error parsing transaction date:", t.date, error);
-      return false; // Exclude if date parsing fails
-    }
-  });
-
-  const log = logger.withPrefix("summary-cards");
-  
-  // Debug: Log transactions to understand the issue
-  // IMPORTANT: Monthly Income should show transactions from the SELECTED MONTH (from MonthSelector)
-  // selectedMonthTransactions already contains transactions from the selected month
-  log.log("Processing transactions for Monthly Income (SELECTED MONTH):", {
-    note: "Monthly Income shows transactions from the month selected in MonthSelector at the top",
-      totalTransactions: selectedMonthTransactions.length,
-      pastTransactions: pastTransactions.length,
-      today: today.toISOString(),
-      allTransactionTypes: [...new Set(selectedMonthTransactions.map(t => t?.type).filter(Boolean))],
-    incomeTransactions: pastTransactions.filter((t) => t && t.type === "income"),
-    incomeTransactionsCount: pastTransactions.filter((t) => t && t.type === "income").length,
-    expenseTransactionsCount: pastTransactions.filter((t) => t && t.type === "expense").length,
-    incomeTransactionsDetails: pastTransactions
-      .filter((t) => t && t.type === "income")
-      .map(t => ({
-        id: t.id,
-        type: t.type,
-        amount: t.amount,
-        amountType: typeof t.amount,
-        parsedAmount: t.amount != null ? (typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount)) : null,
-        date: t.date,
-        description: t.description,
-      })),
-    sampleTransactions: selectedMonthTransactions.slice(0, 5).map(t => ({ 
-        id: t?.id,
-        type: t?.type, 
-        amount: t?.amount, 
-        amountType: typeof t?.amount,
-        parsed: t?.amount != null ? (typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount)) : null,
-        date: t?.date,
-      })),
-    });
+  // Transactions are already filtered by household member and date in FinancialOverviewPage
+  // So we can use them directly for calculations
+  const pastTransactions = selectedMonthTransactions;
+  const pastLastMonthTransactions = lastMonthTransactions;
 
   const currentIncome = pastTransactions
     .filter((t) => t && t.type === "income")
     .reduce((sum, t) => {
-      // Handle various amount formats: number, string, null, undefined
-      let amount = 0;
-      if (t.amount != null) {
-        const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
-        amount = isNaN(parsed) ? 0 : parsed;
-      }
-      const newSum = sum + amount;
-      log.log("Calculating income - transaction:", {
-        id: t.id,
-        type: t.type,
-        amount: t.amount,
-        parsedAmount: amount,
-        currentSum: sum,
-        newSum: newSum,
-      });
-      return newSum;
-    }, 0);
-
-  log.log("Final Monthly Income calculation:", {
-    currentIncome,
-    incomeTransactionsCount: pastTransactions.filter((t) => t && t.type === "income").length,
-    totalPastTransactions: pastTransactions.length,
-  });
-
-  const currentExpenses = pastTransactions
-    .filter((t) => t && t.type === "expense")
-    .reduce((sum, t) => {
-      // Handle various amount formats: number, string, null, undefined
       let amount = 0;
       if (t.amount != null) {
         const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
@@ -165,15 +88,20 @@ export function SummaryCards({
       return sum + amount;
     }, 0);
 
-  log.log("Final Monthly Expenses calculation:", {
-    currentExpenses,
-    expenseTransactionsCount: pastTransactions.filter((t) => t && t.type === "expense").length,
-  });
+  const currentExpenses = pastTransactions
+    .filter((t) => t && t.type === "expense")
+    .reduce((sum, t) => {
+      let amount = 0;
+      if (t.amount != null) {
+        const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
+        amount = isNaN(parsed) ? 0 : parsed;
+      }
+      return sum + amount;
+    }, 0);
 
   const lastMonthIncome = pastLastMonthTransactions
     .filter((t) => t && t.type === "income")
     .reduce((sum, t) => {
-      // Handle various amount formats: number, string, null, undefined
       let amount = 0;
       if (t.amount != null) {
         const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
@@ -185,7 +113,6 @@ export function SummaryCards({
   const lastMonthExpenses = pastLastMonthTransactions
     .filter((t) => t && t.type === "expense")
     .reduce((sum, t) => {
-      // Handle various amount formats: number, string, null, undefined
       let amount = 0;
       if (t.amount != null) {
         const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
@@ -202,216 +129,242 @@ export function SummaryCards({
     ? ((currentExpenses - lastMonthExpenses) / lastMonthExpenses) * 100
     : 0;
 
-  // Calculate balance change
-  const balanceChange = totalBalance - lastMonthTotalBalance;
-  const balanceChangePercent = lastMonthTotalBalance !== 0
-    ? (balanceChange / Math.abs(lastMonthTotalBalance)) * 100
+  // Calculate savings change based on actual data
+  const lastMonthSavings = lastMonthIncome - lastMonthExpenses;
+  const savingsChange = lastMonthSavings !== 0
+    ? ((savings - lastMonthSavings) / Math.abs(lastMonthSavings)) * 100
     : 0;
 
-  // Handle scroll for carousel indicators
-  useEffect(() => {
-    const carousel = carouselRef.current;
-    if (!carousel) return;
+  // Check if income/expenses are projected (based on expected income)
+  // If financialHealth.isProjected is true, it means we're using projected values
+  const isIncomeProjected = financialHealth?.isProjected && expectedIncomeRange;
+  const isExpenseProjected = financialHealth?.isProjected;
 
-    const handleScroll = () => {
-      const scrollLeft = carousel.scrollLeft;
-      // Get the first card to calculate its actual width
-      const firstCard = carousel.querySelector('.snap-start') as HTMLElement;
-      if (!firstCard) return;
-      
-      const cardWidth = firstCard.offsetWidth;
-      const gap = 16; // 1rem = 16px (gap-4)
-      const totalCardWidth = cardWidth + gap;
-      const newIndex = Math.round(scrollLeft / totalCardWidth);
-      setActiveIndex(Math.min(Math.max(newIndex, 0), 3)); // 4 cards total (0-3)
-    };
-
-    carousel.addEventListener('scroll', handleScroll);
-    // Also check on mount
-    handleScroll();
-    return () => carousel.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Cards data for easier mapping
-  const cards = [
-    {
-      id: 'balance',
-      title: 'Total Balance',
-      icon: Wallet,
-      iconColor: 'text-blue-600 dark:text-blue-500',
-      value: totalBalance,
-      valueColor: totalBalance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
-      change: balanceChange !== 0 ? (
-        <div className={`text-xs mt-1 ${
-          balanceChange >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-        }`}>
-          {balanceChange >= 0 ? "+" : ""}{formatMoney(balanceChange)} ({balanceChangePercent >= 0 ? "+" : ""}{balanceChangePercent.toFixed(1)}%)
-        </div>
-      ) : null,
-      onClick: () => setIsModalOpen(true),
-    },
-    {
-      id: 'income',
-      title: 'Monthly Income',
-      icon: ArrowUpRight,
-      iconColor: 'text-green-600 dark:text-green-500',
-      value: currentIncome,
-      valueColor: 'text-foreground',
-      change: (
-        <div className={`text-xs mt-1 ${
-          lastMonthIncome > 0
-            ? incomeMomChange >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-            : "text-muted-foreground"
-        }`}>
-          {lastMonthIncome > 0
-            ? `${incomeMomChange >= 0 ? "+" : ""}${incomeMomChange.toFixed(1)}% vs last month`
-            : "No data last month"
-          }
-        </div>
-      ),
-      onClick: () => {
-        router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
-      },
-    },
-    {
-      id: 'expenses',
-      title: 'Monthly Expenses',
-      icon: ArrowDownRight,
-      iconColor: 'text-red-600 dark:text-red-500',
-      value: currentExpenses,
-      valueColor: 'text-foreground',
-      change: (
-        <div className={`text-xs mt-1 ${
-          lastMonthExpenses > 0
-            ? expensesMomChange >= 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-            : "text-muted-foreground"
-        }`}>
-          {lastMonthExpenses > 0
-            ? `${expensesMomChange >= 0 ? "+" : ""}${expensesMomChange.toFixed(1)}% vs last month`
-            : "No data last month"
-          }
-        </div>
-      ),
-      onClick: () => {
-        router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
-      },
-    },
-    {
-      id: 'savings',
-      title: 'Savings/Investments',
-      icon: TrendingUp,
-      iconColor: 'text-blue-600 dark:text-blue-500',
-      value: savings,
-      valueColor: 'text-foreground',
-      change: null,
-      onClick: undefined,
-    },
-  ];
+  // Get selected member name or "All Households"
+  const selectedMemberName = selectedMemberId 
+    ? householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown"
+    : "All Households";
 
   return (
     <>
-      {/* Mobile Carousel */}
-      <div className="md:hidden">
-        <div
-          ref={carouselRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth snap-x snap-mandatory pb-2 -mx-4 px-4"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      <div className="grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-4">
+        {/* Primary Color Card - Left Side */}
+        <Card 
+          className="md:col-span-1 bg-primary border-primary text-primary-foreground cursor-pointer transition-all"
+          onClick={() => setIsModalOpen(true)}
         >
-          {cards.map((card, index) => {
-            const Icon = card.icon;
-            return (
-              <Card
-                key={card.id}
-                className={cn(
-                  "flex-shrink-0 w-[calc(100vw-6rem)] snap-start transition-all",
-                  card.onClick && "cursor-pointer hover:shadow-md hover:border-primary/50"
-                )}
-                onClick={card.onClick}
+          <CardContent className="p-4 md:p-5 flex flex-col h-full min-h-[160px]">
+            {/* Logo and Household Selector */}
+            <div className="flex items-start justify-between mb-4">
+              {/* Wallet Icon */}
+              <Wallet className="w-10 h-10 text-primary-foreground/80" />
+              {/* Household Selector */}
+              <Select
+                value={selectedMemberId || "all"}
+                onValueChange={handleMemberChange}
               >
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm text-muted-foreground font-normal">{card.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Icon className={cn("h-4 w-4", card.iconColor)} />
-                    <div className={cn("text-2xl font-semibold", card.valueColor)}>
-                      {formatMoney(card.value)}
-                    </div>
+                <SelectTrigger className="!w-auto inline-flex bg-transparent border-0 text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10 h-auto px-2 py-1 text-xs font-normal shadow-none focus:ring-0 focus:ring-offset-0 rounded transition-colors">
+                  <SelectValue>
+                    {isLoadingMembers ? "Loading..." : selectedMemberName}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Households</SelectItem>
+                  {householdMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.memberId || member.id}>
+                      {member.name || member.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Balance Amount Label */}
+            <div className="text-primary-foreground/80 text-xs mb-1">Balance Amount</div>
+
+            {/* Balance Amount */}
+            <div className="text-2xl md:text-3xl font-bold">
+              {formatMoney(totalBalance)}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Three White Cards - Right Side */}
+        <div className="md:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+          {/* Total Income Card */}
+          <Card className="cursor-pointer transition-all" onClick={() => {
+            router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
+          }}>
+            <CardContent className="p-4 md:p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <ArrowUpRight className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </div>
-                  {card.change}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-        {/* Carousel Indicators */}
-        <div className="flex justify-center gap-2 mt-3">
-          {cards.map((_, index) => (
-            <Button
-              key={index}
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                const carousel = carouselRef.current;
-                if (carousel) {
-                  const firstCard = carousel.querySelector('.snap-start') as HTMLElement;
-                  if (!firstCard) return;
-                  
-                  const cardWidth = firstCard.offsetWidth;
-                  const gap = 16; // 1rem = 16px (gap-4)
-                  const totalCardWidth = cardWidth + gap;
-                  carousel.scrollTo({ left: index * totalCardWidth, behavior: 'smooth' });
-                }
-              }}
-              className={cn(
-                "h-2 rounded-full transition-all p-0",
-                activeIndex === index
-                  ? "w-6 bg-primary"
-                  : "w-2 bg-muted-foreground/30"
+                  <div className="text-xs text-muted-foreground">Total Income</div>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground">
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
+                    }}>
+                      View Details
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              
+              {/* Amount */}
+              <div className="text-xl md:text-2xl font-bold mb-2">
+                {formatMoney(currentIncome)}
+              </div>
+
+              {/* Percentage Change Tag */}
+              <div className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium mb-1",
+                incomeMomChange >= 0 
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              )}>
+                <TrendingUp className={cn(
+                  "h-3 w-3",
+                  incomeMomChange >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                )} />
+                {incomeMomChange >= 0 ? "+" : ""}{incomeMomChange.toFixed(2)}%
+              </div>
+
+              {/* Projected Badge */}
+              {isIncomeProjected && expectedIncomeRange && (
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 h-4">
+                    Projected
+                  </Badge>
+                </div>
               )}
-              aria-label={`Go to card ${index + 1}`}
-            />
-          ))}
+              {isIncomeProjected && expectedIncomeRange && (
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  Based on {formatExpectedIncomeRange(expectedIncomeRange)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Total Expense Card */}
+          <Card className="cursor-pointer transition-all" onClick={() => {
+            router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
+          }}>
+            <CardContent className="p-4 md:p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <ArrowDownRight className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div className="text-xs text-muted-foreground">Total Expense</div>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground">
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
+                    }}>
+                      View Details
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              
+              {/* Amount */}
+              <div className="text-xl md:text-2xl font-bold mb-2">
+                {formatMoney(currentExpenses)}
+              </div>
+
+              {/* Percentage Change Tag */}
+              <div className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium mb-1",
+                expensesMomChange >= 0 
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+              )}>
+                <TrendingUp className={cn(
+                  "h-3 w-3 rotate-180",
+                  expensesMomChange >= 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                )} />
+                {expensesMomChange >= 0 ? "+" : ""}{expensesMomChange.toFixed(2)}%
+              </div>
+
+              {/* Projected Badge */}
+              {isExpenseProjected && (
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 h-4">
+                    Projected
+                  </Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Total Savings Card */}
+          <Card className="cursor-pointer transition-all">
+            <CardContent className="p-4 md:p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <Wallet className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="text-xs text-muted-foreground">Total Savings</div>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground">
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => router.push("/goals")}>
+                      View Goals
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              
+              {/* Amount */}
+              <div className="text-xl md:text-2xl font-bold mb-2">
+                {formatMoney(savings)}
+              </div>
+
+              {/* Percentage Change Tag */}
+              <div className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium mb-1",
+                savingsChange >= 0 
+                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              )}>
+                <TrendingUp className={cn(
+                  "h-3 w-3",
+                  savingsChange >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400 rotate-180"
+                )} />
+                {savingsChange >= 0 ? "+" : ""}{savingsChange.toFixed(2)}%
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
-      {/* Desktop Grid */}
-      <div className="hidden md:grid gap-4 md:gap-5 grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Card
-              key={card.id}
-              className={cn(
-                card.onClick && "cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-              )}
-              onClick={card.onClick}
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm text-muted-foreground font-normal">{card.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <Icon className={cn("h-4 w-4", card.iconColor)} />
-                  <div className={cn("text-2xl font-semibold", card.valueColor)}>
-                    {formatMoney(card.value)}
-                  </div>
-                </div>
-                {card.change}
-              </CardContent>
-            </Card>
-          );
-        })}
-    </div>
-
-    <AccountsBreakdownModal
-      isOpen={isModalOpen}
-      onClose={() => setIsModalOpen(false)}
-      accounts={accounts}
-      totalBalance={totalBalance}
-    />
+      <AccountsBreakdownModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        accounts={accounts}
+        totalBalance={totalBalance}
+      />
     </>
   );
 }
-

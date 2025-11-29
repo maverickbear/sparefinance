@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, createServiceRoleClient } from '@/lib/supabase-server';
-import { getCurrentUserId } from '@/lib/api/feature-guard';
+import { createServerClient, createServiceRoleClient } from '@/src/infrastructure/database/supabase-server';
+import { getCurrentUserId } from '@/src/application/shared/feature-guard';
 import { syncAccountTransactionsBatched } from '@/lib/api/plaid/sync-batched';
-import { formatTimestamp } from '@/lib/utils/timestamp';
+import { formatTimestamp } from '@/src/infrastructure/utils/timestamp';
 import { createTransaction } from '@/lib/api/transactions';
-import { TransactionFormData, transactionSchema } from '@/lib/validations/transaction';
+import { TransactionFormData, transactionSchema } from '@/src/domain/transactions/transactions.validations';
 import { ZodError } from 'zod';
 
 const MAX_JOBS_PER_RUN = 5;

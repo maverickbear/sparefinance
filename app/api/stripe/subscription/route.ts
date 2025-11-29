@@ -4,7 +4,7 @@ import {
   cancelSubscription, 
   reactivateSubscription 
 } from "@/lib/api/stripe";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 export async function PUT(request: NextRequest) {
   try {

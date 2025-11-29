@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureEmergencyFundGoal } from "@/lib/api/goals";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 
 export async function POST(request: NextRequest) {

@@ -12,16 +12,8 @@ import { EmptyState } from "@/components/common/empty-state";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
-import {
-  getUserSubscriptionsClient,
-  deleteUserSubscriptionClient,
-  pauseUserSubscriptionClient,
-  resumeUserSubscriptionClient,
-  detectSubscriptionsClient,
-  createUserSubscriptionClient,
-  type UserServiceSubscription,
-  type DetectedSubscription,
-} from "@/lib/api/user-subscriptions-client";
+import type { UserServiceSubscription } from "@/src/domain/subscriptions/subscriptions.types";
+import type { DetectedSubscription } from "@/lib/api/subscription-detection";
 import { useToast } from "@/components/toast-provider";
 import {
   Dialog,
@@ -75,6 +67,8 @@ export default function SubscriptionsPage() {
     account: { id: string; name: string } | null;
   }>>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [selectedSubscriptions, setSelectedSubscriptions] = useState<Set<string>>(new Set());
+  const [isDeletingMultiple, setIsDeletingMultiple] = useState(false);
 
   useEffect(() => {
     loadSubscriptions();
@@ -83,7 +77,11 @@ export default function SubscriptionsPage() {
   async function loadSubscriptions() {
     try {
       setLoading(true);
-      const data = await getUserSubscriptionsClient();
+      const response = await fetch("/api/user-subscriptions");
+      if (!response.ok) {
+        throw new Error("Failed to fetch subscriptions");
+      }
+      const data = await response.json();
       setSubscriptions(data);
       setHasLoaded(true);
       perf.markDataLoaded();
@@ -107,13 +105,20 @@ export default function SubscriptionsPage() {
       async () => {
         setDeletingId(id);
         try {
-          await deleteUserSubscriptionClient(id);
+          const response = await fetch(`/api/user-subscriptions/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete subscription");
+          }
           toast({
             title: "Success",
             description: "Subscription deleted successfully",
             variant: "success",
           });
           loadSubscriptions();
+          setSelectedSubscriptions(new Set());
         } catch (error) {
           console.error("Error deleting subscription:", error);
           toast({
@@ -128,10 +133,88 @@ export default function SubscriptionsPage() {
     );
   }
 
+  function handleBulkDelete() {
+    const count = selectedSubscriptions.size;
+    openDialog(
+      {
+        title: "Delete Subscriptions",
+        description: `Are you sure you want to delete ${count} subscription(s)? This will also delete all associated planned payments.`,
+        variant: "destructive",
+        confirmLabel: "Delete",
+      },
+      async () => {
+        setIsDeletingMultiple(true);
+        const idsToDelete = Array.from(selectedSubscriptions);
+        let successCount = 0;
+        let errorCount = 0;
+
+        try {
+          for (const id of idsToDelete) {
+            try {
+              const response = await fetch(`/api/user-subscriptions/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete subscription");
+          }
+              successCount++;
+            } catch (error) {
+              console.error(`Error deleting subscription ${id}:`, error);
+              errorCount++;
+            }
+          }
+
+          if (successCount > 0) {
+            toast({
+              title: "Success",
+              description: `Successfully deleted ${successCount} subscription(s)${errorCount > 0 ? `. ${errorCount} failed.` : ""}`,
+              variant: "success",
+            });
+            loadSubscriptions();
+            setSelectedSubscriptions(new Set());
+          } else {
+            toast({
+              title: "Error",
+              description: `Failed to delete subscriptions. ${errorCount} error(s) occurred.`,
+              variant: "destructive",
+            });
+          }
+        } finally {
+          setIsDeletingMultiple(false);
+        }
+      }
+    );
+  }
+
+  function toggleSubscriptionSelection(id: string) {
+    const newSet = new Set(selectedSubscriptions);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedSubscriptions(newSet);
+  }
+
+  function toggleSelectAll() {
+    if (selectedSubscriptions.size === filteredSubscriptions.length) {
+      setSelectedSubscriptions(new Set());
+    } else {
+      setSelectedSubscriptions(new Set(filteredSubscriptions.map(s => s.id)));
+    }
+  }
+
   async function handlePause(id: string) {
     setPausingId(id);
     try {
-      await pauseUserSubscriptionClient(id);
+      const response = await fetch(`/api/user-subscriptions/${id}/pause`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to pause subscription");
+      }
       toast({
         title: "Success",
         description: "Subscription paused successfully",
@@ -153,7 +236,13 @@ export default function SubscriptionsPage() {
   async function handleResume(id: string) {
     setPausingId(id);
     try {
-      await resumeUserSubscriptionClient(id);
+      const response = await fetch(`/api/user-subscriptions/${id}/resume`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to resume subscription");
+      }
       toast({
         title: "Success",
         description: "Subscription resumed successfully",
@@ -211,9 +300,16 @@ export default function SubscriptionsPage() {
     
     setIsDetecting(true);
     try {
-      const detected = await detectSubscriptionsClient();
+      const response = await fetch("/api/subscriptions/detect", {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to detect subscriptions");
+      }
+      const detected = await response.json();
       setDetectedSubscriptions(detected);
-      setSelectedDetectedSubscriptions(new Set(detected.map((s, i) => i.toString())));
+      setSelectedDetectedSubscriptions(new Set(detected.map((s: DetectedSubscription, i: number) => i.toString())));
       setIsDetectionDialogOpen(true);
     } catch (error) {
       console.error("Error detecting subscriptions:", error);
@@ -249,7 +345,12 @@ export default function SubscriptionsPage() {
         if (!detected) continue;
 
         try {
-          await createUserSubscriptionClient({
+          const createResponse = await fetch("/api/user-subscriptions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
             serviceName: detected.merchantName,
             amount: detected.amount,
             billingFrequency: detected.frequency,
@@ -257,7 +358,12 @@ export default function SubscriptionsPage() {
             accountId: detected.accountId,
             firstBillingDate: new Date(detected.firstBillingDate),
             description: detected.description || null,
-          });
+          }),
+        });
+        if (!createResponse.ok) {
+          const error = await createResponse.json();
+          throw new Error(error.error || "Failed to create subscription");
+        }
           successCount++;
         } catch (error) {
           console.error(`Error importing subscription ${detected.merchantName}:`, error);
@@ -346,6 +452,26 @@ export default function SubscriptionsPage() {
         title="Subscriptions"
       >
         <div className="flex gap-2">
+          {selectedSubscriptions.size > 0 && canWrite && (
+            <Button
+              size="medium"
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={isDeletingMultiple}
+            >
+              {isDeletingMultiple ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete ({selectedSubscriptions.size})
+                </>
+              )}
+            </Button>
+          )}
           {canWrite && (
             <Button
               size="medium"
@@ -414,33 +540,46 @@ export default function SubscriptionsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            {filteredSubscriptions.map((subscription) => (
-              <SubscriptionCard
-                key={subscription.id}
-                subscription={subscription}
-                onEdit={(sub) => {
-                  if (!checkWriteAccess()) return;
-                  setSelectedSubscription(sub);
-                  setIsFormOpen(true);
-                }}
-                onDelete={(id) => {
-                  if (!checkWriteAccess()) return;
-                  if (deletingId !== id) {
-                    handleDelete(id);
-                  }
-                }}
-                onPause={(id) => {
-                  if (pausingId !== id) {
-                    handlePause(id);
-                  }
-                }}
-                onResume={(id) => {
-                  if (pausingId !== id) {
-                    handleResume(id);
-                  }
-                }}
-              />
-            ))}
+            {filteredSubscriptions.map((subscription) => {
+              const isSelected = selectedSubscriptions.has(subscription.id);
+              return (
+                <div key={subscription.id} className="relative">
+                  {canWrite && (
+                    <div className="absolute top-4 left-4 z-10">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSubscriptionSelection(subscription.id)}
+                        className="bg-background"
+                      />
+                    </div>
+                  )}
+                  <SubscriptionCard
+                    subscription={subscription}
+                    onEdit={(sub) => {
+                      if (!checkWriteAccess()) return;
+                      setSelectedSubscription(sub);
+                      setIsFormOpen(true);
+                    }}
+                    onDelete={(id) => {
+                      if (!checkWriteAccess()) return;
+                      if (deletingId !== id) {
+                        handleDelete(id);
+                      }
+                    }}
+                    onPause={(id) => {
+                      if (pausingId !== id) {
+                        handlePause(id);
+                      }
+                    }}
+                    onResume={(id) => {
+                      if (pausingId !== id) {
+                        handleResume(id);
+                      }
+                    }}
+                  />
+                </div>
+              );
+            })}
 
             {filteredSubscriptions.length === 0 && (
               <div className="col-span-full w-full h-full min-h-[400px]">
@@ -468,6 +607,7 @@ export default function SubscriptionsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                {canWrite && <TableHead className="w-12" />}
                 <TableHead className="text-xs md:text-sm">Service</TableHead>
                 <TableHead className="text-xs md:text-sm">Amount</TableHead>
                 <TableHead className="text-xs md:text-sm">Frequency</TableHead>
@@ -481,6 +621,7 @@ export default function SubscriptionsPage() {
             <TableBody>
               {[1, 2, 3, 4].map((i) => (
                 <TableRow key={i}>
+                  {canWrite && <TableCell><Skeleton className="h-4 w-4" /></TableCell>}
                   <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-24" /></TableCell>
@@ -497,6 +638,15 @@ export default function SubscriptionsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                {canWrite && (
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedSubscriptions.size === filteredSubscriptions.length && filteredSubscriptions.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                      disabled={isDeletingMultiple}
+                    />
+                  </TableHead>
+                )}
                 <TableHead className="text-xs md:text-sm">Service</TableHead>
                 <TableHead className="text-xs md:text-sm">Amount</TableHead>
                 <TableHead className="text-xs md:text-sm">Frequency</TableHead>
@@ -511,9 +661,22 @@ export default function SubscriptionsPage() {
               {filteredSubscriptions.map((subscription) => {
                 const frequencyLabel = billingFrequencyLabels[subscription.billingFrequency] || subscription.billingFrequency;
                 const billingDayLabel = getBillingDayLabel(subscription);
+                const isSelected = selectedSubscriptions.has(subscription.id);
                 
                 return (
-                  <TableRow key={subscription.id} className={!subscription.isActive ? "opacity-75" : ""}>
+                  <TableRow 
+                    key={subscription.id} 
+                    className={`${!subscription.isActive ? "opacity-75" : ""} ${isSelected ? "bg-muted/50" : ""}`}
+                  >
+                    {canWrite && (
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSubscriptionSelection(subscription.id)}
+                          disabled={isDeletingMultiple}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {subscription.serviceLogo && (

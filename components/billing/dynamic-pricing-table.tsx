@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { Loader2, Check } from "lucide-react";
 
 interface DynamicPricingTableProps {

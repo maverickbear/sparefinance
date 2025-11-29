@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUserId } from '@/lib/api/feature-guard';
+import { getCurrentUserId } from '@/src/application/shared/feature-guard';
 import { exchangePublicToken } from '@/lib/api/plaid/connect';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 
 /**
  * Preview accounts before importing them

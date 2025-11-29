@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
-import type { Plan, PlanFeatures } from "@/lib/validations/plan";
+import type { Plan, PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { useToast } from "@/components/toast-provider";
 import { getDefaultFeatures, mergeFeaturesWithDefaults } from "@/lib/utils/plan-features";
 import { getFeatureConfigs } from "@/lib/utils/plan-features-config";

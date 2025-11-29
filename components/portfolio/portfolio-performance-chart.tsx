@@ -7,7 +7,7 @@ import { formatMoney } from "@/components/common/money";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HistoricalDataPoint } from "@/lib/api/portfolio";
 import { subDays, parseISO, format } from "date-fns";
-import { formatTransactionDate } from "@/lib/utils/timestamp";
+import { formatTransactionDate } from "@/src/infrastructure/utils/timestamp";
 
 interface PortfolioPerformanceChartProps {
   data: HistoricalDataPoint[];

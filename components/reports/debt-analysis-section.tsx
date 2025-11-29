@@ -5,7 +5,7 @@ import { formatMoney } from "@/components/common/money";
 import { Progress } from "@/components/ui/progress";
 import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { DebtWithCalculations } from "@/lib/api/debts";
+import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import { format } from "date-fns";
 
 interface DebtAnalysisSectionProps {

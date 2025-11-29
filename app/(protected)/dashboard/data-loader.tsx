@@ -2,18 +2,19 @@ import { unstable_cache } from "next/cache";
 import { getTransactions } from "@/lib/api/transactions";
 import { getBudgets } from "@/lib/api/budgets";
 import { getUpcomingTransactions } from "@/lib/api/transactions";
-import { calculateFinancialHealth } from "@/lib/api/financial-health";
+import { calculateFinancialHealth } from "@/src/application/shared/financial-health";
 import { getGoals } from "@/lib/api/goals";
 import { getAccounts } from "@/lib/api/accounts";
 import { checkOnboardingStatus, type OnboardingStatus } from "@/lib/api/onboarding";
+import { OnboardingStatusExtended } from "@/src/domain/onboarding/onboarding.types";
 import { getUserLiabilities } from "@/lib/api/plaid/liabilities";
 import { getDebts } from "@/lib/api/debts";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { getUserSubscriptions } from "@/lib/api/user-subscriptions";
 import { startOfMonth } from "date-fns/startOfMonth";
 import { endOfMonth } from "date-fns/endOfMonth";
 import { subMonths } from "date-fns/subMonths";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface DashboardData {
   selectedMonthTransactions: any[];
@@ -31,7 +32,8 @@ interface DashboardData {
   debts: any[];
   recurringPayments: any[];
   subscriptions: any[];
-  onboardingStatus: OnboardingStatus | null;
+  onboardingStatus: OnboardingStatusExtended | null;
+  expectedIncomeRange: string | null; // Expected income range for display
 }
 
 async function loadDashboardDataInternal(
@@ -170,8 +172,9 @@ async function loadDashboardDataInternal(
           return {
             hasAccount: false,
             hasCompleteProfile: false,
+            hasExpectedIncome: false,
             completedCount: 0,
-            totalCount: 2,
+            totalCount: 3,
           };
         }
         authUser = fetchedUser;
@@ -188,28 +191,42 @@ async function loadDashboardDataInternal(
         return {
           hasAccount,
           hasCompleteProfile: false,
+          hasExpectedIncome: false,
           completedCount: hasAccount ? 1 : 0,
-          totalCount: 2,
+          totalCount: 3,
           totalBalance: hasAccount ? totalBalance : undefined,
         };
       }
 
       const hasCompleteProfile = profileData?.name !== null && profileData?.name !== undefined && profileData.name.trim() !== "";
-      const completedCount = [hasAccount, hasCompleteProfile].filter(Boolean).length;
+      
+      // Check expected income status
+      let hasExpectedIncome = false;
+      try {
+        const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
+        const onboardingService = makeOnboardingService();
+        hasExpectedIncome = await onboardingService.checkIncomeOnboardingStatus(authUser.id, accessToken, refreshToken);
+      } catch (error) {
+        logger.warn("Could not check income onboarding status:", error);
+      }
+
+      const completedCount = [hasAccount, hasCompleteProfile, hasExpectedIncome].filter(Boolean).length;
 
       logger.debug("Onboarding status check:", {
         hasAccount,
         hasCompleteProfile,
+        hasExpectedIncome,
         completedCount,
-        totalCount: 2,
+        totalCount: 3,
         userName: profileData?.name,
       });
 
       return {
         hasAccount,
         hasCompleteProfile,
+        hasExpectedIncome,
         completedCount,
-        totalCount: 2,
+        totalCount: 3,
         totalBalance: hasAccount ? totalBalance : undefined,
       };
     } catch (error) {
@@ -217,8 +234,9 @@ async function loadDashboardDataInternal(
       return {
         hasAccount: false,
         hasCompleteProfile: false,
+        hasExpectedIncome: false,
         completedCount: 0,
-        totalCount: 2,
+        totalCount: 3,
       };
     }
   }
@@ -289,6 +307,24 @@ async function loadDashboardDataInternal(
     })(),
   ]);
 
+  // Get expected income for projected score calculation
+  let projectedIncome: number | undefined;
+  let expectedIncomeRange: string | null = null;
+  try {
+    if (userId) {
+      const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
+      const onboardingService = makeOnboardingService();
+      const incomeRange = await onboardingService.getExpectedIncome(userId, accessToken, refreshToken);
+      expectedIncomeRange = incomeRange;
+      if (incomeRange) {
+        projectedIncome = onboardingService.getMonthlyIncomeFromRange(incomeRange);
+      }
+    }
+  } catch (error) {
+    logger.warn("Error getting expected income for projected score:", error);
+    // Continue without projected income
+  }
+
   // OPTIMIZED: Now fetch goals and financial-health using already-loaded accounts
   // This eliminates duplicate getAccounts() calls
   const [goals, financialHealth] = await Promise.all([
@@ -296,7 +332,7 @@ async function loadDashboardDataInternal(
       logger.error("Error fetching goals:", error);
       return [];
     }),
-    calculateFinancialHealth(selectedMonth, userId, accessToken, refreshToken, accounts).catch((error) => {
+    calculateFinancialHealth(selectedMonth, userId, accessToken, refreshToken, accounts, projectedIncome).catch((error) => {
       logger.error("Error calculating financial health:", error);
       // Return a valid FinancialHealthData object instead of null
       return {
@@ -322,8 +358,9 @@ async function loadDashboardDataInternal(
     return {
       hasAccount: false,
       hasCompleteProfile: false,
+      hasExpectedIncome: false,
       completedCount: 0,
-      totalCount: 2,
+      totalCount: 3,
     };
   });
 
@@ -377,6 +414,7 @@ async function loadDashboardDataInternal(
     recurringPayments,
     subscriptions,
     onboardingStatus,
+    expectedIncomeRange,
   };
 }
 

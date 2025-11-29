@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMacros, getCategoriesByMacro, getSubcategoriesByCategory, getAllCategories, createCategory } from "@/lib/api/categories";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {

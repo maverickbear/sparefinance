@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,14 +56,12 @@ import {
 } from "@/components/ui/simple-tabs";
 import { FixedTabsWrapper } from "@/components/common/fixed-tabs-wrapper";
 import { Input } from "@/components/ui/input";
-import { formatTransactionDate, formatShortDate, parseDateWithoutTimezone, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
+import { formatTransactionDate, formatShortDate, parseDateWithoutTimezone, parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp";
 import { format } from "date-fns";
-import { getAccounts } from "@/lib/api/accounts";
-import { getAllCategories } from "@/lib/api/categories";
 import { exportTransactionsToCSV, downloadCSV } from "@/lib/csv/export";
 import { useToast } from "@/components/toast-provider";
-import type { Transaction } from "@/lib/api/transactions-client";
-import type { Category } from "@/lib/api/categories-client";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
+import type { Category } from "@/src/domain/categories/categories.types";
 import { useSubscription } from "@/hooks/use-subscription";
 import { Badge } from "@/components/ui/badge";
 import { useWriteGuard } from "@/hooks/use-write-guard";
@@ -596,20 +594,20 @@ export default function TransactionsPage() {
 
   async function loadData() {
     try {
-      // Use dynamic imports to reduce initial bundle size
-      const [
-        { getAccountsClient },
-        { getAllCategoriesClient },
-      ] = await Promise.all([
-        import("@/lib/api/accounts-client"),
-        import("@/lib/api/categories-client"),
+      // Load accounts and categories in parallel using API routes
+      // OPTIMIZED: Skip investment balances calculation for Transactions page (not needed, saves ~1s)
+      const [accountsResponse, categoriesResponse] = await Promise.all([
+        fetch("/api/v2/accounts?includeHoldings=false"),
+        fetch("/api/v2/categories?all=true"),
       ]);
       
-      // Load accounts and categories in parallel for better performance
-      // OPTIMIZED: Skip investment balances calculation for Transactions page (not needed, saves ~1s)
+      if (!accountsResponse.ok || !categoriesResponse.ok) {
+        throw new Error("Failed to fetch data");
+      }
+      
       const [accountsData, categoriesData] = await Promise.all([
-        getAccountsClient({ includeInvestmentBalances: false }),
-        getAllCategoriesClient(),
+        accountsResponse.json(),
+        categoriesResponse.json(),
       ]);
       
       setAccounts(accountsData);
@@ -892,8 +890,14 @@ export default function TransactionsPage() {
         setDeletingId(id);
 
         try {
-          const { deleteTransactionClient } = await import("@/lib/api/transactions-client");
-          await deleteTransactionClient(id);
+          const response = await fetch(`/api/v2/transactions/${id}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete transaction");
+          }
 
           toast({
             title: "Transaction deleted",
@@ -947,8 +951,18 @@ export default function TransactionsPage() {
         setSelectedTransactionIds(new Set());
 
         try {
-          const { deleteMultipleTransactionsClient } = await import("@/lib/api/transactions-client");
-          await deleteMultipleTransactionsClient(idsToDelete);
+          const response = await fetch("/api/v2/transactions/bulk", {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ ids: idsToDelete }),
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete transactions");
+          }
 
           toast({
             title: "Transactions deleted",
@@ -1001,8 +1015,20 @@ export default function TransactionsPage() {
     setUpdatingTypes(true);
 
     try {
-      const { bulkUpdateTransactionTypes } = await import("@/lib/api/transactions-client");
-      const result = await bulkUpdateTransactionTypes(idsToUpdate, newType);
+      const response = await fetch("/api/v2/transactions/bulk", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ transactionIds: idsToUpdate, type: newType }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update transactions");
+      }
+
+      const result = await response.json();
 
       toast({
         title: "Transactions updated",
@@ -1079,8 +1105,24 @@ export default function TransactionsPage() {
     setUpdatingCategories(true);
 
     try {
-      const { bulkUpdateTransactionCategories } = await import("@/lib/api/transactions-client");
-      const result = await bulkUpdateTransactionCategories(idsToUpdate, categoryId, subcategoryId);
+      const response = await fetch("/api/v2/transactions/bulk", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          transactionIds: idsToUpdate, 
+          categoryId: categoryId || null,
+          subcategoryId: subcategoryId || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update transaction categories");
+      }
+
+      const result = await response.json();
 
       toast({
         title: "Categories updated",
@@ -1120,21 +1162,23 @@ export default function TransactionsPage() {
     const transactionToUpdate = transactionForCategory;
 
     try {
-      const { updateTransactionClient } = await import("@/lib/api/transactions-client");
-      
       // Build update data
-      // Note: updateTransactionClient converts empty strings to null for removal
-      const updateData: { categoryId?: string; subcategoryId?: string } = {};
-      if (categoryId !== null) {
-        updateData.categoryId = categoryId;
-      } else {
-        // Pass empty string to remove category (will be converted to null by updateTransactionClient)
-        updateData.categoryId = "";
-      }
-      // Always include subcategoryId: pass the value if provided, empty string to remove it
-      updateData.subcategoryId = subcategoryId || "";
+      const updateData: { categoryId?: string | null; subcategoryId?: string | null } = {};
+      updateData.categoryId = categoryId;
+      updateData.subcategoryId = subcategoryId || null;
 
-      await updateTransactionClient(transactionToUpdate.id, updateData);
+      const response = await fetch(`/api/v2/transactions/${transactionToUpdate.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update transaction");
+      }
 
       // Update category/subcategory names in the transaction without reloading
       if (categoryId) {
@@ -2355,18 +2399,31 @@ export default function TransactionsPage() {
         }}
         transaction={selectedTransaction}
         onSuccess={async () => {
-          // OPTIMIZED: Reset to first page and force refresh to show new transaction
-          setCurrentPage(1);
-          setAllTransactions([]); // Clear accumulated transactions
-          
-          // CRITICAL: Wait to ensure server cache invalidation has propagated
-          // unstable_cache can take time to invalidate even after revalidateTag is called
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Force reload with cache bypass to ensure new transaction appears
-          // forceRefresh=true bypasses unstable_cache by using search parameter trick
-          await loadTransactions(true);
+          // Close form and clear selection first
           setSelectedTransaction(null);
+          
+          // CRITICAL: Wait to ensure server cache invalidation has fully propagated
+          // unstable_cache can take time to invalidate even after revalidateTag is called
+          // Increased delay to ensure cache is properly invalidated before reloading
+          await new Promise(resolve => setTimeout(resolve, 800));
+          
+          // Refresh router to update dashboard immediately
+          // This ensures the dashboard shows the new transaction without waiting for realtime subscription
+          router.refresh();
+          
+          // Reset to first page for fresh reload
+          // Don't clear transactions yet - let loadTransactions replace them with fresh data
+          setCurrentPage(1);
+          
+          // Reload transactions with force refresh AFTER router refresh
+          // This ensures we get fresh data after cache invalidation
+          // forceRefresh=true bypasses unstable_cache by using search parameter trick
+          // Additional delay to ensure router.refresh has processed and cache is cleared
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await loadTransactions(true);
+          
+          // Clear accumulated transactions after successful reload
+          // loadTransactions will set allTransactions correctly when currentPage === 1
         }}
       />
 

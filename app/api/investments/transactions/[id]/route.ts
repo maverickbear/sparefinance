@@ -5,9 +5,9 @@ import {
   createSecurity,
   createSecurityPrice
 } from "@/lib/api/investments";
-import { InvestmentTransactionFormData } from "@/lib/validations/investment";
+import { InvestmentTransactionFormData } from "@/src/domain/investments/investments.validations";
 import { ZodError } from "zod";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { isPlanError } from "@/lib/utils/plan-errors";
 import { invalidatePortfolioCache } from "@/lib/api/portfolio";
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
-import { planFeaturesSchema } from "@/lib/validations/plan";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { planFeaturesSchema } from "@/src/domain/subscriptions/subscriptions.validations";
 import { invalidatePlansCache } from "@/lib/api/subscription";
 import { syncPlanToStripe } from "@/lib/api/stripe";
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUserClient, User, signOutClient } from "@/lib/api/auth-client";
+import type { BaseUser } from "@/src/domain/auth/auth.types";
 import { Logo } from "@/components/common/logo";
 import { useTheme } from "next-themes";
 import { Sun, Moon, LogOut } from "lucide-react";
@@ -32,7 +32,7 @@ function getInitials(name: string | undefined | null): string {
 export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderProps = {}) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(initialAuth ?? false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<BaseUser | null>(null);
   const { theme, resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
 
@@ -47,10 +47,20 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
   useEffect(() => {
     // Check authentication status and verify user exists in User table
     async function checkAuth() {
-      const currentUser = await getCurrentUserClient();
-      // getCurrentUserClient verifies user exists in User table and logs out if not
-      setIsAuthenticated(!!currentUser);
-      setUser(currentUser);
+      try {
+        const response = await fetch("/api/v2/user");
+        if (!response.ok) {
+          setIsAuthenticated(false);
+          setUser(null);
+          return;
+        }
+        const { user: currentUser }: { user: BaseUser | null } = await response.json();
+        setIsAuthenticated(!!currentUser);
+        setUser(currentUser);
+      } catch (error) {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
     }
     
     // Always check auth on client side to ensure we have the latest state
@@ -61,9 +71,20 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         // Verify user exists in User table
-        const currentUser = await getCurrentUserClient();
-        setIsAuthenticated(!!currentUser);
-        setUser(currentUser);
+        try {
+          const response = await fetch("/api/v2/user");
+          if (response.ok) {
+            const { user: currentUser }: { user: BaseUser | null } = await response.json();
+            setIsAuthenticated(!!currentUser);
+            setUser(currentUser);
+          } else {
+            setIsAuthenticated(false);
+            setUser(null);
+          }
+        } catch (error) {
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       } else {
         setIsAuthenticated(false);
         setUser(null);
@@ -77,15 +98,18 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
 
   const handleLogout = async () => {
     try {
-      const result = await signOutClient();
-      
-      if (!result.error) {
+      const response = await fetch("/api/v2/auth/sign-out", {
+        method: "POST",
+      });
+
+      if (response.ok) {
         setIsAuthenticated(false);
         setUser(null);
         router.push("/");
         router.refresh();
       } else {
-        console.error("Failed to sign out:", result.error);
+        const error = await response.json();
+        console.error("Failed to sign out:", error.error || "Unknown error");
       }
     } catch (error) {
       console.error("Error signing out:", error);

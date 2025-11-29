@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 
 /**

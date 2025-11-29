@@ -8,25 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getMacros, getCategoriesByMacro, getSubcategoriesByCategory } from "@/lib/api/categories";
+import type { BaseGroup, BaseCategory, BaseSubcategory } from "@/src/domain/categories/categories.types";
 
-interface Category {
-  id: string;
-  name: string;
-  macroId: string;
-  subcategories: Subcategory[];
-}
-
-interface Subcategory {
-  id: string;
-  name: string;
-  categoryId: string;
-}
-
-interface Macro {
-  id: string;
-  name: string;
-}
+type Category = BaseCategory & { subcategories?: Subcategory[] };
+type Subcategory = BaseSubcategory;
+type Macro = BaseGroup;
 
 interface CategorySelectProps {
   macroId?: string;
@@ -55,25 +41,61 @@ export function CategorySelect({
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>(subcategoryId || "");
 
   useEffect(() => {
-    getMacros().then(setMacros);
+    async function loadMacros() {
+      try {
+        const response = await fetch("/api/v2/categories?consolidated=true");
+        if (!response.ok) {
+          throw new Error("Failed to fetch categories");
+        }
+        const { groups } = await response.json();
+        setMacros(groups || []);
+      } catch (error) {
+        console.error("Error loading macros:", error);
+      }
+    }
+    loadMacros();
   }, []);
 
   useEffect(() => {
     if (selectedMacroId) {
-      getCategoriesByMacro(selectedMacroId).then(setCategories);
-      setSubcategories([]);
-      setSelectedCategoryId("");
-      setSelectedSubcategoryId("");
-      onCategoryChange?.("");
-      onSubcategoryChange?.("");
+      async function loadCategories() {
+        try {
+          const response = await fetch(`/api/v2/categories?macroId=${selectedMacroId}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch categories");
+          }
+          const categories = await response.json();
+          setCategories(categories || []);
+          setSubcategories([]);
+          setSelectedCategoryId("");
+          setSelectedSubcategoryId("");
+          onCategoryChange?.("");
+          onSubcategoryChange?.("");
+        } catch (error) {
+          console.error("Error loading categories:", error);
+        }
+      }
+      loadCategories();
     }
   }, [selectedMacroId, onCategoryChange, onSubcategoryChange]);
 
   useEffect(() => {
     if (selectedCategoryId) {
-      getSubcategoriesByCategory(selectedCategoryId).then(setSubcategories);
-      setSelectedSubcategoryId("");
-      onSubcategoryChange?.("");
+      async function loadSubcategories() {
+        try {
+          const response = await fetch(`/api/v2/categories?categoryId=${selectedCategoryId}`);
+          if (!response.ok) {
+            throw new Error("Failed to fetch subcategories");
+          }
+          const subcategories = await response.json();
+          setSubcategories(subcategories || []);
+          setSelectedSubcategoryId("");
+          onSubcategoryChange?.("");
+        } catch (error) {
+          console.error("Error loading subcategories:", error);
+        }
+      }
+      loadSubcategories();
     } else {
       setSubcategories([]);
     }

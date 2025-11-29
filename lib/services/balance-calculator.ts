@@ -4,8 +4,8 @@
  * Uses efficient algorithms to minimize computation time
  */
 
-import { AccountWithBalance, AccountBalance } from '@/lib/types/account.types';
-import { TransactionWithRelations } from '@/lib/types/transaction.types';
+import { AccountWithBalance, AccountBalance } from '@/src/domain/accounts/accounts.types';
+import { TransactionWithRelations } from '@/src/domain/transactions/transactions.types';
 import { parseAmount } from './transaction-calculations';
 
 /**

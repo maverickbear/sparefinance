@@ -1,7 +1,7 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 
 export interface SimpleInvestmentEntry {
   id: string;

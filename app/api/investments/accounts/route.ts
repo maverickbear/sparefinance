@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getInvestmentAccounts, createInvestmentAccount } from "@/lib/api/investments";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { isPlanError } from "@/lib/utils/plan-errors";
-import { investmentAccountSchema } from "@/lib/validations/investment";
+import { investmentAccountSchema } from "@/src/domain/investments/investments.validations";
 
 export async function GET(request: Request) {
   try {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { completeInvitationAfterOtp } from "@/lib/api/members";
 import { z } from "zod";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 const completeInvitationSchema = z.object({
   invitationId: z.string().min(1, "Invitation ID is required"),

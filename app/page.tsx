@@ -1,10 +1,11 @@
 import nextDynamic from "next/dynamic";
+import { redirect } from "next/navigation";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { LandingMainFooter } from "@/components/landing/landing-main-footer";
 import { LandingMobileFooter } from "@/components/landing/landing-mobile-footer";
 import { getCurrentUser } from "@/lib/api/auth";
 import { startServerPagePerformance } from "@/lib/utils/performance";
-import { createServiceRoleClient } from "@/lib/supabase-server";
+import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 
 // Lazy load heavy landing page components for better initial load performance
 const LandingHeroSection = nextDynamic(() => import("@/components/landing/landing-hero-section").then(m => ({ default: m.LandingHeroSection })), { ssr: true });
@@ -25,19 +26,17 @@ export const metadata = {
 /**
  * Landing Page
  * 
- * This page serves as the public landing page accessible to all users,
- * whether authenticated or not. Users can access this page at any time
- * by navigating to "/".
- * 
- * After login, users are automatically redirected to /dashboard, but they
- * can always return to this landing page if they want to see the site.
+ * This page serves as the public landing page accessible to unauthenticated users only.
+ * Authenticated users are automatically redirected to /dashboard.
  */
 export default async function LandingPage() {
   const perf = startServerPagePerformance("Landing");
   
-  // Check authentication status on server to show correct buttons immediately
+  // Check authentication status - redirect authenticated users to dashboard
   const user = await getCurrentUser();
-  const isAuthenticated = !!user;
+  if (user) {
+    redirect("/dashboard");
+  }
   
   // Check maintenance mode status
   let isMaintenanceMode = false;
@@ -59,7 +58,7 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <LandingHeader isAuthenticated={isAuthenticated} />
+      <LandingHeader isAuthenticated={false} />
       <main className="flex-1 pb-20 md:pb-0">
         <LandingHeroSection />
         <StatisticsSection />
@@ -70,7 +69,7 @@ export default async function LandingPage() {
         {!isMaintenanceMode && <PricingSection />}
       </main>
       <LandingMainFooter />
-      <LandingMobileFooter isAuthenticated={isAuthenticated} />
+      <LandingMobileFooter isAuthenticated={false} />
     </div>
   );
 }

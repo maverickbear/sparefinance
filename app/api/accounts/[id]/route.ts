@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateAccount, deleteAccount } from "@/lib/api/accounts";
-import { AccountFormData } from "@/lib/validations/account";
-import { createServerClient } from "@/lib/supabase-server";
-import { requireAccountOwnership } from "@/lib/utils/security";
+import { makeAccountsService } from "@/src/application/accounts/accounts.factory";
+import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
 
 export async function GET(
   request: NextRequest,
@@ -69,7 +69,8 @@ export async function PATCH(
     const { id } = await params;
     const data: Partial<AccountFormData> = await request.json();
     
-    const account = await updateAccount(id, data);
+    const service = makeAccountsService();
+    const account = await service.updateAccount(id, data);
     
     return NextResponse.json(account, { status: 200 });
   } catch (error) {
@@ -90,7 +91,8 @@ export async function DELETE(
     const body = await request.json().catch(() => ({}));
     const transferToAccountId = body.transferToAccountId;
     
-    await deleteAccount(id, transferToAccountId);
+    const service = makeAccountsService();
+    await service.deleteAccount(id, transferToAccountId);
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

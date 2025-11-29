@@ -12,11 +12,11 @@
  * - This API provides a unified interface to access both
  */
 
-import { createServerClient } from "@/lib/supabase-server";
-import { Plan, PlanFeatures, Subscription } from "@/lib/validations/plan";
-import { logger } from "@/lib/utils/logger";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { Plan, PlanFeatures, Subscription } from "@/src/domain/subscriptions/subscriptions.validations";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
-import { normalizeAndValidateFeatures } from "@/lib/api/plan-features-service";
+import { normalizeAndValidateFeatures } from "@/src/application/shared/plan-features-service";
 
 // Re-export types for convenience
 export type { Subscription, Plan, PlanFeatures };

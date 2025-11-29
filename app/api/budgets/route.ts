@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createBudget } from "@/lib/api/budgets";
-import { getCurrentUserId, guardFeatureAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardFeatureAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function POST(request: NextRequest) {
   try {

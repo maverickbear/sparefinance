@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserId, guardFeatureAccess } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardFeatureAccess } from "@/src/application/shared/feature-guard";
 import { extractTransactionsFromPDF } from "@/lib/pdf/investment-extract";
 import { InvestmentTransactionInput } from "@/lib/csv/investment-import";
 

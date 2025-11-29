@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateGoal, deleteGoal } from "@/lib/api/goals";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function PATCH(
   request: NextRequest,

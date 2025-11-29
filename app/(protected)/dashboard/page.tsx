@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { getProfile } from "@/lib/api/profile";
 import { DashboardRealtime } from "@/components/dashboard/dashboard-realtime";
 import { DashboardUpdateChecker } from "@/components/dashboard/dashboard-update-checker";
+import { UrlCleanup } from "@/components/common/url-cleanup";
 import { startServerPagePerformance } from "@/lib/utils/performance";
 
 // Force dynamic rendering since this page uses cookies for authentication
@@ -45,6 +46,7 @@ async function DashboardContent({ selectedMonthDate }: { selectedMonthDate: Date
         recurringPayments={data.recurringPayments}
         subscriptions={data.subscriptions}
         selectedMonthDate={selectedMonthDate}
+        expectedIncomeRange={data.expectedIncomeRange}
       />
     </>
   );
@@ -75,6 +77,9 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   return (
     <div>
+      <Suspense fallback={null}>
+        <UrlCleanup />
+      </Suspense>
       <DashboardRealtime />
       <DashboardUpdateChecker />
       <PageHeader

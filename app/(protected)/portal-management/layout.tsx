@@ -20,8 +20,11 @@ export default function PortalManagementLayout({
 
   async function checkSuperAdmin() {
     try {
-      const { getUserRoleClient } = await import("@/lib/api/members-client");
-      const role = await getUserRoleClient();
+      const response = await fetch("/api/v2/members");
+      if (!response.ok) {
+        throw new Error("Failed to fetch user role");
+      }
+      const { userRole: role } = await response.json();
       if (role !== "super_admin") {
         router.push("/dashboard");
         return;

@@ -7,8 +7,8 @@ import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { getAccounts } from "./accounts";
 import { getDebts } from "./debts";
 import { getUserLiabilities } from "./plaid/liabilities";
-import { logger } from "@/lib/utils/logger";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 export interface FinancialHealthData {
   score: number;

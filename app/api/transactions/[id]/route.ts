@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateTransaction, deleteTransaction } from "@/lib/api/transactions";
-import { TransactionFormData } from "@/lib/validations/transaction";
+import { TransactionFormData } from "@/src/domain/transactions/transactions.validations";
 import { ZodError } from "zod";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function PATCH(
   request: NextRequest,

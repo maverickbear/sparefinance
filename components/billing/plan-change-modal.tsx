@@ -14,7 +14,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { DynamicPricingTable } from "./dynamic-pricing-table";
 import { EmbeddedCheckout } from "./embedded-checkout";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 
 interface PlanChangeModalProps {
   open: boolean;

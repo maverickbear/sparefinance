@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { syncAccountTransactions } from '@/lib/api/plaid/sync';
-import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
-import { throwIfNotAllowed } from '@/lib/api/feature-guard';
+import { guardBankIntegration, getCurrentUserId } from '@/src/application/shared/feature-guard';
+import { throwIfNotAllowed } from '@/src/application/shared/feature-guard';
 
 export async function POST(req: NextRequest) {
   try {
@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
       stack: error.stack,
       name: error.name,
       cause: error.cause,
+      plaidErrorCode: error.plaidErrorCode,
+      plaidErrorType: error.plaidErrorType,
     });
 
     // Check if it's a plan error
@@ -100,6 +102,18 @@ export async function POST(req: NextRequest) {
           planError: error.planError,
         },
         { status: 403 }
+      );
+    }
+
+    // Check if it's a Plaid error (like ITEM_LOGIN_REQUIRED)
+    if (error.plaidErrorCode) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          plaidErrorCode: error.plaidErrorCode,
+          plaidErrorType: error.plaidErrorType,
+        },
+        { status: 400 } // Plaid returns 400 for these errors
       );
     }
 

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { useRouter } from "next/navigation";
 
 interface EmbeddedCheckoutProps {

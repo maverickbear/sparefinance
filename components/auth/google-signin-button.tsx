@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { signInWithGoogle } from "@/lib/api/auth-client";
 import { useState, useEffect } from "react";
 
 interface GoogleSignInButtonProps {
@@ -33,13 +32,25 @@ export function GoogleSignInButton({ variant = "signin", className }: GoogleSign
       if (typeof window !== "undefined") {
         localStorage.setItem("lastAuthMethod", "google");
       }
-      const { error } = await signInWithGoogle();
-      
-      if (error) {
-        console.error("Error signing in with Google:", error);
-        // Error will be handled by redirect or callback
+      const response = await fetch("/api/v2/auth/google-signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        console.error("Error signing in with Google:", result.error);
+        setLoading(false);
+        return;
       }
-      // The redirect will happen automatically via Supabase
+
+      // Redirect to the OAuth URL
+      if (result.url) {
+        window.location.href = result.url;
+      }
     } catch (error) {
       console.error("Unexpected error:", error);
       setLoading(false);

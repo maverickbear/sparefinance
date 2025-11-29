@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { UserServiceSubscription } from "@/lib/api/user-subscriptions-client";
+import type { UserServiceSubscription } from "@/src/domain/subscriptions/subscriptions.types";
 
 interface SubscriptionsWidgetProps {
   subscriptions: UserServiceSubscription[];

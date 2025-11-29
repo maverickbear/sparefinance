@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deduplicateTransactions } from '@/lib/api/plaid/deduplicate-transactions';
-import { getCurrentUserId } from '@/lib/api/feature-guard';
+import { getCurrentUserId } from '@/src/application/shared/feature-guard';
 
 export async function POST(req: NextRequest) {
   try {

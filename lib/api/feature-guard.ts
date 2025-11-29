@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { 
   checkTransactionLimit, 
   checkAccountLimit, 
@@ -8,7 +8,7 @@ import {
   getUserSubscriptionData,
   canUserWrite
 } from "./subscription";
-import { PlanFeatures } from "@/lib/validations/plan";
+import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { PlanErrorCode, createPlanError, type PlanError } from "@/lib/utils/plan-errors";
 
 /**

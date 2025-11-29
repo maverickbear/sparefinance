@@ -4,7 +4,7 @@ import {
   upsertAccountInvestmentValue,
 } from "@/lib/api/simple-investments";
 import { z } from "zod";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { isPlanError } from "@/lib/utils/plan-errors";
 
 const updateValueSchema = z.object({

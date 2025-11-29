@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SecurityLogger } from "@/lib/utils/security-logging";
 import { rateLimit as redisRateLimit } from "@/lib/services/redis";
-import { createServiceRoleClient } from "@/lib/supabase-server";
+import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

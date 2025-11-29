@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDebt, getDebts } from "@/lib/api/debts";
-import { debtSchema, DebtFormData } from "@/lib/validations/debt";
+import { debtSchema, DebtFormData } from "@/src/domain/debts/debts.validations";
 import { ZodError } from "zod";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {

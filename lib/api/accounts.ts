@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidateTag } from "next/cache";
-import { createServerClient } from "@/lib/supabase-server";
-import { AccountFormData } from "@/lib/validations/account";
-import { getCurrentTimestamp, formatTimestamp } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
+import { getCurrentTimestamp, formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getAccountBalance } from "./transactions";
-import { guardAccountLimit, throwIfNotAllowed } from "@/lib/api/feature-guard";
-import { requireAccountOwnership } from "@/lib/utils/security";
-import { logger } from "@/lib/utils/logger";
+import { guardAccountLimit, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 
 // Simple in-memory cache for request deduplication

@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlanFeatures } from "@/lib/validations/plan";
+import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { LimitCheckResult } from "@/lib/api/subscription";
 import { AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";

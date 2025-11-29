@@ -99,8 +99,14 @@ export function GoalsTab() {
         setDeletingId(id);
 
         try {
-          const { deleteGoalClient } = await import("@/lib/api/goals-client");
-          await deleteGoalClient(id);
+          const response = await fetch(`/api/v2/goals/${id}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete goal");
+          }
 
           toast({
             title: "Goal deleted",
@@ -367,8 +373,18 @@ export function GoalsTab() {
           setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: g.currentBalance + amount } : g));
 
           try {
-            const { topUpGoalClient } = await import("@/lib/api/goals-client");
-            await topUpGoalClient(goalId, amount);
+            const response = await fetch(`/api/v2/goals/${goalId}/top-up`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ amount }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || "Failed to add top-up");
+            }
 
             toast({
               title: "Top-up added",
@@ -407,8 +423,18 @@ export function GoalsTab() {
           setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: g.currentBalance - amount } : g));
 
           try {
-            const { withdrawFromGoalClient } = await import("@/lib/api/goals-client");
-            await withdrawFromGoalClient(goalId, amount);
+            const response = await fetch(`/api/v2/goals/${goalId}/withdraw`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ amount }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || "Failed to withdraw");
+            }
 
             toast({
               title: "Withdrawal successful",

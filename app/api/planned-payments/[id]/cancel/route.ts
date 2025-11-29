@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cancelPlannedPayment } from "@/lib/api/planned-payments";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function POST(
   request: NextRequest,

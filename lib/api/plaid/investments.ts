@@ -1,7 +1,7 @@
 "use server";
 
 import { plaidClient } from './index';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { formatTimestamp } from '@/lib/utils/timestamp';
 import { InvestmentTransactionType } from 'plaid';
 

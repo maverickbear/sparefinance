@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSecurities, createSecurity } from "@/lib/api/investments";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { isPlanError } from "@/lib/utils/plan-errors";
 import { z } from "zod";
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, createContext, useContext, memo, useMemo, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet, Calendar, Repeat, Tag, Mail, Star, ChevronDown } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
@@ -144,6 +144,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showPortalManagementItems, setShowPortalManagementItems] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   const log = logger.withPrefix("NAV");
 
@@ -210,14 +211,28 @@ function NavComponent({ hasSubscription = true }: NavProps) {
         
         // Create fetch promise and cache it
         const fetchPromise = (async () => {
-          const { getUserClient } = await import("@/lib/api/user-client");
-          const { getUserRoleClient } = await import("@/lib/api/members-client");
-          const [data, role] = await Promise.all([
-            getUserClient(),
-            getUserRoleClient(),
+          // Fetch user data and role in parallel using API routes
+          const [userResponse, membersResponse] = await Promise.all([
+            fetch("/api/v2/user"),
+            fetch("/api/v2/members"),
           ]);
           
-          const result: UserData = data;
+          if (!userResponse.ok || !membersResponse.ok) {
+            throw new Error("Failed to fetch user data");
+          }
+          
+          const [userData, membersData] = await Promise.all([
+            userResponse.json(),
+            membersResponse.json(),
+          ]);
+          
+          const result: UserData = {
+            user: userData.user,
+            plan: userData.plan,
+            subscription: userData.subscription,
+          };
+          
+          const role = membersData.userRole;
           
           // Update cache
           navUserDataCache.data = result;
@@ -293,15 +308,17 @@ function NavComponent({ hasSubscription = true }: NavProps) {
 
   const handleLogout = useCallback(async () => {
     try {
-      const { signOutClient } = await import("@/lib/api/auth-client");
-      const result = await signOutClient();
-      
+      const response = await fetch("/api/v2/auth/sign-out", {
+        method: "POST",
+      });
+
       // Always redirect to landing page (even if there's an error)
       router.push("/");
       window.location.href = "/";
       
-      if (result.error) {
-        log.error("Failed to sign out:", result.error);
+      if (!response.ok) {
+        const error = await response.json();
+        log.error("Failed to sign out:", error.error || "Unknown error");
       }
     } catch (error) {
       log.error("Error signing out:", error);
@@ -397,14 +414,39 @@ function NavComponent({ hasSubscription = true }: NavProps) {
               "flex-1 space-y-5 px-3 py-4",
               isCollapsed ? "overflow-visible" : "overflow-y-auto"
             )}>
-              {navSections.map((section) => (
+              {navSections.map((section) => {
+                const isSectionCollapsed = collapsedSections.has(section.title);
+                return (
                 <div key={section.title} className="space-y-1">
                   {!isCollapsed && (
-                    <h3 className="px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {section.title}
-                    </h3>
+                    <button
+                      onClick={() => {
+                        setCollapsedSections(prev => {
+                          const next = new Set(prev);
+                          if (next.has(section.title)) {
+                            next.delete(section.title);
+                          } else {
+                            next.add(section.title);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="flex items-center justify-between w-full px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                    >
+                      <span>{section.title}</span>
+                      <ChevronDown
+                        className={cn(
+                          "h-3.5 w-3.5 transition-transform duration-200",
+                          isSectionCollapsed && "rotate-[-90deg]"
+                        )}
+                      />
+                    </button>
                   )}
-                  {section.items.map((item) => {
+                  <div className={cn(
+                    "transition-all duration-200 ease-in-out",
+                    isSectionCollapsed ? "max-h-0 overflow-hidden opacity-0" : "max-h-[500px] opacity-100"
+                  )}>
+                    {section.items.map((item) => {
                     const Icon = item.icon;
                     const isToggle = item.isToggle;
                     const isBack = item.isBack;
@@ -571,8 +613,10 @@ function NavComponent({ hasSubscription = true }: NavProps) {
 
                     return <div key={item.href}>{linkElement}</div>;
                   })}
+                  </div>
                 </div>
-              ))}
+              );
+              })}
             </nav>
 
             {/* Trial Widget - Show if user is in trial */}

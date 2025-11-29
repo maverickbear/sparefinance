@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTransaction } from "@/lib/api/transactions";
-import { TransactionFormData, transactionSchema } from "@/lib/validations/transaction";
+import { TransactionFormData, transactionSchema } from "@/src/domain/transactions/transactions.validations";
 import { ZodError } from "zod";
-import { getCurrentUserId, guardFeatureAccess } from "@/lib/api/feature-guard";
-import { createServerClient } from "@/lib/supabase-server";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { getCurrentUserId, guardFeatureAccess } from "@/src/application/shared/feature-guard";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 
 interface ImportRequest {
   transactions: Array<{

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp"
+import { parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 

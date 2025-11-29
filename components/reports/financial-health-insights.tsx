@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, Info, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FinancialHealthData } from "@/lib/api/financial-health";
+import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 interface FinancialHealthInsightsProps {
   financialHealth: FinancialHealthData | null;

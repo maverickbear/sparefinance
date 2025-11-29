@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { logger } from '@/lib/utils/logger';
 
 const log = logger.withPrefix("DeduplicateTransactions");

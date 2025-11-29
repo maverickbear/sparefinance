@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import { logger } from "@/lib/utils/logger";
-import type { Subscription, Plan, PlanFeatures } from "@/lib/validations/plan";
+import type { Subscription, Plan, PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 
 interface SubscriptionContextValue {

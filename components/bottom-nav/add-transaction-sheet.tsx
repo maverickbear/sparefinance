@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, Upload, Plus } from "lucide-react";
 import { ReceiptScanner } from "@/components/receipt-scanner/receipt-scanner";
 import { TransactionForm } from "@/components/forms/transaction-form";
+import { useSubscriptionSafe } from "@/contexts/subscription-context";
 
 interface AddTransactionSheetProps {
   open: boolean;
@@ -21,9 +22,14 @@ export function AddTransactionSheet({
   open,
   onOpenChange,
 }: AddTransactionSheetProps) {
+  const { limits } = useSubscriptionSafe();
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = React.useState(false);
   const [receiptScannerMode, setReceiptScannerMode] = React.useState<"camera" | "upload" | null>(null);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
+  
+  // Check if receipt scanner feature is enabled
+  // Default to false if not within SubscriptionProvider (safe fallback)
+  const hasReceiptScanner = limits.hasReceiptScanner === true || String(limits.hasReceiptScanner) === "true";
 
   const handleTakePicture = () => {
     setReceiptScannerMode("camera");
@@ -50,39 +56,43 @@ export function AddTransactionSheet({
             <SheetTitle>Add Transaction</SheetTitle>
           </SheetHeader>
           <div className="px-6 py-4">
-            <div className="grid grid-cols-3 gap-3">
-              <Button
-                onClick={handleTakePicture}
-                variant="outline"
-                className="w-full h-auto p-4 flex flex-col items-center gap-2"
-                size="small"
-              >
-                <div className="p-2 rounded-lg bg-muted">
-                  <Camera className="h-5 w-5" />
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-xs">Take a Picture</div>
-                  <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                    Scan receipt
-                  </div>
-                </div>
-              </Button>
-              <Button
-                onClick={handleUploadReceipt}
-                variant="outline"
-                className="w-full h-auto p-4 flex flex-col items-center gap-2"
-                size="small"
-              >
-                <div className="p-2 rounded-lg bg-muted">
-                  <Upload className="h-5 w-5" />
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-xs">Upload Receipt</div>
-                  <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                    Upload image
-                  </div>
-                </div>
-              </Button>
+            <div className={hasReceiptScanner ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
+              {hasReceiptScanner && (
+                <>
+                  <Button
+                    onClick={handleTakePicture}
+                    variant="outline"
+                    className="w-full h-auto p-4 flex flex-col items-center gap-2"
+                    size="small"
+                  >
+                    <div className="p-2 rounded-lg bg-muted">
+                      <Camera className="h-5 w-5" />
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-xs">Take a Picture</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Scan receipt
+                      </div>
+                    </div>
+                  </Button>
+                  <Button
+                    onClick={handleUploadReceipt}
+                    variant="outline"
+                    className="w-full h-auto p-4 flex flex-col items-center gap-2"
+                    size="small"
+                  >
+                    <div className="p-2 rounded-lg bg-muted">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <div className="text-center">
+                      <div className="font-semibold text-xs">Upload Receipt</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Upload image
+                      </div>
+                    </div>
+                  </Button>
+                </>
+              )}
               <Button
                 onClick={handleAddNewTransaction}
                 variant="outline"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { validateImageFile, sanitizeFilename, getFileExtension } from "@/lib/utils/file-validation";
 
 async function isSuperAdmin(): Promise<boolean> {

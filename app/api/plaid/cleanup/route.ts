@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
-import { getCurrentUserId } from '@/lib/api/feature-guard';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
+import { getCurrentUserId } from '@/src/application/shared/feature-guard';
 import { cleanupAllPlaidData } from '@/lib/api/plaid/cleanup';
 
 /**

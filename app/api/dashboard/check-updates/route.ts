@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
-import { cache } from "@/lib/services/redis";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { cache } from "@/src/infrastructure/external/redis";
 
 /**
  * API route to silently check if there are new data updates

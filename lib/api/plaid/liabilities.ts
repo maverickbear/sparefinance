@@ -1,7 +1,7 @@
 "use server";
 
 import { plaidClient } from './index';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { formatTimestamp, formatDateOnly, parseDateWithoutTimezone } from '@/lib/utils/timestamp';
 import type { PlaidLiability } from './types';
 import { getActiveCreditCardDebt } from '@/lib/utils/credit-card-debt';
@@ -26,12 +26,28 @@ export async function syncAccountLiabilities(
 
   try {
     // Get liabilities from Plaid
-    const liabilitiesResponse = await plaidClient.liabilitiesGet({
-      access_token: accessToken,
-    });
-
-    const liabilities = liabilitiesResponse.data.liabilities;
-    const accounts = liabilitiesResponse.data.accounts;
+    // Note: Liabilities product may not be available for all Plaid clients
+    let liabilities: any = { credit: [] };
+    let accounts: any[] = [];
+    
+    try {
+      const liabilitiesResponse = await plaidClient.liabilitiesGet({
+        access_token: accessToken,
+      });
+      liabilities = liabilitiesResponse.data.liabilities;
+      accounts = liabilitiesResponse.data.accounts || [];
+    } catch (liabilitiesError: any) {
+      const errorCode = liabilitiesError.response?.data?.error_code;
+      
+      // If liabilities product is not available, skip syncing liabilities
+      if (errorCode === 'INVALID_PRODUCT') {
+        console.log('[PLAID LIABILITIES] Liabilities product not available for this client, skipping sync');
+        return { synced: 0, updated: 0, errors: 0 };
+      } else {
+        // Re-throw other errors
+        throw liabilitiesError;
+      }
+    }
 
     // Process credit card liabilities
     if (liabilities.credit && liabilities.credit.length > 0) {

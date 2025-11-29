@@ -82,8 +82,11 @@ export default function DebtsPage() {
   async function loadDebts() {
     try {
       setLoading(true);
-      const { getDebtsClient } = await import("@/lib/api/debts-client");
-      const data = await getDebtsClient();
+      const response = await fetch("/api/v2/debts");
+      if (!response.ok) {
+        throw new Error("Failed to fetch debts");
+      }
+      const data = await response.json();
       setDebts(data);
       setHasLoaded(true);
       perf.markDataLoaded();
@@ -107,8 +110,13 @@ export default function DebtsPage() {
       async () => {
         setDeletingId(id);
         try {
-          const { deleteDebtClient } = await import("@/lib/api/debts-client");
-          await deleteDebtClient(id);
+          const response = await fetch(`/api/v2/debts/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete debt");
+          }
 
           loadDebts();
         } catch (error) {
@@ -124,8 +132,17 @@ export default function DebtsPage() {
   async function handlePause(id: string, isPaused: boolean) {
     setPausingId(id);
     try {
-      const { updateDebtClient } = await import("@/lib/api/debts-client");
-      await updateDebtClient(id, { isPaused: !isPaused });
+      const response = await fetch(`/api/v2/debts/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isPaused: !isPaused }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update debt");
+      }
 
       loadDebts();
     } catch (error) {
@@ -338,8 +355,17 @@ export default function DebtsPage() {
           if (!selectedDebt) return;
           setPaymentLoading(true);
           try {
-            const { addPaymentClient } = await import("@/lib/api/debts-client");
-            await addPaymentClient(selectedDebt.id, amount);
+            const response = await fetch(`/api/v2/debts/${selectedDebt.id}/payment`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ amount }),
+            });
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || "Failed to add payment");
+            }
 
             setIsPaymentOpen(false);
             setSelectedDebt(null);

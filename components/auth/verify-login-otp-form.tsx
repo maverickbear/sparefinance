@@ -23,22 +23,34 @@ interface VerifyLoginOtpFormProps {
 async function preloadUserData() {
   try {
     const preloadPromises = [
-      // Preload user data and role for Nav
+      // Preload user data and role for Nav using API routes
       Promise.all([
-        import("@/lib/api/user-client").then(m => m.getUserClient()),
-        import("@/lib/api/members-client").then(m => m.getUserRoleClient()),
-      ]).then(async ([userData, role]) => {
+        fetch("/api/v2/user"),
+        fetch("/api/v2/members"),
+      ]).then(async ([userResponse, membersResponse]) => {
+        if (!userResponse.ok || !membersResponse.ok) return null;
+        const [userData, membersData] = await Promise.all([
+          userResponse.json(),
+          membersResponse.json(),
+        ]);
+        const userDataFormatted = {
+          user: userData.user,
+          plan: userData.plan,
+          subscription: userData.subscription,
+        };
+        const role = membersData.userRole;
         if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
-          (window as any).navUserDataCache.data = userData;
+          (window as any).navUserDataCache.data = userDataFormatted;
           (window as any).navUserDataCache.timestamp = Date.now();
           (window as any).navUserDataCache.role = role;
           (window as any).navUserDataCache.roleTimestamp = Date.now();
         }
-        return userData;
+        return userDataFormatted;
       }).catch(() => null),
-      // Preload profile data
-      import("@/lib/api/profile-client").then(async (m) => {
-        const profile = await m.getProfileClient();
+      // Preload profile data using API route
+      fetch("/api/v2/profile").then(async (r) => {
+        if (!r.ok) return null;
+        const profile = await r.json();
         if (typeof window !== 'undefined' && (window as any).profileDataCache) {
           (window as any).profileDataCache.data = profile;
           (window as any).profileDataCache.timestamp = Date.now();
@@ -275,8 +287,11 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
 
       // If maintenance mode is active, check if user is super_admin
       if (isMaintenanceMode) {
-        const { getUserRoleClient } = await import("@/lib/api/members-client");
-        const role = await getUserRoleClient();
+        const response = await fetch("/api/v2/members");
+        if (!response.ok) {
+          throw new Error("Failed to fetch user role");
+        }
+        const { userRole: role } = await response.json();
 
         if (role !== "super_admin") {
           // Not super_admin - redirect to maintenance page
@@ -346,7 +361,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
       }
 
       // Wait additional time to ensure session is fully propagated to Supabase backend
-      // This is critical to avoid "Session not found" errors when calling getUserClient()
+      // This is critical to avoid "Session not found" errors when calling API routes
       console.log("[LOGIN-OTP] Waiting for session to propagate to Supabase backend...");
       await new Promise(resolve => setTimeout(resolve, 1500));
 

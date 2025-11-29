@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resetPassword } from "@/lib/api/auth";
-import { resetPasswordSchema } from "@/lib/validations/auth";
+import { resetPasswordSchema } from "@/src/domain/auth/auth.validations";
 
 /**
  * POST /api/auth/reset-password

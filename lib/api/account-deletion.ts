@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 

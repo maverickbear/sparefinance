@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/components/common/money";
 import { useToast } from "@/components/toast-provider";
-import { topUpGoalClient, type Goal } from "@/lib/api/goals-client";
+import type { Goal } from "@/src/domain/goals/goals.types";
 import { ArrowRight, Plus, Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -207,7 +207,22 @@ export function SavingsDistributionWidget({
       // Distribute to each goal
       const promises = Object.entries(distributionAmounts)
         .filter(([_, amount]) => amount > 0)
-        .map(([goalId, amount]) => topUpGoalClient(goalId, amount));
+        .map(async ([goalId, amount]) => {
+          const response = await fetch(`/api/v2/goals/${goalId}/top-up`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ amount }),
+          });
+          
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to top up goal");
+          }
+          
+          return await response.json();
+        });
 
       await Promise.all(promises);
 

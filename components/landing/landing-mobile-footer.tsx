@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUserClient } from "@/lib/api/auth-client";
+import type { BaseUser } from "@/src/domain/auth/auth.types";
 import { useState, useEffect } from "react";
 
 interface LandingMobileFooterProps {
@@ -16,9 +16,17 @@ export function LandingMobileFooter({ isAuthenticated: initialAuth }: LandingMob
   useEffect(() => {
     // Check authentication status and verify user exists in User table
     async function checkAuth() {
-      const user = await getCurrentUserClient();
-      // getCurrentUserClient verifies user exists in User table and logs out if not
-      setIsAuthenticated(!!user);
+      try {
+        const response = await fetch("/api/v2/user");
+        if (!response.ok) {
+          setIsAuthenticated(false);
+          return;
+        }
+        const { user }: { user: BaseUser | null } = await response.json();
+        setIsAuthenticated(!!user);
+      } catch (error) {
+        setIsAuthenticated(false);
+      }
     }
     
     // Always check auth on client side to ensure we have the latest state
@@ -29,7 +37,8 @@ export function LandingMobileFooter({ isAuthenticated: initialAuth }: LandingMob
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         // Verify user exists in User table
-        const user = await getCurrentUserClient();
+        const response = await fetch("/api/v2/user");
+        const user = response.ok ? await response.json() : null;
         setIsAuthenticated(!!user);
       } else {
         setIsAuthenticated(false);

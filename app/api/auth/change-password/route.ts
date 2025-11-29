@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { changePassword } from "@/lib/api/auth";
-import { changePasswordSchema } from "@/lib/validations/auth";
+import { changePasswordSchema } from "@/src/domain/auth/auth.validations";
 
 /**
  * POST /api/auth/change-password

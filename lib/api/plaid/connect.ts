@@ -1,7 +1,7 @@
 "use server";
 
 import { plaidClient } from './index';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { formatTimestamp } from '@/lib/utils/timestamp';
 import { CountryCode, Products } from 'plaid';
 
@@ -275,13 +275,21 @@ export async function exchangePublicToken(
     } catch (balanceError: any) {
       // Log the error but don't fail the entire token exchange
       // The /accounts/balance/get endpoint may not be available in sandbox mode
-      // or may require specific permissions/products
-      console.warn('[PLAID] Failed to get real-time balances, using cached balances from /accounts/get:', {
-        error: balanceError.message,
-        status: balanceError.response?.status,
-        errorCode: balanceError.response?.data?.error_code,
-        errorMessage: balanceError.response?.data?.error_message,
-      });
+      // or may require specific permissions/products (e.g., INVALID_PRODUCT error)
+      const errorCode = balanceError.response?.data?.error_code;
+      const errorMessage = balanceError.response?.data?.error_message;
+      
+      // Only log warning if it's not an expected INVALID_PRODUCT error
+      if (errorCode !== 'INVALID_PRODUCT') {
+        console.warn('[PLAID] Failed to get real-time balances, using cached balances from /accounts/get:', {
+          error: balanceError.message,
+          status: balanceError.response?.status,
+          errorCode,
+          errorMessage,
+        });
+      } else {
+        console.log('[PLAID] Balance product not available, using cached balances from /accounts/get');
+      }
       // balanceMap will remain empty, and we'll use balances from accountsGet below
     }
 
@@ -461,11 +469,29 @@ export async function syncAccountBalances(
   try {
     // Use /accounts/balance/get for real-time balance information
     // This is recommended by Plaid for getting current balances
-    const balanceResponse = await plaidClient.accountsBalanceGet({
-      access_token: accessToken,
-    });
-
-    const accounts = balanceResponse.data.accounts || [];
+    // Note: This product may not be available for all Plaid clients
+    let accounts: any[] = [];
+    
+    try {
+      const balanceResponse = await plaidClient.accountsBalanceGet({
+        access_token: accessToken,
+      });
+      accounts = balanceResponse.data.accounts || [];
+    } catch (balanceError: any) {
+      const errorCode = balanceError.response?.data?.error_code;
+      
+      // If balance product is not available, fallback to /accounts/get
+      if (errorCode === 'INVALID_PRODUCT') {
+        console.log('[PLAID BALANCE SYNC] Balance product not available, using /accounts/get instead');
+        const accountsResponse = await plaidClient.accountsGet({
+          access_token: accessToken,
+        });
+        accounts = accountsResponse.data.accounts || [];
+      } else {
+        // Re-throw other errors
+        throw balanceError;
+      }
+    }
 
     if (accounts.length === 0) {
       console.log('[PLAID BALANCE SYNC] No accounts found for item:', itemId);

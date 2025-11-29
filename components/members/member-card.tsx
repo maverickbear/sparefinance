@@ -1,6 +1,6 @@
 "use client";
 
-import type { HouseholdMember } from "@/lib/api/members-client";
+import type { HouseholdMember } from "@/src/domain/members/members.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -124,7 +124,7 @@ export function MemberCard({ member, onUpdate, onDelete }: MemberCardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {!member.isOwner && member.status === "pending" && (
+            {!member.isOwner && member.status === "pending" && member.invitedAt && (
               <p className="text-sm text-muted-foreground">
                 Invitation sent on {new Date(member.invitedAt).toLocaleDateString()}
               </p>
@@ -134,7 +134,7 @@ export function MemberCard({ member, onUpdate, onDelete }: MemberCardProps) {
                 Joined on {new Date(member.acceptedAt).toLocaleDateString()}
               </p>
             )}
-            {member.isOwner && (
+            {member.isOwner && member.createdAt && (
               <p className="text-sm text-muted-foreground">
                 Account owner since {new Date(member.createdAt).toLocaleDateString()}
               </p>

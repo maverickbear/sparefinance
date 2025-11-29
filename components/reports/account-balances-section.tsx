@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Account } from "@/lib/api/accounts-client";
-import type { Transaction } from "@/lib/api/transactions-client";
+import type { Account } from "@/src/domain/accounts/accounts.types";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
 import { startOfMonth, eachMonthOfInterval, format } from "date-fns";
 
 interface AccountBalancesSectionProps {

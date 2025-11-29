@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
-import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
-import { throwIfNotAllowed } from '@/lib/api/feature-guard';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
+import { guardBankIntegration, getCurrentUserId } from '@/src/application/shared/feature-guard';
+import { throwIfNotAllowed } from '@/src/application/shared/feature-guard';
 import { formatTimestamp } from '@/lib/utils/timestamp';
 import { plaidClient } from '@/lib/api/plaid';
 

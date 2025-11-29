@@ -69,7 +69,7 @@ export default function GoalsPage() {
     try {
       setLoading(true);
       // Add timestamp to bypass browser cache
-      const res = await fetch(`/api/goals?t=${Date.now()}`);
+      const res = await fetch(`/api/v2/goals?t=${Date.now()}`);
       if (!res.ok) {
         throw new Error("Failed to fetch goals");
       }
@@ -79,13 +79,16 @@ export default function GoalsPage() {
       
       // Ensure emergency fund goal exists
       try {
-        const { ensureEmergencyFundGoalClient } = await import("@/lib/api/goals-client");
-        await ensureEmergencyFundGoalClient();
-        // Reload goals to include the emergency fund goal if it was just created
-        const res2 = await fetch(`/api/goals?t=${Date.now()}`);
-        if (res2.ok) {
-          const data2 = await res2.json();
-          setGoals(data2 || []);
+        const response = await fetch("/api/goals/ensure-emergency-fund", {
+          method: "POST",
+        });
+        if (response.ok) {
+          // Reload goals to include the emergency fund goal if it was just created
+          const res2 = await fetch(`/api/v2/goals?t=${Date.now()}`);
+          if (res2.ok) {
+            const data2 = await res2.json();
+            setGoals(data2 || []);
+          }
         }
       } catch (goalError) {
         console.error("Error ensuring emergency fund goal:", goalError);
@@ -119,8 +122,13 @@ export default function GoalsPage() {
         setDeletingId(id);
 
         try {
-          const { deleteGoalClient } = await import("@/lib/api/goals-client");
-          await deleteGoalClient(id);
+          const response = await fetch(`/api/v2/goals/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete goal");
+          }
 
           toast({
             title: "Goal deleted",
@@ -268,8 +276,17 @@ export default function GoalsPage() {
           setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: g.currentBalance + amount } : g));
 
           try {
-            const { topUpGoalClient } = await import("@/lib/api/goals-client");
-            await topUpGoalClient(goalId, amount);
+            const response = await fetch(`/api/v2/goals/${goalId}/top-up`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ amount }),
+            });
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || "Failed to add top-up");
+            }
 
             toast({
               title: "Top-up added",
@@ -308,8 +325,17 @@ export default function GoalsPage() {
           setGoals(prev => prev.map(g => g.id === goalId ? { ...g, currentBalance: g.currentBalance - amount } : g));
 
           try {
-            const { withdrawFromGoalClient } = await import("@/lib/api/goals-client");
-            await withdrawFromGoalClient(goalId, amount);
+            const response = await fetch(`/api/v2/goals/${goalId}/withdraw`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ amount }),
+            });
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || "Failed to withdraw from goal");
+            }
 
             toast({
               title: "Withdrawal successful",

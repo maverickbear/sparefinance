@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;

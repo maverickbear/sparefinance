@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { categorySchema, CategoryFormData, subcategorySchema, SubcategoryFormData } from "@/lib/validations/category";
+import { categorySchema, CategoryFormData, subcategorySchema, SubcategoryFormData } from "@/src/domain/categories/categories.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,7 +30,7 @@ import {
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Edit, X, Check, Loader2, Search } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import type { Category, Macro } from "@/lib/api/categories-client";
+import type { Category, Macro } from "@/src/domain/categories/categories.types";
 import { useDebounce } from "@/hooks/use-debounce";
 
 interface Subcategory {
@@ -123,8 +123,11 @@ export function CategoryDialog({
     
     async function loadAllCategories() {
       try {
-        const { getAllCategoriesClient } = await import("@/lib/api/categories-client");
-        const categories = await getAllCategoriesClient();
+        const response = await fetch("/api/v2/categories?all=true");
+        if (!response.ok) {
+          throw new Error("Failed to fetch categories");
+        }
+        const categories = await response.json();
         setAllCategories(categories);
       } catch (error) {
         console.error("Error loading categories for search:", error);

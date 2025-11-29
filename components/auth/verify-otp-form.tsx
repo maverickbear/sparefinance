@@ -313,6 +313,22 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         }
       }
 
+      // Check if income onboarding is complete before redirecting to dashboard
+      try {
+        const incomeCheckResponse = await fetch("/api/v2/onboarding/income");
+        if (incomeCheckResponse.ok) {
+          const incomeData = await incomeCheckResponse.json();
+          if (!incomeData.hasExpectedIncome) {
+            // Redirect to income onboarding if not complete
+            router.push("/onboarding/income");
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn("[OTP] Error checking income onboarding status:", error);
+        // Continue to dashboard even if check fails
+      }
+
       // Default: redirect to dashboard
       router.push("/dashboard");
     } catch (error) {

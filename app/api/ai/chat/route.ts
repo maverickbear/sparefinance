@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { getTransactions } from "@/lib/api/transactions";
 import { getAccounts } from "@/lib/api/accounts";
 import { getBudgets } from "@/lib/api/budgets";
 import { getGoals } from "@/lib/api/goals";
 import { getDebts } from "@/lib/api/debts";
 import { getTotalInvestmentsValue } from "@/lib/api/simple-investments";
-import { calculateFinancialHealth } from "@/lib/api/financial-health";
+import { calculateFinancialHealth } from "@/src/application/shared/financial-health";
 import { getProfile } from "@/lib/api/profile";
 import OpenAI from "openai";
 import { subMonths, startOfMonth, endOfMonth } from "date-fns";

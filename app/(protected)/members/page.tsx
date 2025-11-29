@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Plus, Edit as EditIcon, Trash2, Crown, Mail, Users, Loader2 } from "lucide-react";
 import { MemberForm } from "@/components/members/member-form";
-import type { HouseholdMember } from "@/lib/api/members-client";
+import type { HouseholdMember } from "@/src/domain/members/members.types";
 import { useSubscription } from "@/hooks/use-subscription";
 import { EmptyState } from "@/components/common/empty-state";
 import {
@@ -58,11 +58,11 @@ export default function MembersPage() {
     }
   }, [limitsLoading]);
 
-  // OPTIMIZED: Single API call to get both members and user role
+  // OPTIMIZED: Single API call to get both members and user role using v2 API route
   async function loadData() {
     try {
       setLoading(true);
-      const response = await fetch("/api/members");
+      const response = await fetch("/api/v2/members");
       if (!response.ok) {
         throw new Error("Failed to fetch members data");
       }
@@ -74,20 +74,6 @@ export default function MembersPage() {
       perf.markDataLoaded();
     } catch (error) {
       console.error("Error loading data:", error);
-      // Fallback to separate calls if consolidated endpoint fails
-      try {
-        const { getHouseholdMembersClient, getUserRoleClient } = await import("@/lib/api/members-client");
-        const [data, role] = await Promise.all([
-          getHouseholdMembersClient(),
-          getUserRoleClient(),
-        ]);
-        setMembers(data);
-        if (role) {
-          setCurrentUserRole(role);
-        }
-      } catch (fallbackError) {
-        console.error("Error in fallback loading:", fallbackError);
-      }
       perf.markDataLoaded();
     } finally {
       setLoading(false);
@@ -106,8 +92,13 @@ export default function MembersPage() {
       async () => {
         setDeletingId(member.id);
         try {
-          const { deleteMemberClient } = await import("@/lib/api/members-client");
-          await deleteMemberClient(member.id);
+          const response = await fetch(`/api/v2/members/${member.id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to remove member");
+          }
           loadData();
         } catch (error) {
           console.error("Error removing member:", error);
@@ -280,9 +271,9 @@ export default function MembersPage() {
                   </TableCell>
                   <TableCell className="text-xs md:text-sm text-muted-foreground">
                     {member.isOwner ? (
-                      <span>Since {new Date(member.createdAt).toLocaleDateString()}</span>
+                      <span>Since {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : "N/A"}</span>
                     ) : member.status === "pending" ? (
-                      <span>Invited {new Date(member.invitedAt).toLocaleDateString()}</span>
+                      <span>Invited {member.invitedAt ? new Date(member.invitedAt).toLocaleDateString() : "N/A"}</span>
                     ) : member.acceptedAt ? (
                       <span>Joined {new Date(member.acceptedAt).toLocaleDateString()}</span>
                     ) : (

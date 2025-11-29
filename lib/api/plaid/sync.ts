@@ -1,11 +1,11 @@
 "use server";
 
 import { plaidClient } from './index';
-import { createServerClient } from '@/lib/supabase-server';
-import { formatTimestamp } from '@/lib/utils/timestamp';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
+import { formatTimestamp } from '@/src/infrastructure/utils/timestamp';
 import { createTransaction } from '@/lib/api/transactions';
-import { suggestCategory } from '@/lib/api/category-learning';
-import type { TransactionFormData } from '@/lib/validations/transaction';
+import { suggestCategory } from '@/src/application/shared/category-learning';
+import type { TransactionFormData } from '@/src/domain/transactions/transactions.validations';
 import type { PlaidTransactionMetadata } from './types';
 import { convertPlaidTransactionToCamelCase } from './utils';
 
@@ -1112,6 +1112,20 @@ export async function syncAccountTransactions(
       name: error.name,
       response: error.response?.data,
     });
+    
+    // Extract Plaid-specific error details
+    const plaidError = error.response?.data;
+    if (plaidError?.error_code && plaidError?.error_message) {
+      // Create a more informative error message with Plaid error details
+      const errorMessage = `${plaidError.error_message} (${plaidError.error_code})`;
+      const enhancedError = new Error(errorMessage);
+      // Preserve Plaid error code for potential frontend handling
+      (enhancedError as any).plaidErrorCode = plaidError.error_code;
+      (enhancedError as any).plaidErrorType = plaidError.error_type;
+      throw enhancedError;
+    }
+    
+    // Fallback to generic error message
     throw new Error(error.message || 'Failed to sync transactions');
   }
 }

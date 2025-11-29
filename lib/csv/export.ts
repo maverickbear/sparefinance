@@ -1,4 +1,4 @@
-import type { Transaction } from "@/lib/api/transactions-client";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
 
 export function exportTransactionsToCSV(transactions: Transaction[]): string {
   const headers = ["Date", "Type", "Amount", "Account", "Category", "Subcategory", "Description"];

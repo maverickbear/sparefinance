@@ -1,7 +1,7 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { SecurityLogger } from "@/lib/utils/security-logging";
 
 /**

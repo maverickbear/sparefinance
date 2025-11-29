@@ -5,10 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/components/common/money";
-import { formatTransactionDate, formatShortDate } from "@/lib/utils/timestamp";
+import { formatTransactionDate, formatShortDate } from "@/src/infrastructure/utils/timestamp";
 import { Loader2, Repeat, Clock, Check, X, Wallet, ShoppingCart, UtensilsCrossed, Car, Home, Heart, GraduationCap, Gamepad2, Plane, Dumbbell, Shirt, Laptop, Music, BookOpen, Gift, CreditCard, Building2, Briefcase, PiggyBank, TrendingUp, Coffee, Receipt as ReceiptIcon, Tag, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "@/lib/api/transactions-client";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
 
 interface TransactionsMobileCardProps {
   transaction: Transaction;

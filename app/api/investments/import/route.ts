@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createInvestmentTransaction, createSecurity, getSecurities } from "@/lib/api/investments";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { isPlanError } from "@/lib/utils/plan-errors";
 import { InvestmentTransactionInput } from "@/lib/csv/investment-import";
 import { normalizeAssetType } from "@/lib/utils/portfolio-utils";

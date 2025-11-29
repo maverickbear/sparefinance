@@ -85,44 +85,31 @@ export default function BudgetsPage() {
   async function loadData() {
     try {
       setLoading(true);
-      // OPTIMIZED: Single API call to get both groups and categories
+      // OPTIMIZED: Single API call to get both groups and categories using v2 API routes
+      const periodParam = now.toISOString();
       const [budgetsResponse, categoriesResponse] = await Promise.all([
-        import("@/lib/api/budgets-client").then(m => m.getBudgetsClient(now)),
-        fetch("/api/categories?consolidated=true").then(r => r.ok ? r.json() : { groups: [], categories: [] }),
+        fetch(`/api/v2/budgets?period=${periodParam}`),
+        fetch("/api/v2/categories?consolidated=true"),
       ]);
       
-      const budgetsData = await budgetsResponse;
-      const { groups: macrosData, categories: categoriesData } = await categoriesResponse;
+      if (!budgetsResponse.ok || !categoriesResponse.ok) {
+        throw new Error("Failed to fetch data");
+      }
+      
+      const [budgetsData, categoriesData] = await Promise.all([
+        budgetsResponse.json(),
+        categoriesResponse.json(),
+      ]);
+      
+      const { groups: macrosData, categories: categoriesList } = categoriesData;
       
       setBudgets(budgetsData as Budget[]);
-      setCategories(categoriesData || []);
+      setCategories(categoriesList || []);
       setMacros(macrosData || []);
       setHasLoaded(true);
       perf.markDataLoaded();
     } catch (error) {
       console.error("Error loading data:", error);
-      // Fallback to separate calls if consolidated endpoint fails
-      try {
-      const [
-        { getBudgetsClient },
-        { getAllCategoriesClient },
-        { getMacrosClient },
-      ] = await Promise.all([
-        import("@/lib/api/budgets-client"),
-        import("@/lib/api/categories-client"),
-        import("@/lib/api/categories-client"),
-      ]);
-      const [budgetsData, categoriesData, macrosData] = await Promise.all([
-        getBudgetsClient(now),
-        getAllCategoriesClient(),
-        getMacrosClient(),
-      ]);
-      setBudgets(budgetsData as Budget[]);
-      setCategories(categoriesData as Category[]);
-      setMacros(macrosData as Macro[]);
-      } catch (fallbackError) {
-        console.error("Error in fallback loading:", fallbackError);
-      }
       setHasLoaded(true);
       perf.markDataLoaded();
     } finally {
@@ -147,8 +134,13 @@ export default function BudgetsPage() {
         setDeletingId(id);
 
         try {
-          const { deleteBudgetClient } = await import("@/lib/api/budgets-client");
-          await deleteBudgetClient(id);
+          const response = await fetch(`/api/v2/budgets/${id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete budget");
+          }
 
           toast({
             title: "Budget deleted",

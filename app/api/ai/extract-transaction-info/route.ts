@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import OpenAI from "openai";
 
 const openai = new OpenAI({

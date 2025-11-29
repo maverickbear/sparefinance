@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { acceptInvitation } from "@/lib/api/members";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 export async function POST(request: Request) {
   try {

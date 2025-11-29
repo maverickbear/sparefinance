@@ -65,7 +65,7 @@ export function DashboardRealtime() {
     }
 
     // Debounce refresh calls to avoid too many refreshes
-    // OPTIMIZED: Increased from 500ms to 2000ms to reduce refresh frequency
+    // OPTIMIZED: Reduced from 2000ms to 800ms to improve responsiveness while still preventing excessive refreshes
     let refreshTimeout: NodeJS.Timeout | null = null;
     const scheduleRefresh = async () => {
       if (refreshTimeout) {
@@ -75,7 +75,7 @@ export function DashboardRealtime() {
         // Only refresh the router - cache invalidation is handled by revalidateTag in API functions
         // This avoids invalidating cache on initial page load
         router.refresh();
-      }, 2000); // Debounce for 2000ms (was 500ms)
+      }, 800); // Debounce for 800ms (reduced from 2000ms for better UX)
     };
 
     // Performance logging for monitoring outliers

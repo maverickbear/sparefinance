@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { getUserSubscriptionData } from "@/lib/api/subscription";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { randomUUID } from "crypto";
 
 /**

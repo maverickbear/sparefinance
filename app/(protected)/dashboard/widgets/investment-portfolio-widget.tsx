@@ -6,8 +6,8 @@ import { formatMoney, formatMoneyCompact } from "@/components/common/money";
 import { cn } from "@/lib/utils";
 import { useSubscription } from "@/hooks/use-subscription";
 import { usePortfolioData } from "@/hooks/use-portfolio-data";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { format, parseISO } from "date-fns";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { subMonths, format } from "date-fns";
 
 interface InvestmentPortfolioWidgetProps {
   savings: number; // Fallback value if no portfolio data
@@ -29,25 +29,62 @@ interface HistoricalDataPoint {
   value: number;
 }
 
+// Colors for the chart
+const PORTFOLIO_VALUE_COLOR = "#22c55e"; // Green
+const TOTAL_COST_COLOR = "#ef4444"; // Red
+
+// Custom tooltip component
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
+        <p className="mb-2 text-sm font-medium text-foreground">
+          {payload[0].payload.month}
+        </p>
+        <div className="space-y-1">
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2">
+              <div
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {entry.name}:
+              </span>
+              <span className="text-sm font-semibold text-foreground">
+                {formatMoney(entry.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Custom legend component
+const CustomLegend = ({ payload }: any) => {
+  return (
+    <div className="flex items-center justify-center gap-4 pt-2">
+      {payload?.map((entry: any, index: number) => (
+        <div key={index} className="flex items-center gap-1.5">
+          <div
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-xs text-muted-foreground">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // Static demo data for landing page
 const DEMO_PORTFOLIO_DATA = {
   totalValue: 125000,
-  dayChange: 1250,
-  dayChangePercent: 1.01,
-  totalReturn: 25000,
-  totalReturnPercent: 25.0,
-  holdingsCount: 12,
+  totalCost: 100000,
 };
-
-// Static demo chart data (upward trend)
-const DEMO_CHART_DATA = Array.from({ length: 12 }, (_, i) => {
-  const date = new Date();
-  date.setDate(date.getDate() - (11 - i));
-  return {
-    date: date.toISOString().split("T")[0],
-    value: 100000 + (i * 2000),
-  };
-});
 
 export function InvestmentPortfolioWidget({
   savings,
@@ -55,99 +92,99 @@ export function InvestmentPortfolioWidget({
 }: InvestmentPortfolioWidgetProps) {
   // In demo mode, render completely static content (no hooks, no state, no logic)
   if (demoMode) {
+    const netReturn = DEMO_PORTFOLIO_DATA.totalValue - DEMO_PORTFOLIO_DATA.totalCost;
+    const chartData = useMemo(() => {
+      const months = [];
+      const now = new Date();
+      
+      // Generate data for last 6 months
+      for (let i = 5; i >= 0; i--) {
+        const date = subMonths(now, i);
+        const monthLabel = format(date, "MMM");
+        
+        // Create a trend: start lower and gradually increase to current values
+        const progress = i === 5 ? 0.85 : i === 0 ? 1.0 : 0.85 + (5 - i) * 0.03;
+        const valueProgress = i === 5 ? 0.85 : i === 0 ? 1.0 : 0.85 + (5 - i) * 0.03;
+        const costProgress = i === 5 ? 0.90 : i === 0 ? 1.0 : 0.90 + (5 - i) * 0.02;
+        
+        months.push({
+          month: monthLabel,
+          portfolioValue: Math.max(0, DEMO_PORTFOLIO_DATA.totalValue * valueProgress),
+          totalCost: Math.max(0, DEMO_PORTFOLIO_DATA.totalCost * costProgress),
+        });
+      }
+      
+      return months;
+    }, []);
+
     return (
       <Card className="h-full">
         <CardHeader>
           <CardTitle>Investment Portfolio</CardTitle>
-          <CardDescription>High-level performance</CardDescription>
+          <CardDescription>Portfolio Value vs Total Cost over time</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div>
-              <div className="text-2xl font-bold text-foreground tabular-nums mb-1">
-                {formatMoneyCompact(DEMO_PORTFOLIO_DATA.totalValue)}
+              <div className={cn(
+                "text-2xl font-bold tabular-nums mb-1",
+                netReturn >= 0 ? "text-green-500" : "text-red-500"
+              )}>
+                {formatMoneyCompact(netReturn)}
               </div>
-              <div className="text-sm text-muted-foreground">Portfolio value</div>
+              <div className="text-sm text-muted-foreground">Total return</div>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-sm text-muted-foreground">Today</span>
-              <span className="text-sm font-semibold tabular-nums text-green-500">
-                +{formatMoneyCompact(Math.abs(DEMO_PORTFOLIO_DATA.dayChange))} (+{DEMO_PORTFOLIO_DATA.dayChangePercent.toFixed(1)}%)
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-border">
-              <span className="text-sm text-muted-foreground">Total return</span>
-              <span className="text-sm font-semibold tabular-nums text-green-500">
-                +{formatMoneyCompact(Math.abs(DEMO_PORTFOLIO_DATA.totalReturn))} (+{DEMO_PORTFOLIO_DATA.totalReturnPercent.toFixed(1)}%)
-              </span>
-            </div>
-
-            <div className="bg-muted rounded-lg p-3 border border-border">
-              <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={DEMO_CHART_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <div className="h-[250px] min-h-[250px] w-full min-w-0">
+              <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+                <LineChart 
+                  data={chartData} 
+                  margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                >
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="hsl(var(--border))"
                     opacity={0.3}
                     vertical={false}
                   />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                  <XAxis 
+                    dataKey="month" 
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                     axisLine={{ stroke: "hsl(var(--border))" }}
                     tickLine={{ stroke: "hsl(var(--border))" }}
-                    tickFormatter={(value) => {
-                      try {
-                        return format(parseISO(value), "MMM dd");
-                      } catch {
-                        return value;
-                      }
-                    }}
                   />
-                  <YAxis
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                  <YAxis 
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                     axisLine={{ stroke: "hsl(var(--border))" }}
                     tickLine={{ stroke: "hsl(var(--border))" }}
-                    width={50}
+                    width={60}
                     tickFormatter={(value) => {
                       if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
                       return `$${value}`;
                     }}
                   />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
-                            <p className="mb-2 text-sm font-medium text-foreground">
-                              {format(parseISO(data.date), "MMM dd, yyyy")}
-                            </p>
-                            <div className="text-sm font-semibold text-foreground">
-                              {formatMoney(data.value)}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend content={<CustomLegend />} />
+                  <Line
+                    type="monotone"
+                    dataKey="portfolioValue"
+                    name="Portfolio Value"
+                    stroke={PORTFOLIO_VALUE_COLOR}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
                   />
                   <Line
                     type="monotone"
-                    dataKey="value"
-                    stroke="hsl(var(--primary))"
+                    dataKey="totalCost"
+                    name="Total Cost"
+                    stroke={TOTAL_COST_COLOR}
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 4 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-
-            <div className="text-xs text-muted-foreground pt-2">
-              <span className="text-muted-foreground">Mix:</span> ETFs · Stocks · 401(k) · IRA
             </div>
           </div>
         </CardContent>
@@ -159,11 +196,9 @@ export function InvestmentPortfolioWidget({
   const { limits, checking: limitsLoading } = useSubscription();
   
   // Check if user has access to investments feature
-  // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
   const hasInvestmentsAccess = limits.hasInvestments === true;
 
   // OPTIMIZED: Use shared portfolio hook to avoid duplicate API calls
-  // This hook deduplicates requests and shares data between widgets
   const { data: portfolioData, isLoading } = usePortfolioData({
     days: 30,
     enabled: hasInvestmentsAccess,
@@ -172,86 +207,85 @@ export function InvestmentPortfolioWidget({
   const portfolioSummary = portfolioData.summary as PortfolioSummary | null;
   const historicalData = portfolioData.historical as HistoricalDataPoint[];
 
-  // Calculate asset mix from holdings and accounts
-  const assetMix = useMemo(() => {
-    const assetTypes = new Set<string>();
-    const accountTypes = new Set<string>();
-
-    if (portfolioData.holdings && Array.isArray(portfolioData.holdings)) {
-      portfolioData.holdings.forEach((holding: any) => {
-        if (holding.assetType) {
-          // Map asset types to display names
-          const assetTypeMap: Record<string, string> = {
-            "Stock": "Stocks",
-            "ETF": "ETFs",
-            "Crypto": "Crypto",
-            "Fund": "Funds",
-            "Bond": "Bonds",
-            "Option": "Options",
-          };
-          const displayName = assetTypeMap[holding.assetType] || holding.assetType;
-          assetTypes.add(displayName);
-        }
-      });
-    }
-
-    if (portfolioData.accounts && Array.isArray(portfolioData.accounts)) {
-      portfolioData.accounts.forEach((account: any) => {
-        if (account.type) {
-          // Map account types to display names
-          const accountTypeMap: Record<string, string> = {
-            "401k": "401(k)",
-            "403b": "403(b)",
-            "ira": "IRA",
-            "roth_ira": "Roth IRA",
-            "sep_ira": "SEP IRA",
-            "brokerage": "Brokerage",
-            "taxable": "Taxable",
-            "retirement": "Retirement",
-          };
-          const displayName = accountTypeMap[account.type.toLowerCase()] || account.type;
-          accountTypes.add(displayName);
-        }
-      });
-    }
-
-    // Build mix string
-    const mixParts: string[] = [];
-    if (assetTypes.size > 0) {
-      mixParts.push(Array.from(assetTypes).join(" · "));
-    }
-    if (accountTypes.size > 0) {
-      mixParts.push(Array.from(accountTypes).join(" · "));
-    }
-    
-    return mixParts.length > 0 
-      ? mixParts.join(" · ")
-      : "No investments yet";
-  }, [portfolioData.holdings, portfolioData.accounts]);
-
   // Use portfolio data if available, otherwise fallback to savings
   const portfolioValue = portfolioSummary?.totalValue ?? savings;
-  const dayChange = portfolioSummary?.dayChange ?? 0;
-  const dayChangePercent = portfolioSummary?.dayChangePercent ?? 0;
-  const totalReturn = portfolioSummary?.totalReturn ?? 0;
-  const totalReturnPercent = portfolioSummary?.totalReturnPercent ?? 0;
+  const totalCost = portfolioSummary?.totalCost ?? 0;
+  const netReturn = portfolioValue - totalCost;
 
-  // Prepare chart data from historical data
-  const chartData = historicalData.length > 0
-    ? historicalData
-    : (() => {
-        // Fallback: simple upward trend if no data
-        const baseValue = portfolioValue * 0.8;
-        return Array.from({ length: 12 }, (_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() - (11 - i));
-          return {
-            date: date.toISOString().split("T")[0],
-            value: baseValue + (i * (portfolioValue - baseValue) / 11),
-          };
+  // Generate chart data for the last 6 months
+  // Use historical data if available, otherwise create a trend based on current values
+  const chartData = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    
+    // If we have historical data, use it
+    if (historicalData.length > 0) {
+      // Group historical data by month and get the last 6 months
+      const monthlyData = new Map<string, number>();
+      
+      // Process historical data to get monthly values
+      historicalData.forEach((point) => {
+        try {
+          const date = new Date(point.date);
+          const monthKey = format(date, "MMM yyyy");
+          const existing = monthlyData.get(monthKey);
+          
+          // Keep the highest value for each month
+          if (!existing || point.value > existing) {
+            monthlyData.set(monthKey, point.value);
+          }
+        } catch (e) {
+          // Skip invalid dates
+        }
+      });
+      
+      // Get last 6 months
+      for (let i = 5; i >= 0; i--) {
+        const date = subMonths(now, i);
+        const monthLabel = format(date, "MMM");
+        const monthKey = format(date, "MMM yyyy");
+        
+        const monthlyValue = monthlyData.get(monthKey);
+        if (monthlyValue !== undefined) {
+          // Use historical value, estimate cost proportionally
+          // Assume cost grows proportionally to value (simplified)
+          const costRatio = totalCost > 0 ? totalCost / portfolioValue : 0;
+          months.push({
+            month: monthLabel,
+            portfolioValue: monthlyValue,
+            totalCost: monthlyValue * costRatio,
+          });
+        } else {
+          // If no data for this month, interpolate
+          const progress = i === 5 ? 0.85 : i === 0 ? 1.0 : 0.85 + (5 - i) * 0.03;
+          const costProgress = i === 5 ? 0.90 : i === 0 ? 1.0 : 0.90 + (5 - i) * 0.02;
+          months.push({
+            month: monthLabel,
+            portfolioValue: Math.max(0, portfolioValue * progress),
+            totalCost: Math.max(0, totalCost * costProgress),
+          });
+        }
+      }
+    } else {
+      // No historical data - create a trend based on current values
+      for (let i = 5; i >= 0; i--) {
+        const date = subMonths(now, i);
+        const monthLabel = format(date, "MMM");
+        
+        // Create a trend: start lower and gradually increase to current values
+        const progress = i === 5 ? 0.85 : i === 0 ? 1.0 : 0.85 + (5 - i) * 0.03;
+        const costProgress = i === 5 ? 0.90 : i === 0 ? 1.0 : 0.90 + (5 - i) * 0.02;
+        
+        months.push({
+          month: monthLabel,
+          portfolioValue: Math.max(0, portfolioValue * progress),
+          totalCost: Math.max(0, totalCost * costProgress),
         });
-      })();
-
+      }
+    }
+    
+    return months;
+  }, [portfolioValue, totalCost, historicalData]);
 
   // Show loading state while checking limits or loading data
   if (limitsLoading || isLoading) {
@@ -259,7 +293,7 @@ export function InvestmentPortfolioWidget({
       <Card className="h-full">
         <CardHeader>
           <CardTitle>Investment Portfolio</CardTitle>
-          <CardDescription>High-level performance</CardDescription>
+          <CardDescription>Portfolio Value vs Total Cost over time</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
@@ -276,7 +310,7 @@ export function InvestmentPortfolioWidget({
       <Card className="h-full">
         <CardHeader>
           <CardTitle>Investment Portfolio</CardTitle>
-          <CardDescription>High-level performance</CardDescription>
+          <CardDescription>Portfolio Value vs Total Cost over time</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -299,113 +333,73 @@ export function InvestmentPortfolioWidget({
     <Card className="h-full">
       <CardHeader>
         <CardTitle>Investment Portfolio</CardTitle>
-        <CardDescription>High-level performance</CardDescription>
+        <CardDescription>Portfolio Value vs Total Cost over time</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div>
-            <div className="text-2xl font-bold text-foreground tabular-nums mb-1">
-              {formatMoneyCompact(portfolioValue)}
+            <div className={cn(
+              "text-2xl font-bold tabular-nums mb-1",
+              netReturn >= 0 ? "text-green-500" : "text-red-500"
+            )}>
+              {formatMoneyCompact(netReturn)}
             </div>
-            <div className="text-sm text-muted-foreground">Portfolio value</div>
+            <div className="text-sm text-muted-foreground">Total return</div>
           </div>
 
-          {portfolioSummary && (
-            <>
-              <div className="flex items-center justify-between py-2 border-b border-border">
-                <span className="text-sm text-muted-foreground">Today</span>
-                <span className={cn(
-                  "text-sm font-semibold tabular-nums",
-                  dayChange >= 0 ? "text-green-500" : "text-red-500"
-                )}>
-                  {dayChange >= 0 ? "+" : ""}{formatMoneyCompact(Math.abs(dayChange))} ({dayChangePercent >= 0 ? "+" : ""}{dayChangePercent.toFixed(1)}%)
-                </span>
-              </div>
-
-              {totalReturn !== 0 && (
-                <div className="flex items-center justify-between py-2 border-b border-border">
-                  <span className="text-sm text-muted-foreground">Total return</span>
-                  <span className={cn(
-                    "text-sm font-semibold tabular-nums",
-                    totalReturn >= 0 ? "text-green-500" : "text-red-500"
-                  )}>
-                    {totalReturn >= 0 ? "+" : ""}{formatMoneyCompact(Math.abs(totalReturn))} ({totalReturnPercent >= 0 ? "+" : ""}{totalReturnPercent.toFixed(1)}%)
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-
-          {chartData.length > 0 && (
-            <div className="bg-muted rounded-lg p-3 border border-border">
-              <ResponsiveContainer width="100%" height={120}>
-                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    opacity={0.3}
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-                    axisLine={{ stroke: "hsl(var(--border))" }}
-                    tickLine={{ stroke: "hsl(var(--border))" }}
-                    tickFormatter={(value) => {
-                      try {
-                        return format(parseISO(value), "MMM dd");
-                      } catch {
-                        return value;
-                      }
-                    }}
-                  />
-                  <YAxis
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-                    axisLine={{ stroke: "hsl(var(--border))" }}
-                    tickLine={{ stroke: "hsl(var(--border))" }}
-                    width={50}
-                    tickFormatter={(value) => {
-                      if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-                      return `$${value}`;
-                    }}
-                  />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
-                            <p className="mb-2 text-sm font-medium text-foreground">
-                              {format(parseISO(data.date), "MMM dd, yyyy")}
-                            </p>
-                            <div className="text-sm font-semibold text-foreground">
-                              {formatMoney(data.value)}
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          <div className="text-xs text-muted-foreground pt-2">
-            <span className="text-muted-foreground">Mix:</span> {assetMix || "No investments yet"}
+          <div className="h-[250px] min-h-[250px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minHeight={250}>
+              <LineChart 
+                data={chartData} 
+                margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
+                  opacity={0.3}
+                  vertical={false}
+                />
+                <XAxis 
+                  dataKey="month" 
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  tickLine={{ stroke: "hsl(var(--border))" }}
+                />
+                <YAxis 
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  tickLine={{ stroke: "hsl(var(--border))" }}
+                  width={60}
+                  tickFormatter={(value) => {
+                    if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
+                    return `$${value}`;
+                  }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend content={<CustomLegend />} />
+                <Line
+                  type="monotone"
+                  dataKey="portfolioValue"
+                  name="Portfolio Value"
+                  stroke={PORTFOLIO_VALUE_COLOR}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="totalCost"
+                  name="Total Cost"
+                  stroke={TOTAL_COST_COLOR}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </CardContent>
     </Card>
   );
 }
-

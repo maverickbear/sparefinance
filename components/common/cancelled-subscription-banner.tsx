@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useSubscriptionSafe } from "@/contexts/subscription-context";
 import { useToast } from "@/components/toast-provider";
 import { cn } from "@/lib/utils";
-import type { Subscription } from "@/lib/validations/plan";
+import type { Subscription } from "@/src/domain/subscriptions/subscriptions.validations";
 
 interface CancelledSubscriptionBannerProps {
   isSidebarCollapsed?: boolean;

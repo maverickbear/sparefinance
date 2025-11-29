@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/common/plan-badge";
-import { Subscription, Plan } from "@/lib/validations/plan";
+import { Subscription, Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -69,7 +69,7 @@ export function PlanCard({ subscription, plan, onManage }: PlanCardProps) {
                 <p className="text-sm font-medium">
                   {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
                 </p>
-                <PlanBadge plan={plan.name} />
+                <PlanBadge plan={plan.name as "essential" | "pro"} />
               </div>
               <p className="text-xs text-muted-foreground">{billingText}</p>
             </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inviteMember, getHouseholdMembers, getUserRoleOptimized } from "@/lib/api/members";
-import { memberInviteSchema, MemberInviteFormData } from "@/lib/validations/member";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { memberInviteSchema, MemberInviteFormData } from "@/src/domain/members/members.validations";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
 
 export async function GET(request: NextRequest) {

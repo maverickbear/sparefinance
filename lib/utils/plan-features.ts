@@ -1,4 +1,4 @@
-import { PlanFeatures, Plan } from "@/lib/validations/plan";
+import { PlanFeatures, Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 
 /**
  * Get default plan features (free plan limits)
@@ -16,6 +16,7 @@ export function getDefaultFeatures(): PlanFeatures {
     hasBankIntegration: false,
     hasHousehold: false,
     hasBudgets: false,
+    hasReceiptScanner: false,
   };
 }
 

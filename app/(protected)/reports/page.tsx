@@ -67,8 +67,8 @@ async function ReportsContentWrapper({ period }: { period: ReportPeriod }) {
       budgets={data.budgets}
       currentMonthTransactions={data.currentMonthTransactions}
       historicalTransactions={data.historicalTransactions}
-      debts={data.debts}
-      goals={data.goals}
+      debts={data.debts as any}
+      goals={data.goals as any}
       financialHealth={data.financialHealth}
       accounts={data.accounts}
       portfolioSummary={data.portfolioSummary}

@@ -3,7 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlanBadge } from "@/components/common/plan-badge";
-import { Subscription, Plan } from "@/lib/validations/plan";
+import { Subscription, Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { format } from "date-fns";
 import { useState, useEffect } from "react";
 import {
@@ -86,7 +86,7 @@ export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: 
           <div>
             <CardTitle className="flex items-center gap-2">
               Current Plan
-              <PlanBadge plan={plan.name} />
+              <PlanBadge plan={plan.name as "essential" | "pro"} />
             </CardTitle>
             <CardDescription className="mt-1">
               {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} plan

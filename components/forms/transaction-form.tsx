@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { useForm } from "react-hook-form";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { transactionSchema, TransactionFormData } from "@/lib/validations/transaction";
+import { transactionSchema, TransactionFormData } from "@/src/domain/transactions/transactions.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -32,15 +32,16 @@ import {
 } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { useToast } from "@/components/toast-provider";
-import type { Transaction } from "@/lib/api/transactions-client";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
 import { LimitWarning } from "@/components/billing/limit-warning";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
-import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
+import { parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DatePicker } from "@/components/ui/date-picker";
 import { ReceiptScanner } from "@/components/receipt-scanner/receipt-scanner";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
+import { useSubscriptionSafe } from "@/contexts/subscription-context";
 
 /**
  * Converts a Date object to YYYY-MM-DD string format
@@ -128,6 +129,11 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
   const breakpoint = useBreakpoint();
   const isMobile = !breakpoint || breakpoint === "xs" || breakpoint === "sm" || breakpoint === "md";
+  const { limits } = useSubscriptionSafe();
+  
+  // Check if receipt scanner feature is enabled
+  // Default to false if not within SubscriptionProvider (safe fallback)
+  const hasReceiptScanner = limits.hasReceiptScanner === true || String(limits.hasReceiptScanner) === "true";
 
   // Listen for custom event to open receipt scanner (from mobile FAB)
   useEffect(() => {
@@ -407,8 +413,12 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
 
   async function loadAvailableGroups() {
     try {
-      const { getGroupsClient } = await import("@/lib/api/categories-client");
-      const groups = await getGroupsClient();
+      const response = await fetch("/api/v2/categories?consolidated=true");
+      if (!response.ok) {
+        throw new Error("Failed to fetch groups");
+      }
+      const data = await response.json();
+      const groups = data.groups || [];
       const transactionType = form.getValues("type");
       
       // Filter groups by transaction type
@@ -853,7 +863,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           )}
           
           {/* Receipt Scanner Button - Primary on Mobile */}
-          {!transaction && (
+          {!transaction && hasReceiptScanner && (
             <div className={cn(
               "space-y-2",
               isMobile ? "order-first" : ""

@@ -2,7 +2,7 @@
 
 import { ReactNode, useState, useEffect } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
-import { PlanFeatures } from "@/lib/validations/plan";
+import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockedFeature } from "./blocked-feature";
 import { PageHeader } from "./page-header";
@@ -33,9 +33,12 @@ export function FeatureGuard({
   useEffect(() => {
     async function checkSuperAdmin() {
       try {
-        const { getUserRoleClient } = await import("@/lib/api/members-client");
-        const role = await getUserRoleClient();
-        setIsSuperAdmin(role === "super_admin");
+        const response = await fetch("/api/v2/members");
+        if (!response.ok) {
+          throw new Error("Failed to fetch user role");
+        }
+        const { userRole } = await response.json();
+        setIsSuperAdmin(userRole === "super_admin");
       } catch (error) {
         console.error("Error checking super_admin status:", error);
         setIsSuperAdmin(false);
@@ -100,6 +103,7 @@ function getFeatureName(feature: keyof PlanFeatures): string {
     hasBankIntegration: "Bank Integration",
     hasHousehold: "Household Members",
     hasBudgets: "Budgets",
+    hasReceiptScanner: "Receipt Scanner",
   };
 
   return names[feature] || feature;

@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { ChartSkeleton } from "@/components/ui/chart-skeleton";
 import { CardSkeleton } from "@/components/ui/card-skeleton";
 import { Button } from "@/components/ui/button";
-import { FinancialSummaryWidget } from "./widgets/financial-summary-widget";
+import { SummaryCards } from "./summary-cards";
 import { FinancialHealthScoreWidget } from "./widgets/financial-health-score-widget";
 import { calculateTotalIncome, calculateTotalExpenses } from "./utils/transaction-helpers";
+// Using API route instead of client-side API
+import type { HouseholdMember } from "@/src/domain/members/members.types";
+import { calculateLastMonthBalanceFromCurrent } from "@/lib/services/balance-calculator";
 
 // Lazy load widgets with heavy chart libraries (recharts) - no SSR
 const CashFlowTimelineWidget = dynamic(
@@ -103,6 +106,7 @@ interface FinancialOverviewPageProps {
   recurringPayments: any[];
   subscriptions: any[];
   selectedMonthDate: Date;
+  expectedIncomeRange?: string | null;
 }
 
 export function FinancialOverviewPage({
@@ -122,11 +126,35 @@ export function FinancialOverviewPage({
   recurringPayments,
   subscriptions,
   selectedMonthDate,
+  expectedIncomeRange,
 }: FinancialOverviewPageProps) {
   const router = useRouter();
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+
+  // Load household members
+  useEffect(() => {
+    async function loadMembers() {
+      try {
+        const response = await fetch("/api/v2/members");
+        if (!response.ok) {
+          throw new Error("Failed to fetch members");
+        }
+        const { members } = await response.json();
+        setHouseholdMembers(members);
+        setIsLoadingMembers(false);
+      } catch (error) {
+        console.error("Error loading household members:", error);
+        setIsLoadingMembers(false);
+      }
+    }
+    
+    loadMembers();
+  }, []);
 
   // Update current time every minute to refresh relative time display
   useEffect(() => {
@@ -136,6 +164,45 @@ export function FinancialOverviewPage({
 
     return () => clearInterval(interval);
   }, []);
+
+  // Filter accounts by selected household member
+  const filteredAccounts = useMemo(() => {
+    if (!selectedMemberId) {
+      return accounts; // Show all household accounts
+    }
+    // Filter accounts that belong to the selected member
+    // An account belongs to a member if:
+    // 1. The account's userId matches the selectedMemberId, OR
+    // 2. The account has the selectedMemberId in its ownerIds array
+    return accounts.filter((acc: any) => {
+      if (acc.userId === selectedMemberId) {
+        return true;
+      }
+      if (acc.ownerIds && Array.isArray(acc.ownerIds)) {
+        return acc.ownerIds.includes(selectedMemberId);
+      }
+      return false;
+    });
+  }, [accounts, selectedMemberId]);
+
+  // Recalculate totalBalance and savings based on filtered accounts
+  const filteredTotalBalance = useMemo(() => {
+    return filteredAccounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
+  }, [filteredAccounts]);
+
+  const filteredSavings = useMemo(() => {
+    return filteredAccounts
+      .filter((acc: any) => acc.type === 'savings')
+      .reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
+  }, [filteredAccounts]);
+
+  // Filter transactions by selected household member
+  const filterTransactionsByMember = useCallback((transactions: any[]) => {
+    if (!selectedMemberId) {
+      return transactions; // Show all household transactions
+    }
+    return transactions.filter((t) => t.userId === selectedMemberId);
+  }, [selectedMemberId]);
 
   // Function to format relative time
   const relativeTimeText = useMemo(() => {
@@ -211,10 +278,10 @@ export function FinancialOverviewPage({
     return date;
   }, []);
 
-  // Filter transactions to only include those with date <= today
-  // Exclude future transactions as they haven't happened yet
+  // Filter transactions by household member and date
   const pastSelectedMonthTransactions = useMemo(() => {
-    return selectedMonthTransactions.filter((t) => {
+    const memberFiltered = filterTransactionsByMember(selectedMonthTransactions);
+    return memberFiltered.filter((t) => {
       if (!t.date) return false;
       try {
         const txDate = parseTransactionDate(t.date);
@@ -224,10 +291,11 @@ export function FinancialOverviewPage({
         return false; // Exclude if date parsing fails
       }
     });
-  }, [selectedMonthTransactions, today]);
+  }, [selectedMonthTransactions, today, filterTransactionsByMember]);
 
   const pastLastMonthTransactions = useMemo(() => {
-    return lastMonthTransactions.filter((t) => {
+    const memberFiltered = filterTransactionsByMember(lastMonthTransactions);
+    return memberFiltered.filter((t) => {
       if (!t.date) return false;
       try {
         const txDate = parseTransactionDate(t.date);
@@ -237,7 +305,65 @@ export function FinancialOverviewPage({
         return false; // Exclude if date parsing fails
       }
     });
-  }, [lastMonthTransactions, today]);
+  }, [lastMonthTransactions, today, filterTransactionsByMember]);
+
+  // Recalculate lastMonthTotalBalance based on filtered accounts and transactions
+  const filteredLastMonthTotalBalance = useMemo(() => {
+    return calculateLastMonthBalanceFromCurrent(
+      filteredTotalBalance,
+      pastSelectedMonthTransactions
+    );
+  }, [filteredTotalBalance, pastSelectedMonthTransactions]);
+
+  // Filter chart transactions by household member
+  const filteredChartTransactions = useMemo(() => {
+    return filterTransactionsByMember(chartTransactions);
+  }, [chartTransactions, filterTransactionsByMember]);
+
+  // Filter other data by household member
+  const filteredBudgets = useMemo(() => {
+    if (!selectedMemberId) {
+      return budgets;
+    }
+    return budgets.filter((b: any) => b.userId === selectedMemberId);
+  }, [budgets, selectedMemberId]);
+
+  const filteredGoals = useMemo(() => {
+    if (!selectedMemberId) {
+      return goals;
+    }
+    return goals.filter((g: any) => g.userId === selectedMemberId);
+  }, [goals, selectedMemberId]);
+
+  const filteredRecurringPayments = useMemo(() => {
+    if (!selectedMemberId) {
+      return recurringPayments;
+    }
+    return recurringPayments.filter((rp: any) => rp.userId === selectedMemberId);
+  }, [recurringPayments, selectedMemberId]);
+
+  const filteredSubscriptions = useMemo(() => {
+    if (!selectedMemberId) {
+      return subscriptions;
+    }
+    return subscriptions.filter((s: any) => s.userId === selectedMemberId);
+  }, [subscriptions, selectedMemberId]);
+
+  const filteredDebts = useMemo(() => {
+    if (!selectedMemberId) {
+      return debts;
+    }
+    return debts.filter((d: any) => d.userId === selectedMemberId);
+  }, [debts, selectedMemberId]);
+
+  const filteredLiabilities = useMemo(() => {
+    if (!selectedMemberId) {
+      return liabilities;
+    }
+    // Filter liabilities by account ownership
+    const filteredAccountIds = new Set(filteredAccounts.map((acc: any) => acc.id));
+    return liabilities.filter((l: any) => filteredAccountIds.has(l.accountId));
+  }, [liabilities, selectedMemberId, filteredAccounts]);
 
   // Calculate income and expenses using helper functions for consistency
   // Only include past transactions (exclude future ones)
@@ -258,29 +384,18 @@ export function FinancialOverviewPage({
     return calculateTotalExpenses(pastLastMonthTransactions);
   }, [pastLastMonthTransactions]);
 
-  // Calculate net worth (assets - debts)
-  // 
-  // ASSETS: totalBalance includes ALL account types:
-  // - Checking accounts (calculated from transactions)
-  // - Savings accounts (calculated from transactions)
-  // - Investment accounts (calculated from InvestmentAccount, AccountInvestmentValue, or Holdings)
-  // - All other account types
-  //
-  // The getAccounts() function already calculates investment account values correctly,
-  // so totalBalance is the sum of all account balances including investments.
+  // Calculate net worth (assets - debts) using filtered data
   const totalAssets = useMemo(() => {
-    return totalBalance;
-  }, [totalBalance]);
+    return filteredTotalBalance;
+  }, [filteredTotalBalance]);
 
-  // DEBTS: Sum of all liabilities and debts
-  // - PlaidLiabilities: debts from Plaid connections (credit cards, loans, etc.)
-  // - Debt table: manually entered debts (only those not paid off)
+  // DEBTS: Sum of all liabilities and debts (using filtered data)
   const totalDebts = useMemo(() => {
     let total = 0;
 
     // Calculate from PlaidLiabilities (from Plaid connections)
-    if (liabilities && liabilities.length > 0) {
-      const liabilitiesTotal = liabilities.reduce((sum: number, liability: any) => {
+    if (filteredLiabilities && filteredLiabilities.length > 0) {
+      const liabilitiesTotal = filteredLiabilities.reduce((sum: number, liability: any) => {
         // Try balance first (for backward compatibility), then currentBalance
         const balance = liability.balance ?? liability.currentBalance ?? null;
         
@@ -311,8 +426,8 @@ export function FinancialOverviewPage({
     }
 
     // Calculate from Debt table (manually entered debts, only those not paid off)
-    if (debts && debts.length > 0) {
-      const debtsTotal = debts.reduce((sum: number, debt: any) => {
+    if (filteredDebts && filteredDebts.length > 0) {
+      const debtsTotal = filteredDebts.reduce((sum: number, debt: any) => {
         // Only include debts that are not paid off
         if (debt.isPaidOff) {
           return sum;
@@ -345,7 +460,7 @@ export function FinancialOverviewPage({
     }
 
     return total;
-  }, [liabilities, debts]);
+  }, [filteredLiabilities, filteredDebts]);
 
   // NET WORTH = Total Assets - Total Debts
   const netWorth = totalAssets - totalDebts;
@@ -354,7 +469,7 @@ export function FinancialOverviewPage({
   // Otherwise calculate from total balance and monthly expenses
   const monthlyExpenses = currentExpenses || 1; // Avoid division by zero
   const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 
-    (totalBalance > 0 ? (totalBalance / monthlyExpenses) : 0);
+    (filteredTotalBalance > 0 ? (filteredTotalBalance / monthlyExpenses) : 0);
 
 
   return (
@@ -387,24 +502,31 @@ export function FinancialOverviewPage({
       </div>
       
       {/* Financial Summary - Full Width */}
-      <FinancialSummaryWidget
-        totalBalance={totalBalance}
-        monthlyIncome={currentIncome}
-        monthlyExpense={currentExpenses}
-        totalSavings={savings}
-        lastMonthIncome={lastMonthIncome}
-        lastMonthExpense={lastMonthExpenses}
+      <SummaryCards
+        selectedMonthTransactions={pastSelectedMonthTransactions}
+        lastMonthTransactions={pastLastMonthTransactions}
+        savings={filteredSavings}
+        totalBalance={filteredTotalBalance}
+        lastMonthTotalBalance={filteredLastMonthTotalBalance}
+        accounts={filteredAccounts}
+        selectedMemberId={selectedMemberId}
+        onMemberChange={setSelectedMemberId}
+        householdMembers={householdMembers}
+        isLoadingMembers={isLoadingMembers}
+        financialHealth={financialHealth}
+        expectedIncomeRange={expectedIncomeRange}
       />
 
       {/* Top Widgets - Spare Score and Expenses by Category side by side */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
         <FinancialHealthScoreWidget
           financialHealth={financialHealth}
-          selectedMonthTransactions={selectedMonthTransactions}
-          lastMonthTransactions={lastMonthTransactions}
+          selectedMonthTransactions={pastSelectedMonthTransactions}
+          lastMonthTransactions={pastLastMonthTransactions}
+          expectedIncomeRange={expectedIncomeRange}
         />
         <ExpensesByCategoryWidget
-          selectedMonthTransactions={selectedMonthTransactions}
+          selectedMonthTransactions={pastSelectedMonthTransactions}
           selectedMonthDate={selectedMonthDate}
         />
       </div>
@@ -412,28 +534,28 @@ export function FinancialOverviewPage({
       {/* Cash Flow Timeline and Budget Status side by side */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
         <CashFlowTimelineWidget
-          chartTransactions={chartTransactions}
+          chartTransactions={filteredChartTransactions}
           selectedMonthDate={selectedMonthDate}
         />
         <BudgetStatusWidget
-          budgets={budgets}
+          budgets={filteredBudgets}
         />
       </div>
 
       {/* Recurring Payments and Savings Goals side by side */}
       <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
       <RecurringPaymentsWidget
-        recurringPayments={recurringPayments}
+        recurringPayments={filteredRecurringPayments}
         monthlyIncome={currentIncome}
       />
         <SavingsGoalsWidget
-          goals={goals}
+          goals={filteredGoals}
         />
       </div>
 
       {/* Subscriptions Widget - Full Width */}
       <SubscriptionsWidget
-        subscriptions={subscriptions}
+        subscriptions={filteredSubscriptions}
       />
 
       {/* Dashboard Grid */}
@@ -447,7 +569,7 @@ export function FinancialOverviewPage({
               totalDebts={totalDebts}
             />
             <InvestmentPortfolioWidget
-              savings={savings}
+              savings={filteredSavings}
             />
           </div>
         </div>

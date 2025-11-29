@@ -5,7 +5,7 @@ import { formatMoney } from "@/components/common/money";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { ChartCard } from "@/components/charts/chart-card";
 import { Calendar, CreditCard } from "lucide-react";
-import type { Transaction } from "@/lib/api/transactions-client";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
 import { format, parseISO, getDay } from "date-fns";
 
 interface SpendingPatternsSectionProps {

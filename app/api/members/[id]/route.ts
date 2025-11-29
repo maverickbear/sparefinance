@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateMember, removeMember } from "@/lib/api/members";
-import { memberUpdateSchema, MemberUpdateFormData } from "@/lib/validations/member";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { memberUpdateSchema, MemberUpdateFormData } from "@/src/domain/members/members.validations";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
 
 export async function PATCH(

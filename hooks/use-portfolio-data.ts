@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getCurrentUserClient } from "@/lib/api/auth-client";
 import type { HistoricalDataPoint, PortfolioSummary } from "@/lib/api/portfolio";
 
 interface PortfolioData {
@@ -90,7 +89,13 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}) {
         setError(null);
 
         // Check if user is authenticated
-        const user = await getCurrentUserClient();
+        const response = await fetch("/api/v2/user");
+        if (!response.ok) {
+          setIsLoading(false);
+          return;
+        }
+        
+        const { user } = await response.json();
         if (!user) {
           setIsLoading(false);
           return;

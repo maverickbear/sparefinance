@@ -1,0 +1,135 @@
+/**
+ * Auth Repository
+ * Data access layer for authentication - only handles database operations
+ * No business logic here
+ */
+
+import { createServerClient } from "../supabase-server";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
+
+export interface UserRow {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  phoneNumber: string | null;
+  role: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export class AuthRepository {
+  /**
+   * Find user by ID
+   */
+  async findById(userId: string): Promise<UserRow | null> {
+    const supabase = await createServerClient();
+
+    const { data: user, error } = await supabase
+      .from("User")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      logger.error("[AuthRepository] Error fetching user:", error);
+      return null;
+    }
+
+    return user as UserRow;
+  }
+
+  /**
+   * Create user profile
+   */
+  async createUser(data: {
+    id: string;
+    email: string;
+    name: string | null;
+    role: string | null;
+  }): Promise<UserRow> {
+    const supabase = await createServerClient();
+    const now = formatTimestamp(new Date());
+
+    const { data: user, error } = await supabase
+      .from("User")
+      .insert({
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("[AuthRepository] Error creating user:", error);
+      throw new Error(`Failed to create user: ${error.message}`);
+    }
+
+    return user as UserRow;
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateUser(
+    userId: string,
+    data: Partial<{
+      name: string | null;
+      avatarUrl: string | null;
+      phoneNumber: string | null;
+    }>
+  ): Promise<UserRow> {
+    const supabase = await createServerClient();
+
+    const { data: user, error } = await supabase
+      .from("User")
+      .update({
+        ...data,
+        updatedAt: formatTimestamp(new Date()),
+      })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("[AuthRepository] Error updating user:", error);
+      throw new Error(`Failed to update user: ${error.message}`);
+    }
+
+    return user as UserRow;
+  }
+
+  /**
+   * Check for pending invitation
+   */
+  async findPendingInvitation(email: string): Promise<{ id: string; householdId: string; createdBy: string } | null> {
+    const supabase = await createServerClient();
+
+    const { data: invitation, error } = await supabase
+      .from("HouseholdMemberNew")
+      .select("id, householdId, Household(createdBy)")
+      .eq("email", email.toLowerCase())
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (error || !invitation) {
+      return null;
+    }
+
+    const household = invitation.Household as any;
+    return {
+      id: invitation.id,
+      householdId: invitation.householdId,
+      createdBy: household?.createdBy || "",
+    };
+  }
+}
+

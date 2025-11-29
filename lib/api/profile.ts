@@ -1,6 +1,6 @@
 "use server";
 
-import { ProfileFormData } from "@/lib/validations/profile";
+import { ProfileFormData } from "@/src/domain/profile/profile.validations";
 import { getCurrentUser, updateProfile as updateUserProfile } from "@/lib/api/auth";
 
 export interface Profile {

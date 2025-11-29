@@ -5,7 +5,7 @@ import { usePagePerformance } from "@/hooks/use-page-performance";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSearchParams, useRouter } from "next/navigation";
-import { profileSchema, ProfileFormData } from "@/lib/validations/profile";
+import { profileSchema, ProfileFormData } from "@/src/domain/profile/profile.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,12 +20,13 @@ import { Save, User, CreditCard, Upload, Loader2 } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { ChangePasswordForm } from "@/components/profile/change-password-form";
 import { DeleteAccountSection } from "@/components/profile/delete-account-section";
+import { HouseholdIncomeSettings } from "@/src/presentation/components/features/onboarding/household-income-settings";
 import { useToast } from "@/components/toast-provider";
 import { UsageChart } from "@/components/billing/usage-chart";
 import { SubscriptionManagementEmbedded } from "@/components/billing/subscription-management-embedded";
 import { PaymentMethodManager } from "@/components/billing/payment-method-manager";
-import { Subscription, Plan } from "@/lib/validations/plan";
-import { PlanFeatures } from "@/lib/validations/plan";
+import { Subscription, Plan } from "@/src/domain/subscriptions/subscriptions.validations";
+import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { LimitCheckResult } from "@/lib/api/subscription";
 import { PageHeader } from "@/components/common/page-header";
 import { FixedTabsWrapper } from "@/components/common/fixed-tabs-wrapper";
@@ -115,10 +116,8 @@ function ProfileModule() {
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: hasCachedData ? (profileDataCache.data?.name || "") : "",
-      email: hasCachedData ? (profileDataCache.data?.email || "") : "",
       avatarUrl: hasCachedData ? (profileDataCache.data?.avatarUrl || "") : "",
       phoneNumber: hasCachedData ? (profileDataCache.data?.phoneNumber || "") : "",
-      dateOfBirth: hasCachedData ? (profileDataCache.data?.dateOfBirth || "") : "",
     },
   });
 
@@ -127,10 +126,8 @@ function ProfileModule() {
     if (hasCachedData && profileDataCache.data) {
       form.reset({
         name: profileDataCache.data.name || "",
-        email: profileDataCache.data.email || "",
         avatarUrl: profileDataCache.data.avatarUrl || "",
         phoneNumber: profileDataCache.data.phoneNumber || "",
-        dateOfBirth: profileDataCache.data.dateOfBirth || "",
       });
       // Still call loadProfile in background to refresh if needed, but don't show loading
       loadProfile();
@@ -150,10 +147,8 @@ function ProfileModule() {
         setProfile(cached);
         form.reset({
           name: cached.name || "",
-          email: cached.email || "",
           avatarUrl: cached.avatarUrl || "",
           phoneNumber: cached.phoneNumber || "",
-          dateOfBirth: cached.dateOfBirth || "",
         });
         // Only set loading to false if it was true (don't change if already false)
         setLoading(false);
@@ -174,10 +169,8 @@ function ProfileModule() {
             setProfile(result);
             form.reset({
               name: result.name || "",
-              email: result.email || "",
               avatarUrl: result.avatarUrl || "",
               phoneNumber: result.phoneNumber || "",
-              dateOfBirth: result.dateOfBirth || "",
             });
           }
           setLoading(false);
@@ -199,8 +192,11 @@ function ProfileModule() {
       
       // Create fetch promise and cache it
       const fetchPromise = (async () => {
-        const { getProfileClient } = await import("@/lib/api/profile-client");
-        const profileData = await getProfileClient();
+        const response = await fetch("/api/v2/profile");
+        if (!response.ok) {
+          throw new Error("Failed to fetch profile");
+        }
+        const profileData = await response.json();
         
         // Update cache
         if (profileData) {
@@ -221,10 +217,8 @@ function ProfileModule() {
         setProfile(profileData);
         form.reset({
           name: profileData.name || "",
-          email: profileData.email || "",
           avatarUrl: profileData.avatarUrl || "",
           phoneNumber: profileData.phoneNumber || "",
-          dateOfBirth: profileData.dateOfBirth || "",
         });
       } else {
         const defaultProfile: Profile = {
@@ -235,7 +229,11 @@ function ProfileModule() {
           dateOfBirth: "",
         };
         setProfile(defaultProfile);
-        form.reset(defaultProfile);
+        form.reset({
+          name: "",
+          avatarUrl: "",
+          phoneNumber: "",
+        });
       }
     } catch (error) {
       console.error("Error loading profile:", error);
@@ -247,7 +245,11 @@ function ProfileModule() {
         dateOfBirth: "",
       };
       setProfile(defaultProfile);
-      form.reset(defaultProfile);
+      form.reset({
+        name: "",
+        avatarUrl: "",
+        phoneNumber: "",
+      });
       profileDataCache.promise = null;
     } finally {
       setLoading(false);
@@ -257,8 +259,20 @@ function ProfileModule() {
   async function onSubmit(data: ProfileFormData) {
     try {
       setSaving(true);
-      const { updateProfileClient } = await import("@/lib/api/profile-client");
-      const updatedProfile = await updateProfileClient(data);
+      const response = await fetch("/api/v2/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update profile");
+      }
+
+      const updatedProfile = await response.json();
       setProfile(updatedProfile);
       
       // Update cache after successful save
@@ -354,8 +368,20 @@ function ProfileModule() {
       
       // Save avatar URL to profile automatically
       try {
-        const { updateProfileClient } = await import("@/lib/api/profile-client");
-        const updatedProfile = await updateProfileClient({ avatarUrl: url });
+        const response = await fetch("/api/v2/profile", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ avatarUrl: url }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to update profile");
+        }
+
+        const updatedProfile = await response.json();
         setProfile(updatedProfile);
         
         // Update cache after successful avatar update
@@ -430,7 +456,7 @@ function ProfileModule() {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit as (data: ProfileFormData) => Promise<void>)}>
           <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-6">
             {/* Avatar Section - Left Side */}
             <div className="flex flex-col items-center sm:items-start space-y-2">
@@ -503,17 +529,17 @@ function ProfileModule() {
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
                   <Input
-                    {...form.register("email")}
                     id="email"
                     type="email"
-                    placeholder="user@example.com"
+                    value={profile?.email || ""}
+                    readOnly
+                    disabled
                     size="medium"
+                    className="bg-muted"
                   />
-                  {form.formState.errors.email && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.email.message}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Email cannot be changed
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -534,19 +560,16 @@ function ProfileModule() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                  <DatePicker
-                    date={form.watch("dateOfBirth") ? new Date(form.watch("dateOfBirth") as string) : undefined}
-                    onDateChange={(date) => {
-                      form.setValue("dateOfBirth", date ? date.toISOString().split("T")[0] : "");
-                    }}
-                    placeholder="YYYY-MM-DD"
+                  <Input
+                    id="dateOfBirth"
+                    type="text"
+                    value={profile?.dateOfBirth || ""}
+                    readOnly
+                    disabled
                     size="medium"
+                    className="bg-muted"
+                    placeholder="Not set"
                   />
-                  {form.formState.errors.dateOfBirth && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.dateOfBirth.message}
-                    </p>
-                  )}
                 </div>
               </div>
 
@@ -985,6 +1008,7 @@ export default function MyAccountPage() {
         <SimpleTabsContent value="profile">
           <div className="space-y-6">
             <ProfileModule />
+            <HouseholdIncomeSettings />
             <ChangePasswordForm />
             <DeleteAccountSection />
           </div>

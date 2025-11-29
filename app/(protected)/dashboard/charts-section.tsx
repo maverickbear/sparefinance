@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { GoalsOverview } from "@/components/dashboard/goals-overview";
 import { CategoryExpensesChart } from "@/components/charts/category-expenses-chart";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface ChartsSectionProps {
   selectedMonthTransactions: any[];

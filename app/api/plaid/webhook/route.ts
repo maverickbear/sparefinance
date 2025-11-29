@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { syncAccountTransactions } from '@/lib/api/plaid/sync';
 import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities';
 import { syncInvestmentAccounts } from '@/lib/api/plaid/investments';

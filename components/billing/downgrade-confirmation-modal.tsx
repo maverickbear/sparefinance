@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { AlertTriangle, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 

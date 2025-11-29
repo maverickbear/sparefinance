@@ -13,8 +13,10 @@ import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
 import { DeleteAccountWithTransferDialog } from "@/components/accounts/delete-account-with-transfer-dialog";
+import { ReconnectAccountDialog } from "@/components/accounts/reconnect-account-dialog";
 import { AccountCard } from "@/components/banking/account-card";
 import { AddAccountSheet } from "@/components/accounts/add-account-sheet";
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 import {
   Select,
   SelectContent,
@@ -34,7 +36,6 @@ import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/components/common/money";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { ErrorBoundary } from "@/components/common/error-boundary";
 
 interface Account {
   id: string;
@@ -78,6 +79,8 @@ export default function AccountsPage() {
   const { toast } = useToast();
   const { openDialog, ConfirmDialog } = useConfirmDialog();
   const { checkWriteAccess, canWrite } = useWriteGuard();
+  const breakpoint = useBreakpoint();
+  const isDesktop = breakpoint === "lg" || breakpoint === "xl" || breakpoint === "2xl";
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -94,6 +97,9 @@ export default function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [isAddAccountSheetOpen, setIsAddAccountSheetOpen] = useState(false);
+  const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
+  const [accountToReconnect, setAccountToReconnect] = useState<Account | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   // Update ref when perf changes (but don't trigger re-renders)
   useEffect(() => {
@@ -103,9 +109,13 @@ export default function AccountsPage() {
   const loadAccounts = useCallback(async () => {
     try {
       setLoading(true);
-      const { getAccountsClient } = await import("@/lib/api/accounts-client");
+      // Use API route instead of client-side API
       // OPTIMIZED: Skip investment balances calculation for Accounts page (not needed, saves ~1s)
-      const data = await getAccountsClient({ includeInvestmentBalances: false });
+      const response = await fetch("/api/v2/accounts?includeHoldings=false");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch accounts: ${response.statusText}`);
+      }
+      const data = await response.json();
       setAccounts(data);
       setHasLoaded(true);
       // Safely call markDataLoaded - perf object should always exist but add safety check
@@ -151,9 +161,17 @@ export default function AccountsPage() {
 
   async function handleAddAccount() {
     if (!checkWriteAccess()) return;
-    // Load limit before opening sheet for immediate display
+    // Load limit before opening form/sheet for immediate display
     await loadAccountLimit();
-    setIsAddAccountSheetOpen(true);
+    
+    // Desktop: Open form directly
+    // Mobile: Open sheet with options
+    if (isDesktop) {
+      setSelectedAccount(null);
+      setIsFormOpen(true);
+    } else {
+      setIsAddAccountSheetOpen(true);
+    }
   }
 
   async function handleDelete(id: string) {
@@ -162,8 +180,13 @@ export default function AccountsPage() {
     // Check if account has transactions
     setCheckingTransactions(true);
     try {
-      const { accountHasTransactionsClient } = await import("@/lib/api/accounts-client");
-      const hasTransactions = await accountHasTransactionsClient(id);
+      const response = await fetch(`/api/v2/accounts/${id}/has-transactions`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to check transactions");
+      }
+      
+      const { hasTransactions } = await response.json();
       
       if (hasTransactions) {
         // Open dialog to select destination account
@@ -205,8 +228,18 @@ export default function AccountsPage() {
     setDeletingId(id);
 
     try {
-      const { deleteAccountClient } = await import("@/lib/api/accounts-client");
-      await deleteAccountClient(id, transferToId);
+      const response = await fetch(`/api/v2/accounts/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ transferToAccountId: transferToId }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete account");
+      }
 
       toast({
         title: "Account deleted",
@@ -268,10 +301,30 @@ export default function AccountsPage() {
         body: JSON.stringify({ accountId }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        // If response is not JSON, use status text
+        throw new Error(`Failed to sync transactions: ${response.statusText || 'Unknown error'}`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to sync transactions');
+        // Extract error message from response
+        const errorMessage = data?.error || data?.message || `Failed to sync transactions (${response.status})`;
+        
+        // Handle specific Plaid errors - show reconnect dialog
+        if (data?.plaidErrorCode === 'ITEM_LOGIN_REQUIRED') {
+          const account = accounts.find(a => a.id === accountId);
+          if (account) {
+            setAccountToReconnect(account);
+            setReconnectDialogOpen(true);
+            setSyncingId(null); // Clear syncing state
+            return; // Don't show error toast, dialog will handle it
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       toast({
@@ -331,6 +384,50 @@ export default function AccountsPage() {
     }
   }
 
+  async function handleReconnect() {
+    if (!accountToReconnect) return;
+
+    try {
+      setReconnecting(true);
+      
+      // First, disconnect the account
+      const disconnectResponse = await fetch('/api/plaid/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: accountToReconnect.id }),
+      });
+
+      const disconnectData = await disconnectResponse.json();
+
+      if (!disconnectResponse.ok) {
+        throw new Error(disconnectData.error || 'Failed to disconnect account');
+      }
+
+      // Close the dialog
+      setReconnectDialogOpen(false);
+      setAccountToReconnect(null);
+
+      // Reload accounts to reflect the disconnection
+      await loadAccounts();
+
+      // Show success message and guide user to reconnect
+      toast({
+        title: 'Account disconnected',
+        description: 'Please use the "Connect Account" button to reconnect your bank account.',
+        variant: 'success',
+      });
+    } catch (error: any) {
+      console.error('Error reconnecting account:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to reconnect account',
+        variant: 'destructive',
+      });
+    } finally {
+      setReconnecting(false);
+    }
+  }
+
   // Get unique account types and owners for filters
   const uniqueTypes = useMemo(() => {
     const types = new Set(accounts.map(acc => acc.type));
@@ -375,10 +472,8 @@ export default function AccountsPage() {
     other: "Other",
   };
 
-
   return (
-    <ErrorBoundary>
-      <div>
+    <div>
         <PageHeader
           title="Accounts"
         >
@@ -845,6 +940,20 @@ export default function AccountsPage() {
         }}
       />
 
+      <ReconnectAccountDialog
+        open={reconnectDialogOpen}
+        onOpenChange={(open) => {
+          setReconnectDialogOpen(open);
+          if (!open) {
+            setAccountToReconnect(null);
+          }
+        }}
+        onReconnect={handleReconnect}
+        accountName={accountToReconnect?.name}
+        institutionName={accountToReconnect?.institutionName || undefined}
+        loading={reconnecting}
+      />
+
       {ConfirmDialog}
 
       {/* Mobile Fixed Button - Above bottom nav */}
@@ -872,7 +981,6 @@ export default function AccountsPage() {
         canWrite={canWrite}
       />
       </div>
-    </ErrorBoundary>
   );
 }
 

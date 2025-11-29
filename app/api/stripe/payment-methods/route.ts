@@ -5,7 +5,7 @@ import {
   deletePaymentMethod, 
   setDefaultPaymentMethod 
 } from "@/lib/api/stripe";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 export async function GET(request: NextRequest) {
   try {

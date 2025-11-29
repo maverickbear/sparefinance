@@ -2,14 +2,13 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { resetPasswordSchema, ResetPasswordFormData } from "@/lib/validations/auth";
+import { resetPasswordSchema, ResetPasswordFormData } from "@/src/domain/auth/auth.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
-import { resetPasswordClient } from "@/lib/api/auth-client";
 
 function ResetPasswordFormContent() {
   const router = useRouter();
@@ -89,10 +88,18 @@ function ResetPasswordFormContent() {
       setLoading(true);
       setError(null);
 
-      const result = await resetPasswordClient(data);
+      const response = await fetch("/api/v2/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-      if (result.error) {
-        setError(result.error);
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        setError(result.error || "Failed to reset password");
         setLoading(false);
         return;
       }

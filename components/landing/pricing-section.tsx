@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DynamicPricingTable } from "@/components/billing/dynamic-pricing-table";
 import { EmbeddedCheckout } from "@/components/billing/embedded-checkout";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { useToast } from "@/components/toast-provider";
 
 export function PricingSection() {

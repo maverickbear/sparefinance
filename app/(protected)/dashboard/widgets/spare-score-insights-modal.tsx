@@ -24,7 +24,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { calculateTotalExpenses } from "../utils/transaction-helpers";
-import type { FinancialHealthData } from "@/lib/api/financial-health";
+import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 interface SpareScoreInsightsModalProps {
   open: boolean;
@@ -118,17 +118,35 @@ export function SpareScoreInsightsModal({
     }
 
     // Emergency fund alert
-    if (emergencyFundMonths < 6) {
+    if (emergencyFundMonths < 6 && currentExpenses > 0) {
       const monthsNeeded = 6 - emergencyFundMonths;
       const monthlySavings = currentIncome - currentExpenses;
       const recommendedTransfer = monthlySavings > 0 ? Math.max((monthlySavings * 0.1), 250) : 250;
-      const monthsToReach = monthlySavings > 0 ? Math.ceil((monthsNeeded * currentExpenses) / monthlySavings) : 0;
+      
+      // Calculate total amount needed for 6 months coverage
+      const totalNeeded = monthsNeeded * currentExpenses;
+      
+      // Calculate months to reach goal using recommendedTransfer
+      // If recommendedTransfer is 0 or very small, show a message indicating it's not feasible
+      const monthsToReach = recommendedTransfer > 0 
+        ? Math.ceil(totalNeeded / recommendedTransfer)
+        : null;
+      
+      let actionText: string;
+      if (monthsToReach === null || monthsToReach === 0) {
+        actionText = `You need to save $${totalNeeded.toFixed(0)} to reach 6 months coverage. Consider increasing your savings rate or reducing expenses.`;
+      } else if (monthsToReach > 120) {
+        // More than 10 years - not realistic
+        actionText = `You need to save $${totalNeeded.toFixed(0)} to reach 6 months coverage. At $${recommendedTransfer.toFixed(0)}/month, this would take over 10 years. Consider increasing your savings rate.`;
+      } else {
+        actionText = `Set up an automatic transfer of $${recommendedTransfer.toFixed(0)}/month to reach 6 months coverage in approximately ${monthsToReach} ${monthsToReach === 1 ? 'month' : 'months'}.`;
+      }
       
       alertsList.push({
         type: "warning",
         badge: "Emergency fund",
         text: `Your emergency fund covers ${emergencyFundMonths.toFixed(1)} months. Aim for at least 6 months of expenses for better financial security.`,
-        action: `Set up an automatic transfer of $${recommendedTransfer.toFixed(0)}/month to reach 6 months coverage in approximately ${monthsToReach} months.`,
+        action: actionText,
         icon: <AlertCircle className="h-5 w-5" />,
         category: "security",
       });

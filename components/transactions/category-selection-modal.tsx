@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import {
   Select,
   SelectContent,
@@ -9,9 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Transaction } from "@/lib/api/transactions-client";
-import type { Category, Macro } from "@/lib/api/categories-client";
-import { getMacrosClient } from "@/lib/api/categories-client";
+import type { Transaction } from "@/src/domain/transactions/transactions.types";
+import type { Category, Macro } from "@/src/domain/categories/categories.types";
 
 interface CategorySelectionModalProps {
   transaction: Transaction | null;
@@ -64,8 +63,17 @@ export function CategorySelectionModal({
   // Load macros on mount
   useEffect(() => {
     async function loadMacros() {
-      const macrosData = await getMacrosClient();
-      setMacros(macrosData);
+      try {
+        const response = await fetch("/api/v2/categories");
+        if (!response.ok) {
+          throw new Error("Failed to fetch groups");
+        }
+        const groups = await response.json();
+        setMacros(groups);
+      } catch (error) {
+        logger.error("Error loading macros:", error);
+        setMacros([]);
+      }
     }
     loadMacros();
   }, []);

@@ -14,7 +14,8 @@ import {
   TrendingUp, 
   ChevronLeft, 
   ChevronRight, 
-  User, 
+  User,
+  ChevronDown,
 } from "lucide-react";
 import {
   Tooltip,
@@ -64,6 +65,7 @@ const navSections = [
 
 export function DashboardDemo() {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   return (
     <>
@@ -95,14 +97,39 @@ export function DashboardDemo() {
                 "flex-1 space-y-6 px-3 py-4 overflow-hidden",
                 isCollapsed && "overflow-visible"
               )}>
-                {navSections.map((section) => (
+                {navSections.map((section) => {
+                  const isSectionCollapsed = collapsedSections.has(section.title);
+                  return (
                   <div key={section.title} className="space-y-1">
                     {!isCollapsed && (
-                      <h3 className="px-3 pb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        {section.title}
-                      </h3>
+                      <button
+                        onClick={() => {
+                          setCollapsedSections(prev => {
+                            const next = new Set(prev);
+                            if (next.has(section.title)) {
+                              next.delete(section.title);
+                            } else {
+                              next.add(section.title);
+                            }
+                            return next;
+                          });
+                        }}
+                        className="flex items-center justify-between w-full px-3 pb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                      >
+                        <span>{section.title}</span>
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 transition-transform duration-200",
+                            isSectionCollapsed && "rotate-[-90deg]"
+                          )}
+                        />
+                      </button>
                     )}
-                    {section.items.map((item) => {
+                    <div className={cn(
+                      "transition-all duration-200 ease-in-out",
+                      isSectionCollapsed ? "max-h-0 overflow-hidden opacity-0" : "max-h-[500px] opacity-100"
+                    )}>
+                      {section.items.map((item) => {
                       const Icon = item.icon;
                       const isActive = item.href === "/dashboard";
                       const linkElement = (
@@ -140,8 +167,10 @@ export function DashboardDemo() {
 
                       return <div key={item.href}>{linkElement}</div>;
                     })}
+                    </div>
                   </div>
-                ))}
+                );
+                })}
               </nav>
 
               <div className="border-t p-3">

@@ -4,21 +4,25 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/components/common/money";
 import { Lightbulb } from "lucide-react";
-import type { FinancialHealthData } from "@/lib/api/financial-health";
+import type { FinancialHealthData } from "@/src/application/shared/financial-health";
+import { formatExpectedIncomeRange } from "@/src/presentation/utils/format-expected-income";
 
 interface FinancialHealthScoreWidgetProps {
   financialHealth: FinancialHealthData | null;
   selectedMonthTransactions: any[];
   lastMonthTransactions: any[];
+  expectedIncomeRange?: string | null;
 }
 
 export function FinancialHealthScoreWidget({
   financialHealth,
   selectedMonthTransactions,
   lastMonthTransactions,
+  expectedIncomeRange,
 }: FinancialHealthScoreWidgetProps) {
   const router = useRouter();
   
@@ -169,8 +173,17 @@ export function FinancialHealthScoreWidget({
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
         <CardTitle>Spare Score</CardTitle>
         <CardDescription>Combined view of spending, savings and debt</CardDescription>
+          </div>
+          {financialHealth?.isProjected && (
+            <Badge variant="outline" className="text-xs">
+              Projected
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
         <div className="space-y-4 flex-1 flex flex-col">
@@ -179,9 +192,26 @@ export function FinancialHealthScoreWidget({
             <div className={cn("text-4xl md:text-5xl lg:text-6xl font-bold tabular-nums leading-none", getScoreColor(score))}>
               {score}
             </div>
-            <div className="text-sm md:text-base font-medium text-foreground mt-1 md:mt-2">
+            <div className="flex items-center gap-2 mt-1 md:mt-2">
+              <div className="text-sm md:text-base font-medium text-foreground">
               {getClassificationText(score)}
             </div>
+            {financialHealth?.isProjected && (
+              <Badge variant="secondary" className="text-xs">
+                Based on expected income
+              </Badge>
+            )}
+          </div>
+          {financialHealth?.isProjected && expectedIncomeRange && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Expected income: {formatExpectedIncomeRange(expectedIncomeRange)}
+            </p>
+          )}
+          {financialHealth?.isProjected && financialHealth?.message && !expectedIncomeRange && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {financialHealth.message}
+            </p>
+          )}
           </div>
 
           {/* Horizontal Gauge */}

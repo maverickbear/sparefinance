@@ -14,7 +14,7 @@ import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-wi
 import { PortfolioPerformanceWidget } from "@/app/(protected)/dashboard/widgets/portfolio-performance-widget";
 import { calculateTotalIncome, calculateTotalExpenses } from "@/app/(protected)/dashboard/utils/transaction-helpers";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
-import type { TransactionWithRelations } from "@/lib/types/transaction.types";
+import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
 
 // Mock data
 
@@ -271,11 +271,11 @@ export function DashboardDemoStatic() {
           status: "active" as const,
           planId: "demo-plan",
           userId: "demo-user",
+          householdId: null,
           stripeSubscriptionId: null,
           stripeCustomerId: null,
           currentPeriodStart: null,
           currentPeriodEnd: null,
-          trialStartDate: null,
           trialEndDate: null,
           cancelAtPeriodEnd: false,
           createdAt: new Date(),

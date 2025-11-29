@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 /**
  * Calculate next due date based on day of month

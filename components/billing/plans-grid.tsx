@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plan, Subscription } from "@/lib/validations/plan";
+import { Plan, Subscription } from "@/src/domain/subscriptions/subscriptions.validations";
 import { Loader2 } from "lucide-react";
 import { ChangePlanConfirmationModal } from "@/components/billing/change-plan-confirmation";
 import { useToast } from "@/components/toast-provider";

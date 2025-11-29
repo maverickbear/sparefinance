@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { debtSchema, DebtFormData } from "@/lib/validations/debt";
+import { debtSchema, DebtFormData } from "@/src/domain/debts/debts.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatMoney } from "@/components/common/money";
-import { formatTransactionDate, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
+import { formatTransactionDate, parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { PercentageInput } from "@/components/common/percentage-input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -30,8 +30,8 @@ import { calculateDebtMetrics, convertToMonthlyPayment, convertFromMonthlyPaymen
 import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
-import { getAllCategoriesClient, getMacrosClient } from "@/lib/api/categories-client";
-import type { Category } from "@/lib/api/categories-client";
+// Using API routes instead of client-side APIs
+import type { Category } from "@/src/domain/categories/categories.types";
 
 interface Debt {
   id: string;
@@ -593,8 +593,8 @@ export function DebtForm({
 
   async function loadDebtsCategories() {
     try {
-      // OPTIMIZED: Single API call to get both groups and categories
-      const response = await fetch("/api/categories?consolidated=true");
+      // OPTIMIZED: Single API call to get both groups and categories using v2 API route
+      const response = await fetch("/api/v2/categories?consolidated=true");
       if (!response.ok) {
         throw new Error("Failed to fetch categories data");
       }
@@ -616,17 +616,23 @@ export function DebtForm({
       setDebtsCategories(debtsCategoriesList);
     } catch (error) {
       console.error("Error loading debts categories:", error);
-      // Fallback to separate calls if consolidated endpoint fails
+      // Fallback to API routes if consolidated endpoint fails
       try {
-        const { getAllCategoriesClient, getMacrosClient } = await import("@/lib/api/categories-client");
-        const [allCategories, macros] = await Promise.all([
-          getAllCategoriesClient(),
-          getMacrosClient(),
+        const [categoriesResponse, groupsResponse] = await Promise.all([
+          fetch("/api/v2/categories?all=true"),
+          fetch("/api/v2/categories"),
         ]);
-        const debtsGroup = macros.find((macro) => macro.name.toLowerCase() === "debts");
+        if (!categoriesResponse.ok || !groupsResponse.ok) {
+          throw new Error("Failed to fetch categories");
+        }
+        const [allCategories, macros] = await Promise.all([
+          categoriesResponse.json(),
+          groupsResponse.json(),
+        ]);
+        const debtsGroup = macros.find((macro: any) => macro.name.toLowerCase() === "debts");
         if (debtsGroup) {
           const debtsCategoriesList = allCategories.filter(
-            (cat) => cat.groupId === debtsGroup.id
+            (cat: any) => cat.groupId === debtsGroup.id
           );
           setDebtsCategories(debtsCategoriesList);
         }

@@ -1,7 +1,7 @@
 "use server";
 
 import { getPlannedPayments, markPlannedPaymentAsPaid } from "@/lib/api/planned-payments";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 /**
  * Process planned payments that are due today or in the past

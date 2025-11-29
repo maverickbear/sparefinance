@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { investmentTransactionSchema, InvestmentTransactionFormData } from "@/lib/validations/investment";
+import { investmentTransactionSchema, InvestmentTransactionFormData } from "@/src/domain/investments/investments.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,7 +27,7 @@ import { Loader2, Check, Sparkles } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 import { Label } from "@/components/ui/label";
-import { parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
+import { parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1168,7 +1168,13 @@ export function InvestmentTransactionForm({
               <div className="space-y-1">
                 <Label>Date</Label>
                 <DatePicker
-                  date={form.watch("date")}
+                  date={(() => {
+                    const dateValue = form.watch("date");
+                    if (!dateValue) return undefined;
+                    if (typeof dateValue === 'string') return new Date(dateValue);
+                    if (dateValue instanceof Date) return dateValue;
+                    return undefined;
+                  })()}
                   onDateChange={(date) => {
                     form.setValue("date", date || new Date());
                   }}

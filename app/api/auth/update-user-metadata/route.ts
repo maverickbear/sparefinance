@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
-import { createServiceRoleClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 
 /**
  * POST /api/auth/update-user-metadata

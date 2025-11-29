@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateAllSecurityPrices } from "@/lib/api/market-prices";
-import { guardFeatureAccess, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 export async function POST(request: NextRequest) {
   try {

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Subscription, Plan } from "@/lib/validations/plan";
+import { Subscription, Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { format } from "date-fns";
 import { CreditCard, Loader2, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/toast-provider";

@@ -9,7 +9,7 @@ import { useFixedElementsHeight } from "@/hooks/use-fixed-elements-height";
 import { useEffect, useState, memo, useMemo } from "react";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
 import { usePathname } from "next/navigation";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { cn } from "@/lib/utils";
 
 // Preload profile data hook - loads profile in background when app starts
@@ -20,8 +20,7 @@ function useProfilePreload() {
     // The cache in settings/page.tsx will handle this efficiently
     const preloadProfile = async () => {
       try {
-        const { getProfileClient } = await import("@/lib/api/profile-client");
-        await getProfileClient();
+        await fetch("/api/v2/profile");
       } catch (error) {
         // Silently fail - data will load when needed
         console.debug("Profile preload failed:", error);

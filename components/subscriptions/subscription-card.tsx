@@ -17,7 +17,7 @@ import {
   Pause,
   Play,
 } from "lucide-react";
-import type { UserServiceSubscription } from "@/lib/api/user-subscriptions-client";
+import type { UserServiceSubscription } from "@/src/domain/subscriptions/subscriptions.types";
 
 export interface SubscriptionCardProps {
   subscription: UserServiceSubscription;

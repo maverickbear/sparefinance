@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calculateFinancialHealth } from "@/lib/api/financial-health";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { calculateFinancialHealth } from "@/src/application/shared/financial-health";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {

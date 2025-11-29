@@ -12,6 +12,7 @@ export const planFeaturesSchema = z.object({
   hasBankIntegration: z.boolean(),
   hasHousehold: z.boolean(),
   hasBudgets: z.boolean(),
+  hasReceiptScanner: z.boolean(),
 });
 
 export type PlanFeatures = z.infer<typeof planFeaturesSchema>;

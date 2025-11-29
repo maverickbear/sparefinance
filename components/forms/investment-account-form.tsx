@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { investmentAccountSchema, InvestmentAccountFormData } from "@/lib/validations/investment";
+import { investmentAccountSchema, InvestmentAccountFormData } from "@/src/domain/investments/investments.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

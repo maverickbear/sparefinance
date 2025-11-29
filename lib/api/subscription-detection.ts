@@ -1,8 +1,8 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { logger } from "@/lib/utils/logger";
-import { getTransactionAmount, decryptDescription } from "@/lib/utils/transaction-encryption";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { getTransactionAmount, decryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
 import type { PlaidTransactionMetadata } from "@/lib/api/plaid/types";
 import { getPlaidMetadataField } from "@/lib/api/plaid/utils";
 

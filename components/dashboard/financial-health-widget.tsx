@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FinancialHealthData } from "@/lib/api/financial-health";
+import { FinancialHealthData } from "@/src/application/shared/financial-health";
 import { FinancialHealthModal } from "./financial-health-modal";
 import { 
   TrendingUp, 

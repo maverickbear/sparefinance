@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPlannedPayment, getPlannedPayments, PLANNED_HORIZON_DAYS } from "@/lib/api/planned-payments";
 import { PlannedPaymentFormData } from "@/lib/api/planned-payments";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 
 export async function GET(request: NextRequest) {
   try {

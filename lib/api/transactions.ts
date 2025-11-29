@@ -2,18 +2,18 @@
 
 import { unstable_cache, revalidateTag } from "next/cache";
 import { cookies } from "next/headers";
-import { createServerClient } from "@/lib/supabase-server";
-import { TransactionFormData } from "@/lib/validations/transaction";
-import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp, parseDateInput } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { TransactionFormData } from "@/src/domain/transactions/transactions.validations";
+import { formatTimestamp, formatDateStart, formatDateEnd, formatDateOnly, getCurrentTimestamp, parseDateInput } from "@/src/infrastructure/utils/timestamp";
 import { getDebts } from "@/lib/api/debts";
 import { calculateNextPaymentDates, type DebtForCalculation } from "@/lib/utils/debts";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
 import { getPlannedPayments, PLANNED_HORIZON_DAYS, generatePlannedPaymentsFromRecurringTransaction } from "@/lib/api/planned-payments";
-import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/lib/api/feature-guard";
-import { requireTransactionOwnership } from "@/lib/utils/security";
-import { suggestCategory, updateCategoryLearning } from "@/lib/api/category-learning";
-import { logger } from "@/lib/utils/logger";
-import { encryptDescription, decryptDescription, decryptAmount, normalizeDescription, getTransactionAmount } from "@/lib/utils/transaction-encryption";
+import { guardTransactionLimit, getCurrentUserId, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
+import { suggestCategory, updateCategoryLearning } from "@/src/application/shared/category-learning";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { encryptDescription, decryptDescription, decryptAmount, normalizeDescription, getTransactionAmount } from "@/src/infrastructure/utils/transaction-encryption";
 import { getUserSubscriptionData } from "@/lib/api/subscription";
 import { 
   getActiveCreditCardDebt, 
@@ -35,13 +35,31 @@ export async function createTransaction(data: TransactionFormData, providedUserI
   if (providedUserId) {
     // Server-side operation (e.g., Plaid sync, background jobs)
     // Validate that the account belongs to this user for security
-    const { data: account } = await supabase
+    // Note: In service role context, RLS is bypassed, so we can query directly
+    const { data: account, error: accountError } = await supabase
       .from('Account')
       .select('userId')
       .eq('id', data.accountId)
       .single();
     
-    if (!account || account.userId !== providedUserId) {
+    // If account doesn't exist, that's an error
+    if (accountError || !account) {
+      logger.error('Account not found when creating transaction:', {
+        accountId: data.accountId,
+        providedUserId,
+        error: accountError,
+      });
+      throw new Error(`Account not found: ${accountError?.message || 'Unknown error'}`);
+    }
+    
+    // If account has a userId, it must match the provided userId
+    // If account.userId is null (legacy accounts), allow it in server context
+    if (account.userId !== null && account.userId !== providedUserId) {
+      logger.error('Account userId mismatch:', {
+        accountId: data.accountId,
+        accountUserId: account.userId,
+        providedUserId,
+      });
       throw new Error("Unauthorized: Account does not belong to user");
     }
     

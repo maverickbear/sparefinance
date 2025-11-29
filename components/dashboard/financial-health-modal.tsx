@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FinancialHealthData } from "@/lib/api/financial-health";
+import { FinancialHealthData } from "@/src/application/shared/financial-health";
 import { formatMoney } from "@/components/common/money";
 import { cn } from "@/lib/utils";
 import {

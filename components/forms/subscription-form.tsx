@@ -25,30 +25,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
-import { formatTransactionDate, parseDateInput, formatDateInput } from "@/lib/utils/timestamp";
+import { formatTransactionDate, parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp";
 import { useToast } from "@/components/toast-provider";
 import { formatMoney } from "@/components/common/money";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Plus, Check } from "lucide-react";
-import { getAllCategoriesClient } from "@/lib/api/categories-client";
-import type { Category } from "@/lib/api/categories-client";
-import { getAccountsClient } from "@/lib/api/accounts-client";
-import type { Account } from "@/lib/api/accounts-client";
-import {
-  createUserSubscriptionClient,
-  updateUserSubscriptionClient,
-  type UserServiceSubscription,
-  type UserServiceSubscriptionFormData,
-} from "@/lib/api/user-subscriptions-client";
-import {
-  getSubscriptionServicesClient,
-  getSubscriptionServicePlansClient,
-  type SubscriptionServiceCategory,
-  type SubscriptionService,
-  type SubscriptionServicePlan,
-} from "@/lib/api/subscription-services-client";
+// Using API routes instead of client-side APIs
+import type { Category } from "@/src/domain/categories/categories.types";
+import type { Account } from "@/src/domain/accounts/accounts.types";
+import type {
+  UserServiceSubscription,
+  UserServiceSubscriptionFormData,
+} from "@/src/domain/subscriptions/subscriptions.types";
 
 interface SubscriptionFormProps {
   subscription?: UserServiceSubscription;
@@ -74,9 +64,9 @@ export function SubscriptionForm({
   const [newSubcategoryName, setNewSubcategoryName] = useState("");
   
   // New subscription services state
-  const [subscriptionServiceCategories, setSubscriptionServiceCategories] = useState<SubscriptionServiceCategory[]>([]);
+  const [subscriptionServiceCategories, setSubscriptionServiceCategories] = useState<any[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  const [availablePlans, setAvailablePlans] = useState<SubscriptionServicePlan[]>([]);
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(false);
 
@@ -209,14 +199,18 @@ export function SubscriptionForm({
 
   async function loadSubscriptionServices() {
     try {
-      const data = await getSubscriptionServicesClient();
+      const response = await fetch("/api/subscription-services");
+      if (!response.ok) {
+        throw new Error("Failed to fetch subscription services");
+      }
+      const data = await response.json();
       setSubscriptionServiceCategories(data.categories || []);
       
       // If editing and we have a service name, try to find and select the service
       if (subscription && subscription.serviceName && data.categories.length > 0) {
         const service = data.categories
-          .flatMap((cat) => cat.services)
-          .find((s) => s.name === subscription.serviceName);
+          .flatMap((cat: any) => cat.services)
+          .find((s: any) => s.name === subscription.serviceName);
         if (service) {
           setSelectedServiceId(service.id);
           loadPlansForService(service.id);
@@ -231,7 +225,14 @@ export function SubscriptionForm({
     setLoadingPlans(true);
     setSelectedPlanId(null);
     try {
-      const plans = await getSubscriptionServicePlansClient(serviceId);
+      const plansResponse = await fetch(
+        `/api/subscription-services/plans?serviceId=${encodeURIComponent(serviceId)}`
+      );
+      if (!plansResponse.ok) {
+        throw new Error("Failed to fetch subscription service plans");
+      }
+      const plansData = await plansResponse.json();
+      const plans = plansData.plans || [];
       setAvailablePlans(plans);
       // Default to none selected - user must explicitly choose a plan
     } catch (error) {
@@ -372,7 +373,11 @@ export function SubscriptionForm({
 
   async function loadAccounts() {
     try {
-      const data = await getAccountsClient();
+      const response = await fetch("/api/v2/accounts?includeHoldings=false");
+      if (!response.ok) {
+        throw new Error("Failed to fetch accounts");
+      }
+      const data = await response.json();
       setAccounts(data);
       if (data.length > 0 && !subscription) {
         form.setValue("accountId", data[0].id);
@@ -389,7 +394,11 @@ export function SubscriptionForm({
 
   async function loadAllCategories() {
     try {
-      const categories = await getAllCategoriesClient();
+      const response = await fetch("/api/v2/categories?all=true");
+      if (!response.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      const categories = await response.json();
       setAllCategories(categories);
     } catch (error) {
       console.error("Error loading categories:", error);
@@ -488,7 +497,7 @@ export function SubscriptionForm({
       const category = subscriptionServiceCategories.find(
         (cat) => cat.id === categoryId
       );
-      const service = category?.services.find((s) => s.id === selectedServiceId);
+      const service = category?.services.find((s: any) => s.id === selectedServiceId);
       if (!service) {
         setSelectedServiceId(null);
         form.setValue("serviceName", "");
@@ -583,14 +592,36 @@ export function SubscriptionForm({
       // Save subscription
       let savedSubscription: UserServiceSubscription;
       if (subscription) {
-        savedSubscription = await updateUserSubscriptionClient(subscription.id, formData);
+        const response = await fetch(`/api/user-subscriptions/${subscription.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to update subscription");
+        }
+        savedSubscription = await response.json();
         toast({
           title: "Success",
           description: "Subscription updated successfully",
           variant: "success",
         });
       } else {
-        savedSubscription = await createUserSubscriptionClient(formData);
+        const response = await fetch("/api/user-subscriptions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to create subscription");
+        }
+        savedSubscription = await response.json();
         toast({
           title: "Success",
           description: "Subscription created successfully",

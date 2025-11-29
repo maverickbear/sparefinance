@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { CheckCircle2, Loader2, Lock, Eye, EyeOff, AlertCircle, Wallet, TrendingUp, Shield, Zap } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signUpSchema, SignUpFormData } from "@/lib/validations/auth";
+import { signUpSchema, SignUpFormData } from "@/src/domain/auth/auth.validations";
 
 function SuccessContent() {
   const router = useRouter();
@@ -106,8 +106,11 @@ function SuccessContent() {
         
         // Fetch subscription status to determine copy
         try {
-          const { getUserClient } = await import("@/lib/api/user-client");
-          const userData = await getUserClient();
+          const response = await fetch("/api/v2/user");
+          if (!response.ok) {
+            throw new Error("Failed to fetch user data");
+          }
+          const userData = await response.json();
           if (userData.subscription) {
             setSubscriptionStatus(userData.subscription.status);
             setTrialEndDate(userData.subscription.trialEndDate || null);

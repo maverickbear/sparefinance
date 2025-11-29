@@ -1,8 +1,8 @@
 "use server";
 
 import Stripe from "stripe";
-import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
-import { PlanFeatures } from "@/lib/validations/plan";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
+import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY is not set");
@@ -1520,6 +1520,7 @@ const FEATURE_DEFINITIONS = [
   { lookupKey: "debts", name: "Debt Tracking", description: "Track and manage debts" },
   { lookupKey: "goals", name: "Goals", description: "Set and track financial goals" },
   { lookupKey: "bank_integration", name: "Bank Integration", description: "Connect bank accounts via Plaid" },
+  { lookupKey: "receipt_scanner", name: "Receipt Scanner", description: "AI-powered receipt scanning and transaction extraction" },
 ] as const;
 
 /**
@@ -1619,6 +1620,7 @@ export async function syncPlanFeaturesToStripe(planId: string): Promise<{ succes
       debts: plan.features.hasDebts,
       goals: plan.features.hasGoals,
       bank_integration: plan.features.hasBankIntegration,
+      receipt_scanner: plan.features.hasReceiptScanner,
     };
 
     // Create/update all features in Stripe

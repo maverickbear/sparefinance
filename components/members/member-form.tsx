@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { memberInviteSchema, MemberInviteFormData, memberUpdateSchema, MemberUpdateFormData } from "@/lib/validations/member";
+import { memberInviteSchema, MemberInviteFormData, memberUpdateSchema, MemberUpdateFormData } from "@/src/domain/members/members.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import type { HouseholdMember } from "@/lib/api/members-client";
+import type { HouseholdMember } from "@/src/domain/members/members.types";
 
 interface MemberFormProps {
   open: boolean;

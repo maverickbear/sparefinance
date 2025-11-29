@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
-import type { Category, Macro } from "@/lib/api/categories-client";
+import type { Category, Macro, BaseGroup } from "@/src/domain/categories/categories.types";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 import {
@@ -74,8 +74,11 @@ export default function CategoriesPage() {
 
   async function loadCurrentUser() {
     try {
-      const { getUserClient } = await import("@/lib/api/user-client");
-      const data = await getUserClient();
+      const response = await fetch("/api/v2/user");
+      if (!response.ok) {
+        throw new Error("Failed to fetch user data");
+      }
+      const data = await response.json();
       if (data.user) {
         setCurrentUserId(data.user?.id || null);
       }
@@ -86,8 +89,8 @@ export default function CategoriesPage() {
 
   async function loadData() {
     try {
-      // OPTIMIZED: Single API call to get both groups and categories
-      const response = await fetch("/api/categories?consolidated=true");
+      // OPTIMIZED: Single API call to get both groups and categories using v2 API route
+      const response = await fetch("/api/v2/categories?consolidated=true");
       if (!response.ok) {
         throw new Error("Failed to fetch categories data");
       }
@@ -98,18 +101,6 @@ export default function CategoriesPage() {
       perf.markDataLoaded();
     } catch (error) {
       logger.error("Error loading data:", error);
-      // Fallback to separate calls if consolidated endpoint fails
-      try {
-      const { getAllCategoriesClient, getMacrosClient } = await import("@/lib/api/categories-client");
-      const [allCategories, macrosData] = await Promise.all([
-        getAllCategoriesClient(),
-        getMacrosClient(),
-      ]);
-      setCategories(allCategories);
-      setMacros(macrosData);
-      } catch (fallbackError) {
-        logger.error("Error in fallback loading:", fallbackError);
-      }
       perf.markDataLoaded();
     }
   }
@@ -193,8 +184,12 @@ export default function CategoriesPage() {
           group.categories.push(category);
         }
       } else {
+        const fallbackGroup: BaseGroup = { id: macroId, name: "Unknown", type: null };
+        const group: BaseGroup = (category.group && 'type' in category.group && category.group.type !== undefined)
+          ? { id: category.group.id, name: category.group.name, type: category.group.type as "income" | "expense" | null }
+          : fallbackGroup;
         systemGroupsMap.set(macroId, {
-          macro: category.group || { id: macroId, name: "Unknown" },
+          macro: group,
           categories: [category],
         });
       }
@@ -264,8 +259,14 @@ export default function CategoriesPage() {
         setDeletingCategoryId(id);
 
         try {
-          const { deleteCategoryClient } = await import("@/lib/api/categories-client");
-          await deleteCategoryClient(id);
+          const response = await fetch(`/api/v2/categories/${id}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete category");
+          }
           
           toast({
             title: "Category deleted",
@@ -305,8 +306,14 @@ export default function CategoriesPage() {
       async () => {
         setDeletingSubcategoryId(id);
         try {
-          const { deleteSubcategoryClient } = await import("@/lib/api/categories-client");
-          await deleteSubcategoryClient(id);
+          const response = await fetch(`/api/v2/categories/subcategories/${id}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete subcategory");
+          }
           
           toast({
             title: "Subcategory deleted",
@@ -347,8 +354,14 @@ export default function CategoriesPage() {
         setDeletingGroupId(macroId);
 
         try {
-          const { deleteGroupClient } = await import("@/lib/api/categories-client");
-          await deleteGroupClient(macroId);
+          const response = await fetch(`/api/v2/categories/groups/${macroId}`, {
+            method: "DELETE",
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || "Failed to delete group");
+          }
           
           toast({
             title: "Group deleted",

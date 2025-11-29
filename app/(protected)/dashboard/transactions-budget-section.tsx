@@ -1,7 +1,7 @@
 import { UpcomingTransactions } from "@/components/dashboard/upcoming-transactions";
 import { BudgetExecutionChart } from "@/components/charts/budget-execution-chart";
 import { SavingsDistributionWidget } from "@/components/dashboard/savings-distribution-widget";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface TransactionsBudgetSectionProps {
   budgets: any[];

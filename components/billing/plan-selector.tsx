@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { Check } from "lucide-react";
 import { useState } from "react";
 
@@ -23,7 +23,7 @@ interface PlanSelectorProps {
 export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPlan, loading, showComparison = false, isPublic = false, alreadyHadTrial = false, subscriptionStatus, trialEndDate }: PlanSelectorProps) {
   const [interval, setInterval] = useState<"month" | "year">("month");
   const sortedPlans = [...plans].sort((a, b) => {
-    const order = { essential: 1, pro: 2 };
+    const order: Record<string, number> = { essential: 1, pro: 2 };
     return (order[a.name] || 0) - (order[b.name] || 0);
   });
 

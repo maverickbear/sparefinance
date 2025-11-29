@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Edit, Check, X } from "lucide-react";
-import type { Plan, PlanFeatures } from "@/lib/validations/plan";
+import type { Plan, PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { formatMoney } from "@/components/common/money";
 
 interface PlansTableProps {

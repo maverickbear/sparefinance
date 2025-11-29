@@ -4,25 +4,27 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { AccountForm } from "@/components/forms/account-form";
-import { Progress } from "@/components/ui/progress";
 import { 
   Wallet, 
   User,
   CheckCircle2, 
   X,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  DollarSign,
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getAccountsClient } from "@/lib/api/accounts-client";
-import { getProfileClient } from "@/lib/api/profile-client";
+// Using API routes instead of client-side APIs
 import { formatMoney } from "@/components/common/money";
 import { ProfileModal } from "@/components/profile/profile-modal";
 
 interface OnboardingStatus {
   hasAccount: boolean;
   hasCompleteProfile: boolean;
+  hasExpectedIncome: boolean;
   completedCount: number;
   totalCount: number;
   totalBalance?: number;
@@ -59,12 +61,51 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
     }
   }, [initialStatus]);
 
+  // Check status when page becomes visible again (user returns from income page)
+  useEffect(() => {
+    let mounted = true;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && mounted) {
+        // Refresh status when page becomes visible (user returns from income page)
+        checkStatus();
+      }
+    };
+
+    // Also check on focus (when user switches back to tab)
+    const handleFocus = () => {
+      if (mounted) {
+        checkStatus();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      mounted = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function checkStatus() {
     try {
       setLoading(true);
-      const [accounts, profile] = await Promise.all([
-        getAccountsClient(),
-        getProfileClient(),
+      const [accountsResponse, profileResponse, incomeResponse] = await Promise.all([
+        fetch("/api/v2/accounts?includeHoldings=false"),
+        fetch("/api/v2/profile"),
+        fetch("/api/v2/onboarding/income").catch(() => ({ ok: false })), // Don't fail if income check fails
+      ]);
+      
+      if (!accountsResponse.ok || !profileResponse.ok) {
+        throw new Error("Failed to fetch data");
+      }
+      
+      const [accounts, profile, incomeData] = await Promise.all([
+        accountsResponse.json(),
+        profileResponse.json(),
+        incomeResponse.ok && 'json' in incomeResponse ? incomeResponse.json() : Promise.resolve({ hasExpectedIncome: false }),
       ]);
 
       const hasAccount = accounts.length > 0;
@@ -72,7 +113,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
       // The balance should already include initialBalance from getAccountsClient,
       // but we'll use initialBalance as fallback if balance is missing
       const totalBalance = hasAccount 
-        ? accounts.reduce((sum, acc) => {
+        ? accounts.reduce((sum: number, acc: any) => {
             // Use balance if available, otherwise fall back to initialBalance
             let accountBalance = 0;
             if (acc.balance !== undefined && acc.balance !== null) {
@@ -95,14 +136,16 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
         : undefined;
       
       const hasCompleteProfile = profile !== null && profile.name !== null && profile.name.trim() !== "";
+      const hasExpectedIncome = incomeData.hasExpectedIncome || false;
 
-      const completedCount = [hasAccount, hasCompleteProfile].filter(Boolean).length;
+      const completedCount = [hasAccount, hasCompleteProfile, hasExpectedIncome].filter(Boolean).length;
 
       const newStatus = {
         hasAccount,
         hasCompleteProfile,
+        hasExpectedIncome,
         completedCount,
-        totalCount: 2,
+        totalCount: 3, // Updated to include income step
         totalBalance,
       };
 
@@ -112,7 +155,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
       // If onboarding is not complete but was dismissed, reset dismissal
       const dismissed = localStorage.getItem("onboarding-widget-dismissed");
       if (dismissed === "true") {
-        if (completedCount === 2) {
+        if (completedCount === 3) { // Updated to 3 (profile, income, account)
           setIsDismissed(true);
         } else {
           // Reset dismissal if not complete
@@ -147,6 +190,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
   }
 
   // Don't render if all actions are completed
+  // Note: totalCount is now 3 (account, profile, income)
   if (status && status.completedCount === status.totalCount) {
     return null;
   }
@@ -169,11 +213,10 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
     );
   }
 
-  const progressPercentage = (status.completedCount / status.totalCount) * 100;
-
-  const actions = [
+  const steps = [
     {
       id: "profile",
+      stepNumber: 1,
       title: "Complete Profile",
       description: "Add your name to personalize your experience",
       icon: User,
@@ -181,12 +224,24 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
       action: () => setIsProfileModalOpen(true),
     },
     {
+      id: "income",
+      stepNumber: 2,
+      title: "Set Expected Income",
+      description: "Personalize your budgets and insights based on your expected income",
+      icon: DollarSign,
+      completed: status.hasExpectedIncome || false,
+      action: () => router.push("/onboarding/income"),
+    },
+    {
       id: "account",
-      title: "Create or Connect your Bank Account",
+      stepNumber: 3,
+      title: "Connect Bank Account",
       description: "Add at least one account to start tracking your finances",
       icon: Wallet,
       completed: status.hasAccount,
       action: () => router.push("/accounts"),
+      showBalance: status.hasAccount && status.totalBalance !== undefined,
+      balance: status.totalBalance,
     },
   ];
 
@@ -212,83 +267,126 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="pt-2 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                {status.completedCount} of {status.totalCount} completed
-              </span>
-              <span className="font-medium text-foreground">
-                {Math.round(progressPercentage)}%
-              </span>
-            </div>
-            <Progress value={progressPercentage} className="h-1.5" />
-          </div>
         </CardHeader>
-        <CardContent className="space-y-2 pt-0">
-          {actions.map((action) => {
-            const Icon = action.icon;
+        <CardContent className="pt-6">
+          {/* Timeline Steps - 3 cards side by side */}
+          <div className="relative">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+              {steps.map((step, index) => {
+                const Icon = step.icon;
+                const isLast = index === steps.length - 1;
+                const nextStep = !isLast ? steps[index + 1] : null;
 
             return (
-              <div
-                key={action.id}
+                  <div key={step.id} className="relative">
+                    {/* Connector Line (hidden on mobile, shown on desktop) */}
+                    {!isLast && (
+                      <div 
+                        className="hidden md:block absolute top-12 h-0.5 z-0 pointer-events-none"
+                        style={{ 
+                          left: '100%',
+                          width: '1.5rem' // gap-6 = 1.5rem
+                        }}
+                      >
+                        <div className={cn(
+                          "h-full w-full transition-colors",
+                          step.completed && nextStep?.completed
+                            ? "bg-primary" 
+                            : step.completed
+                            ? "bg-primary/50"
+                            : "bg-border"
+                        )} />
+                      </div>
+                    )}
+
+                    {/* Step Card */}
+                    <Card
                 className={cn(
-                  "group relative flex items-start gap-3 p-3 rounded-lg transition-all duration-200",
-                  action.completed
-                    ? "bg-muted/30 border border-border/50"
-                    : "bg-background border border-border/50 hover:border-border hover:shadow-sm"
+                        "relative z-10 h-full flex flex-col transition-all duration-200",
+                        step.completed
+                          ? "border-primary/50 bg-primary/5"
+                          : "border-border hover:border-primary/50 hover:shadow-md",
+                        !step.completed && "cursor-pointer"
                 )}
-              >
+                      onClick={!step.completed ? step.action : undefined}
+                    >
+                      <CardContent className="flex-1 flex flex-col">
+                      {/* Step Number & Icon */}
+                      <div className="flex items-center justify-between mb-4">
                 <div className={cn(
-                  "mt-0.5 shrink-0 transition-colors",
-                  action.completed 
-                    ? "text-primary" 
-                    : "text-muted-foreground group-hover:text-foreground"
+                          "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all",
+                          step.completed
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "bg-background border-border text-muted-foreground"
                 )}>
-                  {action.completed ? (
-                    <CheckCircle2 className="h-4 w-4" />
+                          {step.completed ? (
+                            <CheckCircle2 className="h-5 w-5" />
                   ) : (
-                    <Icon className="h-4 w-4" />
+                            <span className="text-sm font-semibold">{step.stepNumber}</span>
                   )}
                 </div>
-                <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className={cn(
+                          "p-2 rounded-lg transition-colors",
+                          step.completed
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                        )}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      {/* Step Content */}
+                      <div className="space-y-2 flex-1 flex flex-col">
                   <div className="flex items-center gap-2">
                     <h4 className={cn(
-                      "text-sm font-medium transition-colors",
-                      action.completed 
-                        ? "text-foreground" 
-                        : "text-foreground"
+                            "text-base font-semibold",
+                            step.completed ? "text-foreground" : "text-foreground"
                     )}>
-                      {action.title}
+                            {step.title}
                     </h4>
-                    {action.completed && (
-                      <span className="text-xs text-primary font-medium">Done</span>
+                          {step.completed && (
+                            <Badge variant="secondary" className="text-xs">
+                              Done
+                            </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {action.description}
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {step.description}
                   </p>
-                  {action.id === "account" && action.completed && status.totalBalance !== undefined && (
-                    <div className="mt-1.5 pt-1.5 border-t border-border/50">
-                      <p className="text-xs text-muted-foreground">Total Balance</p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {formatMoney(status.totalBalance)}
+
+                        {/* Balance Display (only for account step) */}
+                        {step.showBalance && step.balance !== undefined && (
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            <p className="text-xs text-muted-foreground mb-1">Total Balance</p>
+                            <p className="text-lg font-bold text-foreground">
+                              {formatMoney(step.balance)}
                       </p>
                     </div>
                   )}
-                </div>
-                {!action.completed && (
-                  <Button
-                    variant="default"
-                    onClick={action.action}
-                    className="shrink-0 h-7 text-xs"
-                  >
-                    {action.id === "account" ? "Create" : "Complete"}
-                    <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                )}
+
+                        {/* Action Button */}
+                        {!step.completed && (
+                          <Button
+                            variant="default"
+                            size="small"
+                            className="w-full mt-auto"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              step.action();
+                            }}
+                          >
+                            {step.id === "account" ? "Create Account" : "Get Started"}
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      </CardContent>
+                    </Card>
               </div>
             );
           })}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

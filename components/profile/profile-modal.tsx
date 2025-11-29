@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { profileSchema, ProfileFormData } from "@/lib/validations/profile";
+import { profileSchema, ProfileFormData } from "@/src/domain/profile/profile.validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,7 +43,6 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: "",
-      email: "",
       avatarUrl: "",
       phoneNumber: "",
     },
@@ -71,7 +70,11 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
             phoneNumber: "",
           };
           setProfile(defaultProfile);
-          form.reset(defaultProfile);
+          form.reset({
+            name: "",
+            avatarUrl: "",
+            phoneNumber: "",
+          });
           return;
         }
         // For other errors, try to get error message
@@ -104,7 +107,6 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
         setProfile(profileData);
         form.reset({
           name: profileData.name || "",
-          email: profileData.email || "",
           avatarUrl: profileData.avatarUrl || "",
           phoneNumber: profileData.phoneNumber || "",
         });
@@ -270,7 +272,6 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
     if (profile) {
       form.reset({
         name: profile.name || "",
-        email: profile.email || "",
         avatarUrl: profile.avatarUrl || "",
         phoneNumber: profile.phoneNumber || "",
       });
@@ -305,7 +306,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
         </DialogHeader>
 
         {/* Scrollable Content */}
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+        <form onSubmit={form.handleSubmit(onSubmit as (data: ProfileFormData) => Promise<void>)} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6">
             {loading ? (
               <div className="space-y-6 py-6">
@@ -404,15 +405,16 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
                     Email
                   </label>
                   <Input
-                    {...form.register("email")}
                     type="email"
-                    placeholder="Enter your email"
+                    value={profile?.email || ""}
+                    readOnly
+                    disabled
+                    className="bg-muted"
+                    placeholder="Not available"
                   />
-                  {form.formState.errors.email && (
-                    <p className="text-sm text-destructive">
-                      {form.formState.errors.email.message}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Email cannot be changed
+                  </p>
                 </div>
 
                 {/* Phone Number Field */}

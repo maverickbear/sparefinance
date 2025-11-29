@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateCategory, deleteCategory } from "@/lib/api/categories";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
+import { makeCategoriesService } from "@/src/application/categories/categories.factory";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { CategoryFormData } from "@/src/domain/categories/categories.validations";
 
 export async function PATCH(
   request: NextRequest,
@@ -18,9 +19,10 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, macroId } = body;
+    const data: Partial<CategoryFormData> = body;
 
-    const category = await updateCategory(id, { name, macroId });
+    const service = makeCategoriesService();
+    const category = await service.updateCategory(id, data);
     return NextResponse.json(category, { status: 200 });
   } catch (error) {
     console.error("Error updating category:", error);
@@ -46,7 +48,9 @@ export async function DELETE(
     await throwIfNotAllowed(writeGuard);
 
     const { id } = await params;
-    await deleteCategory(id);
+    
+    const service = makeCategoriesService();
+    await service.deleteCategory(id);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("Error deleting category:", error);

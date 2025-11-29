@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
-import { suggestCategory } from "@/lib/api/category-learning";
-import { formatTimestamp } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { suggestCategory } from "@/src/application/shared/category-learning";
+import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 
 export async function POST(request: NextRequest) {
   try {

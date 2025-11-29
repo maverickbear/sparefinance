@@ -1,12 +1,12 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { formatTimestamp, formatDateOnly } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { createPlannedPayment, PLANNED_HORIZON_DAYS } from "@/lib/api/planned-payments";
 import { createSubcategory } from "@/lib/api/categories";
 import { addMonths, addYears, addDays, startOfMonth, setDate } from "date-fns";
-import { logger } from "@/lib/utils/logger";
-import { invalidateSubscriptionCaches } from "@/lib/services/cache-manager";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { invalidateSubscriptionCaches } from "@/src/infrastructure/cache/cache.manager";
 
 export interface UserServiceSubscription {
   id: string;

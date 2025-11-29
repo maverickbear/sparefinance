@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getCurrentUserId, guardFeatureAccess } from "@/src/application/shared/feature-guard";
 import OpenAI from "openai";
 import { validateImageFile } from "@/lib/utils/file-validation";
 
@@ -19,6 +19,19 @@ export async function POST(request: NextRequest) {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user has access to receipt scanner feature
+    const featureGuard = await guardFeatureAccess(userId, "hasReceiptScanner");
+    if (!featureGuard.allowed) {
+      return NextResponse.json(
+        { 
+          error: featureGuard.error?.message || "Receipt scanner is not available in your current plan",
+          code: featureGuard.error?.code,
+          planError: featureGuard.error,
+        },
+        { status: 403 }
+      );
     }
 
     // Check if OpenAI API key is configured

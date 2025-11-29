@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Edit, Trash2, FolderTree } from "lucide-react";
 import type { SystemGroup } from "@/lib/api/admin";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
-import { formatAdminDate } from "@/lib/utils/timestamp";
+import { formatAdminDate } from "@/src/infrastructure/utils/timestamp";
 
 interface GroupsTableProps {
   groups: SystemGroup[];

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPortfolioSummary } from "@/lib/api/portfolio";
-import { guardFeatureAccessReadOnly, getCurrentUserId } from "@/lib/api/feature-guard";
+import { guardFeatureAccessReadOnly, getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 export async function GET() {
   try {

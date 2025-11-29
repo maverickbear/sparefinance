@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProfile, updateProfile } from "@/lib/api/profile";
-import { ProfileFormData } from "@/lib/validations/profile";
+import { ProfileFormData } from "@/src/domain/profile/profile.validations";
 import { ZodError } from "zod";
 
 export async function GET(request: NextRequest) {

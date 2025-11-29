@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCheckoutSession, createTrialCheckoutSession } from "@/lib/api/stripe";
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { syncAllUserAccounts } from '@/lib/api/plaid/sync';
-import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
-import { throwIfNotAllowed } from '@/lib/api/feature-guard';
+import { guardBankIntegration, getCurrentUserId } from '@/src/application/shared/feature-guard';
+import { throwIfNotAllowed } from '@/src/application/shared/feature-guard';
 
 export async function POST(req: NextRequest) {
   try {

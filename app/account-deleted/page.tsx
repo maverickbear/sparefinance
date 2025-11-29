@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentUserClient } from "@/lib/api/auth-client";
+import type { BaseUser } from "@/src/domain/auth/auth.types";
 
 export default function AccountDeletedPage() {
   const router = useRouter();
@@ -15,7 +15,8 @@ export default function AccountDeletedPage() {
     // Redirect to home page
     async function checkAuth() {
       try {
-        const user = await getCurrentUserClient();
+        const response = await fetch("/api/v2/user");
+        const { user }: { user: BaseUser | null } = response.ok ? await response.json() : { user: null };
         if (user) {
           // User is authenticated, redirect to dashboard
           router.push("/dashboard");

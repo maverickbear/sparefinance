@@ -1,7 +1,7 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
-import { formatTimestamp, formatDateOnly } from "@/lib/utils/timestamp";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import {
   calculateDebtMetrics,
   calculatePaymentDistribution,
@@ -12,7 +12,7 @@ import {
 import { createTransaction } from "@/lib/api/transactions";
 import { createPlannedPayment, PLANNED_HORIZON_DAYS } from "@/lib/api/planned-payments";
 import { getDebtCategoryMapping } from "@/lib/utils/debt-categories";
-import { requireDebtOwnership } from "@/lib/utils/security";
+import { requireDebtOwnership } from "@/src/infrastructure/utils/security";
 import { addMonths } from "date-fns";
 
 export interface Debt {

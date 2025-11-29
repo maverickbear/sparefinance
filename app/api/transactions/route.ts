@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createTransaction, getTransactions } from "@/lib/api/transactions";
-import { TransactionFormData, transactionSchema } from "@/lib/validations/transaction";
+import { TransactionFormData, transactionSchema } from "@/src/domain/transactions/transactions.validations";
 import { ZodError } from "zod";
 
 export async function GET(request: NextRequest) {

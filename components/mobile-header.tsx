@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 
 interface UserData {
@@ -124,14 +124,28 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
         
         // Create fetch promise and cache it
         const fetchPromise = (async () => {
-          const { getUserClient } = await import("@/lib/api/user-client");
-          const { getUserRoleClient } = await import("@/lib/api/members-client");
-          const [data, role] = await Promise.all([
-            getUserClient(),
-            getUserRoleClient(),
+          // Fetch user data and role in parallel using API routes
+          const [userResponse, membersResponse] = await Promise.all([
+            fetch("/api/v2/user"),
+            fetch("/api/v2/members"),
           ]);
           
-          const result: UserData = data;
+          if (!userResponse.ok || !membersResponse.ok) {
+            throw new Error("Failed to fetch user data");
+          }
+          
+          const [userData, membersData] = await Promise.all([
+            userResponse.json(),
+            membersResponse.json(),
+          ]);
+          
+          const result: UserData = {
+            user: userData.user,
+            plan: userData.plan,
+            subscription: userData.subscription,
+          };
+          
+          const role = membersData.userRole;
           
           // Update cache
           navUserDataCache.data = result;
@@ -198,15 +212,17 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
 
   const handleLogout = async () => {
     try {
-      const { signOutClient } = await import("@/lib/api/auth-client");
-      const result = await signOutClient();
-      
+      const response = await fetch("/api/v2/auth/sign-out", {
+        method: "POST",
+      });
+
       // Always redirect to landing page (even if there's an error)
       router.push("/");
       window.location.href = "/";
       
-      if (result.error) {
-        log.error("Failed to sign out:", result.error);
+      if (!response.ok) {
+        const error = await response.json();
+        log.error("Failed to sign out:", error.error || "Unknown error");
       }
     } catch (error) {
       log.error("Error signing out:", error);

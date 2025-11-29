@@ -1,10 +1,10 @@
 "use server";
 
 import { unstable_cache, revalidateTag } from "next/cache";
-import { createServerClient } from "@/lib/supabase-server";
-import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
-import { requireBudgetOwnership } from "@/lib/utils/security";
-import { getTransactionAmount } from "@/lib/utils/transaction-encryption";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { formatTimestamp, formatDateStart, formatDateEnd } from "@/src/infrastructure/utils/timestamp";
+import { requireBudgetOwnership } from "@/src/infrastructure/utils/security";
+import { getTransactionAmount } from "@/src/infrastructure/utils/transaction-encryption";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 
 export interface Budget {

@@ -21,7 +21,7 @@ import {
 import { Loader2, Eye, Star } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/utils/timestamp";
+import { formatDateTime } from "@/src/infrastructure/utils/timestamp";
 
 export interface Feedback {
   id: string;

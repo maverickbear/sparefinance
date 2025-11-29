@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/src/infrastructure/database/supabase-server';
 import { exchangePublicToken, syncAccountBalances } from '@/lib/api/plaid/connect';
 import { syncAccountTransactions } from '@/lib/api/plaid/sync';
 import { syncAccountLiabilities } from '@/lib/api/plaid/liabilities';
 import { syncInvestmentAccounts } from '@/lib/api/plaid/investments';
-import { guardBankIntegration, getCurrentUserId } from '@/lib/api/feature-guard';
-import { throwIfNotAllowed } from '@/lib/api/feature-guard';
-import { formatTimestamp, formatDateOnly, parseDateWithoutTimezone } from '@/lib/utils/timestamp';
+import { guardBankIntegration, getCurrentUserId } from '@/src/application/shared/feature-guard';
+import { throwIfNotAllowed } from '@/src/application/shared/feature-guard';
+import { formatTimestamp, formatDateOnly, parseDateWithoutTimezone } from '@/src/infrastructure/utils/timestamp';
 import { getActiveCreditCardDebt, calculateNextDueDate } from '@/lib/utils/credit-card-debt';
 import { createDebt } from '@/lib/api/debts';
 import { plaidClient } from '@/lib/api/plaid/index';

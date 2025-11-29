@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getGoalsInternal } from "@/lib/api/goals";
 import { createGoal } from "@/lib/api/goals";
-import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/lib/api/feature-guard";
-import { logger } from "@/lib/utils/logger";
+import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 export async function GET(request: NextRequest) {
   try {

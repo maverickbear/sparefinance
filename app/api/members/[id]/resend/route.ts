@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resendInvitationEmail } from "@/lib/api/members";
-import { getCurrentUserId } from "@/lib/api/feature-guard";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 export async function POST(
   request: NextRequest,

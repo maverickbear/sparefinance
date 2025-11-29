@@ -4,7 +4,7 @@ import { useEffect, Suspense, useState } from "react";
 import { DynamicPricingTable } from "@/components/billing/dynamic-pricing-table";
 import { EmbeddedCheckout } from "@/components/billing/embedded-checkout";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plan } from "@/lib/validations/plan";
+import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { useToast } from "@/components/toast-provider";
 
 // Component that uses useSearchParams - must be wrapped in Suspense

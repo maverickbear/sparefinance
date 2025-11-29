@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { createServerClient, createServiceRoleClient } from "@/lib/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { getCurrentUserSubscriptionData, invalidateSubscriptionCache, type Subscription, type Plan } from "@/lib/api/subscription";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 import { SubscriptionGuard } from "@/components/subscription-guard";
 import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { Suspense } from "react";
-import { logger } from "@/lib/utils/logger";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 /**
  * Protected Layout

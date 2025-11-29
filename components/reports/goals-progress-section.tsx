@@ -5,7 +5,7 @@ import { formatMoney } from "@/components/common/money";
 import { Progress } from "@/components/ui/progress";
 import { Target, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { GoalWithCalculations } from "@/lib/api/goals";
+import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 
 interface GoalsProgressSectionProps {
   goals: GoalWithCalculations[];

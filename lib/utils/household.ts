@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient } from "@/lib/supabase-server";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 /**
  * Get the active household ID for a user

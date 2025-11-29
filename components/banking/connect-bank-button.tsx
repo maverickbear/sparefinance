@@ -351,32 +351,6 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
     }
   }, [toast, defaultCountry, initialize, isInitialized, onSuccessCallback, onErrorCallback, handlePlaidExit]);
 
-
-  if (limitsLoading) {
-    return (
-      <Button disabled>
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        Loading...
-      </Button>
-    );
-  }
-
-  // Check if user has access to bank integration
-  // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
-  // Safety check: convert string "true" to boolean (defensive programming)
-  const hasAccess = limits.hasBankIntegration === true || String(limits.hasBankIntegration) === "true";
-  
-  if (!hasAccess) {
-    return (
-      <div className="p-4 text-center text-muted-foreground">
-        Bank integration is not available in your current plan.
-      </div>
-    );
-  }
-
-  // Only disable if loading
-  const isDisabled = isLoading;
-
   // Handle remove all Plaid integration
   const handleRemoveAll = useCallback(async () => {
     try {
@@ -431,6 +405,32 @@ export function ConnectBankButton({ onSuccess, variant = "default", defaultCount
       return () => clearTimeout(timeout);
     }
   }, [linkToken, ready, open, isInitialized]);
+
+  // Check if user has access to bank integration
+  // The database is the source of truth - if a feature is disabled in Supabase, it should be disabled here
+  // Safety check: convert string "true" to boolean (defensive programming)
+  const hasAccess = limits.hasBankIntegration === true || String(limits.hasBankIntegration) === "true";
+  
+  // Only disable if loading
+  const isDisabled = isLoading;
+
+  // Early returns AFTER all hooks have been called
+  if (limitsLoading) {
+    return (
+      <Button disabled>
+        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        Loading...
+      </Button>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="p-4 text-center text-muted-foreground">
+        Bank integration is not available in your current plan.
+      </div>
+    );
+  }
 
   return (
     <>
