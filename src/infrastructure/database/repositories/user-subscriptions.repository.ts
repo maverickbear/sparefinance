@@ -4,7 +4,7 @@
  */
 
 import { createServerClient } from "../supabase-server";
-import { UserServiceSubscription } from "../../../domain/user-subscriptions/user-subscriptions.types";
+import { UserServiceSubscription } from "../../../domain/subscriptions/subscriptions.types";
 import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface UserServiceSubscriptionRow {

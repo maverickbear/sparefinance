@@ -174,7 +174,11 @@ export class ProfileService {
 
     const subscription = subscriptionData.subscription ? {
       status: subscriptionData.subscription.status as "active" | "trialing" | "cancelled" | "past_due",
-      trialEndDate: subscriptionData.subscription.trialEndDate || null,
+      trialEndDate: subscriptionData.subscription.trialEndDate 
+        ? (typeof subscriptionData.subscription.trialEndDate === 'string' 
+            ? subscriptionData.subscription.trialEndDate 
+            : subscriptionData.subscription.trialEndDate.toISOString())
+        : null,
     } : null;
 
     return {

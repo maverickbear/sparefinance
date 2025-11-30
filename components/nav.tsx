@@ -137,6 +137,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [showPortalManagementItems, setShowPortalManagementItems] = useState(false);
 
   const log = logger.withPrefix("NAV");
 
@@ -646,7 +647,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                         <div className="relative flex-shrink-0">
                           {loading ? (
                             <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
-                          ) : isValidAvatarUrl(user?.avatarUrl) ? (
+                          ) : user && isValidAvatarUrl(user.avatarUrl) ? (
                             <>
                               <img
                                 src={user.avatarUrl!}
@@ -664,7 +665,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                                 }}
                               />
                               <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground hidden items-center justify-center text-xs font-semibold border absolute top-0 left-0">
-                                {getInitials(user?.name)}
+                                {getInitials(user.name)}
                               </div>
                             </>
                           ) : (
