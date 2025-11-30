@@ -175,8 +175,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       if (otpCode.length === 6 && !loading && !resending && !isVerifyingRef.current) {
         isVerifyingRef.current = true;
         // Longer delay to ensure the last digit is properly set and avoid race conditions
+        // Pass newOtp directly to avoid state update delay
         setTimeout(() => {
-          handleVerify().finally(() => {
+          handleVerify(newOtp).finally(() => {
             isVerifyingRef.current = false;
           });
         }, 300);
@@ -207,8 +208,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       if (!loading && !resending && !isVerifyingRef.current) {
         isVerifyingRef.current = true;
         // Longer delay to avoid race conditions
+        // Pass newOtp directly to avoid state update delay
         setTimeout(() => {
-          handleVerify().finally(() => {
+          handleVerify(newOtp).finally(() => {
             isVerifyingRef.current = false;
           });
         }, 300);
@@ -217,8 +219,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   };
 
   // Verify OTP
-  const handleVerify = async () => {
-    const otpCode = otp.join("");
+  const handleVerify = async (otpOverride?: string[]) => {
+    const otpToVerify = otpOverride || otp;
+    const otpCode = otpToVerify.join("");
     
     if (otpCode.length !== 6) {
       setError("Please enter the complete 6-digit code");
