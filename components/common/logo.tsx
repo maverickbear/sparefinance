@@ -137,6 +137,7 @@ export function Logo({
           width={finalWidth}
           height={finalHeight}
           priority={priority}
+          loading={priority ? "eager" : "lazy"}
           className="object-contain"
           style={{ width: "100%", height: "100%" }}
           onError={() => setImgError(true)}

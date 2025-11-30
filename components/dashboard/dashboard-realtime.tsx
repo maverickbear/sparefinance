@@ -252,8 +252,8 @@ export function DashboardRealtime() {
       }, 1000);
     }
 
-    // Cleanup subscriptions on unmount or dependency change
-    return () => {
+    // Cleanup function to close WebSocket connections
+    const cleanup = () => {
       console.log(`[DashboardRealtime-${instanceIdRef.current}] Cleanup triggered`);
       
       if (refreshTimeout) {
@@ -286,6 +286,24 @@ export function DashboardRealtime() {
 
       // Reset subscribing flag
       isSubscribingRef.current = false;
+    };
+
+    // Handle pagehide event for back/forward cache compatibility
+    // This ensures WebSocket connections are closed before the page is cached
+    const handlePageHide = (event: PageTransitionEvent) => {
+      // If the page is being cached (back/forward navigation), cleanup WebSockets
+      if (event.persisted) {
+        cleanup();
+      }
+    };
+
+    // Add pagehide listener for back/forward cache compatibility
+    window.addEventListener('pagehide', handlePageHide);
+
+    // Cleanup subscriptions on unmount or dependency change
+    return () => {
+      cleanup();
+      window.removeEventListener('pagehide', handlePageHide);
     };
   }, [router, pathname]);
 

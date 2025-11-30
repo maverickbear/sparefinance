@@ -202,11 +202,11 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               // Allow Vercel Live feedback script (only loads when deployed on Vercel)
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.plaid.com https://js.stripe.com https://vercel.live", // Note: 'unsafe-eval' and 'unsafe-inline' may be needed for Next.js, cdn.plaid.com for Plaid Link, js.stripe.com for Stripe Pricing Table, vercel.live for Vercel Live feedback
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.plaid.com https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://va.vercel-scripts.com", // Note: 'unsafe-eval' and 'unsafe-inline' may be needed for Next.js, cdn.plaid.com for Plaid Link, js.stripe.com for Stripe Pricing Table, vercel.live for Vercel Live feedback, www.googletagmanager.com for Google Analytics, va.vercel-scripts.com for Vercel Speed Insights
               "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind CSS
               "img-src 'self' data: https:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.sparefinance.com wss://app.sparefinance.com https://api.stripe.com https://js.stripe.com https://*.plaid.com https://production.plaid.com https://sandbox.plaid.com https://development.plaid.com https://vercel.live",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.sparefinance.com wss://app.sparefinance.com https://api.stripe.com https://js.stripe.com https://*.plaid.com https://production.plaid.com https://sandbox.plaid.com https://development.plaid.com https://vercel.live https://www.googletagmanager.com https://*.google-analytics.com https://va.vercel-scripts.com",
               "frame-src 'self' https://js.stripe.com https://checkout.stripe.com https://cdn.plaid.com https://*.plaid.com https://vercel.live",
               "object-src 'none'",
               "base-uri 'self'",
@@ -219,6 +219,7 @@ const nextConfig: NextConfig = {
       },
       {
         // Disable caching for dynamic routes (dashboard, insights, etc.)
+        // Note: Landing page (/) is excluded to allow back/forward cache
         source: "/(dashboard|insights|reports|planning|investments|banking|billing|profile|members)/:path*",
         headers: [
           {
@@ -232,6 +233,16 @@ const nextConfig: NextConfig = {
           {
             key: "Expires",
             value: "0",
+          },
+        ],
+      },
+      {
+        // Allow back/forward cache for landing page
+        source: "/",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, must-revalidate, stale-while-revalidate=60",
           },
         ],
       },

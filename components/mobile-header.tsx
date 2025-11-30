@@ -290,7 +290,7 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-3 min-h-[44px] flex-1">
           <Link href="/dashboard" prefetch={true} className="p-0 flex items-center">
-            <Logo variant="icon" color="auto" width={32} height={32} />
+            <Logo variant="icon" color="auto" width={32} height={32} priority />
           </Link>
           <h1 className="text-base font-semibold p-0 flex items-center">
             {getPageTitle()}

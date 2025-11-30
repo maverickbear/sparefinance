@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Loader2, AlertCircle, Mail, HelpCircle, CheckCircle2 } from "lucide-rea
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { setTrustedBrowser } from "@/lib/utils/trusted-browser";
+import { Logo } from "@/components/common/logo";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -124,6 +125,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
     inputRefs.current[0]?.focus();
   }, []);
 
+  // Auto-verify when all 6 digits are entered
+  const isVerifyingRef = useRef(false);
+
   // Countdown timer for OTP expiration
   useEffect(() => {
     if (timeRemaining <= 0) return;
@@ -164,6 +168,20 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
+
+    // Auto-verify when all 6 digits are entered
+    if (value && index === 5) {
+      const otpCode = newOtp.join("");
+      if (otpCode.length === 6 && !loading && !resending && !isVerifyingRef.current) {
+        isVerifyingRef.current = true;
+        // Longer delay to ensure the last digit is properly set and avoid race conditions
+        setTimeout(() => {
+          handleVerify().finally(() => {
+            isVerifyingRef.current = false;
+          });
+        }, 300);
+      }
+    }
   };
 
   // Handle backspace
@@ -185,11 +203,21 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       setError(null);
       // Focus last input
       inputRefs.current[5]?.focus();
+      // Auto-verify when pasting 6 digits
+      if (!loading && !resending && !isVerifyingRef.current) {
+        isVerifyingRef.current = true;
+        // Longer delay to avoid race conditions
+        setTimeout(() => {
+          handleVerify().finally(() => {
+            isVerifyingRef.current = false;
+          });
+        }, 300);
+      }
     }
   };
 
   // Verify OTP
-  async function handleVerify() {
+  const handleVerify = async () => {
     const otpCode = otp.join("");
     
     if (otpCode.length !== 6) {
@@ -204,7 +232,8 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
 
     try {
       setLoading(true);
-      setError(null);
+      // Don't clear error immediately - wait until we know if verification succeeded
+      // This prevents showing transient errors during multiple verification attempts
 
       // Verify OTP with Supabase
       // For Google OAuth login, try multiple types. For signup, use "signup" type.
@@ -213,6 +242,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
 
       if (isGoogleOAuth) {
         // Try "email" type first, then "magiclink", then "recovery" as fallbacks
+        // Don't show errors until all attempts fail
         const emailResult = await supabase.auth.verifyOtp({
           email,
           token: otpCode,
@@ -220,6 +250,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         });
 
         if (emailResult.error) {
+          // Small delay between attempts to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
           const magiclinkResult = await supabase.auth.verifyOtp({
             email,
             token: otpCode,
@@ -227,6 +260,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
           });
 
           if (magiclinkResult.error) {
+            // Small delay between attempts
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
             const recoveryResult = await supabase.auth.verifyOtp({
               email,
               token: otpCode,
@@ -259,11 +295,38 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         }
       }
 
+      // Only show error if ALL attempts failed
       if (verifyError) {
-        setError(verifyError.message || "Invalid verification code. Please try again.");
-        setOtp(["", "", "", "", "", ""]);
-        inputRefs.current[0]?.focus();
-        return;
+        // Check if error is about token being already used (which means it worked)
+        const isTokenUsedError = verifyError.message?.includes("already been used") || 
+                                 verifyError.message?.includes("token has already been used");
+        
+        if (isTokenUsedError) {
+          // Token was already used, which means verification succeeded elsewhere
+          // Don't show error, just continue - the session might already be established
+          console.log("[OTP] Token already used, checking session...");
+          const { data: { user: existingUser } } = await supabase.auth.getUser();
+          if (existingUser) {
+            // Session exists, proceed with flow
+            data = { user: existingUser, session: null };
+          } else {
+            // No session, show error
+            setError("This code has already been used. Please request a new one.");
+            setOtp(["", "", "", "", "", ""]);
+            inputRefs.current[0]?.focus();
+            return;
+          }
+        } else {
+          setError(verifyError.message || "Invalid verification code. Please try again.");
+          setOtp(["", "", "", "", "", ""]);
+          inputRefs.current[0]?.focus();
+          return;
+        }
+      }
+
+      // Clear any previous errors if verification succeeded
+      if (data && data.user) {
+        setError(null);
       }
 
       if (!data.user) {
@@ -659,7 +722,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   // Resend OTP
   async function handleResend() {
@@ -706,6 +769,11 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
 
   return (
     <div className="space-y-6">
+      {/* Logo - Only show on mobile (desktop has it in the wrapper) */}
+      <div className="lg:hidden flex justify-center">
+        <Logo variant="full" color="purple" height={32} />
+      </div>
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -722,22 +790,21 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         </Alert>
       )}
 
-
       <div className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">
-            Verification Code
-          </label>
+        <div>
+          <div className="flex items-center justify-between mb-2 w-full">
+            <span className="text-sm font-medium text-foreground">
+              Verification Code
+            </span>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              Code expires in: <span className="font-medium text-foreground">{timeRemaining > 0 ? formatTime(timeRemaining) : "0:00"}</span>
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">
             Enter the 6-digit code sent to <span className="font-medium">{email}</span>
           </p>
-          {timeRemaining > 0 && (
-            <p className="text-sm text-muted-foreground">
-              Code expires in: <span className="font-medium text-foreground">{formatTime(timeRemaining)}</span>
-            </p>
-          )}
           {timeRemaining === 0 && (
-            <p className="text-sm text-destructive font-medium">
+            <p className="text-sm text-destructive font-medium mt-2">
               Code has expired. Please request a new one.
             </p>
           )}
@@ -763,82 +830,72 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         </div>
       </div>
 
-      <div className="space-y-4">
-        {/* Show "trust browser" checkbox only for Google OAuth login */}
-        {isGoogleOAuth && (
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="trust-browser"
-              checked={trustBrowser}
-              onCheckedChange={(checked) => setTrustBrowser(checked === true)}
-              disabled={loading}
-              className="mt-0.5"
-            />
-            <div className="flex items-center gap-1.5 flex-1">
-              <label
-                htmlFor="trust-browser"
-                className="text-sm text-foreground cursor-pointer select-none"
-              >
-                Don't ask again for this browser
-              </label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    disabled={loading}
-                    tabIndex={-1}
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-[280px] whitespace-normal">
-                  Only enable this on personal or trusted devices. We'll still ask for your password on future logins, but we won't require a verification code on this browser for a while.
-                </TooltipContent>
-              </Tooltip>
-            </div>
+      {/* Show "trust browser" checkbox only for Google OAuth login */}
+      {isGoogleOAuth && (
+        <div className="flex items-start gap-2">
+          <Checkbox
+            id="trust-browser"
+            checked={trustBrowser}
+            onCheckedChange={(checked) => setTrustBrowser(checked === true)}
+            disabled={loading}
+            className="mt-0.5"
+          />
+          <div className="flex items-center gap-1.5 flex-1">
+            <label
+              htmlFor="trust-browser"
+              className="text-sm text-foreground cursor-pointer select-none"
+            >
+              Don't ask again for this browser
+            </label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={loading}
+                  tabIndex={-1}
+                >
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-[280px] whitespace-normal">
+                Only enable this on personal or trusted devices. We'll still ask for your password on future logins, but we won't require a verification code on this browser for a while.
+              </TooltipContent>
+            </Tooltip>
           </div>
-        )}
+        </div>
+      )}
 
-        <Button 
-          onClick={handleVerify}
-          className="w-full h-11 text-base font-medium" 
-          disabled={loading || otp.join("").length !== 6}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Verifying...
-            </>
-          ) : (
-            isGoogleOAuth ? "Verify and Sign In" : "Verify Email"
-          )}
-        </Button>
-      </div>
+      {/* Show loading indicator when verifying */}
+      {loading && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Verifying...</span>
+        </div>
+      )}
 
       <div className="text-center space-y-2">
         <p className="text-sm text-muted-foreground">
           Didn't receive the code?
         </p>
-        <Button
+        <button
           type="button"
-          variant="ghost"
           onClick={handleResend}
           disabled={resending || loading}
-          className="text-sm"
+          className="text-sm text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
         >
           {resending ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-3 h-3 animate-spin" />
               Resending...
             </>
           ) : (
             <>
-              <Mail className="w-4 h-4 mr-2" />
+              <Mail className="w-3 h-3" />
               Resend Code
             </>
           )}
-        </Button>
+        </button>
       </div>
 
       {/* Show "Back to login" button only for Google OAuth login */}

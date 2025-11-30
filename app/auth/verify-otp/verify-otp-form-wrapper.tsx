@@ -2,7 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 import { VerifyOtpForm } from "@/components/auth/verify-otp-form";
-import { Wallet, Shield, Mail } from "lucide-react";
+import { Logo } from "@/components/common/logo";
+import { Shield, Mail } from "lucide-react";
 
 export function VerifyOtpFormWrapperContent() {
   const searchParams = useSearchParams();
@@ -19,12 +20,7 @@ export function VerifyOtpFormWrapperContent() {
         
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-[12px]">
-                <Wallet className="w-8 h-8 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold">Spare Finance</h1>
-            </div>
+            <Logo variant="full" color="purple" height={40} />
             <p className="text-lg text-muted-foreground max-w-md">
               Verify your email to complete your account setup.
             </p>
@@ -62,12 +58,9 @@ export function VerifyOtpFormWrapperContent() {
       <div className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
         <div className="w-full max-w-md space-y-8">
           {/* Mobile header */}
-          <div className="lg:hidden text-center space-y-2">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="p-2 bg-primary/10 rounded-[12px]">
-                <Wallet className="w-6 h-6 text-primary" />
-              </div>
-              <h1 className="text-2xl font-bold">Spare Finance</h1>
+          <div className="lg:hidden text-center space-y-4">
+            <div className="flex items-center justify-center">
+              <Logo variant="full" color="purple" height={32} />
             </div>
             <p className="text-muted-foreground text-sm">
               Verify your email to continue

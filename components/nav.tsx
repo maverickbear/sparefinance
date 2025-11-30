@@ -382,11 +382,11 @@ function NavComponent({ hasSubscription = true }: NavProps) {
             >
               {isCollapsed ? (
                 <Link href="/dashboard" prefetch={true} className="flex items-center justify-center w-full h-full">
-                  <Logo variant="icon" color="auto" width={40} height={40} />
+                  <Logo variant="icon" color="auto" width={40} height={40} priority />
                 </Link>
               ) : (
                 <Link href="/dashboard" prefetch={true} className="flex items-center justify-center w-full h-full">
-                  <Logo variant="wordmark" color="auto" width={150} height={40} />
+                  <Logo variant="wordmark" color="auto" width={150} height={40} priority />
                 </Link>
               )}
             </div>

@@ -135,56 +135,59 @@ export function InvestmentPortfolioWidget({
               <div className="text-sm text-muted-foreground">Total return</div>
             </div>
 
-            <div className="h-[250px] min-h-[250px] w-full min-w-0">
+            <div 
+              className="h-[250px] min-h-[250px] w-full"
+              style={{ minWidth: 0, position: 'relative' }}
+            >
               <ResponsiveContainer width="100%" height="100%" minHeight={250}>
-                <LineChart 
-                  data={chartData} 
-                  margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    opacity={0.3}
-                    vertical={false}
-                  />
-                  <XAxis 
-                    dataKey="month" 
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                    axisLine={{ stroke: "hsl(var(--border))" }}
-                    tickLine={{ stroke: "hsl(var(--border))" }}
-                  />
-                  <YAxis 
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                    axisLine={{ stroke: "hsl(var(--border))" }}
-                    tickLine={{ stroke: "hsl(var(--border))" }}
-                    width={60}
-                    tickFormatter={(value) => {
-                      if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-                      return `$${value}`;
-                    }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend content={<CustomLegend />} />
-                  <Line
-                    type="monotone"
-                    dataKey="portfolioValue"
-                    name="Portfolio Value"
-                    stroke={PORTFOLIO_VALUE_COLOR}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="totalCost"
-                    name="Total Cost"
-                    stroke={TOTAL_COST_COLOR}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+                  <LineChart 
+                    data={chartData} 
+                    margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="hsl(var(--border))"
+                      opacity={0.3}
+                      vertical={false}
+                    />
+                    <XAxis 
+                      dataKey="month" 
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                      tickLine={{ stroke: "hsl(var(--border))" }}
+                    />
+                    <YAxis 
+                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                      axisLine={{ stroke: "hsl(var(--border))" }}
+                      tickLine={{ stroke: "hsl(var(--border))" }}
+                      width={60}
+                      tickFormatter={(value) => {
+                        if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
+                        return `$${value}`;
+                      }}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend content={<CustomLegend />} />
+                    <Line
+                      type="monotone"
+                      dataKey="portfolioValue"
+                      name="Portfolio Value"
+                      stroke={PORTFOLIO_VALUE_COLOR}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="totalCost"
+                      name="Total Cost"
+                      stroke={TOTAL_COST_COLOR}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
             </div>
           </div>
         </CardContent>
@@ -347,56 +350,59 @@ export function InvestmentPortfolioWidget({
             <div className="text-sm text-muted-foreground">Total return</div>
           </div>
 
-          <div className="h-[250px] min-h-[250px] w-full min-w-0">
+          <div 
+            className="h-[250px] min-h-[250px] w-full"
+            style={{ minWidth: 0, position: 'relative' }}
+          >
             <ResponsiveContainer width="100%" height="100%" minHeight={250}>
-              <LineChart 
-                data={chartData} 
-                margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--border))"
-                  opacity={0.3}
-                  vertical={false}
-                />
-                <XAxis 
-                  dataKey="month" 
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
-                  tickLine={{ stroke: "hsl(var(--border))" }}
-                />
-                <YAxis 
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
-                  tickLine={{ stroke: "hsl(var(--border))" }}
-                  width={60}
-                  tickFormatter={(value) => {
-                    if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-                    return `$${value}`;
-                  }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend content={<CustomLegend />} />
-                <Line
-                  type="monotone"
-                  dataKey="portfolioValue"
-                  name="Portfolio Value"
-                  stroke={PORTFOLIO_VALUE_COLOR}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="totalCost"
-                  name="Total Cost"
-                  stroke={TOTAL_COST_COLOR}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+                <LineChart 
+                  data={chartData} 
+                  margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    opacity={0.3}
+                    vertical={false}
+                  />
+                  <XAxis 
+                    dataKey="month" 
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={{ stroke: "hsl(var(--border))" }}
+                  />
+                  <YAxis 
+                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    axisLine={{ stroke: "hsl(var(--border))" }}
+                    tickLine={{ stroke: "hsl(var(--border))" }}
+                    width={60}
+                    tickFormatter={(value) => {
+                      if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
+                      return `$${value}`;
+                    }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend content={<CustomLegend />} />
+                  <Line
+                    type="monotone"
+                    dataKey="portfolioValue"
+                    name="Portfolio Value"
+                    stroke={PORTFOLIO_VALUE_COLOR}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="totalCost"
+                    name="Total Cost"
+                    stroke={TOTAL_COST_COLOR}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
           </div>
         </div>
       </CardContent>

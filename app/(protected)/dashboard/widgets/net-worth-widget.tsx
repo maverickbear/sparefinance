@@ -115,12 +115,15 @@ export function NetWorthWidget({
             <div className="text-sm text-muted-foreground">Total net worth</div>
           </div>
 
-          <div className="h-[250px] min-h-[250px] w-full min-w-0">
+          <div 
+            className="h-[250px] min-h-[250px] w-full"
+            style={{ minWidth: 0, position: 'relative' }}
+          >
             <ResponsiveContainer width="100%" height="100%" minHeight={250}>
-              <LineChart 
-                data={chartData} 
-                margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-              >
+                <LineChart 
+                  data={chartData} 
+                  margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                >
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="hsl(var(--border))"
@@ -164,7 +167,7 @@ export function NetWorthWidget({
                   activeDot={{ r: 4 }}
                 />
               </LineChart>
-            </ResponsiveContainer>
+              </ResponsiveContainer>
           </div>
         </div>
       </CardContent>

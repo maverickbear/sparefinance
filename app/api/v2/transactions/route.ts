@@ -63,13 +63,14 @@ export async function GET(request: NextRequest) {
     const result = await service.getTransactions(filters);
     
     // Use appropriate cache headers
+    // Use stale-while-revalidate for better back/forward cache compatibility
     const hasSearch = !!filters.search;
     const cacheHeaders = hasSearch
       ? {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Cache-Control': 'private, max-age=0, must-revalidate, stale-while-revalidate=30',
         }
       : {
-          'Cache-Control': 'private, max-age=0, must-revalidate',
+          'Cache-Control': 'private, max-age=60, must-revalidate, stale-while-revalidate=300',
         };
     
     return NextResponse.json(result, { 
