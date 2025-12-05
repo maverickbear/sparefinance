@@ -53,7 +53,7 @@ export async function verifyAccountOwnership(accountId: string): Promise<boolean
     // Get account's household
     if (account.householdId) {
     const { data: householdMember, error: memberError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, status")
         .eq("userId", userId)
         .eq("householdId", account.householdId)
@@ -104,7 +104,7 @@ export async function verifyTransactionOwnership(transactionId: string): Promise
     // Second check: Check if user is a household member and transaction belongs to same household
     if (transaction.householdId) {
     const { data: householdMember, error: memberError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, status")
         .eq("userId", userId)
         .eq("householdId", transaction.householdId)
@@ -155,7 +155,7 @@ export async function verifyBudgetOwnership(budgetId: string): Promise<boolean> 
     // Check if user is a household member and budget belongs to same household
     if (budget.householdId) {
     const { data: householdMember, error: memberError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, status")
         .eq("userId", userId)
         .eq("householdId", budget.householdId)
@@ -202,7 +202,7 @@ export async function verifyGoalOwnership(goalId: string): Promise<boolean> {
     // Check if user is a household member and goal belongs to same household
     if (goal.householdId) {
     const { data: householdMember, error: memberError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, status")
         .eq("userId", userId)
         .eq("householdId", goal.householdId)
@@ -249,7 +249,7 @@ export async function verifyDebtOwnership(debtId: string): Promise<boolean> {
     // Check if user is a household member and debt belongs to same household
     if (debt.householdId) {
     const { data: householdMember, error: memberError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, status")
         .eq("userId", userId)
         .eq("householdId", debt.householdId)

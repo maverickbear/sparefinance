@@ -122,7 +122,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
     <div className="space-y-6">
       {hasPaidPlans && (
         <div className="flex justify-center">
-          <div className="inline-flex rounded-[12px] border p-1 bg-muted">
+          <div className="inline-flex rounded-lg border p-1 bg-muted">
             <Button
               type="button"
               variant={interval === "month" ? "default" : "ghost"}
@@ -458,7 +458,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
                       {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)}
                     </CardTitle>
                     {hasDiscount && originalYearlyPrice && (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs hover:bg-green-100 dark:hover:bg-green-900">
+                      <Badge variant="secondary" className="bg-sentiment-positive/10 text-sentiment-positive dark:bg-sentiment-positive/20 dark:text-sentiment-positive text-xs hover:bg-sentiment-positive/10 dark:hover:bg-sentiment-positive/20">
                         10% OFF
                       </Badge>
                     )}

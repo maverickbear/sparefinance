@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
 
     // Check if email has a pending invitation
     const { data: pendingInvitation } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id, householdId, email, Household(createdBy)")
       .eq("email", authUser.email?.toLowerCase() || "")
       .eq("status", "pending")
@@ -250,9 +250,9 @@ export async function GET(request: NextRequest) {
           if (householdError || !household) {
             console.error("[OAUTH-CALLBACK] Error creating personal household:", householdError);
           } else {
-            // Create HouseholdMemberNew using service role (bypasses RLS)
+            // Create HouseholdMember using service role (bypasses RLS)
             const { error: memberError } = await serviceRoleClient
-              .from("HouseholdMemberNew")
+              .from("HouseholdMember")
               .insert({
                 householdId: household.id,
                 userId: authUser.id,
@@ -318,7 +318,7 @@ export async function GET(request: NextRequest) {
             .single();
 
           if (!householdError && household) {
-            await serviceRoleClient.from("HouseholdMemberNew").insert({
+            await serviceRoleClient.from("HouseholdMember").insert({
               householdId: household.id,
               userId: authUser.id,
               role: "owner",

@@ -42,9 +42,9 @@ interface SubscriptionsTableProps {
 function getStatusBadge(status: string) {
   switch (status) {
     case "active":
-      return <Badge className="bg-green-500">Active</Badge>;
+      return <Badge className="bg-sentiment-positive">Active</Badge>;
     case "trialing":
-      return <Badge className="bg-blue-500">Trialing</Badge>;
+      return <Badge className="bg-interactive-primary">Trialing</Badge>;
     case "cancelled":
       return <Badge variant="destructive">Cancelled</Badge>;
     case "past_due":

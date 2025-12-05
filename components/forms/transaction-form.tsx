@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { useForm } from "react-hook-form";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -144,7 +143,7 @@ function GroupPillsScrollable({
             "scroll-snap-align-start",
             selectedGroupId === group.id
               ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground hover:bg-muted/80"
+              : "bg-muted text-muted-foreground hover:bg-accent"
           )}
           style={{
             pointerEvents: isDragging ? 'none' : 'auto',
@@ -245,11 +244,14 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   const [receiptUrl, setReceiptUrl] = useState<string | null>(transaction?.receiptUrl || null);
   const breakpoint = useBreakpoint();
   const isMobile = !breakpoint || breakpoint === "xs" || breakpoint === "sm" || breakpoint === "md";
-  const { limits } = useSubscriptionSafe();
+  const { limits, subscription } = useSubscriptionSafe();
   
   // Check if receipt scanner feature is enabled
   // Default to false if not within SubscriptionProvider (safe fallback)
   const hasReceiptScanner = limits.hasReceiptScanner === true || String(limits.hasReceiptScanner) === "true";
+  
+  // Check if user can create categories (requires active or trialing subscription)
+  const canCreateCategory = subscription?.status === "active" || subscription?.status === "trialing";
 
   // Listen for custom event to open receipt scanner (from mobile FAB)
   useEffect(() => {
@@ -361,8 +363,8 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           subcategoryId: transaction.subcategoryId || undefined,
           merchant: merchantName || "",
           description: transaction.description || "",
-          recurring: transaction.recurring ?? false,
-          recurringFrequency: (transaction as any).recurringFrequency || (transaction.recurring ? "monthly" : undefined),
+          recurring: transaction.isRecurring ?? false,
+          recurringFrequency: (transaction as any).recurringFrequency || (transaction.isRecurring ? "monthly" : undefined),
         };
         
         // Only include expenseType if type is expense and it has a value
@@ -1342,14 +1344,18 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                                   {category.name}
                                 </SelectItem>
                               ))}
-                              <SelectSeparator />
-                              <SelectItem 
-                                value="__add_category__"
-                                className="text-primary font-medium"
-                              >
-                                <Plus className="mr-2 h-4 w-4 inline" />
-                                Add Category
-                              </SelectItem>
+                              {canCreateCategory && (
+                                <>
+                                  <SelectSeparator />
+                                  <SelectItem 
+                                    value="__add_category__"
+                                    className="text-foreground font-medium"
+                                  >
+                                    <Plus className="mr-2 h-4 w-4 inline" />
+                                    Add Category
+                                  </SelectItem>
+                                </>
+                              )}
                             </>
                           );
                         } else {
@@ -1388,14 +1394,18 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                                     ))}
                                 </SelectGroup>
                               ))}
-                              <SelectSeparator />
-                              <SelectItem 
-                                value="__add_category__"
-                                className="text-primary font-medium"
-                              >
-                                <Plus className="mr-2 h-4 w-4 inline" />
-                                Add Category
-                              </SelectItem>
+                              {canCreateCategory && (
+                                <>
+                                  <SelectSeparator />
+                                  <SelectItem 
+                                    value="__add_category__"
+                                    className="text-foreground font-medium"
+                                  >
+                                    <Plus className="mr-2 h-4 w-4 inline" />
+                                    Add Category
+                                  </SelectItem>
+                                </>
+                              )}
                             </>
                           );
                         }

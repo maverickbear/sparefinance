@@ -7,7 +7,7 @@ export function BudgetManagementMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[280px]">
         {/* Budget Card */}
-        <div className="bg-card rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">

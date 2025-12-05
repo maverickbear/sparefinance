@@ -2,7 +2,7 @@
 
 import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
-import { Household, HouseholdMemberNew, UserActiveHousehold } from "@/lib/types/household";
+import { Household, HouseholdMember, UserActiveHousehold } from "@/lib/types/household";
 import { guardHouseholdMembers, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { sendInvitationEmail } from "@/lib/utils/email";
 
@@ -22,9 +22,9 @@ function mapHousehold(row: any): Household {
 }
 
 /**
- * Map database HouseholdMemberNew to HouseholdMemberNew type
+ * Map database HouseholdMember to HouseholdMember type
  */
-function mapHouseholdMember(row: any): HouseholdMemberNew {
+function mapHouseholdMember(row: any): HouseholdMember {
   return {
     id: row.id,
     householdId: row.householdId,
@@ -47,7 +47,7 @@ export async function getUserHouseholds(userId: string): Promise<Household[]> {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("Household(*)")
       .eq("userId", userId)
       .eq("status", "active");
@@ -91,7 +91,7 @@ export async function getActiveHousehold(userId: string): Promise<Household | nu
 
     // Fallback to default (personal) household
     const { data: defaultMember, error: defaultError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("Household(*)")
       .eq("userId", userId)
       .eq("isDefault", true)
@@ -118,7 +118,7 @@ export async function setActiveHousehold(userId: string, householdId: string): P
 
     // Verify user is a member of this household
     const { data: member, error: memberError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id")
       .eq("householdId", householdId)
       .eq("userId", userId)
@@ -180,9 +180,9 @@ export async function createHousehold(
       throw new Error(`Failed to create household: ${householdError?.message || 'Unknown error'}`);
     }
 
-    // Create HouseholdMemberNew (owner role)
+    // Create HouseholdMember (owner role)
     const { error: memberError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .insert({
         householdId: household.id,
         userId,
@@ -215,7 +215,7 @@ export async function createHousehold(
 /**
  * Get all members of a household
  */
-export async function getHouseholdMembers(householdId: string): Promise<HouseholdMemberNew[]> {
+export async function getHouseholdMembers(householdId: string): Promise<HouseholdMember[]> {
   try {
     const supabase = await createServerClient();
 
@@ -229,7 +229,7 @@ export async function getHouseholdMembers(householdId: string): Promise<Househol
     }
 
     const { data: userMembership, error: membershipError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id")
       .eq("householdId", householdId)
       .eq("userId", authUser.id)
@@ -246,7 +246,7 @@ export async function getHouseholdMembers(householdId: string): Promise<Househol
     }
 
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("*")
       .eq("householdId", householdId)
       .order("role", { ascending: false }) // owner first, then admin, then member
@@ -276,7 +276,7 @@ export async function inviteHouseholdMember(
   email: string,
   role: 'admin' | 'member' = 'member',
   name?: string
-): Promise<HouseholdMemberNew> {
+): Promise<HouseholdMember> {
   try {
     const supabase = await createServerClient();
 
@@ -298,7 +298,7 @@ export async function inviteHouseholdMember(
     }
 
     const { data: userMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("role")
       .eq("householdId", householdId)
       .eq("userId", currentUser.user.id)
@@ -319,7 +319,7 @@ export async function inviteHouseholdMember(
     // Check if user is already a member
     if (existingUser) {
       const { data: existingMember } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("id")
         .eq("householdId", householdId)
         .eq("userId", existingUser.id)
@@ -334,7 +334,7 @@ export async function inviteHouseholdMember(
     const now = formatTimestamp(new Date());
 
     // For now, we'll create a pending invitation record
-    // Note: HouseholdMemberNew doesn't have email field, so we'll need to handle this differently
+    // Note: HouseholdMember doesn't have email field, so we'll need to handle this differently
     // We can create a pending record and link it when user accepts
     // For now, if user exists, create active member; otherwise, we'll need to handle via old HouseholdMember table
     // or create a separate invitation table
@@ -342,7 +342,7 @@ export async function inviteHouseholdMember(
     // If user exists, create member immediately
     if (existingUser) {
       const { data: member, error: memberError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .insert({
           householdId,
           userId: existingUser.id,
@@ -381,7 +381,7 @@ export async function updateHouseholdMemberRole(
   householdId: string,
   memberId: string,
   role: 'owner' | 'admin' | 'member'
-): Promise<HouseholdMemberNew> {
+): Promise<HouseholdMember> {
   try {
     const supabase = await createServerClient();
 
@@ -392,7 +392,7 @@ export async function updateHouseholdMemberRole(
     }
 
     const { data: userMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("role")
       .eq("householdId", householdId)
       .eq("userId", currentUser.user.id)
@@ -406,7 +406,7 @@ export async function updateHouseholdMemberRole(
     const now = formatTimestamp(new Date());
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .update({
         role,
         updatedAt: now,
@@ -441,7 +441,7 @@ export async function removeHouseholdMember(householdId: string, memberId: strin
     }
 
     const { data: userMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("role")
       .eq("householdId", householdId)
       .eq("userId", currentUser.user.id)
@@ -457,7 +457,7 @@ export async function removeHouseholdMember(householdId: string, memberId: strin
     // Don't allow removing the last owner
     if (userMember.role === 'owner' && !isRemovingSelf) {
       const { data: owners } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("id")
         .eq("householdId", householdId)
         .eq("role", "owner")
@@ -469,7 +469,7 @@ export async function removeHouseholdMember(householdId: string, memberId: strin
     }
 
     const { error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .delete()
       .eq("id", memberId)
       .eq("householdId", householdId);

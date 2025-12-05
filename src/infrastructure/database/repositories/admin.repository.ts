@@ -76,7 +76,7 @@ export class AdminRepository {
     const allOwnedHouseholdIds = (ownedHouseholds || []).map(h => h.id);
     
     const { data: householdMembers } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("userId, householdId, status, email, name, Household(createdBy, type)")
       .in("status", ["active", "pending"])
       .or(
@@ -874,6 +874,21 @@ export class AdminRepository {
     if (error && error.code !== "PGRST116") {
       // PGRST116 is "not found" - we'll return default if it doesn't exist
       logger.error("[AdminRepository] Error fetching system settings:", error);
+      
+      // Check if the error is due to HTML response (misconfigured Supabase URL)
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("<html>") || 
+          errorMessage.includes("500 Internal Server Error") ||
+          errorMessage.includes("cloudflare")) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "not set";
+        throw new Error(
+          `Failed to fetch system settings: Supabase URL appears to be misconfigured. ` +
+          `Received HTML error page instead of JSON response. ` +
+          `Please verify NEXT_PUBLIC_SUPABASE_URL points to your Supabase project (should end with .supabase.co), ` +
+          `not your app domain. Current URL: ${supabaseUrl.substring(0, 50)}...`
+        );
+      }
+      
       throw new Error(`Failed to fetch system settings: ${error.message}`);
     }
 

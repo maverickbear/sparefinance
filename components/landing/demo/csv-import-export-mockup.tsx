@@ -7,7 +7,7 @@ export function CsvImportExportMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[280px] space-y-3">
         {/* Export Card */}
-        <div className="bg-card rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <Download className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -24,7 +24,7 @@ export function CsvImportExportMockup() {
         </div>
 
         {/* Import Card */}
-        <div className="bg-card rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
               <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />

@@ -16,7 +16,7 @@ const getStatusColor = (percentage: number) => {
   if (percentage > 100) {
     return {
       bg: "bg-red-100 dark:bg-red-900/20",
-      bar: "bg-red-400 dark:bg-red-500",
+      bar: "bg-sentiment-negative dark:bg-sentiment-negative",
       text: "text-red-600 dark:text-red-400",
     };
   } else if (percentage > 90) {

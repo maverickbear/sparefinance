@@ -30,7 +30,7 @@ export async function getActiveHouseholdId(
 
     // Fallback to default (personal) household
     const { data: defaultMember, error: defaultError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("householdId")
       .eq("userId", userId)
       .eq("isDefault", true)

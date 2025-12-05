@@ -411,12 +411,16 @@ export async function POST(req: NextRequest) {
                 downPayment: 0,
                 interestRate: 0, // Will be updated when liabilities sync
                 totalMonths: null,
-                firstPaymentDate: formatDateOnly(nextDueDate),
+                paymentFrequency: "monthly", // Credit cards must have monthly payment frequency
+                firstPaymentDate: nextDueDate,
                 monthlyPayment: 0, // Credit cards have flexible payments - user can pay any amount (minimum, partial, full, or more)
                 accountId: accountId,
                 priority: "Medium",
-                status: "active",
-                nextDueDate: formatDateOnly(nextDueDate),
+                principalPaid: 0,
+                interestPaid: 0,
+                additionalContributions: false,
+                additionalContributionAmount: 0,
+                isPaused: false,
               });
               
               console.log(`[PLAID] Created debt for credit card account ${accountId} with balance ${balanceAmount}`);
@@ -491,6 +495,7 @@ export async function POST(req: NextRequest) {
             // We'll use the first page to estimate total count
             let estimatedTransactionCount = 0;
             try {
+              const plaidClient = getPlaidClient();
               const initialSync = await plaidClient.transactionsSync({
                 access_token: accessToken,
                 cursor: undefined,

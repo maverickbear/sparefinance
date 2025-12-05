@@ -6,7 +6,7 @@ import { useState, useEffect, createContext, useContext, memo, useMemo, useCallb
 import { cn } from "@/lib/utils";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { getInitials, isValidAvatarUrl } from "@/lib/utils/avatar";
-import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet, Calendar, Repeat, Tag, Mail, Star, ChevronDown, Search } from "lucide-react";
+import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, Moon, Sun, User, Settings, LogOut, CreditCard, PiggyBank, Users, ChevronLeft, ChevronRight, HelpCircle, Shield, FileText as FileTextIcon, Settings2, MessageSquare, Wallet, Calendar, Repeat, Tag, Mail, Star, ChevronDown, Search, Palette } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
 import { TrialWidget, calculateTrialDaysRemaining, calculateTrialProgress } from "@/components/billing/trial-widget";
@@ -64,6 +64,12 @@ const baseNavSections: NavSection[] = [
       { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
       { href: "/investments", label: "Investments", icon: TrendingUp },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { href: "/settings", label: "My Account", icon: User },
     ],
   },
 ];
@@ -343,6 +349,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
     { href: "/portal-management/plans", label: "Plans", icon: CreditCard },
     { href: "/portal-management/subscription-services", label: "Subscription Services", icon: Settings2 },
     { href: "/portal-management/seo", label: "SEO Settings", icon: Search },
+    { href: "/design", label: "Design System", icon: Palette },
   ];
 
   // Build nav sections - add portal management items directly to base sections
@@ -397,7 +404,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                 </Link>
               ) : (
                 <Link href="/dashboard" prefetch={true} className="flex items-center justify-center w-full h-full">
-                  <Logo variant="wordmark" color="auto" width={150} height={40} priority />
+                  <Logo variant="wordmark" color="auto" width={200} height={53} priority />
                 </Link>
               )}
             </div>
@@ -457,7 +464,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                               }
                             }}
                             className={cn(
-                              "flex items-center rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full",
+                              "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full",
                               isActive
                                 ? "bg-primary text-primary-foreground"
                                 : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -490,7 +497,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                             }
                           }}
                           className={cn(
-                            "flex items-center justify-between w-full rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2",
+                            "flex items-center justify-between w-full rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2",
                             isActive
                               ? "bg-primary text-primary-foreground"
                               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -519,7 +526,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                               setShowPortalManagementItems(false);
                               router.push("/dashboard");
                             }}
-                            className="flex items-center rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            className="flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                           >
                             <ChevronLeft className="h-5 w-5 flex-shrink-0" />
                           </button>
@@ -545,7 +552,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                             setShowPortalManagementItems(false);
                             router.push("/dashboard");
                           }}
-                          className="flex items-center space-x-3 rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          className="flex items-center space-x-3 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                         >
                           <ChevronLeft className="h-5 w-5 flex-shrink-0" />
                           <span>Back to Main Menu</span>
@@ -557,15 +564,10 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                     
                     // Regular link item
                     const basePath = item.href.split("?")[0];
-                    const hrefSearchParams = item.href.includes("?") ? item.href.split("?")[1] : null;
-                    const currentTab = searchParams.get("tab");
-                    const hrefTab = hrefSearchParams?.split("&").find(p => p.startsWith("tab="))?.split("=")[1];
                     const isActive =
                       pathname === item.href ||
                       pathname === basePath ||
-                      (basePath !== "/" && pathname.startsWith(basePath)) ||
-                      // Handle Settings tabs: if href is /settings?tab=X, also check if we're on /settings with that tab
-                      (basePath === "/settings" && hrefTab && pathname === "/settings" && currentTab === hrefTab);
+                      (basePath !== "/" && pathname.startsWith(basePath));
                     
                     const linkElement = (
                       <Link
@@ -578,7 +580,7 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                           }
                         }}
                         className={cn(
-                          "flex items-center rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out",
+                          "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out",
                           !hasSubscription && "opacity-50 cursor-not-allowed",
                           isActive
                             ? "bg-primary text-primary-foreground translate-x-0"
@@ -639,8 +641,8 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                   <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
                   {!isCollapsed && (
                     <div className="flex-1 space-y-1">
-                      <div className="h-3 w-20 bg-muted rounded-[12px] animate-pulse" />
-                      <div className="h-2 w-16 bg-muted rounded-[12px] animate-pulse" />
+                      <div className="h-3 w-20 bg-muted rounded-lg animate-pulse" />
+                      <div className="h-2 w-16 bg-muted rounded-lg animate-pulse" />
                     </div>
                   )}
                 </div>
@@ -709,13 +711,6 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem asChild className="mb-1">
-                      <Link href="/settings" prefetch={true} className="cursor-pointer">
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>My Account</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild className="mb-1">
                       <Link href="/feedback" prefetch={true} className="cursor-pointer">
                         <MessageSquare className="mr-2 h-4 w-4" />
                         <span>Feedback</span>
@@ -739,20 +734,24 @@ function NavComponent({ hasSubscription = true }: NavProps) {
                         <span>Terms of Service</span>
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() =>
-                        setTheme(theme === "dark" ? "light" : "dark")
-                      }
-                      className="mb-1"
-                    >
-                      <div className="relative mr-2 h-4 w-4">
-                        <Sun className="absolute h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                        <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                      </div>
-                      <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
+                    {isSuperAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() =>
+                            setTheme(theme === "dark" ? "light" : "dark")
+                          }
+                          className="mb-1"
+                        >
+                          <div className="relative mr-2 h-4 w-4">
+                            <Sun className="absolute h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                          </div>
+                          <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive cursor-pointer"
                       onClick={handleLogout}

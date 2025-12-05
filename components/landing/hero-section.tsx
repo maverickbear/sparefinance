@@ -40,14 +40,15 @@ export function HeroSection() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
             <Button
               asChild
-              className="bg-white text-foreground hover:bg-white/90 text-lg font-medium px-8 h-12 rounded-full transition-all"
+              size="large"
             >
               <Link href="/auth/signup">Get Started</Link>
             </Button>
             <Button
               asChild
               variant="outline"
-              className="bg-white/10 border-foreground/30 text-foreground hover:bg-white/20 text-lg font-medium px-8 h-12 rounded-full backdrop-blur-sm"
+              size="large"
+              className="backdrop-blur-sm"
             >
               <Link href="#features">
                 Learn More

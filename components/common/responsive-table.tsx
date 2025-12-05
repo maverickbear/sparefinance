@@ -116,7 +116,7 @@ export const ResponsiveTable = memo(function ResponsiveTable<T extends Record<st
       </div>
 
       {/* Tablet/Desktop Table View - shown on lg screens and above */}
-      <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+      <div className="hidden lg:block rounded-lg border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

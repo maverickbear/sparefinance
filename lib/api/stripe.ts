@@ -527,7 +527,7 @@ export async function createPortalSession(userId: string): Promise<{ url: string
 
     // Create portal session
     // Return URL includes a parameter to trigger subscription sync
-    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/settings?tab=billing&portal_return=true`;
+    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://sparefinance.com/"}/settings/billing?portal_return=true`;
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripeCustomerId,
       return_url: returnUrl,
@@ -1153,7 +1153,7 @@ async function handleSubscriptionChange(
       } else {
         // Fallback to default (personal) household
         const { data: defaultMember } = await supabase
-          .from("HouseholdMemberNew")
+          .from("HouseholdMember")
           .select("householdId")
           .eq("userId", userId)
           .eq("isDefault", true)

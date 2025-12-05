@@ -19,8 +19,8 @@ export function BudgetDemo() {
 
   const getStatusColor = () => {
     if (budget.status === "over") return "bg-destructive";
-    if (budget.status === "warning") return "bg-yellow-500";
-    return "bg-green-500";
+    if (budget.status === "warning") return "bg-sentiment-warning";
+    return "bg-sentiment-positive";
   };
 
   const getStatusTextColor = () => {

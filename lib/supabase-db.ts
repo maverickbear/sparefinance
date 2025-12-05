@@ -246,7 +246,7 @@ export interface Database {
     transferFromId: string | null;
     createdAt: string;
     updatedAt: string;
-    recurring: boolean;
+    isRecurring: boolean;
     expenseType: string | null;
     suggestedCategoryId: string | null;
     suggestedSubcategoryId: string | null;

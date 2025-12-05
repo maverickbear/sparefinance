@@ -7,6 +7,7 @@ import { HouseholdRepository } from "@/src/infrastructure/database/repositories/
 import { OnboardingMapper } from "./onboarding.mapper";
 import { ExpectedIncomeRange, OnboardingStatusExtended } from "../../domain/onboarding/onboarding.types";
 import { expectedIncomeRangeSchema } from "../../domain/onboarding/onboarding.validations";
+import { locationSchema } from "../../domain/taxes/taxes.validations";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { BudgetGenerator } from "./budget-generator";
@@ -207,6 +208,76 @@ export class OnboardingService {
   }
 
   /**
+   * Save location (country and state/province) to household settings
+   * If no household exists, this will fail (location must be saved to household)
+   */
+  async saveLocation(
+    userId: string,
+    country: string,
+    stateOrProvince: string | null,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<void> {
+    // Validate input
+    locationSchema.parse({ country, stateOrProvince });
+
+    const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
+    
+    if (!householdId) {
+      throw new AppError("Household must exist to save location", 400);
+    }
+
+    // Get current settings
+    const currentSettings = await this.householdRepository.getSettings(
+      householdId,
+      accessToken,
+      refreshToken
+    );
+
+    // Update settings
+    const updatedSettings = OnboardingMapper.settingsToDatabase({
+      ...currentSettings,
+      country,
+      stateOrProvince,
+    });
+
+    await this.householdRepository.updateSettings(
+      householdId,
+      updatedSettings,
+      accessToken,
+      refreshToken
+    );
+
+    logger.info(`[OnboardingService] Saved location for user ${userId}: ${country}${stateOrProvince ? `, ${stateOrProvince}` : ''}`);
+  }
+
+  /**
+   * Get location from household settings
+   */
+  async getLocation(
+    userId: string,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<{ country: string | null; stateOrProvince: string | null }> {
+    const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
+    
+    if (!householdId) {
+      return { country: null, stateOrProvince: null };
+    }
+
+    const settings = await this.householdRepository.getSettings(
+      householdId,
+      accessToken,
+      refreshToken
+    );
+
+    return {
+      country: settings?.country ?? null,
+      stateOrProvince: settings?.stateOrProvince ?? null,
+    };
+  }
+
+  /**
    * Get expected income from household settings or temporary profile storage
    */
   async getExpectedIncome(
@@ -311,12 +382,29 @@ export class OnboardingService {
       throw new AppError("Invalid income range", 400);
     }
 
+    // Get location if available
+    const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
+    let country: string | null = null;
+    let stateOrProvince: string | null = null;
+    
+    if (householdId) {
+      const settings = await this.householdRepository.getSettings(
+        householdId,
+        accessToken,
+        refreshToken
+      );
+      country = settings?.country ?? null;
+      stateOrProvince = settings?.stateOrProvince ?? null;
+    }
+
     await this.budgetGenerator.generateInitialBudgets(
       userId,
       monthlyIncome,
       accessToken,
       refreshToken,
-      ruleType
+      ruleType,
+      country,
+      stateOrProvince
     );
 
     logger.info(`[OnboardingService] Generated initial budgets for user ${userId}`);

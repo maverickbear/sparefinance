@@ -444,6 +444,8 @@ export class CategoriesRepository {
 
   /**
    * Find all groups
+   * Users can only see system groups (userId IS NULL)
+   * User-created groups are not visible to regular users
    */
   async findAllGroups(
     accessToken?: string,
@@ -451,20 +453,12 @@ export class CategoriesRepository {
   ): Promise<GroupRow[]> {
     const supabase = await createServerClient(accessToken, refreshToken);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || null;
-
-    let query = supabase
+    // Only return system groups (userId IS NULL) - shared by all users
+    const query = supabase
       .from("Group")
       .select("*")
+      .is("userId", null)
       .order("name", { ascending: true });
-
-    // If authenticated, get system defaults (userId IS NULL) OR user's own groups
-    if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
-    } else {
-      query = query.is("userId", null);
-    }
 
     const { data: groups, error } = await query;
 

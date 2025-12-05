@@ -28,7 +28,7 @@ export default async function TermsOfServicePage() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-[12px]">
+              <div className="p-2 bg-primary/10 rounded-lg">
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <span className="text-xl font-bold">Spare Finance</span>

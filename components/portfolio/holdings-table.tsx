@@ -190,7 +190,7 @@ export const HoldingsTable = memo(function HoldingsTable({ holdings }: HoldingsT
         </div>
 
         {/* Desktop/Tablet Table View */}
-        <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+        <div className="hidden lg:block rounded-lg border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -239,7 +239,7 @@ export const HoldingsTable = memo(function HoldingsTable({ holdings }: HoldingsT
                     </TableCell>
                     <TableCell className="text-xs md:text-sm hidden sm:table-cell">
                       <div className="flex items-center gap-1">
-                        <span className={`rounded-[12px] px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] md:text-xs ${
+                        <span className={`rounded-lg px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] md:text-xs ${
                           holding.assetType === "Stock" 
                             ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" 
                             : holding.assetType === "ETF"

@@ -48,14 +48,14 @@ const mockBudgets = [
 export function BudgetsDemo() {
   const getStatusColor = (status: string) => {
     if (status === "over") return "bg-destructive";
-    if (status === "warning") return "bg-yellow-500 dark:bg-yellow-600";
-    return "bg-green-500 dark:bg-green-600";
+    if (status === "warning") return "bg-sentiment-warning dark:bg-sentiment-warning";
+    return "bg-sentiment-positive dark:bg-sentiment-positive";
   };
 
   const getStatusTextColor = (status: string) => {
     if (status === "over") return "text-destructive";
-    if (status === "warning") return "text-yellow-600 dark:text-yellow-400";
-    return "text-green-600 dark:text-green-400";
+    if (status === "warning") return "text-sentiment-warning dark:text-sentiment-warning";
+    return "text-sentiment-positive dark:text-sentiment-positive";
   };
 
   const getStatusLabel = (status: string) => {

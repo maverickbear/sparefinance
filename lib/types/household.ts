@@ -12,7 +12,7 @@ export interface Household {
   settings?: Record<string, unknown>;
 }
 
-export interface HouseholdMemberNew {
+export interface HouseholdMember {
   id: string;
   householdId: string;
   userId: string;
@@ -32,10 +32,10 @@ export interface UserActiveHousehold {
 }
 
 export interface HouseholdWithMembers extends Household {
-  members?: HouseholdMemberNew[];
+  members?: HouseholdMember[];
 }
 
-export interface HouseholdMemberWithUser extends HouseholdMemberNew {
+export interface HouseholdMemberWithUser extends HouseholdMember {
   user?: {
     id: string;
     email: string;

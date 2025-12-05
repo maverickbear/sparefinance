@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Fallback to default (personal) household
         const { data: defaultMember } = await serviceSupabase
-          .from("HouseholdMemberNew")
+          .from("HouseholdMember")
           .select("householdId")
           .eq("userId", authUser.id)
           .eq("isDefault", true)

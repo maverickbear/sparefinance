@@ -10,7 +10,7 @@ export function SecurityDemo() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary/10 rounded-[12px]">
+                <div className="p-3 bg-primary/10 rounded-lg">
                   <Shield className="h-6 w-6 text-primary" />
                 </div>
                 <CardTitle>Bank-Level Encryption</CardTitle>
@@ -26,7 +26,7 @@ export function SecurityDemo() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary/10 rounded-[12px]">
+                <div className="p-3 bg-primary/10 rounded-lg">
                   <Lock className="h-6 w-6 text-primary" />
                 </div>
                 <CardTitle>Secure Authentication</CardTitle>
@@ -42,7 +42,7 @@ export function SecurityDemo() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary/10 rounded-[12px]">
+                <div className="p-3 bg-primary/10 rounded-lg">
                   <Eye className="h-6 w-6 text-primary" />
                 </div>
                 <CardTitle>Privacy First</CardTitle>
@@ -58,7 +58,7 @@ export function SecurityDemo() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-primary/10 rounded-[12px]">
+                <div className="p-3 bg-primary/10 rounded-lg">
                   <CheckCircle2 className="h-6 w-6 text-primary" />
                 </div>
                 <CardTitle>Compliance & Audits</CardTitle>

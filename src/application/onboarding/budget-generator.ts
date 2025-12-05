@@ -21,13 +21,16 @@ export class BudgetGenerator {
   /**
    * Generate initial budgets based on monthly income and optional budget rule
    * If no rule is provided, defaults to 50/30/20 rule
+   * If location is provided, uses after-tax income for more accurate budgets
    */
   async generateInitialBudgets(
     userId: string,
     monthlyIncome: number,
     accessToken?: string,
     refreshToken?: string,
-    ruleType?: BudgetRuleType
+    ruleType?: BudgetRuleType,
+    country?: string | null,
+    stateOrProvince?: string | null
   ): Promise<BaseBudget[]> {
     const budgetsService = makeBudgetsService();
     const budgetRulesService = makeBudgetRulesService();
@@ -43,6 +46,26 @@ export class BudgetGenerator {
 
     logger.info(`[BudgetGenerator] Using budget rule: ${selectedRule.name} for user ${userId}`);
 
+    // Calculate after-tax income if location is available
+    let incomeToUse = monthlyIncome;
+    if (country && stateOrProvince) {
+      try {
+        const { makeTaxesService } = await import("../taxes/taxes.factory");
+        const taxesService = makeTaxesService();
+        const annualIncome = monthlyIncome * 12;
+        const monthlyAfterTax = await taxesService.calculateMonthlyAfterTaxIncome(
+          country,
+          annualIncome,
+          stateOrProvince
+        );
+        incomeToUse = monthlyAfterTax;
+        logger.info(`[BudgetGenerator] Using after-tax income: $${monthlyAfterTax.toFixed(2)}/month (from $${monthlyIncome.toFixed(2)}/month gross)`);
+      } catch (error) {
+        logger.warn(`[BudgetGenerator] Failed to calculate after-tax income, using gross income:`, error);
+        // Continue with gross income if tax calculation fails
+      }
+    }
+
     // Get all groups to map to rule categories
     const groups = await categoriesService.getGroups(accessToken, refreshToken);
     const groupMappings = budgetRulesService.mapGroupsToRuleCategories(groups);
@@ -50,7 +73,7 @@ export class BudgetGenerator {
     // Calculate budget amounts per group based on rule
     const budgetAmounts = budgetRulesService.calculateBudgetAmounts(
       selectedRule,
-      monthlyIncome,
+      incomeToUse,
       groupMappings
     );
 

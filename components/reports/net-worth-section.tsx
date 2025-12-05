@@ -8,6 +8,7 @@ import type { NetWorthData } from "@/src/domain/reports/reports.types";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { ChartCard } from "@/components/charts/chart-card";
 import { format, parseISO } from "date-fns";
+import { sentiment, interactive } from "@/lib/design-system/colors";
 
 interface NetWorthSectionProps {
   netWorth: NetWorthData | null;
@@ -36,10 +37,10 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
     netWorth: point.netWorth,
   }));
 
-  // Calculate asset breakdown
+  // Calculate asset breakdown - use design system colors
   const assetBreakdown = [
-    { name: "Cash & Accounts", value: totalAssets * 0.6, color: "#3b82f6" }, // Placeholder - would need actual breakdown
-    { name: "Investments", value: totalAssets * 0.4, color: "#8b5cf6" }, // Placeholder
+    { name: "Cash & Accounts", value: totalAssets * 0.6, color: interactive.primary }, // #94DD78
+    { name: "Investments", value: totalAssets * 0.4, color: interactive.accent }, // #B5EF90
   ];
 
   return (
@@ -57,10 +58,10 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
             {/* Total Assets */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <Wallet className="h-4 w-4 text-sentiment-positive" />
                 <p className="text-sm text-muted-foreground">Total Assets</p>
               </div>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+              <p className="text-2xl font-bold text-sentiment-positive">
                 {formatMoney(totalAssets)}
               </p>
             </div>
@@ -68,10 +69,10 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
             {/* Total Liabilities */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-red-600 dark:text-red-400" />
+                <CreditCard className="h-4 w-4 text-sentiment-negative" />
                 <p className="text-sm text-muted-foreground">Total Liabilities</p>
               </div>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+              <p className="text-2xl font-bold text-sentiment-negative">
                 {formatMoney(totalLiabilities)}
               </p>
             </div>
@@ -86,8 +87,8 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
                 className={cn(
                   "text-2xl font-bold",
                   netWorthValue >= 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400"
+                    ? "text-sentiment-positive"
+                    : "text-sentiment-negative"
                 )}
               >
                 {formatMoney(netWorthValue)}
@@ -95,15 +96,15 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
               {change.amount !== 0 && (
                 <div className="flex items-center gap-1 text-xs">
                   {change.amount >= 0 ? (
-                    <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400" />
+                    <TrendingUp className="h-3 w-3 text-sentiment-positive" />
                   ) : (
-                    <TrendingDown className="h-3 w-3 text-red-600 dark:text-red-400" />
+                    <TrendingDown className="h-3 w-3 text-sentiment-negative" />
                   )}
                   <span
                     className={cn(
                       change.amount >= 0
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-600 dark:text-red-400"
+                        ? "text-sentiment-positive"
+                        : "text-sentiment-negative"
                     )}
                   >
                     {change.amount >= 0 ? "+" : ""}
@@ -168,7 +169,7 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
                   <Line
                     type="monotone"
                     dataKey="netWorth"
-                    stroke="#10b981"
+                    stroke={sentiment.positive}
                     strokeWidth={2}
                     dot={{ r: 4 }}
                     name="Net Worth"
@@ -176,7 +177,7 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
                   <Line
                     type="monotone"
                     dataKey="assets"
-                    stroke="#3b82f6"
+                    stroke={interactive.primary}
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={{ r: 3 }}
@@ -185,7 +186,7 @@ export function NetWorthSection({ netWorth }: NetWorthSectionProps) {
                   <Line
                     type="monotone"
                     dataKey="liabilities"
-                    stroke="#ef4444"
+                    stroke={sentiment.negative}
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={{ r: 3 }}

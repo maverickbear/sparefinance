@@ -12,7 +12,6 @@ const LandingHeroSection = nextDynamic(() => import("@/components/landing/landin
 const StatisticsSection = nextDynamic(() => import("@/components/landing/statistics-section").then(m => ({ default: m.StatisticsSection })), { ssr: true });
 const LandingFeaturesSection = nextDynamic(() => import("@/components/landing/landing-features-section").then(m => ({ default: m.LandingFeaturesSection })), { ssr: true });
 const BenefitsSection = nextDynamic(() => import("@/components/landing/benefits-section").then(m => ({ default: m.BenefitsSection })), { ssr: true });
-const HowItWorksSection = nextDynamic(() => import("@/components/landing/how-it-works-section").then(m => ({ default: m.HowItWorksSection })), { ssr: true });
 // const LandingTestimonialsSection = nextDynamic(() => import("@/components/landing/landing-testimonials-section").then(m => ({ default: m.LandingTestimonialsSection })), { ssr: true });
 const PricingSection = nextDynamic(() => import("@/components/landing/pricing-section").then(m => ({ default: m.PricingSection })), { ssr: true });
 
@@ -181,7 +180,6 @@ export default async function LandingPage() {
           <StatisticsSection />
           <LandingFeaturesSection />
           <BenefitsSection />
-          <HowItWorksSection />
           {/* <LandingTestimonialsSection /> */}
           {!isMaintenanceMode && <PricingSection />}
         </main>

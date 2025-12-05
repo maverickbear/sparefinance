@@ -4,6 +4,7 @@ import { AppError } from "@/src/application/shared/app-error";
 import { profileSchema } from "@/src/domain/profile/profile.validations";
 import { expectedIncomeRangeSchema } from "@/src/domain/onboarding/onboarding.validations";
 import { BudgetRuleType } from "@/src/domain/budgets/budget-rules.types";
+import { locationSchema } from "@/src/domain/taxes/taxes.validations";
 import { z } from "zod";
 
 const completeOnboardingSchema = z.object({
@@ -16,6 +17,7 @@ const completeOnboardingSchema = z.object({
   step2: z.object({
     incomeRange: expectedIncomeRangeSchema,
     incomeAmount: z.number().positive().nullable().optional(),
+    location: locationSchema.nullable().optional(),
     ruleType: z.string().optional(),
   }),
   step3: z.object({
@@ -28,10 +30,11 @@ const completeOnboardingSchema = z.object({
  * POST /api/v2/onboarding/complete
  * Complete onboarding by executing all operations in sequence:
  * 1. Save personal data (profile)
- * 2. Save expected income
- * 3. Create initial budgets
- * 4. Create subscription
- * 5. Invalidate caches
+ * 2. Save location (country and state/province)
+ * 3. Save expected income
+ * 4. Create initial budgets
+ * 5. Create subscription
+ * 6. Invalidate caches
  */
 export async function POST(request: NextRequest) {
   try {
@@ -68,11 +71,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 2: Save expected income
+    // Step 2: Save location and expected income
     try {
       const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
       const onboardingService = makeOnboardingService();
       
+      // Save location if provided
+      if (validated.step2.location?.country) {
+        await onboardingService.saveLocation(
+          userId,
+          validated.step2.location.country,
+          validated.step2.location.stateOrProvince ?? null,
+          accessToken,
+          refreshToken
+        );
+        console.log("[ONBOARDING-COMPLETE] Location saved successfully");
+      }
+      
+      // Save expected income
       await onboardingService.saveExpectedIncome(
         userId,
         validated.step2.incomeRange,
@@ -82,9 +98,9 @@ export async function POST(request: NextRequest) {
       );
       console.log("[ONBOARDING-COMPLETE] Expected income saved successfully");
     } catch (error) {
-      console.error("[ONBOARDING-COMPLETE] Error saving expected income:", error);
+      console.error("[ONBOARDING-COMPLETE] Error saving location/income:", error);
       throw new AppError(
-        error instanceof Error ? error.message : "Failed to save expected income",
+        error instanceof Error ? error.message : "Failed to save location/income",
         500
       );
     }
@@ -205,7 +221,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 5: Invalidate caches
+    // Step 6: Invalidate caches
     try {
       const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
@@ -234,6 +250,8 @@ export async function POST(request: NextRequest) {
         const field = firstError.path.join(".");
         if (field.includes("step1.name")) {
           errorMessage = "Name is required";
+        } else if (field.includes("step2.location")) {
+          errorMessage = "Please select your location";
         } else if (field.includes("step2.incomeRange")) {
           errorMessage = "Please select an income range";
         } else if (field.includes("step3.planId")) {

@@ -110,7 +110,7 @@ export function PricingSection() {
           onSuccess={() => {
             setShowCheckout(false);
             setSelectedPlan(null);
-            router.push("/settings?tab=billing&checkout=success");
+            router.push("/settings/billing?checkout=success");
           }}
         />
       )}

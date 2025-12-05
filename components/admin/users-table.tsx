@@ -230,7 +230,7 @@ export function UsersTable({ users: initialUsers, loading: initialLoading, searc
 
   return (
     <div className="space-y-4">
-      <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+      <div className="hidden lg:block rounded-lg border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

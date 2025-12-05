@@ -20,7 +20,7 @@ export class TransactionsMapper {
       categoryId: row.categoryId,
       subcategoryId: row.subcategoryId,
       description: row.description,
-      recurring: row.recurring,
+      isRecurring: row.isRecurring,
       expenseType: row.expenseType,
       transferToId: row.transferToId,
       transferFromId: row.transferFromId,
@@ -30,6 +30,8 @@ export class TransactionsMapper {
       suggestedSubcategoryId: row.suggestedSubcategoryId,
       plaidMetadata: row.plaidMetadata,
       receiptUrl: row.receiptUrl,
+      userId: row.userId,
+      householdId: row.householdId,
     };
   }
 
@@ -46,7 +48,7 @@ export class TransactionsMapper {
       categoryId: domain.categoryId ?? null,
       subcategoryId: domain.subcategoryId ?? null,
       description: domain.description ?? null,
-      recurring: domain.recurring ?? false,
+      isRecurring: domain.isRecurring ?? false,
       expenseType: domain.expenseType ?? null,
       transferToId: domain.transferToId ?? null,
       transferFromId: domain.transferFromId ?? null,
@@ -56,6 +58,8 @@ export class TransactionsMapper {
       suggestedSubcategoryId: domain.suggestedSubcategoryId ?? null,
       plaidMetadata: domain.plaidMetadata ?? null,
       receiptUrl: domain.receiptUrl ?? null,
+      userId: domain.userId ?? null,
+      householdId: domain.householdId ?? null,
     };
   }
 

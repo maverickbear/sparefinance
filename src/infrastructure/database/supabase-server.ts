@@ -16,6 +16,15 @@ if (supabaseUrl && !supabaseUrl.startsWith("https://") && !supabaseUrl.startsWit
   console.warn("⚠️  Supabase URL should start with https://. Current value:", supabaseUrl);
 }
 
+// Validate that the URL looks like a Supabase project URL
+// Supabase project URLs should end with .supabase.co
+if (supabaseUrl && !supabaseUrl.includes(".supabase.co") && !supabaseUrl.includes("localhost") && !supabaseUrl.includes("127.0.0.1")) {
+  logger.error("[createServerClient] Invalid Supabase URL detected:", {
+    url: supabaseUrl.substring(0, 50) + "...",
+    suggestion: "NEXT_PUBLIC_SUPABASE_URL should point to your Supabase project URL (e.g., https://xxxxx.supabase.co), not your app domain",
+  });
+}
+
 // Server-side Supabase client
 // Use this in server components and API routes
 // Uses @supabase/ssr for proper cookie handling
@@ -47,13 +56,24 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
         // Only log if it's not an expected token error
         const errorMessage = sessionError.message?.toLowerCase() || "";
         const errorCode = (sessionError as any)?.code?.toLowerCase() || "";
-        const isExpectedError = errorCode === "refresh_token_not_found" ||
-          errorMessage.includes("refresh_token_not_found") ||
-          errorMessage.includes("refresh token not found") ||
-          errorMessage.includes("invalid refresh token") ||
-          errorMessage.includes("jwt expired");
+      const isExpectedError = errorCode === "refresh_token_not_found" ||
+        errorMessage.includes("refresh_token_not_found") ||
+        errorMessage.includes("refresh token not found") ||
+        errorMessage.includes("invalid refresh token") ||
+        errorMessage.includes("jwt expired");
         if (!isExpectedError) {
-          logger.warn("[createServerClient] setSession error:", sessionError.message);
+          // Check if the error is due to HTML response (misconfigured URL)
+          if (sessionError.message?.includes("Unexpected token '<'") || 
+              sessionError.message?.includes("is not valid JSON") ||
+              sessionError.message?.includes("<html>")) {
+            logger.error("[createServerClient] Supabase returned HTML instead of JSON. This usually means:", {
+              error: sessionError.message,
+              supabaseUrl: supabaseUrl.substring(0, 50) + "...",
+              suggestion: "Check if NEXT_PUBLIC_SUPABASE_URL is correct and points to a valid Supabase project (should end with .supabase.co)",
+            });
+          } else {
+            logger.warn("[createServerClient] setSession error:", sessionError.message);
+          }
         }
       }
 
@@ -90,7 +110,19 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
         errorMessage.includes("user from sub claim in jwt does not exist") ||
         errorMessage.includes("user does not exist");
       if (!isExpectedError) {
-        logger.warn("[createServerClient] Unexpected error:", error?.message);
+        // Check if the error is due to HTML response (misconfigured URL)
+        const errorMsg = error?.message || "";
+        if (errorMsg.includes("Unexpected token '<'") || 
+            errorMsg.includes("is not valid JSON") ||
+            errorMsg.includes("<html>")) {
+          logger.error("[createServerClient] Supabase returned HTML instead of JSON. This usually means:", {
+            error: error?.message,
+            supabaseUrl: supabaseUrl.substring(0, 50) + "...",
+            suggestion: "Check if NEXT_PUBLIC_SUPABASE_URL is correct and points to a valid Supabase project (should end with .supabase.co)",
+          });
+        } else {
+          logger.warn("[createServerClient] Unexpected error:", error?.message);
+        }
       }
       // Session will be invalid, but continue with unauthenticated client
     }
@@ -185,8 +217,20 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
       });
       // Don't log - this is an expected error when user is not authenticated
     } else if (authError) {
-      // Only log unexpected auth errors
-      logger.warn("[createServerClient] Unexpected auth error:", authError.message);
+      // Check if the error is due to HTML response (misconfigured URL)
+      const errorMessage = authError.message || "";
+      if (errorMessage.includes("Unexpected token '<'") || 
+          errorMessage.includes("is not valid JSON") ||
+          errorMessage.includes("<html>")) {
+        logger.error("[createServerClient] Supabase returned HTML instead of JSON. This usually means:", {
+          error: authError.message,
+          supabaseUrl: supabaseUrl.substring(0, 50) + "...",
+          suggestion: "Check if NEXT_PUBLIC_SUPABASE_URL is correct and points to a valid Supabase project (should end with .supabase.co)",
+        });
+      } else {
+        // Only log unexpected auth errors
+        logger.warn("[createServerClient] Unexpected auth error:", authError.message);
+      }
     }
   } catch (error: any) {
     // If there's an error, clear cookies and return unauthenticated client

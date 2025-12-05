@@ -86,7 +86,7 @@ export function GroupDialog({
       setIsSubmitting(true);
 
       // First, create the macro (group)
-      const macroRes = await fetch("/api/macros", {
+      const macroRes = await fetch("/api/v2/categories/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: data.name }),
@@ -142,6 +142,9 @@ export function GroupDialog({
         }
       }
 
+      // Wait a bit to ensure cache invalidation has propagated
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       onSuccess?.();
       onOpenChange(false);
       resetForm();
@@ -386,7 +389,7 @@ export function GroupDialog({
               </div>
             )}
 
-            <div className="space-y-2 max-h-64 overflow-y-auto rounded-[12px] border p-4">
+            <div className="space-y-2 max-h-64 overflow-y-auto rounded-lg border p-4">
               {pendingCategories.length === 0 && !isAddingCategory ? (
                 <p className="text-sm text-muted-foreground text-center py-2">
                   No categories yet
@@ -395,7 +398,7 @@ export function GroupDialog({
                 pendingCategories.map((category) => (
                   <div
                     key={category.tempId}
-                    className="space-y-2 p-2 border rounded-[12px]"
+                    className="space-y-2 p-2 border rounded-lg"
                   >
                     {editingCategoryTempId === category.tempId ? (
                       <div className="flex items-center gap-2">

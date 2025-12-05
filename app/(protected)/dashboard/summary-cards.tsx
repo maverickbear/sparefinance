@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { AnimatedNumber } from "@/components/common/animated-number";
-import { ArrowUpRight, ArrowDownRight, Wallet, PiggyBank } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, PiggyBank } from "lucide-react";
 import { AccountsBreakdownModal } from "@/components/dashboard/accounts-breakdown-modal";
 import { cn } from "@/lib/utils";
 import { startOfMonth, endOfMonth, format } from "date-fns";
@@ -164,7 +164,11 @@ export function SummaryCards({
 
   // Get selected member name or "All Households"
   const selectedMemberName = selectedMemberId 
-    ? householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown"
+    ? (() => {
+        const fullName = householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown";
+        // Extract only the first name
+        return fullName.split(" ")[0];
+      })()
     : "All Households";
 
   // Calculate total bills (recurring payments + subscriptions) for current month
@@ -260,50 +264,51 @@ export function SummaryCards({
       <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
         {/* Primary Color Card - Left Side */}
         <Card 
-          className="md:col-span-1 bg-primary border-primary text-primary-foreground cursor-pointer transition-all"
+          className="md:col-span-1 bg-primary border-primary cursor-pointer transition-all"
           onClick={() => setIsModalOpen(true)}
         >
           <CardContent className="p-4 md:p-5 flex flex-col h-full min-h-[160px]">
             {/* Logo and Household Selector */}
             <div className="flex items-start justify-between mb-4">
-              {/* Wallet Icon */}
-              <Wallet className="w-10 h-10 text-primary-foreground/80" />
               {/* Household Selector */}
               <Select
                 value={selectedMemberId || "all"}
                 onValueChange={handleMemberChange}
               >
-                <SelectTrigger className="!w-auto inline-flex bg-transparent border-0 text-primary-foreground hover:text-primary-foreground/80 hover:bg-primary-foreground/10 h-auto px-2 py-1 text-xs font-normal shadow-none focus:ring-0 focus:ring-offset-0 rounded transition-colors">
+                <SelectTrigger className="!w-auto inline-flex bg-transparent border-0 text-accent-foreground hover:text-accent-foreground/80 hover:bg-accent-foreground/10 h-auto px-2 py-1 text-xs font-normal shadow-none focus:ring-0 focus:ring-offset-0 rounded transition-colors">
                   <SelectValue>
                     {isLoadingMembers ? "Loading..." : selectedMemberName}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Households</SelectItem>
-                  {householdMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.memberId || member.id}>
-                      {member.name || member.email}
-                    </SelectItem>
-                  ))}
+                  {householdMembers
+                    .filter((member) => member.memberId) // Only show members with memberId (accepted invitations)
+                    .map((member) => {
+                      const fullName = member.name || member.email;
+                      const firstName = fullName.split(" ")[0];
+                      return (
+                        <SelectItem key={member.id} value={member.memberId!}>
+                          {firstName}
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Balance Amount Label */}
-            <div className="text-primary-foreground/80 text-xs mb-1">Balance Amount</div>
+            {/* Balance Amount Label - Use content.secondary for labels (accent-foreground provides contrast on green background) */}
+            <div className="text-accent-foreground/80 text-lg font-semibold mb-1">Balance Amount</div>
 
-            {/* Balance Amount */}
-            <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums">
+            {/* Balance Amount - Use content.primary to emphasise primary content (accent-foreground provides contrast on green background) */}
+            <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-accent-foreground">
               <AnimatedNumber value={totalBalance} format="money" />
             </div>
 
-            {/* Balance Change Tag */}
+            {/* Balance Change Tag - Use content.secondary for supportive text */}
             {lastMonthTotalBalance !== 0 && (
               <div className={cn(
-                "inline-flex items-center text-xs font-medium mb-3",
-                balanceChange >= 0 
-                  ? "text-primary-foreground"
-                  : "text-primary-foreground/80"
+                "inline-flex items-center text-sm font-medium mb-3 text-accent-foreground/80"
               )}>
                 {balanceChange >= 0 ? "+" : ""}{formatMoney(balanceChange)} vs last month
               </div>
@@ -311,15 +316,18 @@ export function SummaryCards({
 
             {/* Available to Spend Section */}
             <div>
-              <div className="text-primary-foreground/80 text-xs mb-1">Available to spend</div>
-              <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums">
+              {/* Label - Use content.secondary for labels */}
+              <div className="text-accent-foreground/80 text-xs mb-1">Available to spend</div>
+              {/* Amount - Use content.primary to emphasise primary content */}
+              <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-accent-foreground">
                 <AnimatedNumber value={availableToSpend} format="money" />
               </div>
-              <div className="text-[10px] text-primary-foreground/70 mb-2">
+              {/* Description - Use content.secondary for supportive text */}
+              <div className="text-sm text-accent-foreground/70 mb-2">
                 after bills, goals & minimum debt
               </div>
               {hasConnectedAccounts && (
-                <div className="text-[10px] text-primary-foreground/60 mt-2">
+                <div className="text-[10px] text-accent-foreground/60 mt-2">
                   Based on connected accounts
                 </div>
               )}
@@ -328,30 +336,20 @@ export function SummaryCards({
         </Card>
 
         {/* Total Income Card */}
-        <Card className="cursor-pointer transition-all" onClick={() => {
+        <Card className="cursor-pointer" onClick={() => {
             router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
           }}>
             <CardContent className="p-4 md:p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-grey-200 dark:bg-grey-800 flex items-center justify-center">
+              <div className="flex flex-col items-start gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
                   <ArrowUpRight className="h-4 w-4 text-foreground" />
                 </div>
-                <div className="text-xs text-muted-foreground">Monthly Income</div>
+                <div className="text-lg font-semibold">Monthly Income</div>
               </div>
               
               {/* Amount */}
               <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
                 <AnimatedNumber value={currentIncome} format="money" />
-              </div>
-
-              {/* Percentage Change Tag */}
-              <div className={cn(
-                "text-xs font-medium mb-1",
-                incomeMomChange >= 0 
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              )}>
-                {incomeMomChange >= 0 ? "+" : ""}{incomeMomChange.toFixed(2)}% vs last month
               </div>
 
               {/* Projected Badge */}
@@ -370,19 +368,31 @@ export function SummaryCards({
                   </div>
                 </div>
               )}
+
+              {/* Percentage Change Tag - Moved below projected info */}
+              <div className="text-sm font-medium mb-1">
+                <span className={cn(
+                  incomeMomChange >= 0 
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                )}>
+                  {incomeMomChange >= 0 ? "+" : ""}{incomeMomChange.toFixed(2)}%
+                </span>
+                <span className="text-grey-300"> vs last month</span>
+              </div>
             </CardContent>
           </Card>
 
         {/* Total Expense Card */}
-        <Card className="cursor-pointer transition-all" onClick={() => {
+        <Card className="cursor-pointer" onClick={() => {
             router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
           }}>
             <CardContent className="p-4 md:p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-grey-200 dark:bg-grey-800 flex items-center justify-center">
+              <div className="flex flex-col items-start gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
                   <ArrowDownRight className="h-4 w-4 text-foreground" />
                 </div>
-                <div className="text-xs text-muted-foreground">Monthly Expense</div>
+                <div className="text-lg font-semibold">Monthly Expense</div>
               </div>
               
               {/* Amount */}
@@ -391,13 +401,15 @@ export function SummaryCards({
               </div>
 
               {/* Percentage Change Tag */}
-              <div className={cn(
-                "text-xs font-medium mb-1",
-                expensesMomChange >= 0 
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-green-600 dark:text-green-400"
-              )}>
-                {expensesMomChange >= 0 ? "+" : ""}{expensesMomChange.toFixed(2)}% vs last month
+              <div className="text-sm font-medium mb-1">
+                <span className={cn(
+                  expensesMomChange >= 0 
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-green-600 dark:text-green-400"
+                )}>
+                  {expensesMomChange >= 0 ? "+" : ""}{expensesMomChange.toFixed(2)}%
+                </span>
+                <span className="text-grey-300"> vs last month</span>
               </div>
 
               {/* Projected Badge */}
@@ -412,13 +424,13 @@ export function SummaryCards({
           </Card>
 
         {/* Monthly Savings Card */}
-        <Card className="cursor-pointer transition-all">
+        <Card className="cursor-pointer">
             <CardContent className="p-4 md:p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-grey-200 dark:bg-grey-800 flex items-center justify-center">
+              <div className="flex flex-col items-start gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
                   <PiggyBank className="h-4 w-4 text-foreground" />
                 </div>
-                <div className="text-xs text-muted-foreground">Monthly Savings</div>
+                <div className="text-lg font-semibold">Monthly Savings</div>
               </div>
               
               {/* Amount */}
@@ -427,13 +439,15 @@ export function SummaryCards({
               </div>
 
               {/* Percentage Change Tag */}
-              <div className={cn(
-                "text-xs font-medium mb-1",
-                savingsChange >= 0 
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              )}>
-                {savingsChange >= 0 ? "+" : ""}{savingsChange.toFixed(2)}% vs last month
+              <div className="text-sm font-medium mb-1">
+                <span className={cn(
+                  savingsChange >= 0 
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                )}>
+                  {savingsChange >= 0 ? "+" : ""}{savingsChange.toFixed(2)}%
+                </span>
+                <span className="text-grey-300"> vs last month</span>
               </div>
             </CardContent>
           </Card>

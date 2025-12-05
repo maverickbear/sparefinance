@@ -200,7 +200,7 @@ export function ReportsContent({
           {/* Monthly Summary Table */}
           <div className="space-y-2 pb-8">
             <h3 className="text-lg md:text-xl font-semibold">Monthly Summary</h3>
-              <div className="rounded-[12px] border overflow-x-auto">
+              <div className="rounded-lg border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -254,7 +254,7 @@ export function ReportsContent({
           {/* Top 10 Expenses */}
           <div className="space-y-2 pb-8">
             <h3 className="text-lg md:text-xl font-semibold">Top 10 Expenses</h3>
-              <div className="rounded-[12px] border overflow-x-auto">
+              <div className="rounded-lg border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>

@@ -139,7 +139,7 @@ export class AuthRepository {
     const supabase = await createServerClient();
 
     const { data: invitation, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id, householdId, Household(createdBy)")
       .eq("email", email.toLowerCase())
       .eq("status", "pending")

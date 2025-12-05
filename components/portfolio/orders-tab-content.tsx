@@ -84,7 +84,7 @@ export function OrdersTabContent() {
           </div>
 
           {/* Desktop/Tablet Table View */}
-          <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+          <div className="hidden lg:block rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -138,7 +138,7 @@ export function OrdersTabContent() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <span className={`rounded-[12px] px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] md:text-xs ${
+                          <span className={`rounded-lg px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] md:text-xs ${
                             order.side.toLowerCase() === "buy" 
                               ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" 
                               : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"

@@ -17,7 +17,7 @@ export interface TransactionRow {
   categoryId: string | null;
   subcategoryId: string | null;
   description: string | null;
-  recurring: boolean;
+  isRecurring: boolean;
   expenseType: string | null;
   transferToId: string | null;
   transferFromId: string | null;
@@ -38,7 +38,7 @@ export interface TransactionFilters {
   categoryId?: string;
   accountId?: string;
   type?: 'income' | 'expense' | 'transfer';
-  recurring?: boolean;
+    isRecurring?: boolean;
   page?: number;
   limit?: number;
 }
@@ -56,7 +56,7 @@ export class TransactionsRepository {
 
     let query = supabase
       .from("Transaction")
-      .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, recurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, userId, householdId, receiptUrl")
+      .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, isRecurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, userId, householdId, receiptUrl")
       .order("date", { ascending: false });
 
     // Apply filters
@@ -86,8 +86,8 @@ export class TransactionsRepository {
       }
     }
 
-    if (filters?.recurring !== undefined) {
-      query = query.eq("recurring", filters.recurring);
+    if (filters?.isRecurring !== undefined) {
+      query = query.eq("isRecurring", filters.isRecurring);
     }
 
     // Pagination
@@ -146,8 +146,8 @@ export class TransactionsRepository {
       }
     }
 
-    if (filters?.recurring !== undefined) {
-      query = query.eq("recurring", filters.recurring);
+    if (filters?.isRecurring !== undefined) {
+      query = query.eq("isRecurring", filters.isRecurring);
     }
 
     const { count, error } = await query;
@@ -228,7 +228,7 @@ export class TransactionsRepository {
     categoryId?: string | null;
     subcategoryId?: string | null;
     description?: string | null;
-    recurring?: boolean;
+    isRecurring?: boolean;
     expenseType?: string | null;
     transferToId?: string | null;
     transferFromId?: string | null;
@@ -254,7 +254,7 @@ export class TransactionsRepository {
         categoryId: data.categoryId ?? null,
         subcategoryId: data.subcategoryId ?? null,
         description: data.description ?? null,
-        recurring: data.recurring ?? false,
+        isRecurring: data.isRecurring ?? false,
         expenseType: data.expenseType ?? null,
         transferToId: data.transferToId ?? null,
         transferFromId: data.transferFromId ?? null,
@@ -291,7 +291,7 @@ export class TransactionsRepository {
       categoryId: string | null;
       subcategoryId: string | null;
       description: string | null;
-      recurring: boolean;
+      isRecurring: boolean;
       expenseType: string | null;
       transferToId: string | null;
       transferFromId: string | null;
@@ -392,7 +392,7 @@ export class TransactionsRepository {
     date: string;
     description: string | null;
     descriptionSearch: string | null;
-    recurring: boolean;
+    isRecurring: boolean;
     maxTransactions: number;
   }): Promise<{ id: string } | null> {
     const supabase = await createServerClient();
@@ -405,7 +405,7 @@ export class TransactionsRepository {
       p_date: params.date,
       p_description: params.description,
       p_description_search: params.descriptionSearch,
-      p_recurring: params.recurring,
+      p_is_recurring: params.isRecurring,
       p_max_transactions: params.maxTransactions,
     });
 
@@ -489,7 +489,7 @@ export class TransactionsRepository {
     descriptionSearch: string | null;
     categoryId: string | null;
     subcategoryId: string | null;
-    recurring: boolean;
+    isRecurring: boolean;
     expenseType: string | null;
     maxTransactions: number;
     createdAt: string;
@@ -508,7 +508,7 @@ export class TransactionsRepository {
       p_description_search: params.descriptionSearch,
       p_category_id: params.categoryId,
       p_subcategory_id: params.subcategoryId,
-      p_recurring: params.recurring,
+      p_is_recurring: params.isRecurring,
       p_expense_type: params.expenseType,
       p_max_transactions: params.maxTransactions,
       p_created_at: params.createdAt,

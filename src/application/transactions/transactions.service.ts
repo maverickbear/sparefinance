@@ -242,7 +242,7 @@ export class TransactionsService {
         date: transactionDate,
         description: encryptedDescription,
         descriptionSearch,
-        recurring: data.recurring ?? false,
+        isRecurring: data.recurring ?? false,
         maxTransactions: limits.maxTransactions,
       });
 
@@ -280,7 +280,7 @@ export class TransactionsService {
           categoryId: null,
           subcategoryId: null,
           description: encryptedDescription,
-          recurring: data.recurring ?? false,
+          isRecurring: data.recurring ?? false,
           expenseType: null,
           transferToId: data.toAccountId || null,
           transferFromId: null,
@@ -333,7 +333,7 @@ export class TransactionsService {
         descriptionSearch,
         categoryId: finalCategoryId,
         subcategoryId: finalSubcategoryId,
-        recurring: data.recurring ?? false,
+        isRecurring: data.recurring ?? false,
         expenseType: data.type === "expense" ? (data.expenseType || null) : null,
         maxTransactions: limits.maxTransactions,
         createdAt: now,
@@ -374,7 +374,7 @@ export class TransactionsService {
           categoryId: finalCategoryId,
           subcategoryId: finalSubcategoryId,
           description: encryptedDescription,
-          recurring: data.recurring ?? false,
+          isRecurring: data.recurring ?? false,
           expenseType: data.type === "expense" ? (data.expenseType || null) : null,
           transferToId: data.type === "transfer" && data.toAccountId ? data.toAccountId : null,
           transferFromId: null, // Will be set below if needed
@@ -458,7 +458,7 @@ export class TransactionsService {
     if (data.description !== undefined) {
       updateData.description = encryptDescription(data.description || null);
     }
-    if (data.recurring !== undefined) updateData.recurring = data.recurring;
+    if (data.recurring !== undefined) updateData.isRecurring = data.recurring;
     if (data.expenseType !== undefined) {
       updateData.expenseType = data.type === "expense" ? (data.expenseType || null) : null;
     }
@@ -627,7 +627,7 @@ export class TransactionsService {
             categoryId: tx.categoryId || null,
             subcategoryId: tx.subcategoryId || null,
             description: tx.description || null,
-            recurring: tx.recurring || false,
+            recurring: tx.isRecurring ?? tx.recurring ?? false,
             expenseType: tx.expenseType || null,
             rowIndex: tx.rowIndex,
             fileName: tx.fileName,
@@ -694,7 +694,7 @@ export class TransactionsService {
               categoryId: tx.categoryId || undefined,
               subcategoryId: tx.subcategoryId || undefined,
               description: tx.description || undefined,
-              recurring: tx.recurring || false,
+              recurring: tx.isRecurring ?? tx.recurring ?? false,
               expenseType: tx.expenseType || undefined,
             };
             
@@ -913,7 +913,7 @@ export class TransactionsService {
         category:Category!Transaction_categoryId_fkey(*),
         subcategory:Subcategory!Transaction_subcategoryId_fkey(id, name, logo)
       `)
-      .eq("recurring", true)
+      .eq("isRecurring", true)
       .order("date", { ascending: true });
 
     if (recurringError) {

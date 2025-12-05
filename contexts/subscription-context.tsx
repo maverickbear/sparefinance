@@ -78,10 +78,6 @@ export function SubscriptionProvider({ children, initialData }: SubscriptionProv
             return {
               subscription: null,
               plan: null,
-              limits: null,
-              transactionLimit: null,
-              accountLimit: null,
-              interval: null,
             };
         }
         throw new Error(`Failed to fetch subscription: ${response.status}`);
@@ -91,11 +87,7 @@ export function SubscriptionProvider({ children, initialData }: SubscriptionProv
       const result = {
         subscription: data.subscription ?? null,
         plan: data.plan ?? null,
-          limits: data.limits ?? null,
-          transactionLimit: data.transactionLimit ?? null,
-          accountLimit: data.accountLimit ?? null,
-          interval: data.interval ?? null,
-        };
+      };
       
       return {
         subscription: result.subscription ?? null,

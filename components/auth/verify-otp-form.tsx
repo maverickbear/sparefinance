@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Loader2, AlertCircle, Mail, HelpCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, HelpCircle, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/lib/supabase";
 import { setTrustedBrowser } from "@/lib/utils/trusted-browser";
-import { Logo } from "@/components/common/logo";
 
 /**
  * Preloads user, profile, and billing data into global caches
@@ -298,6 +297,11 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         }
       }
 
+      // If verification succeeded, clear error immediately
+      if (data && data.user) {
+        setError(null);
+      }
+
       // Only show error if ALL attempts failed
       if (verifyError) {
         // Check if error is about token being already used (which means it worked)
@@ -312,41 +316,61 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
           if (existingUser) {
             // Session exists, proceed with flow
             data = { user: existingUser, session: null };
+            setError(null);
           } else {
             // No session, show error
             setError("This code has already been used. Please request a new one.");
             setOtp(["", "", "", "", "", ""]);
             inputRefs.current[0]?.focus();
+            setLoading(false);
             return;
           }
         } else {
           setError(verifyError.message || "Invalid verification code. Please try again.");
           setOtp(["", "", "", "", "", ""]);
           inputRefs.current[0]?.focus();
+          setLoading(false);
           return;
         }
       }
 
-      // Clear any previous errors if verification succeeded
-      if (data && data.user) {
+      if (!data || !data.user) {
+        // Check if session might be established but not yet available
+        // Wait a bit and check again before showing error
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data: { user: checkUser } } = await supabase.auth.getUser();
+        
+        if (checkUser) {
+          // Session exists, use it
+          data = { user: checkUser, session: null };
         setError(null);
-      }
-
-      if (!data.user) {
+        } else {
         setError("Verification failed. Please try again.");
+          setLoading(false);
         return;
+        }
       }
 
       // For signup, check if email is confirmed
       if (!isGoogleOAuth && !data.user.email_confirmed_at) {
         setError("Email verification failed. Please try again.");
+        setLoading(false);
         return;
       }
 
       // For Google OAuth login, ensure session exists
       if (isGoogleOAuth && !data.session) {
+        // Wait a bit and check again - session might be establishing
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data: { session: checkSession } } = await supabase.auth.getSession();
+        
+        if (!checkSession) {
         setError("Verification failed. Please try again.");
+          setLoading(false);
         return;
+        }
+        // Session exists now, continue
+        data.session = checkSession;
       }
 
       // Handle Google OAuth login flow
@@ -720,11 +744,6 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
 
   return (
     <div className="space-y-6">
-      {/* Logo - Only show on mobile (desktop has it in the wrapper) */}
-      <div className="lg:hidden flex justify-center">
-        <Logo variant="full" color="purple" height={32} />
-      </div>
-
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -825,7 +844,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         </div>
       )}
 
-      <div className="text-center space-y-2">
+      <div className="text-center flex items-center justify-center gap-2">
         <p className="text-sm text-muted-foreground">
           Didn't receive the code?
         </p>
@@ -841,10 +860,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
               Resending...
             </>
           ) : (
-            <>
-              <Mail className="w-3 h-3" />
-              Resend Code
-            </>
+            "Resend Code"
           )}
         </button>
       </div>

@@ -40,7 +40,7 @@ export function HowItWorksSection() {
             const Icon = step.icon;
             return (
               <div key={index} className="text-center group">
-                <div className="p-8 rounded-2xl border border-border/50 bg-card">
+                <div className="p-8 rounded-2xl border border-border bg-card">
                   <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center mx-auto mb-6">
                     <Icon className="w-7 h-7 text-black dark:text-black" />
                   </div>

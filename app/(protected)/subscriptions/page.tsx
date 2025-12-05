@@ -616,7 +616,7 @@ export default function SubscriptionsPage() {
       </div>
 
       {/* Desktop Table View */}
-      <div className={`hidden lg:block rounded-[12px] overflow-x-auto ${filteredSubscriptions.length > 0 || (loading && subscriptions.length > 0) ? 'border' : ''}`}>
+      <div className={`hidden lg:block rounded-lg overflow-x-auto ${filteredSubscriptions.length > 0 || (loading && subscriptions.length > 0) ? 'border' : ''}`}>
         {loading && subscriptions.length > 0 ? (
           <Table>
             <TableHeader>

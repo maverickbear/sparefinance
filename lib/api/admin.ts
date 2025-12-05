@@ -171,7 +171,7 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     // 1. Active members with userId in our list
     // 2. All members (active or pending) of households owned by users in our list (including pending without userId)
     let householdMembersQuery = supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("userId, householdId, status, email, name, Household(createdBy, type)")
       .in("status", ["active", "pending"]);
     

@@ -3,6 +3,7 @@ import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import { profileSchema } from "@/src/domain/profile/profile.validations";
 import { expectedIncomeRangeSchema } from "@/src/domain/onboarding/onboarding.validations";
+import { locationSchema } from "@/src/domain/taxes/taxes.validations";
 import { BudgetRuleType } from "@/src/domain/budgets/budget-rules.types";
 import { z } from "zod";
 
@@ -18,6 +19,7 @@ const stepRequestSchema = z.object({
     step2: z.object({
       incomeRange: expectedIncomeRangeSchema,
       incomeAmount: z.number().positive().nullable().optional(),
+      location: locationSchema.optional().nullable(),
       ruleType: z.string().optional(),
     }).optional(),
     step3: z.object({
@@ -78,6 +80,22 @@ export async function POST(request: NextRequest) {
         const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
         const onboardingService = makeOnboardingService();
         
+        // Save location if provided
+        if (validated.data.step2.location) {
+          const locationData = locationSchema.safeParse(validated.data.step2.location);
+          if (locationData.success) {
+            await onboardingService.saveLocation(
+              userId,
+              locationData.data.country,
+              locationData.data.stateOrProvince ?? null,
+              accessToken,
+              refreshToken
+            );
+            console.log("[ONBOARDING-STEP] Location saved successfully");
+          }
+        }
+        
+        // Save expected income
         await onboardingService.saveExpectedIncome(
           userId,
           validated.data.step2.incomeRange,
@@ -90,7 +108,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: true,
           step: "income",
-          message: "Expected income saved successfully",
+          message: "Income and location saved successfully",
         });
       }
 

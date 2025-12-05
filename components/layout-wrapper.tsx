@@ -4,6 +4,7 @@ import { Nav } from "@/components/nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileHeader } from "@/components/mobile-header";
 import { CancelledSubscriptionBanner } from "@/components/common/cancelled-subscription-banner";
+import { PausedSubscriptionBanner } from "@/src/presentation/components/features/subscriptions/paused-subscription-banner";
 import { useFixedElementsHeight } from "@/hooks/use-fixed-elements-height";
 import { useEffect, useState, memo, useMemo } from "react";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
@@ -66,8 +67,7 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
     const isFAQPage = pathname === "/faq";
     const isSubscriptionSuccessPage = pathname === "/subscription/success";
     const isMaintenancePage = pathname === "/maintenance";
-    const isSpareDSPage = pathname?.startsWith("/spareds");
-    const isPublicPage = isAuthPage || isAcceptPage || isLandingPage || isPrivacyPolicyPage || isTermsOfServicePage || isFAQPage || isSubscriptionSuccessPage || isMaintenancePage || isSpareDSPage;
+    const isPublicPage = isAuthPage || isAcceptPage || isLandingPage || isPrivacyPolicyPage || isTermsOfServicePage || isFAQPage || isSubscriptionSuccessPage || isMaintenancePage;
     const isDashboardRoute = !isPublicPage && !isApiRoute && !isSelectPlanPage && !isWelcomePage;
     
     return {
@@ -202,6 +202,8 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
           <div className="w-full max-w-full">
             {/* Cancelled Subscription Banner - Inside Content Container */}
             {showNav && <CancelledSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />}
+            {/* Paused Subscription Banner - Inside Content Container */}
+            {showNav && <PausedSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />}
             {children}
           </div>
         </main>

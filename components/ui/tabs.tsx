@@ -17,9 +17,8 @@ const TabsList = React.forwardRef<
     className={cn(
       // Base styles using design tokens
       "inline-flex items-center justify-center",
-      // Background and border using design tokens
+      // Background using design tokens
       "bg-muted text-muted-foreground",
-      "border border-border/50",
       // Border radius using design token
       "rounded-[var(--radius)]",
       // Padding using design tokens - responsive
@@ -68,7 +67,6 @@ const TabsTrigger = React.forwardRef<
       "data-[state=active]:bg-background",
       "data-[state=active]:text-foreground",
       "data-[state=active]:shadow-sm",
-      "data-[state=active]:border data-[state=active]:border-border/50",
       // Hover state for better UX
       "hover:text-foreground/80",
       "data-[state=active]:hover:text-foreground",

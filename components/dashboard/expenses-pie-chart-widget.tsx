@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
-      <div className="rounded-[12px] bg-card p-3 backdrop-blur-sm border border-border shadow-lg">
+      <div className="rounded-lg bg-card p-3 backdrop-blur-sm border border-border shadow-lg">
         <p className="mb-2 text-sm font-medium text-foreground">
           {data.name || "Uncategorized"}
         </p>
@@ -171,7 +171,7 @@ export function ExpensesPieChartWidget({
                   label={false}
                   outerRadius={120}
                   innerRadius={60}
-                  fill="#8884d8"
+                  fill={getCategoryColor("")}
                   dataKey="value"
                 >
                   {expensesData.map((entry, index) => (

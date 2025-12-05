@@ -29,9 +29,11 @@ interface HistoricalDataPoint {
   value: number;
 }
 
-// Colors for the chart
-const PORTFOLIO_VALUE_COLOR = "#22c55e"; // Green
-const TOTAL_COST_COLOR = "#ef4444"; // Red
+import { sentiment, interactive } from "@/lib/design-system/colors";
+
+// Colors for the chart - use design system colors
+const PORTFOLIO_VALUE_COLOR = sentiment.positive; // #2F5711 - positive sentiment for portfolio value
+const TOTAL_COST_COLOR = sentiment.negative; // #A8200D - negative sentiment for cost
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload }: any) => {
@@ -126,10 +128,7 @@ export function InvestmentPortfolioWidget({
         <CardContent>
           <div className="space-y-4">
             <div>
-              <div className={cn(
-                "text-2xl font-bold tabular-nums mb-1",
-                netReturn >= 0 ? "text-green-500" : "text-red-500"
-              )}>
+              <div className="text-2xl font-bold tabular-nums mb-1 text-foreground">
                 {formatMoneyCompact(netReturn)}
               </div>
               <div className="text-sm text-muted-foreground">Total return</div>
@@ -341,10 +340,7 @@ export function InvestmentPortfolioWidget({
       <CardContent>
         <div className="space-y-4">
           <div>
-            <div className={cn(
-              "text-2xl font-bold tabular-nums mb-1",
-              netReturn >= 0 ? "text-green-500" : "text-red-500"
-            )}>
+            <div className="text-2xl font-bold tabular-nums mb-1 text-foreground">
               {formatMoneyCompact(netReturn)}
             </div>
             <div className="text-sm text-muted-foreground">Total return</div>

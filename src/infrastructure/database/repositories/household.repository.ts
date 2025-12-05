@@ -143,7 +143,7 @@ export class HouseholdRepository {
 
     // Verify user is a member of this household
     const { data: member, error: memberError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id")
       .eq("householdId", householdId)
       .eq("userId", userId)

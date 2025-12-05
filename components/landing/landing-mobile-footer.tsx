@@ -57,7 +57,7 @@ export function LandingMobileFooter({ isAuthenticated: initialAuth }: LandingMob
           {isAuthenticated ? (
             <Button 
               asChild 
-              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+              className="flex-1"
             >
               <Link href="/dashboard">
                 Dashboard
@@ -67,7 +67,7 @@ export function LandingMobileFooter({ isAuthenticated: initialAuth }: LandingMob
             <>
               <Button
                 asChild
-                variant="ghost"
+                variant="secondary"
                 className="flex-1"
               >
                 <Link href="/auth/login">
@@ -76,7 +76,7 @@ export function LandingMobileFooter({ isAuthenticated: initialAuth }: LandingMob
               </Button>
               <Button 
                 asChild 
-                className="flex-1 font-semibold bg-primary-scale-500 text-foreground hover:bg-primary-scale-600"
+                className="flex-1"
               >
                 <Link href="/auth/signup">
                   Get Started

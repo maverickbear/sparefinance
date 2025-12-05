@@ -129,7 +129,21 @@ export class SubscriptionsRepository {
       .order("priceMonthly", { ascending: true });
 
     if (error) {
-      logger.error("[SubscriptionsRepository] Error fetching plans:", error);
+      // Check if the error is due to HTML response (misconfigured Supabase URL)
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("<html>") || 
+          errorMessage.includes("500 Internal Server Error") ||
+          errorMessage.includes("cloudflare") ||
+          errorMessage.includes("Unexpected token '<'")) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "not set";
+        logger.error("[SubscriptionsRepository] Supabase URL appears misconfigured:", {
+          error: error.message,
+          supabaseUrl: supabaseUrl.substring(0, 50) + "...",
+          suggestion: "NEXT_PUBLIC_SUPABASE_URL should point to your Supabase project (should end with .supabase.co), not your app domain",
+        });
+      } else {
+        logger.error("[SubscriptionsRepository] Error fetching plans:", error);
+      }
       return [];
     }
 
@@ -214,7 +228,7 @@ export class SubscriptionsRepository {
 
     // Fallback to default household
     const { data: defaultMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("householdId")
       .eq("userId", userId)
       .eq("isDefault", true)

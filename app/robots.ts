@@ -41,7 +41,6 @@ export default function robots(): MetadataRoute.Robots {
           "/maintenance",
           "/welcome",
           "/select-plan",
-          "/spareds",
         ],
       },
       {
@@ -73,7 +72,6 @@ export default function robots(): MetadataRoute.Robots {
           "/maintenance",
           "/welcome",
           "/select-plan",
-          "/spareds",
         ],
         crawlDelay: 0,
       },
@@ -106,7 +104,6 @@ export default function robots(): MetadataRoute.Robots {
           "/maintenance",
           "/welcome",
           "/select-plan",
-          "/spareds",
         ],
         crawlDelay: 1,
       },

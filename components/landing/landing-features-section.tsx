@@ -2,6 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { 
   TrendingUp, 
   Target, 
@@ -55,7 +57,7 @@ export function LandingFeaturesSection() {
       description: "Set flexible budgets by category with real-time tracking. Get visual alerts when approaching limits and see progress over time.",
       icon: BarChart3,
       tag: "Budget Management",
-      tagColor: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
+      tagColor: "bg-primary text-black",
       mockup: <BudgetManagementMockup />,
     },
     {
@@ -63,7 +65,7 @@ export function LandingFeaturesSection() {
       description: "Track all debts with payoff strategies. Use avalanche or snowball methods, monitor interest, and optimize your debt payoff plan.",
       icon: CreditCard,
       tag: "Debt Management",
-      tagColor: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400",
+      tagColor: "bg-primary text-black",
       mockup: <DebtManagementMockup />,
     },
     {
@@ -71,7 +73,7 @@ export function LandingFeaturesSection() {
       description: "Track positions, performance, and asset allocation to see your complete investment picture.",
       icon: TrendingUp,
       tag: "Investments",
-      tagColor: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+      tagColor: "bg-primary text-black",
       mockup: <InvestmentPortfolioMockup />,
     },
     {
@@ -79,7 +81,7 @@ export function LandingFeaturesSection() {
       description: "Our intelligent system learns your spending patterns and automatically categorizes transactions. Just approve or adjust—it gets smarter over time.",
       icon: Sparkles,
       tag: "AI-Powered",
-      tagColor: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+      tagColor: "bg-primary text-black",
       mockup: <CategorizationMockup />,
     },
     {
@@ -87,7 +89,7 @@ export function LandingFeaturesSection() {
       description: "Track all subscriptions in one place. Schedule planned payments and never miss a bill. Identify opportunities to save on recurring expenses.",
       icon: Repeat,
       tag: "Subscriptions",
-      tagColor: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400",
+      tagColor: "bg-primary text-black",
       mockup: <SubscriptionsMockup />,
     },
     {
@@ -95,7 +97,7 @@ export function LandingFeaturesSection() {
       description: "Import transactions from spreadsheets or export your data anytime. Full control over your financial information for taxes, analysis, or backup.",
       icon: Download,
       tag: "Data Control",
-      tagColor: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400",
+      tagColor: "bg-primary text-black",
       mockup: <CsvImportExportMockup />,
     },
   ];
@@ -136,7 +138,7 @@ export function LandingFeaturesSection() {
               >
                 {/* Mockup Visual - Left or Right based on index (MD+) */}
                 <div className="w-full md:w-1/2 flex-shrink-0">
-                  <div className="rounded-2xl border border-border/50 bg-muted/80 dark:bg-muted/60 overflow-hidden">
+                  <div className="rounded-2xl border border-border bg-card overflow-hidden">
                     <div className="p-6 md:p-8 lg:p-10 min-h-[250px] md:min-h-[350px] lg:min-h-[400px] flex items-center justify-center">
                       {feature.mockup}
                     </div>
@@ -172,7 +174,7 @@ export function LandingFeaturesSection() {
               return (
                 <div
                   key={index}
-                  className="rounded-2xl border border-border/50 bg-card overflow-hidden flex flex-col h-full"
+                  className="rounded-2xl border border-border bg-background overflow-hidden flex flex-col h-full"
                 >
                   {/* Tag */}
                   <div className="px-6 pt-6 pb-4">
@@ -186,7 +188,7 @@ export function LandingFeaturesSection() {
                   <div className="px-6 pb-6 flex-grow flex flex-col">
                     {/* Mockup - At top */}
                     {feature.mockup && (
-                      <div className="bg-muted/80 dark:bg-muted/60 rounded-xl p-4 mb-6 h-[220px] flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div className="bg-card rounded-xl p-4 mb-6 h-[220px] flex items-center justify-center overflow-hidden flex-shrink-0">
                         {feature.mockup}
                       </div>
                     )}
@@ -214,13 +216,15 @@ export function LandingFeaturesSection() {
           <p className="text-xl font-semibold mb-8">
             Start tracking your expenses today and learn to build wealth, not just pay bills.
           </p>
-          <a
-            href="/auth/signup"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold"
+          <Button
+            asChild
+            size="large"
           >
-            Start Organizing Your Finances
-            <ArrowRight className="w-5 h-5" />
-          </a>
+            <Link href="/auth/signup">
+              Start Organizing Your Finances
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Link>
+          </Button>
         </div>
       </div>
     </section>

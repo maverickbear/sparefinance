@@ -74,10 +74,16 @@ export class BudgetRulesService {
 
   /**
    * Map Groups to rule categories using default mappings
+   * Currently only includes "Food & Drinks" group
    */
   mapGroupsToRuleCategories(groups: BaseGroup[]): GroupToRuleCategoryMapping[] {
     return groups
-      .filter(group => group.type === "expense" || group.type === null) // Only expense groups
+      .filter(group => {
+        // Only include "Food & Drinks" group
+        const groupName = group.name.toLowerCase().trim();
+        return (group.type === "expense" || group.type === null) && 
+               (groupName === "food & drinks" || groupName === "food and drinks");
+      })
       .map(group => ({
         groupId: group.id,
         groupName: group.name,

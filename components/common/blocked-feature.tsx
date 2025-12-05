@@ -147,7 +147,7 @@ export function BlockedFeature({ feature, featureName }: BlockedFeatureProps) {
       // Check if user has active subscription
       if (subscription?.stripeSubscriptionId) {
         // Redirect to billing settings to change plan
-        router.push("/settings?tab=billing");
+        router.push("/settings/billing");
       } else {
         // Redirect to dashboard - pricing dialog will open automatically
         router.push("/dashboard?openPricingModal=true");

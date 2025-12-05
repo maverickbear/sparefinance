@@ -62,7 +62,7 @@ export function EmbeddedCheckout({
         onOpenChange(false);
         // Redirect to billing page to see the subscription
         // Use window.location to force a full page reload and clear all caches
-        window.location.href = "/settings?tab=billing";
+        window.location.href = "/settings/billing";
         onSuccess?.();
       } else {
         toast({

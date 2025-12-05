@@ -101,6 +101,14 @@ const config = {
           500: "hsl(var(--neutral-500))",
           600: "hsl(var(--neutral-600))",
         },
+        sentiment: {
+          negative: "hsl(var(--sentiment-negative))",
+          positive: "hsl(var(--sentiment-positive))",
+          warning: "hsl(var(--sentiment-warning))",
+        },
+        "content-link": "hsl(var(--content-link))",
+        "content-primary": "hsl(var(--content-primary))",
+        "content-tertiary": "hsl(var(--content-tertiary))",
       },
       borderRadius: {
         lg: "var(--radius)",

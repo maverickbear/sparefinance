@@ -5,7 +5,7 @@ import { getTransactionsInternal } from "./transactions";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { getAccounts } from "./accounts";
 import { getDebts } from "./debts";
-import { getUserLiabilities } from "./plaid/liabilities";
+// getUserLiabilities is now a method on PlaidService, imported below where needed
 import { logger } from "@/src/infrastructure/utils/logger";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
@@ -315,7 +315,9 @@ async function calculateFinancialHealthInternal(
     if (userId) {
       // Get total debts
       const debts = await getDebts(accessToken, refreshToken);
-      const liabilities = await getUserLiabilities(userId, accessToken, refreshToken);
+      const { makePlaidService } = await import("@/src/application/plaid/plaid.factory");
+      const plaidService = makePlaidService();
+      const liabilities = await plaidService.getUserLiabilities(userId, accessToken, refreshToken);
 
       let totalDebts = 0;
 
@@ -329,7 +331,7 @@ async function calculateFinancialHealthInternal(
       totalDebts += debtsTotal;
 
       // Calculate from PlaidLiabilities
-      const liabilitiesTotal = liabilities.reduce((sum, liability) => {
+      const liabilitiesTotal = liabilities.reduce((sum: number, liability: any) => {
         const balance = (liability as any).balance ?? (liability as any).currentBalance ?? null;
         if (balance == null) return sum;
         const numValue = typeof balance === 'string' ? parseFloat(balance) : Number(balance);

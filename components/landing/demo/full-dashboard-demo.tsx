@@ -304,7 +304,7 @@ export function FullDashboardDemo() {
                     const linkElement = (
                       <div
                         className={cn(
-                          "flex items-center rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out",
+                          "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out",
                           isActive
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground",

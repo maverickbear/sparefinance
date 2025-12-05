@@ -40,7 +40,7 @@ export class MembersService {
       createdBy: userId,
     });
 
-    // Create HouseholdMemberNew (owner role)
+    // Create HouseholdMember (owner role)
     try {
       await this.repository.create({
         id: crypto.randomUUID(),
@@ -402,7 +402,7 @@ export class MembersService {
     // If member has userId, create personal household if needed
     if (member.userId) {
       const { data: existingPersonalHousehold } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, Household(type)")
         .eq("userId", member.userId)
         .eq("isDefault", true)
@@ -530,6 +530,58 @@ export class MembersService {
       const subscriptionsService = makeSubscriptionsService();
       subscriptionsService.invalidateSubscriptionCache(userId);
       logger.debug("[MembersService] Invalidated subscription cache for new household member", { userId, householdId: invitation.householdId });
+      
+      // Check if member has personal subscription and household has subscription
+      // If both exist, pause member's personal subscription
+      try {
+        // Import repository to check subscriptions directly
+        const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+        const subscriptionsRepository = new SubscriptionsRepository();
+        
+        // Check if member has personal subscription (by userId, not householdId)
+        const memberPersonalSubscription = await subscriptionsRepository.findByUserId(userId);
+        
+        // Check if household has subscription
+        const householdSubscription = await subscriptionsRepository.findByHouseholdId(invitation.householdId);
+        
+        if (memberPersonalSubscription && 
+            (memberPersonalSubscription.status === "active" || memberPersonalSubscription.status === "trialing") &&
+            householdSubscription &&
+            (householdSubscription.status === "active" || householdSubscription.status === "trialing")) {
+          // Both have active subscriptions - pause member's personal subscription
+          logger.log("[MembersService] Both member and household have active subscriptions, pausing member's subscription", {
+            userId,
+            householdId: invitation.householdId,
+            memberSubscriptionId: memberPersonalSubscription.id,
+            householdSubscriptionId: householdSubscription.id,
+          });
+          
+          const pauseResult = await subscriptionsService.pauseUserSubscription(
+            userId,
+            "household_member",
+            {
+              pausedByHouseholdId: invitation.householdId,
+            }
+          );
+          
+          if (pauseResult.paused) {
+            logger.log("[MembersService] Successfully paused member's personal subscription", {
+              userId,
+              householdId: invitation.householdId,
+            });
+          } else {
+            logger.warn("[MembersService] Failed to pause member's personal subscription", {
+              userId,
+              householdId: invitation.householdId,
+              error: pauseResult.error,
+            });
+            // Don't fail invitation acceptance if pause fails
+          }
+        }
+      } catch (pauseError) {
+        logger.warn("[MembersService] Error checking/pausing subscriptions during invitation acceptance:", pauseError);
+        // Don't fail invitation acceptance if pause check fails
+      }
     } catch (cacheError) {
       logger.warn("[MembersService] Could not invalidate subscription cache after accepting invitation:", cacheError);
       // Don't fail the invitation acceptance if cache invalidation fails
@@ -633,7 +685,7 @@ export class MembersService {
     try {
       const supabase = await createServerClient();
       
-      // Fetch User role and HouseholdMemberNew in parallel
+      // Fetch User role and HouseholdMember in parallel
       const [userResult, householdResult] = await Promise.all([
         supabase
           .from("User")
@@ -642,7 +694,7 @@ export class MembersService {
           .single(),
         // Get user's household memberships
         supabase
-          .from("HouseholdMemberNew")
+          .from("HouseholdMember")
           .select("role, userId, status, Household(type, createdBy)")
           .eq("userId", userId)
           .eq("status", "active")
@@ -778,7 +830,7 @@ export class MembersService {
     const serviceRoleClient = createServiceRoleClient();
     
     const { data: fullInvitation, error: findError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(createdBy, id)
@@ -879,7 +931,7 @@ export class MembersService {
 
     // Get the invitation to verify it's still pending
     const { data: invitation, error: findError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(createdBy, id)
@@ -906,7 +958,7 @@ export class MembersService {
     // Update the invitation to active status and link the member
     // Use service role client to bypass RLS during invitation acceptance
     const { data: updatedMemberRow, error: updateError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .update({
         userId: userId,
         status: "active",

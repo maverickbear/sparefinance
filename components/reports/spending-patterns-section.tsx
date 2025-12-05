@@ -7,6 +7,8 @@ import { ChartCard } from "@/components/charts/chart-card";
 import { Calendar, CreditCard } from "lucide-react";
 import type { Transaction } from "@/src/domain/transactions/transactions.types";
 import { format, parseISO, getDay } from "date-fns";
+import { interactive, sentiment } from "@/lib/design-system/colors";
+import { getCategoryColor } from "@/lib/utils/category-colors";
 
 interface SpendingPatternsSectionProps {
   transactions: Transaction[];
@@ -51,21 +53,25 @@ export function SpendingPatternsSection({ transactions }: SpendingPatternsSectio
     .slice(0, 5);
 
   // Recurring transactions
-  const recurringTransactions = expenses.filter((tx) => tx.recurring);
+  const recurringTransactions = expenses.filter((tx) => tx.isRecurring);
   const recurringTotal = recurringTransactions.reduce(
     (sum, tx) => sum + (Number(tx.amount) || 0),
     0
   );
 
-  const COLORS = [
-    "#3b82f6",
-    "#8b5cf6",
-    "#ec4899",
-    "#f43f5e",
-    "#f59e0b",
-    "#10b981",
-    "#06b6d4",
-  ];
+  // Use category colors from design system, fallback to interactive colors
+  const getChartColor = (index: number) => {
+    const categoryColors = [
+      interactive.primary,    // #94DD78
+      interactive.accent,     // #B5EF90
+      sentiment.positive,     // #2F5711
+      sentiment.warning,      // #EDC843
+      interactive.contrast,   // #9FE870
+      sentiment.negative,     // #A8200D
+      interactive.secondary,  // #ECEEEA
+    ];
+    return categoryColors[index % categoryColors.length];
+  };
 
   return (
     <div className="space-y-4">
@@ -121,7 +127,7 @@ export function SpendingPatternsSection({ transactions }: SpendingPatternsSectio
                   />
                   <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                     {dayOfWeekData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={getChartColor(index)} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -177,7 +183,7 @@ export function SpendingPatternsSection({ transactions }: SpendingPatternsSectio
                   />
                   <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
                     {accountData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={getChartColor(index)} />
                     ))}
                   </Bar>
                 </BarChart>

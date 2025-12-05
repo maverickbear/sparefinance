@@ -1,0 +1,71 @@
+name: CSS Design Tokens Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  check-css-tokens:
+    runs-on: ubuntu-latest
+    name: Check for hardcoded CSS values
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for hardcoded color classes
+        run: |
+          echo "Checking for hardcoded color classes..."
+          if grep -r "bg-red-500\|bg-yellow-500\|bg-green-500\|bg-blue-500\|bg-red-600\|bg-yellow-600\|bg-green-600\|bg-blue-600" --include="*.tsx" --include="*.ts" components/ app/ src/; then
+            echo "❌ ERROR: Found hardcoded color classes. Use design tokens instead."
+            echo "See docs/CSS_MIGRATION_GUIDE.md for migration guidelines."
+            exit 1
+          fi
+          echo "✅ No hardcoded background color classes found"
+      
+      - name: Check for hardcoded text colors
+        run: |
+          echo "Checking for hardcoded text color classes..."
+          if grep -r "text-red-500\|text-yellow-400\|text-green-500\|text-blue-500\|text-red-600\|text-yellow-500\|text-green-800\|text-blue-600" --include="*.tsx" --include="*.ts" components/ app/ src/; then
+            echo "❌ ERROR: Found hardcoded text color classes. Use design tokens instead."
+            echo "See docs/CSS_MIGRATION_GUIDE.md for migration guidelines."
+            exit 1
+          fi
+          echo "✅ No hardcoded text color classes found"
+      
+      - name: Check for hardcoded border colors
+        run: |
+          echo "Checking for hardcoded border color classes..."
+          if grep -r "border-red-500\|border-yellow-500\|border-green-500\|border-blue-500" --include="*.tsx" --include="*.ts" components/ app/ src/; then
+            echo "❌ ERROR: Found hardcoded border color classes. Use design tokens instead."
+            echo "See docs/CSS_MIGRATION_GUIDE.md for migration guidelines."
+            exit 1
+          fi
+          echo "✅ No hardcoded border color classes found"
+      
+      - name: Check for hardcoded ring colors
+        run: |
+          echo "Checking for hardcoded ring color classes..."
+          if grep -r "ring-red-500\|ring-yellow-500\|ring-green-500\|ring-blue-500" --include="*.tsx" --include="*.ts" components/ app/ src/; then
+            echo "❌ ERROR: Found hardcoded ring color classes. Use design tokens instead."
+            echo "See docs/CSS_MIGRATION_GUIDE.md for migration guidelines."
+            exit 1
+          fi
+          echo "✅ No hardcoded ring color classes found"
+      
+      - name: Check for rounded-[12px]
+        run: |
+          echo "Checking for rounded-[12px]..."
+          if grep -r "rounded-\[12px\]" --include="*.tsx" --include="*.ts" components/ app/ src/; then
+            echo "❌ ERROR: Found rounded-[12px]. Use rounded-lg instead."
+            echo "See docs/CSS_MIGRATION_GUIDE.md for border radius standards."
+            exit 1
+          fi
+          echo "✅ No rounded-[12px] found"
+      
+      - name: Summary
+        run: |
+          echo "✅ All CSS design token checks passed!"
+

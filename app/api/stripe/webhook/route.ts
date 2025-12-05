@@ -27,10 +27,14 @@ export async function POST(request: NextRequest) {
     let event;
     try {
       console.log("[WEBHOOK:ROUTE] Verifying webhook signature...");
+      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        throw new Error("STRIPE_WEBHOOK_SECRET is not configured");
+      }
       event = stripeService.verifyWebhookSignature(
         body,
         signature,
-        process.env.STRIPE_WEBHOOK_SECRET
+        webhookSecret
       );
       console.log("[WEBHOOK:ROUTE] Webhook signature verified successfully");
     } catch (err) {

@@ -568,7 +568,7 @@ export async function generatePlannedPaymentsFromRecurringTransaction(
     .select("*")
     .eq("id", transactionId)
     .eq("userId", user.id)
-    .eq("recurring", true)
+    .eq("isRecurring", true)
     .single();
 
   if (txError || !transaction) {

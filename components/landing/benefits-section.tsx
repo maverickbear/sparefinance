@@ -95,9 +95,9 @@ export function BenefitsSection() {
             const Icon = benefit.icon;
             return (
               <div key={index} className="group">
-                <div className="p-8 rounded-2xl border border-border/50 bg-card h-full flex flex-col">
+                <div className="p-8 rounded-2xl border border-border bg-card h-full flex flex-col">
                   <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
-                    <Icon className="w-7 h-7 text-primary" />
+                    <Icon className="w-7 h-7 text-black" />
                   </div>
                   <p className="text-sm font-medium text-primary/80 mb-3 uppercase tracking-wide">
                     {benefit.subtitle}

@@ -79,7 +79,7 @@ export function FeedbackTable({ feedbacks, loading }: FeedbackTableProps) {
 
   return (
     <>
-      <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+      <div className="hidden lg:block rounded-lg border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

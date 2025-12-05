@@ -243,17 +243,35 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
         data = emailResult.data;
       }
 
+      // If verification succeeded, clear error immediately
+      if (data && data.user) {
+        setError(null);
+      }
+
       if (verifyError) {
         setError(verifyError.message || "Invalid verification code. Please try again.");
         // Clear OTP on error
         setOtp(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
+        setLoading(false);
         return;
       }
 
-      if (!data.user || !data.session) {
+      if (!data || !data.user || !data.session) {
+        // Check if session might be established but not yet available
+        // Wait a bit and check again before showing error
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data: { user: checkUser } } = await supabase.auth.getUser();
+        const { data: { session: checkSession } } = await supabase.auth.getSession();
+        
+        if (checkUser && checkSession) {
+          // Session exists, use it
+          data = { user: checkUser, session: checkSession };
+        } else {
         setError("Verification failed. Please try again.");
+          setLoading(false);
         return;
+        }
       }
 
       // Check if email is confirmed

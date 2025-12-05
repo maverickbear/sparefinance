@@ -7,7 +7,7 @@ export function HouseholdMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[300px]">
         {/* Household Card */}
-        <div className="bg-card rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Users className="w-5 h-5 text-primary" />

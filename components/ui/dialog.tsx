@@ -75,7 +75,7 @@ const DialogContent = React.forwardRef<
           "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
           // Desktop: centered modal
           "sm:left-[50%] sm:top-[50%] sm:w-full sm:max-w-lg sm:h-auto sm:max-h-[90vh]",
-          "sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-[12px] sm:m-4 md:sm:m-0",
+          "sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-lg sm:m-4 md:sm:m-0",
           "sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%]",
           "sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]",
           className
@@ -95,7 +95,7 @@ const DialogContent = React.forwardRef<
           </div>
         )}
         {footer}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[12px] opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>

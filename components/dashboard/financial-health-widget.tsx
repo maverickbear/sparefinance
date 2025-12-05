@@ -122,7 +122,7 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
 
 
           {/* Cost of Living */}
-          <div className="space-y-1 p-3 rounded-[12px] bg-card">
+          <div className="space-y-1 p-3 rounded-lg bg-card">
             <p className="text-xs text-muted-foreground">Cost of Living</p>
             <p className="text-2xl font-semibold flex items-center gap-2 text-foreground">
               {formatMoney(data.monthlyExpenses)}
@@ -141,7 +141,7 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
                   <div
                     key={alert.id}
                     className={cn(
-                      "flex items-start gap-2 p-3 rounded-[12px] border",
+                      "flex items-start gap-2 p-3 rounded-lg border",
                       alert.severity === "critical" 
                         ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800"
                         : alert.severity === "warning"

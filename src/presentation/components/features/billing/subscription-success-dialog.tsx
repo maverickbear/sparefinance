@@ -115,6 +115,53 @@ export function SubscriptionSuccessDialog({
   }
 
   const handleGoToDashboard = async () => {
+    // Close the dialog first
+    onOpenChange(false);
+    
+    // Trigger confetti animation after dialog closes
+    try {
+      const confettiModule = await import("canvas-confetti");
+      const confetti = confettiModule.default;
+      
+      // Small delay to ensure dialog is closed before confetti starts
+      setTimeout(() => {
+        const duration = 3000;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+        function randomInRange(min: number, max: number) {
+          return Math.random() * (max - min) + min;
+        }
+
+        const interval = setInterval(function() {
+          const timeLeft = animationEnd - Date.now();
+
+          if (timeLeft <= 0) {
+            clearInterval(interval);
+            return;
+          }
+
+          const particleCount = 50 * (timeLeft / duration);
+          
+          // Launch confetti from left
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+          });
+          
+          // Launch confetti from right
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+          });
+        }, 250);
+      }, 100);
+    } catch (error) {
+      console.error("[SUCCESS-DIALOG] Failed to load confetti:", error);
+    }
+    
     // Invalidate client-side cache before navigating
     try {
       const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
@@ -124,7 +171,6 @@ export function SubscriptionSuccessDialog({
       console.error("[SUCCESS-DIALOG] Error invalidating cache:", error);
     }
     
-    onOpenChange(false);
     if (onSuccess) {
       onSuccess();
     }
@@ -136,7 +182,7 @@ export function SubscriptionSuccessDialog({
 
   const handleGoToBilling = () => {
     onOpenChange(false);
-    router.push("/settings?tab=billing");
+    router.push("/settings/billing");
   };
 
   return (

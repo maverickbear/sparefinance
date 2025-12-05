@@ -17,9 +17,9 @@ export function ListSkeleton({ className, itemCount = 3 }: ListSkeletonProps) {
       <CardContent>
         <div className="space-y-3">
           {Array.from({ length: itemCount }).map((_, i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-[12px] border border-border">
+            <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border">
               <div className="flex items-center gap-3 flex-1">
-                <Skeleton className="h-4 w-4 rounded-[12px]" />
+                <Skeleton className="h-4 w-4 rounded-lg" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-32" />
                   <Skeleton className="h-3 w-24" />
@@ -36,7 +36,7 @@ export function ListSkeleton({ className, itemCount = 3 }: ListSkeletonProps) {
 
 export function TableSkeleton({ className, rowCount = 5 }: ListSkeletonProps) {
   return (
-    <div className={`rounded-[12px] border border-border overflow-x-auto ${className}`}>
+    <div className={`rounded-lg border border-border overflow-x-auto ${className}`}>
       <div className="p-4 space-y-3">
         {/* Header */}
         <div className="flex gap-4">
@@ -95,7 +95,7 @@ export function GoalsOverviewSkeleton({ className }: ListSkeletonProps) {
           <Skeleton className="h-4 w-20" />
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-[12px]">
+              <div key={i} className="flex items-center gap-3 p-2 rounded-lg">
                 <Skeleton className="h-12 w-12 rounded-full" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-32" />
@@ -125,7 +125,7 @@ export function FinancialHealthSkeleton({ className }: ListSkeletonProps) {
           <Skeleton className="h-4 w-48" />
         </div>
         {/* Cost of Living */}
-        <div className="p-3 rounded-[12px] border border-border">
+        <div className="p-3 rounded-lg border border-border">
           <Skeleton className="h-3 w-24 mb-2" />
           <Skeleton className="h-6 w-32" />
         </div>
@@ -133,13 +133,13 @@ export function FinancialHealthSkeleton({ className }: ListSkeletonProps) {
         <div className="space-y-2">
           <Skeleton className="h-4 w-24" />
           {[1, 2].map((i) => (
-            <div key={i} className="p-3 rounded-[12px] border border-border">
+            <div key={i} className="p-3 rounded-lg border border-border">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-3 w-3/4 mt-2" />
             </div>
           ))}
         </div>
-        <Skeleton className="h-10 w-full rounded-[12px]" />
+        <Skeleton className="h-10 w-full rounded-lg" />
       </CardContent>
     </Card>
   );

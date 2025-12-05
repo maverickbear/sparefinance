@@ -21,7 +21,7 @@ export const HoldingsMobileCard = memo(function HoldingsMobileCard({ holding }: 
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-lg font-semibold">{holding.symbol}</span>
                 <span className={cn(
-                  "rounded-[12px] px-2 py-1 text-xs",
+                  "rounded-lg px-2 py-1 text-xs",
                   holding.assetType === "Stock" 
                     ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" 
                     : holding.assetType === "ETF"

@@ -16,17 +16,21 @@ interface IncomeExpensesChartProps {
   headerActions?: React.ReactNode;
 }
 
-// Elegant color palette - softer tones
-const INCOME_COLOR = "#34d399"; // Soft emerald green
-const EXPENSES_COLOR = "#f87171"; // Soft coral red
-const INCOME_COLOR_LIGHT = "#6ee7b7"; // Lighter emerald
-const EXPENSES_COLOR_LIGHT = "#fca5a5"; // Lighter coral
+import { sentiment, interactive } from "@/lib/design-system/colors";
+
+// Use design system colors for income (positive) and expenses (negative sentiment)
+const INCOME_COLOR = sentiment.positive; // #2F5711
+const EXPENSES_COLOR = sentiment.negative; // #A8200D
+// Lighter variants for alternating bars
+const INCOME_COLOR_LIGHT = interactive.primary; // #94DD78 - lighter green
+// Use a lighter variant of negative sentiment - mix with white for lighter red
+const EXPENSES_COLOR_LIGHT = interactive.accent; // Use accent as lighter variant, or create a lighter red
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-[12px] bg-card p-3 backdrop-blur-sm">
+      <div className="rounded-lg bg-card p-3 backdrop-blur-sm">
         <p className="mb-2 text-sm font-medium text-foreground">
           {payload[0].payload.month}
         </p>

@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { DashboardOverview } from "@/components/admin/dashboard-overview";
 import { FinancialOverview } from "@/components/admin/financial-overview";
+import { PlanDistributionChart } from "@/components/admin/plan-distribution-chart";
+import { SubscriptionStatusChart } from "@/components/admin/subscription-status-chart";
+import { MRRComparisonChart } from "@/components/admin/mrr-comparison-chart";
+import { RevenueByPlanChart } from "@/components/admin/revenue-by-plan-chart";
 
 interface DashboardClientProps {
   dashboardData: {
@@ -57,7 +61,7 @@ export function DashboardClient({ dashboardData, systemSettings }: DashboardClie
   const router = useRouter();
 
   return (
-    <>
+    <div className="space-y-8">
       <DashboardOverview
         overview={dashboardData.overview}
         loading={false}
@@ -77,7 +81,25 @@ export function DashboardClient({ dashboardData, systemSettings }: DashboardClie
         financial={dashboardData.financial}
         loading={false}
       />
-    </>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <MRRComparisonChart data={dashboardData.financial} />
+        <SubscriptionStatusChart
+          data={{
+            active: dashboardData.overview.activeSubscriptions,
+            trialing: dashboardData.overview.trialingSubscriptions,
+            cancelled: dashboardData.overview.cancelledSubscriptions,
+            pastDue: dashboardData.overview.pastDueSubscriptions,
+            churnRisk: dashboardData.overview.churnRisk,
+          }}
+        />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <PlanDistributionChart data={dashboardData.planDistribution} />
+        <RevenueByPlanChart subscriptionDetails={dashboardData.financial.subscriptionDetails} />
+      </div>
+    </div>
   );
 }
 

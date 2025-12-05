@@ -130,7 +130,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
                   href="/budgets?tab=goals"
                   className="block group"
                 >
-                  <div className="flex items-center gap-3 p-2 rounded-[12px] hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <div className="flex-shrink-0">
                       <ProgressRing
                         percentage={goal.progressPct || 0}

@@ -104,22 +104,24 @@ export function FinancialHealthScoreWidget({
     ? scoreChange >= 0 ? `+${scoreChange.toFixed(0)} pts` : `${scoreChange.toFixed(0)} pts`
     : null;
 
-  // Get classification text
+  // Spare Score levels with ranges and colors
+  const scoreLevels = [
+    { range: "91-100", label: "Excellent", min: 91, max: 100, color: "hsl(var(--sentiment-positive))", bgColor: "bg-[hsl(var(--sentiment-positive))]" },
+    { range: "81-90", label: "Good", min: 81, max: 90, color: "#94DD78", bgColor: "bg-[#94DD78]" },
+    { range: "71-80", label: "Fair", min: 71, max: 80, color: "hsl(var(--sentiment-warning))", bgColor: "bg-[hsl(var(--sentiment-warning))]" },
+    { range: "61-70", label: "Poor", min: 61, max: 70, color: "#FF8C42", bgColor: "bg-[#FF8C42]" },
+    { range: "0-60", label: "Critical", min: 0, max: 60, color: "hsl(var(--sentiment-negative))", bgColor: "bg-[hsl(var(--sentiment-negative))]" },
+  ];
+
+  // Get classification text based on actual score ranges
   const getClassificationText = (score: number) => {
-    if (score >= 80) return "Excellent";
-    if (score >= 60) return "Good";
-    if (score >= 40) return "Fair";
-    if (score >= 20) return "Poor";
+    if (score >= 91) return "Excellent";
+    if (score >= 81) return "Good";
+    if (score >= 71) return "Fair";
+    if (score >= 61) return "Poor";
     return "Critical";
   };
 
-  // Horizontal gauge dimensions
-  const gaugeWidth = 100; // percentage based
-  const gaugeHeight = 8;
-  const scaleMarkers = [0, 20, 40, 60, 80, 100];
-  
-  // Calculate indicator position (0-100 to percentage)
-  const indicatorPosition = score;
 
   // Get spending discipline from financial health (now calculated)
   const spendingDiscipline = financialHealth?.spendingDiscipline || "Unknown";
@@ -143,9 +145,11 @@ export function FinancialHealthScoreWidget({
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-green-500";
-    if (score >= 60) return "text-yellow-500";
-    return "text-red-500";
+    if (score >= 91) return "text-[hsl(var(--sentiment-positive))]";
+    if (score >= 81) return "text-[#94DD78]";
+    if (score >= 71) return "text-[hsl(var(--sentiment-warning))]";
+    if (score >= 61) return "text-[#FF8C42]";
+    return "text-[hsl(var(--sentiment-negative))]";
   };
   
 
@@ -188,65 +192,55 @@ export function FinancialHealthScoreWidget({
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0">
         <div className="space-y-4 flex-1 flex flex-col">
-          {/* Score Display */}
+          {/* Score Display with Legend */}
           <div className="flex-shrink-0">
-            <div className={cn("text-4xl md:text-5xl lg:text-6xl font-bold tabular-nums leading-none", getScoreColor(score))}>
-              <AnimatedNumber value={score} format="number" decimals={0} />
-            </div>
-            <div className="flex items-center gap-2 mt-1 md:mt-2">
-              <div className="text-sm md:text-base font-medium text-foreground">
-              {getClassificationText(score)}
-            </div>
-            {financialHealth?.isProjected && (
-              <Badge variant="secondary" className="text-xs">
-                Based on expected income
-              </Badge>
-            )}
-          </div>
-          {financialHealth?.isProjected && expectedIncomeRange && (
-            <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
-              <div>Expected income: {formatExpectedIncomeRange(expectedIncomeRange)}</div>
-              <div className="font-medium">
-                {formatMonthlyIncomeFromRange(expectedIncomeRange)}/month
+            <div className="flex items-start gap-4 md:gap-6">
+              {/* Score Number */}
+              <div className="flex-shrink-0">
+                <div className={cn("text-4xl md:text-5xl lg:text-6xl font-bold tabular-nums leading-none text-foreground")}>
+                  <AnimatedNumber value={score} format="number" decimals={0} />
+                </div>
+                <div className="flex items-center gap-2 mt-1 md:mt-2">
+                  <div className="text-sm md:text-base font-medium text-foreground">
+                    {getClassificationText(score)}
+                  </div>
+                  {financialHealth?.isProjected && (
+                    <Badge variant="secondary" className="text-xs">
+                      Based on expected income
+                    </Badge>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-          {financialHealth?.isProjected && financialHealth?.message && !expectedIncomeRange && (
-            <p className="text-xs text-muted-foreground mt-2">
-              {financialHealth.message}
-            </p>
-          )}
-          </div>
 
-          {/* Horizontal Gauge */}
-          <div className="relative flex-shrink-0">
-            {/* Indicator pointer - above bar */}
-            <div 
-              className="absolute -top-2 -translate-x-1/2 transition-all duration-500 z-10"
-              style={{ left: `${indicatorPosition}%` }}
-            >
-              <svg width="14" height="10" viewBox="0 0 14 10" className="text-foreground drop-shadow-sm">
-                <path d="M7 10L0 0h14L7 10z" fill="currentColor" />
-              </svg>
-            </div>
-            
-            {/* Gradient bar */}
-            <div className="relative h-4 rounded-lg overflow-hidden border border-border/50">
-              <div className="absolute inset-0" style={{
-                background: 'linear-gradient(to right, #ef4444 0%, #fb923c 50%, #22c55e 100%)'
-              }}></div>
-            </div>
-            
-            {/* Scale markers */}
-            <div className="relative mt-2">
-              <div className="flex justify-between">
-                {scaleMarkers.map((marker) => (
-                  <span key={marker} className="text-xs text-muted-foreground font-medium">
-                    {marker}
-                  </span>
-                ))}
+              {/* Legend with score ranges - Two columns */}
+              <div className="flex-1 pt-1">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  {scoreLevels.map((level) => (
+                    <div key={level.label} className="flex flex-col">
+                      <span className="text-sm font-semibold text-foreground">
+                        {level.label}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {level.range}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
+            {financialHealth?.isProjected && expectedIncomeRange && (
+              <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+                <div>Expected income: {formatExpectedIncomeRange(expectedIncomeRange)}</div>
+                <div className="font-medium">
+                  {formatMonthlyIncomeFromRange(expectedIncomeRange)}/month
+                </div>
+              </div>
+            )}
+            {financialHealth?.isProjected && financialHealth?.message && !expectedIncomeRange && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {financialHealth.message}
+              </p>
+            )}
           </div>
 
           {/* Insights Button */}

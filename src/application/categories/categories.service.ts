@@ -415,6 +415,50 @@ export class CategoriesService {
   }
 
   /**
+   * Create a new group
+   */
+  async createGroup(data: GroupFormData): Promise<BaseGroup> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    // Check if user has paid plan (required for custom groups)
+    const isPaidPlan = await canUserWrite(userId);
+    if (!isPaidPlan) {
+      throw new AppError("Creating custom groups requires a paid plan", 403);
+    }
+
+    // Check if user already has a group with this name
+    // Note: Users can have groups with the same name as system defaults
+    const allGroups = await this.repository.findAllGroups();
+    const existingGroup = allGroups.find(
+      (g) => g.name === data.name && g.userId === userId
+    );
+
+    if (existingGroup) {
+      throw new AppError("You already have a group with this name", 400);
+    }
+
+    const id = crypto.randomUUID();
+    const now = getCurrentTimestamp();
+
+    const groupRow = await this.repository.createGroup({
+      id,
+      name: data.name,
+      type: data.type || null,
+      userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Invalidate cache
+    await this.invalidateCategoriesCache(userId);
+
+    return CategoriesMapper.groupToDomain(groupRow);
+  }
+
+  /**
    * Delete a group
    */
   async deleteGroup(id: string): Promise<void> {

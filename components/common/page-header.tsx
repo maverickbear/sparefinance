@@ -114,7 +114,9 @@ export function PageHeader({ title, description, children, className }: PageHead
         <div className="w-full p-4 lg:p-8 h-full flex items-center">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 w-full">
             <div className="flex items-center">
-              <h1 className="text-lg md:text-xl font-semibold">{title}</h1>
+              {/* Title uses content.primary (text-foreground) to emphasise primary content */}
+              <h1 className="text-lg md:text-xl font-semibold text-foreground">{title}</h1>
+              {/* Description uses content.secondary (text-muted-foreground) for body text */}
               {description && (
                 <p className="text-sm md:text-base text-muted-foreground">{description}</p>
               )}

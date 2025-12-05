@@ -703,7 +703,7 @@ export function GoalForm({
               {/* Forecast Panel - Right Side */}
               <div className="lg:sticky lg:top-0 w-full lg:w-[280px]">
           {forecast ? (
-            <div className="rounded-[12px] border bg-muted/50 p-6 space-y-3 h-fit">
+            <div className="rounded-lg border bg-muted/50 p-6 space-y-3 h-fit">
               <h4 className="text-sm font-semibold">Goal Forecast</h4>
               <div className="space-y-3">
                 <div>
@@ -749,7 +749,7 @@ export function GoalForm({
               </div>
             </div>
           ) : (
-            <div className="rounded-[12px] border bg-muted/50 p-6 space-y-3 h-fit">
+            <div className="rounded-lg border bg-muted/50 p-6 space-y-3 h-fit">
               <h4 className="text-sm font-semibold">Goal Forecast</h4>
               <p className="text-xs text-muted-foreground">
                 Enter goal details to see when you'll reach your target

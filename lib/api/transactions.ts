@@ -141,7 +141,7 @@ export async function createTransaction(data: TransactionFormData, providedUserI
         p_date: transactionDate,
         p_description: encryptedDescription,
         p_description_search: descriptionSearch,
-        p_recurring: data.recurring ?? false,
+        p_is_recurring: data.recurring ?? false,
         p_max_transactions: limits.maxTransactions,
       }
     );
@@ -296,7 +296,7 @@ export async function createTransaction(data: TransactionFormData, providedUserI
         p_subcategory_id: null,
         p_description: encryptedDescription,
         p_description_search: descriptionSearch,
-        p_recurring: data.recurring ?? false,
+        p_is_recurring: data.recurring ?? false,
         p_expense_type: null,
         p_created_at: now,
         p_updated_at: now,
@@ -707,7 +707,7 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
   // Get current transaction BEFORE update to check if recurring status changed
   const { data: transactionBeforeUpdate } = await supabase
     .from("Transaction")
-    .select("recurring, accountId, type, amount")
+    .select("isRecurring, accountId, type, amount")
     .eq("id", id)
     .single();
 
@@ -753,7 +753,7 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     // Also update description_search when description changes
     updateData.description_search = normalizeDescription(data.description);
   }
-  if (data.recurring !== undefined) updateData.recurring = data.recurring;
+  if (data.recurring !== undefined) updateData.isRecurring = data.recurring;
   if (data.expenseType !== undefined) {
     // Only set expenseType if type is expense, otherwise set to null
     const finalType = data.type !== undefined ? data.type : currentType;
@@ -806,8 +806,8 @@ export async function updateTransaction(id: string, data: Partial<TransactionFor
     }
   }
 
-  const wasRecurring = transactionBeforeUpdate?.recurring ?? false;
-  const isNowRecurring = transaction.recurring;
+  const wasRecurring = transactionBeforeUpdate?.isRecurring ?? false;
+  const isNowRecurring = transaction.isRecurring;
 
   // If transaction was updated to be recurring or is already recurring and details changed
   if (data.recurring !== undefined && isNowRecurring) {
@@ -964,7 +964,7 @@ export async function getTransactionsInternal(
   // We'll fetch related data separately to avoid RLS issues
   let query = supabase
     .from("Transaction")
-    .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, recurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, userId, householdId")
+    .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, isRecurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, userId, householdId")
     .order("date", { ascending: false });
 
   const log = logger.withPrefix("getTransactionsInternal");
@@ -993,7 +993,7 @@ export async function getTransactionsInternal(
       }
     }
     if (filters?.recurring !== undefined) {
-      filteredQuery = filteredQuery.eq("recurring", filters.recurring);
+      filteredQuery = filteredQuery.eq("isRecurring", filters.recurring);
     }
     // Use description_search for search (much faster than decrypting everything)
     // OPTIMIZED: Ignore search parameters that start with "_refresh_" - these are used for cache bypass only
@@ -1258,7 +1258,7 @@ export async function getUpcomingTransactions(limit: number = 5, accessToken?: s
       category:Category!Transaction_categoryId_fkey(*),
       subcategory:Subcategory!Transaction_subcategoryId_fkey(id, name, logo)
     `)
-    .eq("recurring", true)
+    .eq("isRecurring", true)
     .order("date", { ascending: true });
 
   if (recurringError) {

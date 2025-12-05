@@ -7,7 +7,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CompleteOnboardingRequest } from "@/src/domain/onboarding/onboarding.types";
 import { ExpectedIncomeRange } from "@/src/domain/onboarding/onboarding.types";
 import { BudgetRuleType } from "@/src/domain/budgets/budget-rules.types";
-import { SubscriptionSuccessDialog } from "@/src/presentation/components/features/billing/subscription-success-dialog";
 
 interface OnboardingLoadingStepProps {
   onComplete?: () => void;
@@ -21,6 +20,10 @@ interface OnboardingLoadingStepProps {
   step2Data?: {
     incomeRange?: ExpectedIncomeRange;
     incomeAmount?: number | null;
+    location?: {
+      country: string;
+      stateOrProvince: string | null;
+    };
     ruleType?: BudgetRuleType | string;
   };
   step3Data?: {
@@ -61,7 +64,6 @@ export function OnboardingLoadingStep({
   const [retryCount, setRetryCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const hasStartedRef = useRef(false);
   const isProcessingRef = useRef(false);
   const maxRetries = 3;
@@ -87,8 +89,10 @@ export function OnboardingLoadingStep({
       sessionStorage.removeItem(processingKey);
     }
     
-    // Only start if not already started and not already processing
-    if (!hasStartedRef.current && !isAlreadyProcessing && !isComplete) {
+    // Only start if not already started and not already processing and we have all required data
+    const hasAllRequiredData = step1Data && step2Data && step3Data;
+    
+    if (!hasStartedRef.current && !isAlreadyProcessing && !isComplete && hasAllRequiredData) {
       console.log("[OnboardingLoadingStep] Starting processing...");
       hasStartedRef.current = true;
       sessionStorage.setItem(processingKey, "true");
@@ -176,15 +180,16 @@ export function OnboardingLoadingStep({
         // Use props if provided
         if (!step1Data.name || !step2Data.incomeRange || !step3Data.planId || !step3Data.interval) {
           const missingFields = [];
-          if (!step1Data.name) missingFields.push("name");
-          if (!step2Data.incomeRange) missingFields.push("incomeRange");
-          if (!step3Data.planId) missingFields.push("planId");
-          if (!step3Data.interval) missingFields.push("interval");
+          if (!step1Data.name) missingFields.push("step1.name");
+          if (!step2Data.incomeRange) missingFields.push("step2.incomeRange");
+          if (!step3Data.planId) missingFields.push("step3.planId");
+          if (!step3Data.interval) missingFields.push("step3.interval");
           console.error("[OnboardingLoadingStep] Missing required fields:", missingFields);
           throw new Error(`Missing required onboarding data: ${missingFields.join(", ")}`);
         }
         
         console.log("[OnboardingLoadingStep] Using props data");
+        
         dataToSend = {
           step1: {
             name: step1Data.name,
@@ -195,6 +200,7 @@ export function OnboardingLoadingStep({
           step2: {
             incomeRange: step2Data.incomeRange,
             incomeAmount: step2Data.incomeAmount || null,
+            location: step2Data.location || null,
             ruleType: step2Data.ruleType,
           },
           step3: {
@@ -206,12 +212,16 @@ export function OnboardingLoadingStep({
         // Fall back to sessionStorage
         console.log("[OnboardingLoadingStep] Using sessionStorage data");
         const parsed = JSON.parse(sessionData);
-        if (!parsed.step1?.name || !parsed.step2?.incomeRange || !parsed.step3?.planId || !parsed.step3?.interval) {
+        
+        // Handle migration from old step4 structure to new step3 structure
+        const planData = parsed.step3 || parsed.step4; // Support both old and new structure
+        
+        if (!parsed.step1?.name || !parsed.step2?.incomeRange || !planData?.planId || !planData?.interval) {
           const missingFields = [];
           if (!parsed.step1?.name) missingFields.push("step1.name");
           if (!parsed.step2?.incomeRange) missingFields.push("step2.incomeRange");
-          if (!parsed.step3?.planId) missingFields.push("step3.planId");
-          if (!parsed.step3?.interval) missingFields.push("step3.interval");
+          if (!planData?.planId) missingFields.push("step3.planId");
+          if (!planData?.interval) missingFields.push("step3.interval");
           console.error("[OnboardingLoadingStep] Missing required fields in sessionStorage:", missingFields);
           throw new Error(`Missing required onboarding data in session storage: ${missingFields.join(", ")}`);
         }
@@ -225,11 +235,12 @@ export function OnboardingLoadingStep({
           step2: {
             incomeRange: parsed.step2.incomeRange,
             incomeAmount: parsed.step2.incomeAmount || null,
+            location: parsed.step2.location || null,
             ruleType: parsed.step2.ruleType,
           },
           step3: {
-            planId: parsed.step3.planId,
-            interval: parsed.step3.interval,
+            planId: planData.planId,
+            interval: planData.interval,
           },
         };
       } else {
@@ -368,15 +379,22 @@ export function OnboardingLoadingStep({
       }
       
       if (!subscriptionFound) {
-        console.warn("[OnboardingLoadingStep] Subscription not found after retries, but showing success dialog anyway - dialog will sync");
+        console.warn("[OnboardingLoadingStep] Subscription not found after retries, but completing onboarding anyway");
       }
 
-      // Small delay before showing success dialog
-      setTimeout(() => {
-        console.log("[OnboardingLoadingStep] Showing success dialog");
-        setIsComplete(true);
-        setShowSuccessDialog(true);
-      }, 500);
+      // Mark as complete and call onComplete callback
+      console.log("[OnboardingLoadingStep] Onboarding completed successfully");
+      setIsComplete(true);
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+      
+      // Clear processing flag
+      sessionStorage.removeItem("onboarding-processing");
+      
+      // Call onComplete to advance to success step
+      if (onComplete) {
+        onComplete();
+      }
     } catch (error) {
       console.error("[OnboardingLoadingStep] Error completing onboarding:", error);
       console.error("[OnboardingLoadingStep] Error stack:", error instanceof Error ? error.stack : "No stack");
@@ -452,7 +470,7 @@ export function OnboardingLoadingStep({
     <div className="flex flex-col items-center justify-center py-12 px-6 space-y-8">
       {/* Main Message */}
       <div className="text-center space-y-4">
-        <h3 className="text-2xl font-semibold">
+        <h3 className="text-2xl font-semibold text-content-primary">
           We're personalizing your experience
         </h3>
       </div>
@@ -474,17 +492,7 @@ export function OnboardingLoadingStep({
           >
             <div className="flex-shrink-0">{getStepIcon(step)}</div>
             <div className="flex-1">
-              <p
-                className={`text-sm font-medium ${
-                  step.status === "loading"
-                    ? "text-primary"
-                    : step.status === "success"
-                    ? "text-green-600 dark:text-green-400"
-                    : step.status === "error"
-                    ? "text-destructive"
-                    : "text-muted-foreground"
-                }`}
-              >
+              <p className="text-sm font-medium text-content-primary">
                 {step.label}
               </p>
               {step.error && (
@@ -519,12 +527,6 @@ export function OnboardingLoadingStep({
         </Alert>
       )}
 
-      {/* Success Dialog */}
-      <SubscriptionSuccessDialog
-        open={showSuccessDialog}
-        onOpenChange={setShowSuccessDialog}
-        onSuccess={onComplete}
-      />
     </div>
   );
 }

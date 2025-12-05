@@ -688,7 +688,7 @@ export function PlannedPaymentList() {
         <div className="hidden lg:block">
         <SimpleTabsContent value="expense">
           {loading && currentPage === 1 ? (
-            <div className="rounded-[12px] p-12">
+            <div className="rounded-lg p-12">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
                   Loading planned payments...
@@ -696,7 +696,7 @@ export function PlannedPaymentList() {
               </div>
             </div>
           ) : expensePayments.length === 0 ? (
-            <div className="rounded-[12px] p-12">
+            <div className="rounded-lg p-12">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
                   No future expenses found
@@ -704,7 +704,7 @@ export function PlannedPaymentList() {
               </div>
             </div>
           ) : (
-            <div className="rounded-[12px] border overflow-hidden">
+            <div className="rounded-lg border overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -846,7 +846,7 @@ export function PlannedPaymentList() {
 
         <SimpleTabsContent value="income">
           {incomePayments.length === 0 ? (
-            <div className="rounded-[12px] p-12">
+            <div className="rounded-lg p-12">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
                   No future income found
@@ -854,7 +854,7 @@ export function PlannedPaymentList() {
               </div>
             </div>
           ) : (
-            <div className="rounded-[12px] border overflow-hidden">
+            <div className="rounded-lg border overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -991,7 +991,7 @@ export function PlannedPaymentList() {
 
       <SimpleTabsContent value="transfer">
         {transferPayments.length === 0 ? (
-            <div className="rounded-[12px] p-12">
+            <div className="rounded-lg p-12">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
                   No future transfers found
@@ -999,7 +999,7 @@ export function PlannedPaymentList() {
               </div>
             </div>
           ) : (
-            <div className="rounded-[12px] border overflow-hidden">
+            <div className="rounded-lg border overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>

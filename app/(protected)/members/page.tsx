@@ -7,7 +7,7 @@ export default function MembersPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/settings?tab=household");
+    router.replace("/settings/household");
   }, [router]);
 
   return null;

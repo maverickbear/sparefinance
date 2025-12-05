@@ -47,7 +47,7 @@ export async function checkHouseholdOwnership(userId: string): Promise<{
     // For personal households, check if there are other members
     if (household.type === "personal") {
       const { data: members, error: membersError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("userId")
         .eq("householdId", household.id)
         .eq("status", "active")
@@ -70,7 +70,7 @@ export async function checkHouseholdOwnership(userId: string): Promise<{
     } else {
       // Non-personal household - user is definitely an owner
       const { data: members, error: membersError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("userId")
         .eq("householdId", household.id)
         .eq("status", "active");
@@ -112,7 +112,7 @@ export async function cancelUserSubscription(userId: string): Promise<{
 
     // Get user's household
     const { data: householdMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("householdId")
       .eq("userId", userId)
       .eq("status", "active")

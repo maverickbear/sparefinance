@@ -42,7 +42,9 @@ export function LandingHeroSection() {
               <div className="pt-6 space-y-1">
                 <Button
                   asChild
-                  className="bg-white dark:bg-black text-foreground dark:text-white hover:bg-white/90 dark:hover:bg-black/90 text-lg font-semibold px-10 h-14 rounded-full transition-all shadow-lg hover:shadow-xl"
+                  variant="secondary"
+                  size="large"
+                  className="shadow-lg hover:shadow-xl"
                 >
                   <Link href="/auth/signup">Start your 30-day free trial</Link>
                 </Button>

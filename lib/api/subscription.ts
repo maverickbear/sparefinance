@@ -105,7 +105,7 @@ export async function invalidateSubscriptionsForPlan(planId: string): Promise<vo
       // If household subscription, invalidate all household members
       if (sub.householdId) {
         const { data: members } = await supabase
-          .from("HouseholdMemberNew")
+          .from("HouseholdMember")
           .select("userId")
           .eq("householdId", sub.householdId)
           .eq("status", "active");
@@ -439,7 +439,7 @@ async function fetchUserSubscriptionData(userId: string): Promise<SubscriptionDa
   } else {
     // Fallback to default household
     const { data: defaultMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("householdId")
       .eq("userId", userId)
       .eq("isDefault", true)

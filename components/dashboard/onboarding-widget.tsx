@@ -359,9 +359,9 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
                         <div className={cn(
                           "h-full w-full transition-colors",
                           step.completed && nextStep?.completed
-                            ? "bg-green-500" 
+                            ? "bg-sentiment-positive" 
                             : step.completed
-                            ? "bg-green-500/50"
+                            ? "bg-sentiment-positive/50"
                             : "bg-border"
                         )} />
                       </div>
@@ -372,7 +372,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
                 className={cn(
                         "relative z-10 h-full flex flex-col transition-all duration-200",
                         step.completed
-                          ? "border-green-500/50 bg-green-500/5 hover:border-green-500/70 hover:bg-green-500/10"
+                          ? "border-sentiment-positive/50 bg-sentiment-positive/5 hover:border-sentiment-positive/70 hover:bg-sentiment-positive/10"
                           : "border-border hover:border-primary/50 hover:bg-accent/50",
                         // Only make clickable if not completed OR if it's the income step (which is always editable)
                         (step.completed && step.id !== "income") ? "" : "cursor-pointer"
@@ -394,7 +394,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
                           <div className={cn(
                             "flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all flex-shrink-0",
                             step.completed
-                              ? "bg-green-500 border-green-500 text-white"
+                              ? "bg-sentiment-positive border-sentiment-positive text-white"
                               : "bg-background border-border text-muted-foreground"
                           )}>
                             {step.completed ? (
@@ -415,7 +415,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
                         {/* Show edit icon only for income step when completed, or for any step when not completed */}
                         {step.completed && step.id === "income" && (
                           <div className={cn(
-                            "p-2 rounded-lg transition-colors flex-shrink-0 bg-green-500/10 text-green-600 dark:text-green-400"
+                            "p-2 rounded-lg transition-colors flex-shrink-0 bg-sentiment-positive/10 text-sentiment-positive dark:text-sentiment-positive"
                           )}>
                             <Pencil className="h-5 w-5" />
                           </div>

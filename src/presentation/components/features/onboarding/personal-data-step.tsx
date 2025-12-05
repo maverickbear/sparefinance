@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
-import { Upload, Camera, Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { formatDateInput, parseDateInput } from "@/src/infrastructure/utils/timestamp";
 
@@ -269,19 +269,8 @@ export function PersonalDataStep({ onComplete, initialData, formRef, onValidatio
               onChange={handleFileUpload}
               className="hidden"
             />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="w-full"
-              size="small"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {uploading ? "Uploading..." : "Upload Avatar (Optional)"}
-            </Button>
             <p className="text-xs text-center text-muted-foreground">
-              JPG, PNG or GIF. Max size 5MB
+              Click on avatar to upload (JPG, PNG or GIF. Max size 5MB)
             </p>
           </div>
         </div>

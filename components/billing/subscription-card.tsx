@@ -122,13 +122,13 @@ export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: 
         )}
 
         {subscription.cancelAtPeriodEnd && (
-          <div className="rounded-[12px] bg-yellow-50 dark:bg-yellow-900/20 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+          <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-3 text-sm text-yellow-800 dark:text-yellow-200">
             Your subscription will be cancelled at the end of the current period.
           </div>
         )}
 
         {subscription.status === "past_due" && (
-          <div className="rounded-[12px] bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-800 dark:text-red-200">
+          <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-800 dark:text-red-200">
             Your subscription payment failed. Please update your payment method.
           </div>
         )}

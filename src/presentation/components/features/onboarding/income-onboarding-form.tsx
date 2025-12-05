@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,12 +12,91 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { ExpectedIncomeRange } from "@/src/domain/onboarding/onboarding.types";
+// Country and StateOrProvince are string types, not exported types
+type Country = string;
+type StateOrProvince = string | null;
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { locationSchema, LocationFormData } from "@/src/domain/taxes/taxes.validations";
+
+// US States
+const US_STATES = [
+  { value: "AL", label: "Alabama" },
+  { value: "AK", label: "Alaska" },
+  { value: "AZ", label: "Arizona" },
+  { value: "AR", label: "Arkansas" },
+  { value: "CA", label: "California" },
+  { value: "CO", label: "Colorado" },
+  { value: "CT", label: "Connecticut" },
+  { value: "DE", label: "Delaware" },
+  { value: "FL", label: "Florida" },
+  { value: "GA", label: "Georgia" },
+  { value: "HI", label: "Hawaii" },
+  { value: "ID", label: "Idaho" },
+  { value: "IL", label: "Illinois" },
+  { value: "IN", label: "Indiana" },
+  { value: "IA", label: "Iowa" },
+  { value: "KS", label: "Kansas" },
+  { value: "KY", label: "Kentucky" },
+  { value: "LA", label: "Louisiana" },
+  { value: "ME", label: "Maine" },
+  { value: "MD", label: "Maryland" },
+  { value: "MA", label: "Massachusetts" },
+  { value: "MI", label: "Michigan" },
+  { value: "MN", label: "Minnesota" },
+  { value: "MS", label: "Mississippi" },
+  { value: "MO", label: "Missouri" },
+  { value: "MT", label: "Montana" },
+  { value: "NE", label: "Nebraska" },
+  { value: "NV", label: "Nevada" },
+  { value: "NH", label: "New Hampshire" },
+  { value: "NJ", label: "New Jersey" },
+  { value: "NM", label: "New Mexico" },
+  { value: "NY", label: "New York" },
+  { value: "NC", label: "North Carolina" },
+  { value: "ND", label: "North Dakota" },
+  { value: "OH", label: "Ohio" },
+  { value: "OK", label: "Oklahoma" },
+  { value: "OR", label: "Oregon" },
+  { value: "PA", label: "Pennsylvania" },
+  { value: "RI", label: "Rhode Island" },
+  { value: "SC", label: "South Carolina" },
+  { value: "SD", label: "South Dakota" },
+  { value: "TN", label: "Tennessee" },
+  { value: "TX", label: "Texas" },
+  { value: "UT", label: "Utah" },
+  { value: "VT", label: "Vermont" },
+  { value: "VA", label: "Virginia" },
+  { value: "WA", label: "Washington" },
+  { value: "WV", label: "West Virginia" },
+  { value: "WI", label: "Wisconsin" },
+  { value: "WY", label: "Wyoming" },
+  { value: "DC", label: "District of Columbia" },
+];
+
+// Canadian Provinces and Territories
+const CANADIAN_PROVINCES = [
+  { value: "AB", label: "Alberta" },
+  { value: "BC", label: "British Columbia" },
+  { value: "MB", label: "Manitoba" },
+  { value: "NB", label: "New Brunswick" },
+  { value: "NL", label: "Newfoundland and Labrador" },
+  { value: "NS", label: "Nova Scotia" },
+  { value: "NT", label: "Northwest Territories" },
+  { value: "NU", label: "Nunavut" },
+  { value: "ON", label: "Ontario" },
+  { value: "PE", label: "Prince Edward Island" },
+  { value: "QC", label: "Quebec" },
+  { value: "SK", label: "Saskatchewan" },
+  { value: "YT", label: "Yukon" },
+];
 
 // Convert numeric value to ExpectedIncomeRange
 function convertToIncomeRange(value: number): ExpectedIncomeRange {
@@ -46,6 +125,9 @@ interface IncomeOnboardingFormProps {
   selectedCustomIncome?: number | null;
   onIncomeChange?: (income: ExpectedIncomeRange) => void;
   onCustomIncomeChange?: (amount: number | null) => void;
+  selectedCountry?: Country | null;
+  selectedStateOrProvince?: StateOrProvince | null;
+  onLocationChange?: (location: LocationFormData) => void;
 }
 
 export function IncomeOnboardingForm({ 
@@ -57,7 +139,10 @@ export function IncomeOnboardingForm({
   selectedIncome: controlledSelectedIncome,
   selectedCustomIncome: controlledCustomIncome,
   onIncomeChange,
-  onCustomIncomeChange
+  onCustomIncomeChange,
+  selectedCountry: controlledCountry,
+  selectedStateOrProvince: controlledStateOrProvince,
+  onLocationChange
 }: IncomeOnboardingFormProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -66,6 +151,60 @@ export function IncomeOnboardingForm({
   const [internalCustomIncome, setInternalCustomIncome] = useState<number | undefined>(undefined);
   const [useCustom, setUseCustom] = useState(false);
   const customIncomeInputRef = useRef<HTMLInputElement>(null);
+
+  // Location form
+  const locationForm = useForm<LocationFormData>({
+    resolver: zodResolver(locationSchema),
+    defaultValues: {
+      country: (controlledCountry || "US") as "US" | "CA",
+      stateOrProvince: controlledStateOrProvince as any,
+    },
+    mode: "onChange",
+  });
+
+  const selectedCountry = locationForm.watch("country");
+  const selectedStateOrProvince = locationForm.watch("stateOrProvince");
+  const prevLocationRef = useRef<{ country: string; stateOrProvince: string | null } | null>(null);
+
+  // Update location when controlled values change
+  useEffect(() => {
+    if (controlledCountry !== undefined && controlledCountry !== selectedCountry) {
+      locationForm.setValue("country", (controlledCountry || "US") as "US" | "CA");
+    }
+    if (controlledStateOrProvince !== undefined && controlledStateOrProvince !== selectedStateOrProvince) {
+      locationForm.setValue("stateOrProvince", controlledStateOrProvince as any);
+    }
+  }, [controlledCountry, controlledStateOrProvince, selectedCountry, selectedStateOrProvince, locationForm]);
+
+  // Helper function to notify parent of location changes
+  const notifyLocationChange = useCallback((country: string, stateOrProvince: string | null) => {
+    if (!onLocationChange) return;
+    
+    const currentLocation = {
+      country,
+      stateOrProvince,
+    };
+    
+    // Only call onLocationChange if the location actually changed
+    if (
+      !prevLocationRef.current ||
+      prevLocationRef.current.country !== currentLocation.country ||
+      prevLocationRef.current.stateOrProvince !== currentLocation.stateOrProvince
+    ) {
+      prevLocationRef.current = currentLocation;
+      onLocationChange({
+        country: currentLocation.country as "US" | "CA",
+        stateOrProvince: (currentLocation.stateOrProvince || undefined) as any,
+      });
+    }
+  }, [onLocationChange]);
+
+  // Initialize location notification on mount if country is already set
+  useEffect(() => {
+    if (selectedCountry && !prevLocationRef.current) {
+      notifyLocationChange(selectedCountry as string, selectedStateOrProvince || null);
+    }
+  }, []); // Only run once on mount
 
   // Use controlled or internal state
   const selectedIncome = controlledSelectedIncome !== undefined ? controlledSelectedIncome : internalSelectedIncome;
@@ -204,9 +343,97 @@ export function IncomeOnboardingForm({
     }
   }
 
+  const statesOrProvinces = selectedCountry === "US" ? US_STATES : selectedCountry === "CA" ? CANADIAN_PROVINCES : [];
+
   const incomeRangeDisplay = (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Location Section */}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">Location</Label>
+          <p className="text-xs text-muted-foreground">
+            Used to automatically calculate taxes for accurate budget and emergency fund calculations.
+          </p>
+        </div>
+        
+        <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="country">Country</Label>
+            <Controller
+              name="country"
+              control={locationForm.control}
+              render={({ field }) => (
+                <Tabs
+                  value={field.value}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    locationForm.setValue("stateOrProvince", null);
+                    notifyLocationChange(value, null);
+                  }}
+                  className="w-full"
+                >
+                  <TabsList className="w-full grid grid-cols-2">
+                    <TabsTrigger value="US" className="w-full">United States</TabsTrigger>
+                    <TabsTrigger value="CA" className="w-full">Canada</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
+            />
+            {locationForm.formState.errors.country && (
+              <p className="text-sm text-destructive">{locationForm.formState.errors.country.message}</p>
+            )}
+          </div>
+
+          {selectedCountry && statesOrProvinces.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="stateOrProvince">
+                {selectedCountry === "US" ? "State" : "Province/Territory"}
+              </Label>
+              <Controller
+                name="stateOrProvince"
+                control={locationForm.control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || ""}
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      notifyLocationChange(selectedCountry, value);
+                    }}
+                  >
+                    <SelectTrigger id="stateOrProvince">
+                      <SelectValue
+                        placeholder={`Select your ${selectedCountry === "US" ? "state" : "province/territory"}`}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statesOrProvinces.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {locationForm.formState.errors.stateOrProvince && (
+                <p className="text-sm text-destructive">
+                  {locationForm.formState.errors.stateOrProvince.message}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Income Section */}
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-semibold">Annual Household Income</Label>
+          <p className="text-xs text-muted-foreground">
+            Used to personalize your budgets and calculate accurate emergency fund targets.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {INCOME_RANGES.map((range) => {
           const isSelected = !useCustom && selectedIncome === range.value;
           return (
@@ -220,11 +447,6 @@ export function IncomeOnboardingForm({
             >
               <CardContent className="p-4 flex items-center justify-between">
                 <span className="text-sm font-medium">{range.label}</span>
-                {isSelected && (
-                  <div className="p-1 rounded-full bg-primary text-primary-foreground">
-                    <Check className="h-4 w-4" />
-                  </div>
-                )}
               </CardContent>
             </Card>
           );
@@ -238,30 +460,26 @@ export function IncomeOnboardingForm({
         >
           <CardContent className="p-4 flex items-center justify-between">
             <span className="text-sm font-medium">Custom amount</span>
-            {useCustom && (
-              <div className="p-1 rounded-full bg-primary text-primary-foreground">
-                <Check className="h-4 w-4" />
-              </div>
-            )}
           </CardContent>
         </Card>
-      </div>
-
-      {useCustom && (
-        <div className="pt-2">
-          <Label htmlFor="custom-income" className="text-sm text-muted-foreground mb-1 block">
-            Enter your annual household income
-          </Label>
-          <DollarAmountInput
-            ref={customIncomeInputRef}
-            id="custom-income"
-            value={customIncome || undefined}
-            onChange={handleCustomIncomeChange}
-            placeholder="$ 0.00"
-            className="w-full"
-          />
         </div>
-      )}
+
+        {useCustom && (
+          <div className="pt-2">
+            <Label htmlFor="custom-income" className="text-sm text-muted-foreground mb-1 block">
+              Enter your annual household income
+            </Label>
+            <DollarAmountInput
+              ref={customIncomeInputRef}
+              id="custom-income"
+              value={customIncome || undefined}
+              onChange={handleCustomIncomeChange}
+              placeholder="$ 0.00"
+              className="w-full"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -305,9 +523,9 @@ export function IncomeOnboardingForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Annual Household Income</CardTitle>
+        <CardTitle>Annual Household Income & Location</CardTitle>
         <CardDescription>
-          Used to tailor your budgets and insights. Not shared with anyone.
+          Used to tailor your budgets and insights. Location is used to automatically calculate taxes for accurate budget and emergency fund calculations. Not shared with anyone.
         </CardDescription>
       </CardHeader>
       <CardContent>

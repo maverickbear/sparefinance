@@ -7,7 +7,7 @@ export function CategorizationMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[280px] space-y-2">
         {/* Transaction 1 */}
-        <div className="bg-card rounded-lg p-3">
+        <div className="bg-card border border-border rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold">Starbucks Coffee</p>
             <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
@@ -21,7 +21,7 @@ export function CategorizationMockup() {
         </div>
 
         {/* Transaction 2 */}
-        <div className="bg-card rounded-lg p-3">
+        <div className="bg-card border border-border rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold">Uber Ride</p>
             <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">

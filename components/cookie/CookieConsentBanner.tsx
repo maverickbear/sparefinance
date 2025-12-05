@@ -28,7 +28,7 @@ export function CookieConsentBanner() {
         "animate-in slide-in-from-bottom fade-in-0 duration-300"
       )}
     >
-      <Card className="w-full border-t bg-card shadow-lg rounded-[12px] opacity-100">
+      <Card className="w-full border-t bg-card shadow-lg rounded-lg opacity-100">
         <CardContent className="p-4 md:p-6">
           <div className="space-y-4">
             {/* Title */}

@@ -73,8 +73,7 @@ export function TestimonialsSection() {
           {duplicatedTestimonials.map((testimonial, index) => (
             <div
               key={index}
-              className="flex-shrink-0 px-4"
-              style={{ width: "320px" }}
+              className="flex-shrink-0 px-4 w-80"
             >
               <div className="bg-muted/30 rounded-2xl p-6 md:p-8 h-full border border-border/50">
                 {/* Star Rating */}
@@ -85,7 +84,7 @@ export function TestimonialsSection() {
                       className={cn(
                         "h-4 w-4",
                         star <= testimonial.rating
-                          ? "text-yellow-400 fill-current"
+                          ? "text-sentiment-warning fill-current"
                           : "text-muted-foreground"
                       )}
                     />

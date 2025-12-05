@@ -73,7 +73,7 @@ async function calculateFinancialHealthInternal(
     : (transactionsResult?.transactions || []);
   
   // Only count income and expense transactions (exclude transfers)
-  const monthlyIncome = transactions
+  let monthlyIncome = transactions
     .filter((t) => {
       // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
       const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
@@ -83,6 +83,42 @@ async function calculateFinancialHealthInternal(
       const amount = Number(t.amount) || 0;
       return sum + Math.abs(amount); // Ensure income is positive
     }, 0);
+
+  // Adjust income to after-tax if location is available
+  if (monthlyIncome > 0 && accessToken && refreshToken) {
+    try {
+      const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
+      const supabase = await createServerClient(accessToken, refreshToken);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { getActiveHouseholdId } = await import("@/lib/utils/household");
+        const householdId = await getActiveHouseholdId(user.id, accessToken, refreshToken);
+        
+        if (householdId) {
+          const { HouseholdRepository } = await import("@/src/infrastructure/database/repositories/household.repository");
+          const householdRepository = new HouseholdRepository();
+          const settings = await householdRepository.getSettings(householdId, accessToken, refreshToken);
+          
+          if (settings?.country && settings?.stateOrProvince) {
+            const { makeTaxesService } = await import("../taxes/taxes.factory");
+            const taxesService = makeTaxesService();
+            const annualIncome = monthlyIncome * 12;
+            const monthlyAfterTax = await taxesService.calculateMonthlyAfterTaxIncome(
+              settings.country,
+              annualIncome,
+              settings.stateOrProvince
+            );
+            monthlyIncome = monthlyAfterTax;
+            log.debug(`[calculateFinancialHealthInternal] Using after-tax income: $${monthlyAfterTax.toFixed(2)}/month (from $${(annualIncome / 12).toFixed(2)}/month gross)`);
+          }
+        }
+      }
+    } catch (error) {
+      log.warn(`[calculateFinancialHealthInternal] Failed to calculate after-tax income, using gross income:`, error);
+      // Continue with gross income if tax calculation fails
+    }
+  }
   
   const monthlyExpenses = transactions
     .filter((t) => {
@@ -783,7 +819,7 @@ export async function recalculateFinancialHealthFromTransactions(
     return null;
   }
   // Only count income and expense transactions (exclude transfers)
-  const monthlyIncome = transactions
+  let monthlyIncome = transactions
     .filter((t) => {
       const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
       return t.type === "income" && !isTransfer;
@@ -792,6 +828,40 @@ export async function recalculateFinancialHealthFromTransactions(
       const amount = Number(t.amount) || 0;
       return sum + Math.abs(amount);
     }, 0);
+
+  // Adjust income to after-tax if location is available
+  if (monthlyIncome > 0 && accessToken && refreshToken) {
+    try {
+      const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
+      const supabaseClient = await createServerClient(accessToken, refreshToken);
+      const { data: { user: currentUser } } = await supabaseClient.auth.getUser();
+      
+      if (currentUser) {
+        const { getActiveHouseholdId } = await import("@/lib/utils/household");
+        const householdId = await getActiveHouseholdId(currentUser.id, accessToken, refreshToken);
+        
+        if (householdId) {
+          const { HouseholdRepository } = await import("@/src/infrastructure/database/repositories/household.repository");
+          const householdRepository = new HouseholdRepository();
+          const settings = await householdRepository.getSettings(householdId, accessToken, refreshToken);
+          
+          if (settings?.country && settings?.stateOrProvince) {
+            const { makeTaxesService } = await import("../taxes/taxes.factory");
+            const taxesService = makeTaxesService();
+            const annualIncome = monthlyIncome * 12;
+            const monthlyAfterTax = await taxesService.calculateMonthlyAfterTaxIncome(
+              settings.country,
+              annualIncome,
+              settings.stateOrProvince
+            );
+            monthlyIncome = monthlyAfterTax;
+          }
+        }
+      }
+    } catch (error) {
+      // Continue with gross income if tax calculation fails
+    }
+  }
 
   const monthlyExpenses = transactions
     .filter((t) => {

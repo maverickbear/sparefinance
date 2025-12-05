@@ -16,7 +16,7 @@ function ForgotPasswordFormWrapper() {
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
             <div className="flex items-center">
-              <Logo variant="wordmark" color="auto" width={150} height={40} priority />
+              <Logo variant="wordmark" color="auto" width={200} height={53} priority />
             </div>
             <p className="text-lg text-muted-foreground max-w-md">
               Reset your password to regain access to your account.
@@ -25,7 +25,7 @@ function ForgotPasswordFormWrapper() {
 
           <div className="space-y-6 pt-8">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Mail className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -37,7 +37,7 @@ function ForgotPasswordFormWrapper() {
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Lock className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -49,7 +49,7 @@ function ForgotPasswordFormWrapper() {
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Shield className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -69,7 +69,7 @@ function ForgotPasswordFormWrapper() {
           {/* Mobile header */}
           <div className="lg:hidden text-center space-y-2">
             <div className="flex items-center justify-center mb-4">
-              <Logo variant="wordmark" color="auto" height={40} priority />
+              <Logo variant="wordmark" color="auto" height={53} priority />
             </div>
             <p className="text-muted-foreground text-sm">
               Enter your email to reset your password
@@ -97,19 +97,19 @@ export default function ForgotPasswordPage() {
       <div className="min-h-screen grid lg:grid-cols-2">
         <div className="hidden lg:flex flex-col justify-center p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
           <div className="space-y-4">
-            <div className="h-8 w-48 bg-muted animate-pulse rounded-[12px]" />
-            <div className="h-4 w-64 bg-muted animate-pulse rounded-[12px]" />
+            <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
+            <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />
           </div>
         </div>
         <div className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
           <div className="w-full max-w-md space-y-4">
             <div className="space-y-2">
-              <div className="h-8 w-48 bg-muted animate-pulse rounded-[12px]" />
-              <div className="h-4 w-64 bg-muted animate-pulse rounded-[12px]" />
+              <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
+              <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />
             </div>
             <div className="space-y-4">
-              <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
-              <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
+              <div className="h-10 bg-muted animate-pulse rounded-lg" />
+              <div className="h-10 bg-muted animate-pulse rounded-lg" />
             </div>
           </div>
         </div>

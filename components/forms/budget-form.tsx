@@ -414,7 +414,7 @@ export function BudgetForm({
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Categories</label>
-                    <div className="border rounded-[12px] p-4 max-h-60 overflow-y-auto space-y-2">
+                    <div className="border rounded-lg p-4 max-h-60 overflow-y-auto space-y-2">
                       {budget.budgetCategories && budget.budgetCategories.length > 0 ? (
                         budget.budgetCategories.map((bc) => (
                           <div key={bc.category?.id} className="flex items-center space-x-2">

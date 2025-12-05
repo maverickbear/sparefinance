@@ -278,11 +278,12 @@ export function FinancialOverviewPage({
     // 1. The account's userId matches the selectedMemberId, OR
     // 2. The account has the selectedMemberId in its ownerIds array
     return accounts.filter((acc: any) => {
-      if (acc.userId === selectedMemberId) {
+      // Use String() to ensure type consistency in comparison
+      if (String(acc.userId) === String(selectedMemberId)) {
         return true;
       }
       if (acc.ownerIds && Array.isArray(acc.ownerIds)) {
-        return acc.ownerIds.includes(selectedMemberId);
+        return acc.ownerIds.some((id: any) => String(id) === String(selectedMemberId));
       }
       return false;
     });
@@ -304,7 +305,10 @@ export function FinancialOverviewPage({
     if (!selectedMemberId) {
       return transactions; // Show all household transactions
     }
-    return transactions.filter((t) => t.userId === selectedMemberId);
+    return transactions.filter((t) => {
+      // Use String() to ensure type consistency in comparison
+      return String(t.userId) === String(selectedMemberId);
+    });
   }, [selectedMemberId]);
 
   // Function to format relative time

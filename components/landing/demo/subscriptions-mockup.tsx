@@ -7,7 +7,7 @@ export function SubscriptionsMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[280px] space-y-2">
         {/* Netflix Subscription */}
-        <div className="bg-card rounded-lg p-3">
+        <div className="bg-card border border-border rounded-lg p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center">
@@ -23,7 +23,7 @@ export function SubscriptionsMockup() {
         </div>
 
         {/* Spotify Subscription */}
-        <div className="bg-card rounded-lg p-3">
+        <div className="bg-card border border-border rounded-lg p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded bg-green-100 flex items-center justify-center">

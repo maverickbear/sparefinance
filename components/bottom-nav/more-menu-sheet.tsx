@@ -52,8 +52,8 @@ const navCategories: NavCategory[] = [
       { href: "/accounts", label: "Bank Accounts", icon: Wallet },
       { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
       { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
-      { href: "/settings?tab=categories", label: "Categories", icon: FolderTree },
-      { href: "/settings?tab=household", label: "Household", icon: Users },
+      { href: "/settings/categories", label: "Categories", icon: FolderTree },
+      { href: "/settings/household", label: "Household", icon: Users },
     ],
   },
   {
@@ -70,7 +70,7 @@ const navCategories: NavCategory[] = [
     title: "Account & Settings",
     items: [
       { href: "/profile", label: "Profile", icon: User },
-      { href: "/settings", label: "My Account", icon: Settings },
+      { href: "/settings", label: "My Account", icon: User },
       { href: "/billing", label: "Billing", icon: DollarSign },
       { href: "/help-support", label: "Help & Support", icon: HelpCircle },
       { href: "/feedback", label: "Feedback", icon: MessageSquare },
@@ -269,7 +269,7 @@ export function MoreMenuSheet({
 
           {/* Profile Progress Banner */}
           {profileProgress < 100 && (
-            <Card className="bg-[#8B4513] dark:bg-[#6B3410] border-0">
+            <Card className="bg-sentiment-warning/90 dark:bg-sentiment-warning/80 border-0">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="relative flex-shrink-0 w-16 h-16">
                   <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">

@@ -30,7 +30,7 @@ export async function signUp(data: SignUpFormData): Promise<{ user: User | null;
 
     // Check if email has a pending invitation
     const { data: pendingInvitation } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id, householdId, email, Household(createdBy)")
       .eq("email", data.email.toLowerCase())
       .eq("status", "pending")

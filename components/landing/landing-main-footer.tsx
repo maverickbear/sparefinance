@@ -6,28 +6,29 @@ import { Button } from "@/components/ui/button";
 
 export function LandingMainFooter() {
   return (
-    <footer className="bg-background border-t border-border">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {/* CTA Section */}
-        <div className="text-center mb-16 pb-16 border-b border-border">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
-            Start Organizing Your Finances Today
-          </h2>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join families learning to track expenses, understand spending, and build wealth together. Stop working just to pay bills—start building your future.
-          </p>
-          <Button
-            asChild
-            className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-semibold px-10 h-14 rounded-full"
-          >
-            <Link href="/auth/signup">Start Organizing Your Finances</Link>
-          </Button>
-        </div>
+    <footer className="w-full bg-background border-t border-border">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-16">
+        <div className="max-w-7xl mx-auto">
+          {/* CTA Section */}
+          <div className="text-center mb-16 pb-16 border-b border-border">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">
+              Start Organizing Your Finances Today
+            </h2>
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Join families learning to track expenses, understand spending, and build wealth together. Stop working just to pay bills—start building your future.
+            </p>
+            <Button
+              asChild
+              size="large"
+            >
+              <Link href="/auth/signup">Start Organizing Your Finances</Link>
+            </Button>
+          </div>
 
 
-        {/* Links */}
-        {/* Mobile: 1 column, MD: 2 columns (avoid overlap), LG+: 4 columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+          {/* Links */}
+          {/* Mobile: 1 column, MD: 2 columns (avoid overlap), LG+: 4 columns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center mb-4">
@@ -128,11 +129,12 @@ export function LandingMainFooter() {
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="pt-8 border-t border-border">
-          <p className="text-sm text-center text-muted-foreground">
-            © {new Date().getFullYear()} Copyright - Spare Finance. All rights reserved.
-          </p>
+          {/* Bottom */}
+          <div className="pt-8 border-t border-border">
+            <p className="text-sm text-center text-muted-foreground">
+              © {new Date().getFullYear()} Copyright - Spare Finance. All rights reserved.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

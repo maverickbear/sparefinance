@@ -54,9 +54,9 @@ export function GoalCard({
   onWithdraw,
 }: GoalCardProps) {
   const priorityColors = {
-    High: "bg-red-500 dark:bg-red-600 text-white hover:bg-red-500 dark:hover:bg-red-600",
-    Medium: "bg-yellow-500 dark:bg-yellow-600 text-white hover:bg-yellow-500 dark:hover:bg-yellow-600",
-    Low: "bg-blue-500 dark:bg-blue-600 text-white hover:bg-blue-500 dark:hover:bg-blue-600",
+    High: "bg-sentiment-negative dark:bg-sentiment-negative text-white hover:bg-sentiment-negative dark:hover:bg-sentiment-negative",
+    Medium: "bg-sentiment-warning dark:bg-sentiment-warning text-white hover:bg-sentiment-warning dark:hover:bg-sentiment-warning",
+    Low: "bg-interactive-primary dark:bg-interactive-primary text-white hover:bg-interactive-primary dark:hover:bg-interactive-primary",
   };
 
   return (
@@ -67,7 +67,7 @@ export function GoalCard({
             <div className="flex items-center gap-2">
               <CardTitle className="text-lg">{goal.name}</CardTitle>
               {goal.isCompleted && (
-                <Badge variant="default" className="bg-green-600 dark:bg-green-500">
+                <Badge variant="default" className="bg-sentiment-positive dark:bg-sentiment-positive">
                   Completed
                 </Badge>
               )}

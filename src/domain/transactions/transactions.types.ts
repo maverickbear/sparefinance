@@ -17,7 +17,7 @@ export interface BaseTransaction {
   categoryId?: string | null;
   subcategoryId?: string | null;
   description?: string | null;
-  recurring?: boolean;
+  isRecurring?: boolean;
   expenseType?: string | null;
   transferToId?: string | null;
   transferFromId?: string | null;
@@ -27,6 +27,8 @@ export interface BaseTransaction {
   suggestedSubcategoryId?: string | null;
   plaidMetadata?: Record<string, unknown> | null;
   receiptUrl?: string | null;
+  userId?: string | null;
+  householdId?: string | null;
 }
 
 export interface TransactionWithRelations extends BaseTransaction {
@@ -59,7 +61,7 @@ export interface TransactionFilters {
   accountId?: string;
   type?: 'income' | 'expense' | 'transfer';
   search?: string;
-  recurring?: boolean;
+  isRecurring?: boolean;
   page?: number;
   limit?: number;
 }

@@ -20,6 +20,8 @@ export class OnboardingMapper {
       expectedIncomeAmount: typeof settings.expectedIncomeAmount === 'number' 
         ? settings.expectedIncomeAmount 
         : undefined,
+      country: typeof settings.country === 'string' ? settings.country : undefined,
+      stateOrProvince: typeof settings.stateOrProvince === 'string' ? settings.stateOrProvince : undefined,
     };
   }
 
@@ -35,6 +37,14 @@ export class OnboardingMapper {
 
     if (settings.expectedIncomeAmount !== undefined) {
       result.expectedIncomeAmount = settings.expectedIncomeAmount;
+    }
+
+    if (settings.country !== undefined) {
+      result.country = settings.country;
+    }
+
+    if (settings.stateOrProvince !== undefined) {
+      result.stateOrProvince = settings.stateOrProvince;
     }
 
     return result;

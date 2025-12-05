@@ -78,10 +78,10 @@ export async function getHouseholdMembers(ownerId: string): Promise<HouseholdMem
     // Get household members from new table
     // Now we can join with User table because RLS allows household members to see each other's profiles
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
-        user:User!HouseholdMemberNew_userId_fkey(id, email, name, role, avatarUrl)
+        user:User!HouseholdMember_userId_fkey(id, email, name, role, avatarUrl)
       `)
       .eq("householdId", householdId)
       .order("role", { ascending: false }) // owner first
@@ -153,7 +153,7 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
     // Check if member with this email/userId already exists for this household
     if (existingUser) {
       const { data: existingMember } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("id")
         .eq("householdId", householdId)
         .eq("userId", existingUser.id)
@@ -165,7 +165,7 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
     } else {
       // Check for pending invitation with same email
       const { data: existingPending } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("id")
         .eq("householdId", householdId)
         .eq("email", data.email.toLowerCase())
@@ -207,11 +207,11 @@ export async function inviteMember(ownerId: string, data: MemberInviteFormData):
     };
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .insert(insertData)
       .select(`
         *,
-        user:User!HouseholdMemberNew_userId_fkey(id, email, name, role)
+        user:User!HouseholdMember_userId_fkey(id, email, name, role)
       `)
       .single();
 
@@ -321,10 +321,10 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
 
     // Get current member data from new table
     const { data: currentMember, error: fetchError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
-        user:User!HouseholdMemberNew_userId_fkey(id, email, name, role)
+        user:User!HouseholdMember_userId_fkey(id, email, name, role)
       `)
       .eq("id", memberId)
       .single();
@@ -338,7 +338,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
       updatedAt: now,
     };
 
-    // Update name if provided (update in HouseholdMemberNew if pending, or in User if active)
+    // Update name if provided (update in HouseholdMember if pending, or in User if active)
     if (data.name !== undefined) {
       if (currentMember.status === 'pending') {
       updateData.name = data.name || null;
@@ -368,7 +368,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
 
       if (existingUser) {
         const { data: existingMember } = await supabase
-          .from("HouseholdMemberNew")
+          .from("HouseholdMember")
           .select("id")
           .eq("householdId", currentMember.householdId)
           .eq("userId", existingUser.id)
@@ -381,7 +381,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
       } else {
         // Check for pending invitation with same email
         const { data: existingPending } = await supabase
-          .from("HouseholdMemberNew")
+          .from("HouseholdMember")
           .select("id")
           .eq("householdId", currentMember.householdId)
           .eq("email", data.email.toLowerCase())
@@ -425,12 +425,12 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
 
       // Update member
       const { data: updatedMember, error: updateError } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .update(updateData)
         .eq("id", memberId)
         .select(`
           *,
-          user:User!HouseholdMemberNew_userId_fkey(id, email, name, role)
+          user:User!HouseholdMember_userId_fkey(id, email, name, role)
         `)
         .single();
 
@@ -500,7 +500,7 @@ export async function updateMember(memberId: string, data: MemberUpdateFormData)
 
     // Update member (for active members or non-email changes)
     const { data: updatedMember, error: updateError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .update(updateData)
       .eq("id", memberId)
       .select(`
@@ -550,10 +550,10 @@ export async function removeMember(memberId: string): Promise<void> {
 
     // Get member info before deleting
     const { data: member, error: fetchError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
-        user:User!HouseholdMemberNew_userId_fkey(id, email, name)
+        user:User!HouseholdMember_userId_fkey(id, email, name)
       `)
       .eq("id", memberId)
       .single();
@@ -568,7 +568,7 @@ export async function removeMember(memberId: string): Promise<void> {
 
       // Check if user already has their own personal household
       const { data: existingPersonalHousehold } = await supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("householdId, Household(type)")
         .eq("userId", userId)
         .eq("isDefault", true)
@@ -594,7 +594,7 @@ export async function removeMember(memberId: string): Promise<void> {
 
     // Delete the member from the household
     const { error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .delete()
       .eq("id", memberId);
 
@@ -614,7 +614,7 @@ export async function resendInvitationEmail(memberId: string): Promise<void> {
 
     // Get member data from new table
     const { data: member, error: fetchError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(createdBy)
@@ -671,7 +671,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
 
     // Find the invitation by token in new table
     const { data: invitation, error: findError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(createdBy, id)
@@ -741,7 +741,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
 
     // Update the invitation to active status and link the member
     const { data: member, error: updateError } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .update({
         userId: userId,
         status: "active",
@@ -755,7 +755,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<H
       .eq("id", invitation.id)
       .select(`
         *,
-        user:User!HouseholdMemberNew_userId_fkey(id, email, name, role),
+        user:User!HouseholdMember_userId_fkey(id, email, name, role),
         Household(createdBy, id)
       `)
       .single();
@@ -873,7 +873,7 @@ export async function acceptInvitationWithPassword(token: string, password: stri
     
     // Get full invitation details using service role (needed for creating account)
     const { data: fullInvitation, error: findError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(createdBy, id)
@@ -984,7 +984,7 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
 
     // Get the invitation to verify it's still pending
     const { data: invitation, error: findError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(createdBy, id)
@@ -1010,7 +1010,7 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
 
     // Update the invitation to active status and link the member
     const { data: updatedMember, error: updateError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .update({
         userId: userId,
         status: "active",
@@ -1025,7 +1025,7 @@ export async function completeInvitationAfterOtp(userId: string, invitationId: s
       .eq("status", "pending") // Double-check it's still pending
       .select(`
         *,
-        user:User!HouseholdMemberNew_userId_fkey(id, email, name, role),
+        user:User!HouseholdMember_userId_fkey(id, email, name, role),
         Household(createdBy, id)
       `)
       .single();
@@ -1194,7 +1194,7 @@ export async function getUserRoleOptimized(userId: string): Promise<"admin" | "m
   try {
     const supabase = await createServerClient();
     
-    // Fetch User role and HouseholdMemberNew in parallel
+    // Fetch User role and HouseholdMember in parallel
     const [userResult, householdResult] = await Promise.all([
       supabase
         .from("User")
@@ -1203,7 +1203,7 @@ export async function getUserRoleOptimized(userId: string): Promise<"admin" | "m
         .single(),
       // Get user's household memberships
       supabase
-        .from("HouseholdMemberNew")
+        .from("HouseholdMember")
         .select("role, userId, status, Household(type, createdBy)")
         .eq("userId", userId)
         .eq("status", "active")
@@ -1264,7 +1264,7 @@ export async function isHouseholdMember(userId: string): Promise<boolean> {
     
     // Check if user is a member of any household (excluding their own personal household)
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         id,
         status,
@@ -1306,7 +1306,7 @@ export async function getOwnerIdForMember(userId: string): Promise<string | null
     
     // Get the household where user is a member (excluding personal)
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         householdId,
         status,

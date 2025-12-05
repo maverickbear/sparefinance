@@ -33,6 +33,10 @@ export interface CompleteOnboardingRequest {
   step2: {
     incomeRange: ExpectedIncomeRange;
     incomeAmount?: number | null;
+    location?: {
+      country: string;
+      stateOrProvince: string | null;
+    } | null;
     ruleType?: BudgetRuleType | string;
   };
   step3: {

@@ -269,7 +269,7 @@ export function UnifiedEntitiesTable({
   const totalItems = groups.length + categories.length + subcategories.length;
 
   return (
-    <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+    <div className="hidden lg:block rounded-lg border overflow-x-auto">
       {selectedCount > 0 && onBulkDelete && (
         <div className="flex items-center justify-between p-4 bg-muted/50 border-b">
           <span className="text-sm text-muted-foreground">

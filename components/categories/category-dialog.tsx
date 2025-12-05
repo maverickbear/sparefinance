@@ -20,18 +20,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Edit, X, Check, Loader2, Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Edit, X, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import type { Category, Macro } from "@/src/domain/categories/categories.types";
-import { useDebounce } from "@/hooks/use-debounce";
 
 interface Subcategory {
   id: string;
@@ -83,11 +75,6 @@ export function CategoryDialog({
   const [deletingSubcategoryId, setDeletingSubcategoryId] = useState<string | null>(null);
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(category?.id || null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [allCategories, setAllCategories] = useState<Category[]>([]);
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const searchRef = useRef<HTMLDivElement>(null);
   
   // Check if this is a system category (userId === null)
   // Only system categories when category exists AND userId is null
@@ -107,7 +94,7 @@ export function CategoryDialog({
         },
   });
 
-  // Load current user and all categories for search
+  // Load current user
   useEffect(() => {
     async function loadCurrentUser() {
       try {
@@ -121,41 +108,10 @@ export function CategoryDialog({
       }
     }
     
-    async function loadAllCategories() {
-      try {
-        const response = await fetch("/api/v2/categories?all=true");
-        if (!response.ok) {
-          throw new Error("Failed to fetch categories");
-        }
-        const categories = await response.json();
-        setAllCategories(categories);
-      } catch (error) {
-        console.error("Error loading categories for search:", error);
-      }
-    }
-    
     if (open) {
       loadCurrentUser();
-      loadAllCategories();
     }
   }, [open]);
-
-  // Close search dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setSearchOpen(false);
-      }
-    }
-
-    if (searchOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
-    return undefined;
-  }, [searchOpen]);
 
   // Reset form and subcategories when dialog opens/closes or category changes
   useEffect(() => {
@@ -188,8 +144,6 @@ export function CategoryDialog({
       setNewSubcategoryName("");
       setNewSubcategoryLogo("");
       setIsAddingSubcategory(false);
-      setSearchQuery("");
-      setSearchOpen(false);
     }
   }, [open, category, form]);
 
@@ -540,79 +494,6 @@ export function CategoryDialog({
     setEditingSubcategoryLogo("");
   }
 
-  // Search functionality - filter groups, categories, and subcategories
-  const searchResults = useMemo(() => {
-    if (!debouncedSearchQuery.trim()) {
-      return {
-        groups: [],
-        categories: [],
-        subcategories: [],
-      };
-    }
-
-    const query = debouncedSearchQuery.toLowerCase().trim();
-    
-    // Search in groups (macros)
-    const matchedGroups = macros.filter((macro) =>
-      macro.name.toLowerCase().includes(query)
-    );
-
-    // Search in categories
-    const matchedCategories = allCategories.filter((cat) =>
-      cat.name.toLowerCase().includes(query)
-    );
-
-    // Search in subcategories
-    const matchedSubcategories: Array<{
-      id: string;
-      name: string;
-      categoryId: string;
-      categoryName: string;
-      groupName?: string;
-    }> = [];
-    
-    allCategories.forEach((cat) => {
-      cat.subcategories?.forEach((subcat) => {
-        if (subcat.name.toLowerCase().includes(query)) {
-          matchedSubcategories.push({
-            id: subcat.id,
-            name: subcat.name,
-            categoryId: cat.id,
-            categoryName: cat.name,
-            groupName: cat.group?.name,
-          });
-        }
-      });
-    });
-
-    return {
-      groups: matchedGroups,
-      categories: matchedCategories,
-      subcategories: matchedSubcategories,
-    };
-  }, [debouncedSearchQuery, macros, allCategories]);
-
-  function handleSearchSelect(type: "group" | "category" | "subcategory", item: any) {
-    if (type === "group") {
-      form.setValue("macroId", item.id);
-      setSearchQuery("");
-      setSearchOpen(false);
-    } else if (type === "category") {
-      form.setValue("macroId", item.groupId || "");
-      form.setValue("name", item.name);
-      setSearchQuery("");
-      setSearchOpen(false);
-    } else if (type === "subcategory") {
-      // Find the category for this subcategory
-      const parentCategory = allCategories.find((cat) => cat.id === item.categoryId);
-      if (parentCategory) {
-        form.setValue("macroId", parentCategory.groupId || "");
-        form.setValue("name", parentCategory.name);
-        setSearchQuery("");
-        setSearchOpen(false);
-      }
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -628,113 +509,6 @@ export function CategoryDialog({
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-          {/* Search functionality - Always visible */}
-          <div className="space-y-2" ref={searchRef}>
-            <label htmlFor="category-search" className="text-sm font-medium">
-              Search Groups, Categories & Subcategories
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="category-search"
-                type="text"
-                placeholder="Search groups, categories, and subcategories..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setSearchOpen(e.target.value.length > 0);
-                }}
-                onFocus={() => {
-                  if (searchQuery.length > 0) {
-                    setSearchOpen(true);
-                  }
-                }}
-                className="pl-9 pr-9"
-              />
-              {searchQuery && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSearchOpen(false);
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            {searchOpen && debouncedSearchQuery && (
-              <div className="border rounded-[12px] bg-popover shadow-md max-h-64 overflow-y-auto z-50 relative">
-                <Command shouldFilter={false}>
-                  <CommandList>
-                    <CommandEmpty>
-                      No results found.
-                    </CommandEmpty>
-                    {searchResults.groups.length > 0 && (
-                      <CommandGroup heading="Groups">
-                        {searchResults.groups.map((group) => (
-                          <CommandItem
-                            key={group.id}
-                            value={`group-${group.id}`}
-                            onSelect={() => handleSearchSelect("group", group)}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">{group.name}</span>
-                              <span className="text-xs text-muted-foreground">Group</span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                    {searchResults.categories.length > 0 && (
-                      <CommandGroup heading="Categories">
-                        {searchResults.categories.map((cat) => (
-                          <CommandItem
-                            key={cat.id}
-                            value={`category-${cat.id}`}
-                            onSelect={() => handleSearchSelect("category", cat)}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">{cat.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {cat.group?.name || "Category"}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                    {searchResults.subcategories.length > 0 && (
-                      <CommandGroup heading="Subcategories">
-                        {searchResults.subcategories.map((subcat) => (
-                          <CommandItem
-                            key={subcat.id}
-                            value={`subcategory-${subcat.id}`}
-                            onSelect={() => handleSearchSelect("subcategory", subcat)}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex flex-col">
-                              <span className="font-medium">{subcat.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {subcat.categoryName}
-                                {subcat.groupName && ` • ${subcat.groupName}`}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
-              </div>
-            )}
-          </div>
-
           {/* Show group selector and category name when creating new category or editing user category */}
           {(!category || !isSystemCategory) && (
             <>
@@ -803,7 +577,7 @@ export function CategoryDialog({
           <div className="space-y-1">
             <label className="text-sm font-medium">Subcategories</label>
             
-            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto rounded-[12px] border p-2">
+            <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto rounded-lg border p-2">
               {/* Show pending subcategories (before category is created) */}
               {pendingSubcategories.map((pending) => (
                 <div

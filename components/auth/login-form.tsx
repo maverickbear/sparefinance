@@ -441,9 +441,9 @@ export function LoginForm() {
     <Suspense fallback={
       <div className="space-y-6">
         <div className="space-y-5">
-          <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
-          <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
-          <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
+          <div className="h-10 bg-muted animate-pulse rounded-lg" />
+          <div className="h-10 bg-muted animate-pulse rounded-lg" />
+          <div className="h-10 bg-muted animate-pulse rounded-lg" />
         </div>
       </div>
     }>

@@ -64,7 +64,7 @@ export function GoalTopUpDialog({
             Add money to {goal?.name || "this goal"}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 px-6">
+        <div className="space-y-4 px-6 py-6">
           <div className="space-y-2">
             <label className="text-sm font-medium">Amount</label>
             <Input

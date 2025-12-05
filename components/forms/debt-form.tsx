@@ -1365,7 +1365,7 @@ export function DebtForm({
           )}
 
           {forecast && (
-            <div className="rounded-[12px] border bg-muted/50 p-4 space-y-3">
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
               <h4 className="text-sm font-semibold">Forecast</h4>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>

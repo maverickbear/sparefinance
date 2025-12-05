@@ -183,7 +183,7 @@ export class ReportsService {
         categoryId: tx.categoryId ?? undefined,
         subcategoryId: tx.subcategoryId ?? undefined,
         description: tx.description ?? undefined,
-        recurring: tx.recurring ?? undefined,
+        isRecurring: tx.isRecurring ?? undefined,
         expenseType: tx.expenseType as "fixed" | "variable" | null | undefined,
         transferToId: tx.transferToId ?? undefined,
         transferFromId: tx.transferFromId ?? undefined,

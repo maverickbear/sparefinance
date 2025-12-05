@@ -314,7 +314,7 @@ async function loadDashboardDataInternal(
       logger.error("Error fetching debts:", error);
       return [];
     }),
-    transactionsService.getTransactions({ recurring: true }, accessToken, refreshToken).catch((error) => {
+    transactionsService.getTransactions({ isRecurring: true }, accessToken, refreshToken).catch((error) => {
       logger.error("Error fetching recurring payments:", error);
       return { transactions: [], total: 0 };
     }),

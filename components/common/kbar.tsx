@@ -39,8 +39,8 @@ const commandGroups = [
       { id: "transactions", label: "Transactions", icon: Receipt, href: "/transactions" },
       { id: "subscriptions", label: "Subscriptions", icon: Repeat, href: "/subscriptions" },
       { id: "planned-payment", label: "Planned Payments", icon: Calendar, href: "/planned-payment" },
-      { id: "categories", label: "Categories", icon: FolderTree, href: "/settings?tab=categories" },
-      { id: "household", label: "Household", icon: Users, href: "/settings?tab=household" },
+      { id: "categories", label: "Categories", icon: FolderTree, href: "/settings/categories" },
+      { id: "household", label: "Household", icon: Users, href: "/settings/household" },
     ],
   },
   {
@@ -77,7 +77,7 @@ export function KBar({ open, onOpenChange }: KBarProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="overflow-hidden p-0">
-        <Command className="rounded-[12px] border border-border">
+        <Command className="rounded-lg border border-border">
           <Command.Input
             placeholder="Search commands..."
             className="w-full px-4 py-3 text-sm border-b border-border outline-none"
@@ -93,7 +93,7 @@ export function KBar({ open, onOpenChange }: KBarProps) {
                       key={cmd.id}
                       value={cmd.label}
                       onSelect={() => handleSelect(cmd.href)}
-                      className="flex items-center space-x-2 px-2 py-2 rounded-[12px] cursor-pointer hover:bg-accent"
+                      className="flex items-center space-x-2 px-2 py-2 rounded-lg cursor-pointer hover:bg-accent"
                     >
                       <Icon className="h-4 w-4" />
                       <span>{cmd.label}</span>

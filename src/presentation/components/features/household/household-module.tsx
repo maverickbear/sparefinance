@@ -189,7 +189,7 @@ export function HouseholdModule() {
             />
           </div>
         ) : (
-          <div className="rounded-[12px] border overflow-x-auto">
+          <div className="rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -260,7 +260,7 @@ export function HouseholdModule() {
                     </TableCell>
                     <TableCell className="text-xs md:text-sm">
                       {member.isOwner ? (
-                        <Badge variant="secondary" className="rounded-full bg-green-600 text-white border-transparent hover:bg-green-600">Active</Badge>
+                        <Badge variant="secondary" className="rounded-full bg-primary text-primary-foreground border-transparent hover:bg-primary">Active</Badge>
                       ) : (
                         <InvitationStatus status={member.status} />
                       )}

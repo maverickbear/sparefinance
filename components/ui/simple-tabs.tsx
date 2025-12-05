@@ -30,9 +30,9 @@ const SimpleTabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       "inline-flex items-center justify-center whitespace-nowrap px-2 sm:px-3 py-2 sm:py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-      "text-muted-foreground -mb-[1px]",
-      "data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary",
-      "hover:text-foreground",
+      "text-content-tertiary -mb-[1px]",
+      "data-[state=active]:text-content-primary data-[state=active]:border-b-2 data-[state=active]:border-primary",
+      "hover:text-content-primary hover:border-b-2 hover:border-primary",
       className
     )}
     {...props}

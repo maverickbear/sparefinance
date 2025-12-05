@@ -202,7 +202,7 @@ function AcceptInvitationForm() {
         <div className="relative z-10 space-y-8">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-[12px]">
+              <div className="p-2 bg-primary rounded-lg">
                 <Wallet className="w-8 h-8 text-black" />
               </div>
               <h1 className="text-3xl font-bold">Spare Finance</h1>
@@ -214,7 +214,7 @@ function AcceptInvitationForm() {
 
           <div className="space-y-6 pt-8">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <TrendingUp className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -226,7 +226,7 @@ function AcceptInvitationForm() {
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Shield className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -238,7 +238,7 @@ function AcceptInvitationForm() {
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Zap className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -258,7 +258,7 @@ function AcceptInvitationForm() {
           {/* Mobile header */}
           <div className="lg:hidden text-center space-y-2">
             <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="p-2 bg-primary rounded-[12px]">
+              <div className="p-2 bg-primary rounded-lg">
                 <Wallet className="w-6 h-6 text-black" />
               </div>
               <h1 className="text-2xl font-bold">Spare Finance</h1>
@@ -398,7 +398,7 @@ function AcceptInvitationForm() {
                 )}
 
                 {error && (
-                  <div className="rounded-[12px] bg-destructive/10 border border-destructive/20 p-4 flex items-start gap-3">
+                  <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-destructive">{error}</p>
@@ -503,20 +503,20 @@ export default function AcceptInvitationPage() {
       <div className="min-h-screen grid lg:grid-cols-2">
         <div className="hidden lg:flex flex-col justify-center p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
           <div className="space-y-4">
-            <div className="h-8 w-48 bg-muted animate-pulse rounded-[12px]" />
-            <div className="h-4 w-64 bg-muted animate-pulse rounded-[12px]" />
+            <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
+            <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />
           </div>
         </div>
         <div className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
           <div className="w-full max-w-md space-y-4">
             <div className="space-y-2">
-              <div className="h-8 w-48 bg-muted animate-pulse rounded-[12px]" />
-              <div className="h-4 w-64 bg-muted animate-pulse rounded-[12px]" />
+              <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
+              <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />
             </div>
             <div className="space-y-4">
-              <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
-              <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
-              <div className="h-10 bg-muted animate-pulse rounded-[12px]" />
+              <div className="h-10 bg-muted animate-pulse rounded-lg" />
+              <div className="h-10 bg-muted animate-pulse rounded-lg" />
+              <div className="h-10 bg-muted animate-pulse rounded-lg" />
             </div>
           </div>
         </div>

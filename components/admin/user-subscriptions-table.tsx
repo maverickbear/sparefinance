@@ -145,7 +145,7 @@ export function UserSubscriptionsTable({
                       Active
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-yellow-500 dark:border-yellow-400 text-yellow-600 dark:text-yellow-400">
+                    <Badge variant="outline" className="border-sentiment-warning dark:border-sentiment-warning text-sentiment-warning dark:text-sentiment-warning">
                       Paused
                     </Badge>
                   )}

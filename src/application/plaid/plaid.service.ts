@@ -349,7 +349,7 @@ export class PlaidService {
       } else {
         institutionsMap.set(institutionKey, {
           id: institutionKey,
-          name: connection.institutionName,
+          name: connection.institutionName || null,
           logo: (connection as any).institutionLogo || null,
           accountCount,
         });
@@ -868,14 +868,16 @@ export class PlaidService {
                     downPayment: 0,
                     interestRate: apr || 0,
                     totalMonths: null,
-                    firstPaymentDate: formatDateOnly(nextDueDate),
+                    firstPaymentDate: nextDueDate,
                     monthlyPayment: creditCard.minimum_payment_amount || 0,
+                    paymentFrequency: "monthly",
+                    principalPaid: 0,
+                    interestPaid: 0,
+                    additionalContributions: false,
+                    additionalContributionAmount: 0,
                     accountId: account.id,
                     priority: "Medium",
-                    status: "active",
-                    nextDueDate: creditCard.next_payment_due_date 
-                      ? parseDateWithoutTimezone(creditCard.next_payment_due_date)
-                      : nextDueDate,
+                    isPaused: false,
                   };
 
                   await debtsService.createDebt(debtData);

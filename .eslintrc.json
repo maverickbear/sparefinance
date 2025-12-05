@@ -1,1 +1,57 @@
-{"extends": ["next/core-web-vitals", "next/typescript"]}
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "Literal[value=/bg-(red|yellow|green|blue)-(400|500|600)/]",
+        "message": "Use semantic color tokens (bg-sentiment-negative, bg-sentiment-warning, bg-sentiment-positive, bg-interactive-primary) instead of hardcoded color classes. See docs/CSS_MIGRATION_GUIDE.md"
+      },
+      {
+        "selector": "TemplateLiteral[expressions.length=0]",
+        "message": "Avoid hardcoded color classes in template literals. Use design tokens instead."
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["**/color-mappings"],
+            "message": "color-mappings.ts is for reference only. Do not import for runtime use."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["*.tsx", "*.ts"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "TemplateElement[value.raw=/rounded-\\[12px\\]/]",
+            "message": "Use 'rounded-lg' instead of 'rounded-[12px]'. See docs/CSS_MIGRATION_GUIDE.md"
+          },
+          {
+            "selector": "TemplateElement[value.raw=/bg-(red|yellow|green|blue)-(400|500|600)/]",
+            "message": "Use semantic color tokens instead of hardcoded colors. See docs/CSS_MIGRATION_GUIDE.md"
+          },
+          {
+            "selector": "TemplateElement[value.raw=/text-(red|yellow|green|blue)-(400|500|600|800)/]",
+            "message": "Use semantic color tokens instead of hardcoded colors. See docs/CSS_MIGRATION_GUIDE.md"
+          },
+          {
+            "selector": "TemplateElement[value.raw=/border-(red|yellow|green|blue)-(400|500|600)/]",
+            "message": "Use semantic color tokens instead of hardcoded colors. See docs/CSS_MIGRATION_GUIDE.md"
+          },
+          {
+            "selector": "TemplateElement[value.raw=/ring-(red|yellow|green|blue)-(400|500|600)/]",
+            "message": "Use semantic color tokens instead of hardcoded colors. See docs/CSS_MIGRATION_GUIDE.md"
+          }
+        ]
+      }
+    }
+  ]
+}

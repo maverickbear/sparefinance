@@ -57,7 +57,7 @@ export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpense
           <div 
             key={item.name} 
             className={`flex items-center justify-between gap-3 ${
-              item.categoryId ? "cursor-pointer hover:bg-muted/50 rounded-[12px] p-1 -mx-1 transition-colors" : ""
+              item.categoryId ? "cursor-pointer hover:bg-muted/50 rounded-lg p-1 -mx-1 transition-colors" : ""
             }`}
             onClick={() => item.categoryId && handleCategoryClick(item.categoryId)}
           >
@@ -84,7 +84,7 @@ export function CategoryExpensesChart({ data, totalIncome = 0 }: CategoryExpense
                 <div className="text-sm font-semibold">{formatMoney(item.value)}</div>
                 <div className="text-xs text-muted-foreground cursor-help relative group/tooltip inline-block">
                   {item.percentage.toFixed(1)}%
-                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 text-xs bg-popover text-popover-foreground border border-border rounded-[12px] opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50 shadow-md">
+                  <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 text-xs bg-popover text-popover-foreground border border-border rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-50 shadow-md">
                     % of total monthly income
                     <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-popover"></span>
                   </span>

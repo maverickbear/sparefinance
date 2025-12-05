@@ -37,7 +37,7 @@ export class MembersRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("*")
       .eq("householdId", householdId)
       .order("role", { ascending: false })
@@ -62,7 +62,7 @@ export class MembersRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("*")
       .eq("id", id)
       .single();
@@ -87,7 +87,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("*")
       .eq("invitationToken", token)
       .eq("status", "pending")
@@ -114,7 +114,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("*")
       .eq("email", email.toLowerCase())
       .eq("householdId", householdId)
@@ -138,7 +138,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("*")
       .eq("userId", userId)
       .eq("householdId", householdId)
@@ -175,7 +175,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .insert({
         id: data.id,
         householdId: data.householdId,
@@ -223,7 +223,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .update(data)
       .eq("id", id)
       .select()
@@ -244,7 +244,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .delete()
       .eq("id", id);
 
@@ -263,7 +263,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select(`
         *,
         Household(type, createdBy)
@@ -286,7 +286,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: pendingInvitation, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("id, householdId, email, Household(createdBy)")
       .eq("email", email.toLowerCase())
       .eq("status", "pending")
@@ -329,7 +329,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("userId")
       .eq("householdId", householdId)
       .eq("status", "active")
@@ -350,7 +350,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("userId")
       .eq("householdId", householdId)
       .eq("status", "active");
@@ -381,7 +381,7 @@ export class MembersRepository {
 
     // Fallback to default household
     const { data: defaultMember } = await supabase
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .select("householdId")
       .eq("userId", userId)
       .eq("isDefault", true)

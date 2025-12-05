@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { IncomeOnboardingForm } from "./income-onboarding-form";
 import { BudgetRuleSelector } from "@/src/presentation/components/features/budgets/budget-rule-selector";
 import { PlanSelectionStep } from "./plan-selection-step";
 import { OnboardingLoadingStep } from "./onboarding-loading-step";
+import { OnboardingSuccessStep } from "./onboarding-success-step";
 import { useToast } from "@/components/toast-provider";
 import { ExpectedIncomeRange } from "@/src/domain/onboarding/onboarding.types";
 import { BudgetRuleType } from "@/src/domain/budgets/budget-rules.types";
@@ -20,7 +21,7 @@ interface MultiStepOnboardingDialogProps {
   onComplete?: () => void;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 const SESSION_STORAGE_KEY = "onboarding-temp-data";
 
@@ -48,15 +49,16 @@ export function MultiStepOnboardingDialog({
   const [step1Completed, setStep1Completed] = useState(false);
   const [step1FormValid, setStep1FormValid] = useState(false);
 
-  // Step 2 state
+  // Step 2 state (Income + Location)
   const [selectedIncome, setSelectedIncome] = useState<ExpectedIncomeRange>(null);
   const [selectedCustomIncome, setSelectedCustomIncome] = useState<number | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<{ country: string; stateOrProvince: string | null } | null>(null);
   const [selectedRule, setSelectedRule] = useState<BudgetRuleType | undefined>(undefined);
   const [recommendedRule, setRecommendedRule] = useState<BudgetRuleType | undefined>(undefined);
   const [step2SubStep, setStep2SubStep] = useState<"income" | "rule">("income");
   const [step2Completed, setStep2Completed] = useState(false);
 
-  // Step 3 state
+  // Step 3 state (Plan)
   const [step3Completed, setStep3Completed] = useState(false);
   const [currentPlanId, setCurrentPlanId] = useState<string | undefined>(undefined);
   const [currentInterval, setCurrentInterval] = useState<"month" | "year" | null>(null);
@@ -78,6 +80,7 @@ export function MultiStepOnboardingDialog({
           if (parsed.step2) {
             setSelectedIncome(parsed.step2.incomeRange || null);
             setSelectedCustomIncome(parsed.step2.incomeAmount ?? null);
+            setSelectedLocation(parsed.step2.location || null);
             setSelectedRule(parsed.step2.ruleType);
             setStep2Completed(!!parsed.step2?.incomeRange && !!parsed.step2?.ruleType);
             if (parsed.step2.incomeRange) {
@@ -107,13 +110,14 @@ export function MultiStepOnboardingDialog({
         step2: selectedIncome ? { 
           incomeRange: selectedIncome, 
           incomeAmount: selectedCustomIncome,
+          location: selectedLocation,
           ruleType: selectedRule 
         } : null,
         step3: selectedPlanId ? { planId: selectedPlanId, interval: selectedInterval } : null,
       };
       sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(dataToSave));
     }
-  }, [open, step1Data, selectedIncome, selectedCustomIncome, selectedRule, selectedPlanId, selectedInterval]);
+  }, [open, step1Data, selectedIncome, selectedCustomIncome, selectedLocation, selectedRule, selectedPlanId, selectedInterval]);
 
   // Get recommended rule when income is selected
   useEffect(() => {
@@ -172,10 +176,23 @@ export function MultiStepOnboardingDialog({
     }
   }
 
+  const handleLocationChange = useCallback((location: { country: "US" | "CA"; stateOrProvince?: string | null | undefined }) => {
+    setSelectedLocation((prev) => {
+      // Only update if the location actually changed
+      if (!prev || prev.country !== location.country || prev.stateOrProvince !== location.stateOrProvince) {
+        return {
+          country: location.country,
+          stateOrProvince: location.stateOrProvince ?? null,
+        };
+      }
+      return prev;
+    });
+  }, []);
+
   function handleStep1Complete(data: Step1Data) {
     setStep1Data(data);
     setStep1Completed(true);
-    // Auto-advance to step 2
+    // Auto-advance to step 2 (income + location)
     setCurrentStep(2);
     // Save to sessionStorage
     const savedData = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -219,7 +236,7 @@ export function MultiStepOnboardingDialog({
 
     // Just store the data, don't save to backend yet
     setStep2Completed(true);
-    setCurrentStep(3);
+    setCurrentStep(3); // Advance to Plan Selection (step 3)
     // Save to sessionStorage
     const savedData = sessionStorage.getItem(SESSION_STORAGE_KEY);
     const parsed = savedData ? JSON.parse(savedData) : {};
@@ -228,6 +245,7 @@ export function MultiStepOnboardingDialog({
       step2: { 
         incomeRange: selectedIncome, 
         incomeAmount: selectedCustomIncome,
+        location: selectedLocation,
         ruleType: selectedRule 
       },
     }));
@@ -244,6 +262,8 @@ export function MultiStepOnboardingDialog({
       ...parsed,
       step3: { planId, interval },
     }));
+    // Automatically advance to loading step when plan is selected
+    setCurrentStep(4);
   }
 
   async function handleFinalSubmit() {
@@ -293,9 +313,67 @@ export function MultiStepOnboardingDialog({
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     sessionStorage.setItem("onboarding-recently-completed", Date.now().toString());
     
-    // Close dialog and redirect
+    // Advance to success step instead of redirecting
+    setCurrentStep(5);
+  }
+
+  async function handleGoToDashboard() {
+    // Close the dialog first
     onOpenChange(false);
-    router.push("/dashboard?trialStarted=true");
+    
+    // Trigger confetti animation after dialog closes
+    try {
+      const confettiModule = await import("canvas-confetti");
+      const confetti = confettiModule.default;
+      
+      // Small delay to ensure dialog is closed before confetti starts
+      setTimeout(() => {
+        const duration = 3000;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+        function randomInRange(min: number, max: number) {
+          return Math.random() * (max - min) + min;
+        }
+
+        const interval = setInterval(function() {
+          const timeLeft = animationEnd - Date.now();
+
+          if (timeLeft <= 0) {
+            clearInterval(interval);
+            return;
+          }
+
+          const particleCount = 50 * (timeLeft / duration);
+          
+          // Launch confetti from left
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+          });
+          
+          // Launch confetti from right
+          confetti({
+            ...defaults,
+            particleCount,
+            origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+          });
+        }, 250);
+      }, 100);
+    } catch (error) {
+      console.error("[ONBOARDING] Failed to load confetti:", error);
+    }
+    
+    router.push("/dashboard");
+    if (onComplete) {
+      onComplete();
+    }
+  }
+
+  function handleGoToBilling() {
+    onOpenChange(false);
+    router.push("/settings/billing");
     if (onComplete) {
       onComplete();
     }
@@ -317,6 +395,9 @@ export function MultiStepOnboardingDialog({
       setCurrentStep(2);
     } else if (currentStep === 4) {
       // Can't go back from loading step
+      return;
+    } else if (currentStep === 5) {
+      // Can't go back from success step
       return;
     }
   }
@@ -371,11 +452,13 @@ export function MultiStepOnboardingDialog({
     if (currentStep === 1) {
       return "Personal Information";
     } else if (currentStep === 2) {
-      return step2SubStep === "income" ? "Annual Household Income" : "Choose Your Budget Rule";
+      return step2SubStep === "income" ? "Annual Household Income & Location" : "Choose Your Budget Rule";
     } else if (currentStep === 3) {
       return "Select a Plan";
-    } else {
+    } else if (currentStep === 4) {
       return "Preparing Your Platform";
+    } else {
+      return "Welcome to Spare Finance!";
     }
   }
 
@@ -384,12 +467,14 @@ export function MultiStepOnboardingDialog({
       return "Complete your profile to get started";
     } else if (currentStep === 2) {
       return step2SubStep === "income"
-        ? "Used to tailor your budgets and insights. Not shared with anyone."
-        : "Select a budget rule that fits your lifestyle. We'll automatically generate budgets based on your income.";
+        ? "Tell us about your income and where you live to personalize your financial plan and calculate taxes."
+        : "Select a budget rule that fits your lifestyle. We'll automatically generate budgets based on your after-tax income.";
     } else if (currentStep === 3) {
       return "Choose a plan to continue. All plans include a 30-day free trial.";
-    } else {
+    } else if (currentStep === 4) {
       return "We're personalizing your experience";
+    } else {
+      return "";
     }
   }
 
@@ -397,6 +482,11 @@ export function MultiStepOnboardingDialog({
   function handleOpenChange(open: boolean) {
     // Don't allow closing during loading step
     if (currentStep === 4) {
+      return;
+    }
+    // Allow closing on success step (step 5)
+    if (currentStep === 5) {
+      onOpenChange(open);
       return;
     }
     // Only allow closing if all steps are complete
@@ -408,20 +498,22 @@ export function MultiStepOnboardingDialog({
   }
 
   const isComplete = step1Completed && step2Completed && step3Completed;
+  // Only allow closing on success step (step 5)
+  const canClose = currentStep === 5;
 
   return (
     <CustomOnboardingDialog
       open={open}
       onOpenChange={handleOpenChange}
       maxWidth="4xl"
-      preventClose={!isComplete}
+      preventClose={!canClose}
       onEscapeKeyDown={(e) => {
-        if (!isComplete) {
+        if (!canClose) {
           e.preventDefault();
         }
       }}
       onInteractOutside={(e) => {
-        if (!isComplete) {
+        if (!canClose) {
           e.preventDefault();
         }
       }}
@@ -462,8 +554,11 @@ export function MultiStepOnboardingDialog({
                 showButtons={false}
                 selectedIncome={selectedIncome}
                 selectedCustomIncome={selectedCustomIncome}
+                selectedCountry={selectedLocation?.country || null}
+                selectedStateOrProvince={selectedLocation?.stateOrProvince || null}
                 onIncomeChange={setSelectedIncome}
                 onCustomIncomeChange={setSelectedCustomIncome}
+                onLocationChange={handleLocationChange}
               />
             ) : (
               <BudgetRuleSelector
@@ -500,9 +595,17 @@ export function MultiStepOnboardingDialog({
             step2Data={selectedIncome ? { 
               incomeRange: selectedIncome, 
               incomeAmount: selectedCustomIncome,
-              ruleType: selectedRule 
+              location: selectedLocation ?? undefined,
+              ruleType: selectedRule,
             } : undefined}
             step3Data={selectedPlanId && selectedInterval ? { planId: selectedPlanId, interval: selectedInterval } : undefined}
+          />
+        )}
+
+        {currentStep === 5 && (
+          <OnboardingSuccessStep
+            onGoToDashboard={handleGoToDashboard}
+            onGoToBilling={handleGoToBilling}
           />
         )}
       </div>
@@ -511,7 +614,7 @@ export function MultiStepOnboardingDialog({
       <div className="px-6 md:px-8 pt-4 pb-6 md:pb-8 border-t">
         <div className="flex items-center justify-between gap-2 w-full">
           <div>
-            {currentStep > 1 && (
+            {currentStep > 1 && currentStep < 5 && (
               <Button
                 type="button"
                 variant="outline"
@@ -524,7 +627,7 @@ export function MultiStepOnboardingDialog({
             )}
           </div>
           <div className="flex gap-2">
-            {currentStep < 4 && (
+            {currentStep < 5 && (
               <>
                 {currentStep === 1 && (
                   <Button

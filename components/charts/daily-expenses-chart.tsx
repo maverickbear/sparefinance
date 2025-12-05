@@ -2,6 +2,7 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { ChartCard } from "./chart-card";
+import { sentiment } from "@/lib/design-system/colors";
 
 interface DailyExpensesData {
   date: string;
@@ -21,7 +22,7 @@ export function DailyExpensesChart({ data }: DailyExpensesChartProps) {
           <XAxis dataKey="date" />
           <YAxis />
           <Tooltip formatter={(value) => `$${Number(value).toFixed(2)}`} />
-          <Line type="monotone" dataKey="amount" stroke="#8884d8" strokeWidth={2} />
+          <Line type="monotone" dataKey="amount" stroke={sentiment.negative} strokeWidth={2} />
         </LineChart>
       </ResponsiveContainer>
     </ChartCard>

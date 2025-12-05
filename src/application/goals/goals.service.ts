@@ -628,7 +628,33 @@ export class GoalsService {
     }
 
     // Calculate monthly income (use predicted/expected income if available)
-    const monthlyIncome = await this.calculateIncomeBasis(undefined, accessToken, refreshToken);
+    let monthlyIncome = await this.calculateIncomeBasis(undefined, accessToken, refreshToken);
+    
+    // Get location and calculate after-tax income if available
+    // Note: supabase and user are already defined above, and householdId is already available
+    if (householdId && monthlyIncome > 0) {
+      const { HouseholdRepository } = await import("@/src/infrastructure/database/repositories/household.repository");
+      const householdRepository = new HouseholdRepository();
+      const settings = await householdRepository.getSettings(householdId, accessToken, refreshToken);
+      
+      if (settings?.country && settings?.stateOrProvince) {
+        try {
+          const { makeTaxesService } = await import("../taxes/taxes.factory");
+          const taxesService = makeTaxesService();
+          const annualIncome = monthlyIncome * 12;
+          const monthlyAfterTax = await taxesService.calculateMonthlyAfterTaxIncome(
+            settings.country,
+            annualIncome,
+            settings.stateOrProvince
+          );
+          monthlyIncome = monthlyAfterTax;
+          logger.info(`[GoalsService] Using after-tax income for emergency fund: $${monthlyAfterTax.toFixed(2)}/month (from $${(annualIncome / 12).toFixed(2)}/month gross)`);
+        } catch (error) {
+          logger.warn(`[GoalsService] Failed to calculate after-tax income, using gross income:`, error);
+          // Continue with gross income if tax calculation fails
+        }
+      }
+    }
     
     // Calculate monthly expenses
     const monthlyExpenses = await this.calculateMonthlyExpenses(accessToken, refreshToken);

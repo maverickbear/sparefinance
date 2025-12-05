@@ -93,7 +93,7 @@ export function DashboardDemo() {
               {isCollapsed ? (
                 <Logo variant="icon" color="auto" width={40} height={40} />
               ) : (
-                <Logo variant="wordmark" color="auto" width={150} height={40} />
+                <Logo variant="wordmark" color="auto" width={200} height={53} />
               )}
             </div>
 
@@ -139,7 +139,7 @@ export function DashboardDemo() {
                       const linkElement = (
                         <div
                           className={cn(
-                            "flex items-center rounded-[12px] text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
+                            "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
                             isActive
                               ? "bg-primary text-primary-foreground translate-x-0"
                               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-1 translate-x-0",

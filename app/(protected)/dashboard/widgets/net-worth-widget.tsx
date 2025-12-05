@@ -14,9 +14,11 @@ interface NetWorthWidgetProps {
   totalDebts: number;
 }
 
-// Colors for the chart
-const ASSETS_COLOR = "#22c55e"; // Green
-const DEBTS_COLOR = "#ef4444"; // Red
+import { sentiment } from "@/lib/design-system/colors";
+
+// Colors for the chart - use design system colors
+const ASSETS_COLOR = sentiment.positive; // #2F5711 - positive sentiment for assets
+const DEBTS_COLOR = sentiment.negative; // #A8200D - negative sentiment for debts
 
 // Custom tooltip component
 const CustomTooltip = ({ active, payload }: any) => {
@@ -107,10 +109,7 @@ export function NetWorthWidget({
       <CardContent>
         <div className="space-y-4">
           <div>
-            <div className={cn(
-              "text-2xl font-bold tabular-nums mb-1",
-              netWorth >= 0 ? "text-green-500" : "text-red-500"
-            )}>
+            <div className="text-2xl font-bold tabular-nums mb-1 text-foreground">
               <AnimatedNumber value={netWorth} format="money-compact" />
             </div>
             <div className="text-sm text-muted-foreground">Total net worth</div>

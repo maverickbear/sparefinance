@@ -18,9 +18,11 @@ export function VerifyOtpFormWrapperContent() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
         
-        <div className="relative z-10 space-y-8">
-          <div className="space-y-4">
-            <Logo variant="full" color="purple" height={40} />
+        <div className="relative z-10 space-y-8 w-full">
+          <div className="space-y-4 w-full">
+            <div className="flex justify-start items-start w-full">
+              <Logo variant="full" color="purple" height={40} />
+            </div>
             <p className="text-lg text-muted-foreground max-w-md">
               Verify your email to complete your account setup.
             </p>
@@ -28,7 +30,7 @@ export function VerifyOtpFormWrapperContent() {
 
           <div className="space-y-6 pt-8">
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Mail className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -40,7 +42,7 @@ export function VerifyOtpFormWrapperContent() {
             </div>
 
             <div className="flex items-start gap-4">
-              <div className="p-2 bg-primary rounded-[12px] shrink-0">
+              <div className="p-2 bg-primary rounded-lg shrink-0">
                 <Shield className="w-5 h-5 text-black" />
               </div>
               <div>
@@ -58,11 +60,11 @@ export function VerifyOtpFormWrapperContent() {
       <div className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
         <div className="w-full max-w-md space-y-8">
           {/* Mobile header */}
-          <div className="lg:hidden text-center space-y-4">
+          <div className="lg:hidden space-y-4">
             <div className="flex items-center justify-center">
               <Logo variant="full" color="purple" height={32} />
             </div>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-sm text-center">
               Verify your email to continue
             </p>
           </div>

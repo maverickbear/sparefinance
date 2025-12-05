@@ -31,7 +31,7 @@ export function MainFooter() {
           {/* Brand */}
           <div>
             <Link href="/" className="flex items-center mb-4">
-              <Logo variant="wordmark" color="auto" height={40} />
+              <Logo variant="wordmark" color="auto" height={53} />
             </Link>
             <p className="text-sm text-muted-foreground">
               Help your family organize finances, track expenses, and learn to save together. A place where families learn to build wealth, not just pay bills.

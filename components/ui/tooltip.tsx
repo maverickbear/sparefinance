@@ -59,7 +59,7 @@ export function TooltipContent({ children, className, side = "bottom" }: Tooltip
   return (
     <span
       className={cn(
-        "absolute px-2 py-1 text-xs bg-primary text-primary-foreground rounded-[12px] opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-[60] shadow-md",
+        "absolute px-2 py-1 text-xs bg-primary text-primary-foreground rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-[60] shadow-md",
         sideClasses[side],
         className
       )}

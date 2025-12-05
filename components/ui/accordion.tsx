@@ -66,7 +66,7 @@ const AccordionItem = React.forwardRef<HTMLDivElement, AccordionItemProps>(
     return (
       <div
         ref={ref}
-        className={cn("border border-border rounded-[12px] overflow-hidden", className)}
+        className={cn("border border-border rounded-lg overflow-hidden", className)}
         data-state={isOpen ? "open" : "closed"}
         {...props}
       >

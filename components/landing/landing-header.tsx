@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import type { BaseUser } from "@/src/domain/auth/auth.types";
 import { Logo } from "@/components/common/logo";
-import { useTheme } from "next-themes";
-import { Sun, Moon, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +31,6 @@ function getInitials(name: string | undefined | null): string {
 export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderProps = {}) {
   const [isAuthenticated, setIsAuthenticated] = useState(initialAuth ?? false);
   const [user, setUser] = useState<BaseUser | null>(null);
-  const { theme, resolvedTheme, setTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
@@ -60,10 +58,17 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Handle SIGNED_OUT event immediately
+      if (event === "SIGNED_OUT" || !session?.user) {
+        setIsAuthenticated(false);
+        setUser(null);
+        return;
+      }
+      
       if (session?.user) {
         // Verify user exists in User table
         try {
-          const response = await fetch("/api/v2/user");
+          const response = await fetch("/api/v2/user", { cache: "no-store" });
           if (response.ok) {
             const { user: currentUser }: { user: BaseUser | null } = await response.json();
             setIsAuthenticated(!!currentUser);
@@ -89,21 +94,38 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
 
   const handleLogout = async () => {
     try {
+      // Optimistically update UI immediately
+      setIsAuthenticated(false);
+      setUser(null);
+      
       const response = await fetch("/api/v2/auth/sign-out", {
         method: "POST",
       });
 
       if (response.ok) {
-        setIsAuthenticated(false);
-        setUser(null);
+        // Ensure Supabase client is also signed out
+        await supabase.auth.signOut();
+        // Force a hard refresh to clear all caches
         router.push("/");
         router.refresh();
+        // Also use window.location to ensure complete page reload
+        window.location.href = "/";
       } else {
         const error = await response.json();
         console.error("Failed to sign out:", error.error || "Unknown error");
+        // Still redirect even if API call failed
+        await supabase.auth.signOut();
+        window.location.href = "/";
       }
     } catch (error) {
       console.error("Error signing out:", error);
+      // Still try to sign out and redirect
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        // Ignore errors
+      }
+      window.location.href = "/";
     }
   };
 
@@ -154,7 +176,6 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                   asChild
                   variant="ghost"
                   size="small"
-                  className="text-foreground hover:text-foreground/80 hover:bg-black/20 dark:hover:bg-black/20 border border-transparent hover:border-foreground/20 text-sm"
                 >
                   <Link href="/dashboard">Dashboard</Link>
                 </Button>
@@ -183,12 +204,12 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
                             }
                           }}
                         />
-                        <div className="h-9 w-9 md:h-10 md:w-10 rounded-full hidden items-center justify-center text-xs font-semibold border bg-primary text-primary-foreground">
+                        <div className="h-9 w-9 md:h-10 md:w-10 rounded-full hidden items-center justify-center text-xs font-semibold border bg-primary text-black">
                           {getInitials(user?.name)}
                         </div>
                       </>
                     ) : user?.name ? (
-                      <div className="h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center text-xs font-semibold border bg-primary text-primary-foreground">
+                      <div className="h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center text-xs font-semibold border bg-primary text-black">
                         {getInitials(user.name)}
                       </div>
                     ) : (
@@ -208,26 +229,13 @@ export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderPro
               </DropdownMenu>
               </>
             ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  className="relative h-9 w-9 md:h-10 md:w-10 text-foreground hover:bg-muted"
-                  aria-label="Toggle theme"
-                >
-                  <Sun className="absolute h-4 w-4 md:h-5 md:w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                  <Moon className="absolute h-4 w-4 md:h-5 md:w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                </Button>
-                <Button
-                  asChild
-                  variant="ghost"
-                  size="small"
-                  className="text-foreground hover:text-foreground/80 hover:bg-black/20 dark:hover:bg-black/20 border border-transparent hover:border-foreground/20 text-sm"
-                >
-                  <Link href="/auth/login">Sign In</Link>
-                </Button>
-              </>
+              <Button
+                asChild
+                variant="secondary"
+                size="small"
+              >
+                <Link href="/auth/login">Sign In</Link>
+              </Button>
             )}
           </div>
         </div>

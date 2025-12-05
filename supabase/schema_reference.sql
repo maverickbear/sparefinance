@@ -30,8 +30,8 @@ CREATE OR REPLACE FUNCTION "public"."are_users_in_same_household"("p_user1_id" "
 BEGIN
     RETURN EXISTS (
         SELECT 1
-        FROM "public"."HouseholdMemberNew" hm1
-        JOIN "public"."HouseholdMemberNew" hm2 ON hm1."householdId" = hm2."householdId"
+        FROM "public"."HouseholdMember" hm1
+        JOIN "public"."HouseholdMember" hm2 ON hm1."householdId" = hm2."householdId"
         WHERE hm1."userId" = p_user1_id
           AND hm2."userId" = p_user2_id
           AND hm1."status" = 'active'
@@ -45,6 +45,90 @@ ALTER FUNCTION "public"."are_users_in_same_household"("p_user1_id" "uuid", "p_us
 
 
 COMMENT ON FUNCTION "public"."are_users_in_same_household"("p_user1_id" "uuid", "p_user2_id" "uuid") IS 'Checks if two users are active members of the same household. Uses SECURITY DEFINER to bypass RLS and prevent recursion. Uses SET search_path for security.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."audit_table_changes"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_table_name text;
+    v_record_id text;
+    v_user_id uuid;
+BEGIN
+    -- Get table name from TG_TABLE_NAME
+    v_table_name := TG_TABLE_NAME;
+    
+    -- Get current user ID
+    v_user_id := auth.uid();
+    
+    -- Handle different operations
+    IF TG_OP = 'INSERT' THEN
+        -- Get record ID from NEW
+        -- FIX: Use to_jsonb() instead of direct cast
+        v_record_id := COALESCE(
+            NEW."id"::text, 
+            to_jsonb(NEW)->>'id'
+        );
+        
+        -- Log INSERT
+        INSERT INTO "public"."audit_log" (
+            "table_name", "record_id", "action", "user_id", "new_data"
+        ) VALUES (
+            v_table_name, v_record_id, 'INSERT', v_user_id, to_jsonb(NEW)
+        );
+        
+        RETURN NEW;
+    
+    ELSIF TG_OP = 'UPDATE' THEN
+        -- Get record ID from NEW (or OLD if NEW doesn't have id)
+        -- FIX: Use to_jsonb() instead of direct cast
+        v_record_id := COALESCE(
+            NEW."id"::text, 
+            OLD."id"::text, 
+            to_jsonb(NEW)->>'id', 
+            to_jsonb(OLD)->>'id'
+        );
+        
+        -- Only log if data actually changed
+        IF OLD IS DISTINCT FROM NEW THEN
+            INSERT INTO "public"."audit_log" (
+                "table_name", "record_id", "action", "user_id", "old_data", "new_data"
+            ) VALUES (
+                v_table_name, v_record_id, 'UPDATE', v_user_id, to_jsonb(OLD), to_jsonb(NEW)
+            );
+        END IF;
+        
+        RETURN NEW;
+    
+    ELSIF TG_OP = 'DELETE' THEN
+        -- Get record ID from OLD
+        -- FIX: Use to_jsonb() instead of direct cast
+        v_record_id := COALESCE(
+            OLD."id"::text, 
+            to_jsonb(OLD)->>'id'
+        );
+        
+        -- Log DELETE
+        INSERT INTO "public"."audit_log" (
+            "table_name", "record_id", "action", "user_id", "old_data"
+        ) VALUES (
+            v_table_name, v_record_id, 'DELETE', v_user_id, to_jsonb(OLD)
+        );
+        
+        RETURN OLD;
+    END IF;
+    
+    RETURN NULL;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."audit_table_changes"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."audit_table_changes"() IS 'Trigger function to automatically log changes to tables. Logs INSERT, UPDATE, and DELETE operations with old and new data. Uses SET search_path for security. Fixed jsonb casting issue.';
 
 
 
@@ -78,15 +162,16 @@ DECLARE
     user_role text;
     user_status text;
 BEGIN
-    -- If householdId is NULL, allow access (backward compatibility with userId)
+    -- SECURITY FIX: Remove NULL bypass - all records must have householdId
+    -- If householdId is NULL, deny access (no longer allowing backward compatibility)
     IF p_household_id IS NULL THEN
-        RETURN true;
+        RETURN false;
     END IF;
     
     -- Get user's role and status in this household
     SELECT hm."role", hm."status"
     INTO user_role, user_status
-    FROM "public"."HouseholdMemberNew" hm
+    FROM "public"."HouseholdMember" hm
     WHERE hm."householdId" = p_household_id
       AND hm."userId" = auth.uid();
     
@@ -125,7 +210,73 @@ $$;
 ALTER FUNCTION "public"."can_access_household_data"("p_household_id" "uuid", "p_operation" "text") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."can_access_household_data"("p_household_id" "uuid", "p_operation" "text") IS 'Checks if the current user can perform an operation (read/write/delete) on a household''s data based on their role. Uses SET search_path for security.';
+COMMENT ON FUNCTION "public"."can_access_household_data"("p_household_id" "uuid", "p_operation" "text") IS 'Checks if the current user can perform an operation (read/write/delete) on a household''s data based on their role. SECURITY FIX: No longer allows NULL householdId (backward compatibility removed). Uses SET search_path for security.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."can_access_record"("p_table_name" "text", "p_record_id" "text") RETURNS boolean
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_household_id uuid;
+    v_user_id uuid;
+BEGIN
+    -- Get householdId and userId from the record
+    CASE p_table_name
+        WHEN 'Account' THEN
+            SELECT "householdId", "userId" INTO v_household_id, v_user_id
+            FROM "public"."Account"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Transaction' THEN
+            SELECT "householdId", "userId" INTO v_household_id, v_user_id
+            FROM "public"."Transaction"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Budget' THEN
+            SELECT "householdId", "userId" INTO v_household_id, v_user_id
+            FROM "public"."Budget"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Goal' THEN
+            SELECT "householdId", "userId" INTO v_household_id, v_user_id
+            FROM "public"."Goal"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Debt' THEN
+            SELECT "householdId", "userId" INTO v_household_id, v_user_id
+            FROM "public"."Debt"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'PlannedPayment' THEN
+            SELECT "householdId", "userId" INTO v_household_id, v_user_id
+            FROM "public"."PlannedPayment"
+            WHERE "id" = p_record_id;
+        
+        ELSE
+            -- Unknown table, deny access
+            RETURN false;
+    END CASE;
+    
+    -- If record not found, deny access
+    IF v_household_id IS NULL AND v_user_id IS NULL THEN
+        RETURN false;
+    END IF;
+    
+    -- Check household access OR direct ownership
+    RETURN (
+        (v_household_id IS NOT NULL AND "public"."can_access_household_data"(v_household_id, 'read'::text))
+        OR (v_user_id = auth.uid())
+    );
+END;
+$$;
+
+
+ALTER FUNCTION "public"."can_access_record"("p_table_name" "text", "p_record_id" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."can_access_record"("p_table_name" "text", "p_record_id" "text") IS 'Unified helper function to check if current user can access a record. Uses household access OR direct ownership. Maximum 2 access paths. Uses SET search_path for security.';
 
 
 
@@ -178,8 +329,8 @@ CREATE OR REPLACE FUNCTION "public"."convert_planned_payment_to_transaction"("p_
 DECLARE
     v_planned_payment "public"."PlannedPayment"%ROWTYPE;
     v_transaction_id "text";
-    v_encrypted_amount "text";
     v_user_id "uuid";
+    v_household_id "uuid";
 BEGIN
     -- Get the planned payment
     SELECT * INTO v_planned_payment
@@ -189,7 +340,7 @@ BEGIN
     AND "status" = 'scheduled'::"text";
     
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'PlannedPayment not found or already processed';
+        PERFORM public.raise_error_with_code('PLANNED_PAYMENT_NOT_FOUND', 'ID: ' || p_planned_payment_id);
     END IF;
     
     -- Check if already has a linked transaction (idempotency)
@@ -198,6 +349,7 @@ BEGIN
     END IF;
     
     v_user_id := v_planned_payment."userId";
+    v_household_id := v_planned_payment."householdId";
     
     -- Generate transaction ID
     v_transaction_id := "gen_random_uuid"()::"text";
@@ -213,11 +365,13 @@ BEGIN
         "subcategoryId",
         "description",
         "userId",
+        "householdId",
+        "isRecurring",
         "createdAt",
         "updatedAt"
     ) VALUES (
         v_transaction_id,
-        v_planned_payment."dueDate",
+        v_planned_payment."date",
         v_planned_payment."type",
         v_planned_payment."amount",
         v_planned_payment."accountId",
@@ -225,6 +379,8 @@ BEGIN
         v_planned_payment."subcategoryId",
         v_planned_payment."description",
         v_user_id,
+        v_household_id,
+        false, -- Planned payments are not recurring
         NOW(),
         NOW()
     );
@@ -232,7 +388,7 @@ BEGIN
     -- Update planned payment to mark as processed
     UPDATE "public"."PlannedPayment"
     SET 
-        "status" = 'completed'::"text",
+        "status" = 'paid'::"text",
         "linkedTransactionId" = v_transaction_id,
         "updatedAt" = NOW()
     WHERE "id" = p_planned_payment_id;
@@ -245,11 +401,11 @@ $$;
 ALTER FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned_payment_id" "text") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned_payment_id" "text") IS 'Converts a planned payment to a transaction. Uses SET search_path for security.';
+COMMENT ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned_payment_id" "text") IS 'Converts a planned payment to a transaction. Uses improved error handling with error codes. Uses SET search_path for security.';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text" DEFAULT NULL::"text", "p_subcategory_id" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_recurring" boolean DEFAULT false, "p_expense_type" "text" DEFAULT NULL::"text", "p_created_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP, "p_updated_at" timestamp without time zone DEFAULT CURRENT_TIMESTAMP, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text" DEFAULT NULL::"text", "p_subcategory_id" "text" DEFAULT NULL::"text", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_is_recurring" boolean DEFAULT false, "p_expense_type" "text" DEFAULT NULL::"text", "p_created_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP, "p_updated_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -258,6 +414,7 @@ DECLARE
   v_current_count integer;
   v_new_count integer;
   v_transaction_id text;
+  v_household_id uuid;
 BEGIN
   -- Calculate month_date (first day of month)
   v_month_date := DATE_TRUNC('month', p_date)::date;
@@ -269,22 +426,51 @@ BEGIN
     WHERE "user_id" = p_user_id AND "month_date" = v_month_date;
     
     IF v_current_count >= p_max_transactions THEN
-      RAISE EXCEPTION 'Transaction limit reached for this month';
+      PERFORM public.raise_error_with_code('TRANSACTION_LIMIT_REACHED', 
+        'Current: ' || v_current_count || ', Limit: ' || p_max_transactions);
     END IF;
   END IF;
   
   -- Increment counter
   v_new_count := "public"."increment_transaction_count"(p_user_id, v_month_date);
   
+  -- Get user's default household if needed
+  -- Note: householdId should be provided by the application layer, but we'll get default if not provided
+  SELECT "public"."get_or_create_default_personal_household"(p_user_id) INTO v_household_id;
+  
   -- Insert transaction
   INSERT INTO "public"."Transaction" (
-    "id", "date", "type", "amount", "accountId", "userId",
-    "categoryId", "subcategoryId", "description", "description_search",
-    "recurring", "expenseType", "createdAt", "updatedAt"
+    "id", 
+    "date", 
+    "type", 
+    "amount", 
+    "accountId", 
+    "userId",
+    "householdId",
+    "categoryId", 
+    "subcategoryId", 
+    "description", 
+    "description_search",
+    "isRecurring", 
+    "expenseType", 
+    "createdAt", 
+    "updatedAt"
   ) VALUES (
-    p_id, p_date, p_type, p_amount, p_account_id, p_user_id,
-    p_category_id, p_subcategory_id, p_description, p_description_search,
-    p_recurring, p_expense_type, p_created_at, p_updated_at
+    p_id, 
+    p_date, 
+    p_type, 
+    p_amount, 
+    p_account_id, 
+    p_user_id,
+    v_household_id,
+    p_category_id, 
+    p_subcategory_id, 
+    p_description, 
+    p_description_search,
+    p_is_recurring, 
+    p_expense_type, 
+    p_created_at, 
+    p_updated_at
   );
   
   -- Return JSON with transaction ID and new count
@@ -296,14 +482,14 @@ END;
 $$;
 
 
-ALTER FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp with time zone, "p_updated_at" timestamp with time zone, "p_max_transactions" integer) OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) IS 'Creates a transaction atomically with limit checking. Amount is now numeric (no longer encrypted).';
+COMMENT ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp with time zone, "p_updated_at" timestamp with time zone, "p_max_transactions" integer) IS 'Creates a transaction atomically with limit checking. Uses improved error handling with error codes. Updated to use isRecurring instead of recurring and timestamptz instead of timestamp. Amount is numeric (no longer encrypted).';
 
 
 
-CREATE OR REPLACE FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_recurring" boolean DEFAULT false, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
+CREATE OR REPLACE FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text" DEFAULT NULL::"text", "p_description_search" "text" DEFAULT NULL::"text", "p_is_recurring" boolean DEFAULT false, "p_max_transactions" integer DEFAULT '-1'::integer) RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -313,72 +499,78 @@ DECLARE
   v_month_date date;
   v_current_count integer;
   v_new_count integer;
-  v_now timestamp(3) without time zone;
+  v_now timestamptz;
   v_outgoing_description text;
   v_incoming_description text;
+  v_household_id uuid;
 BEGIN
   -- Generate IDs
   v_outgoing_id := gen_random_uuid()::text;
   v_incoming_id := gen_random_uuid()::text;
   v_now := CURRENT_TIMESTAMP;
   
+  -- Get user's default household
+  SELECT "public"."get_or_create_default_personal_household"(p_user_id) INTO v_household_id;
+  
   -- Calculate month_date (first day of month)
   v_month_date := DATE_TRUNC('month', p_date)::date;
   
-  -- Check limit if not unlimited
+  -- Check limit if not unlimited (counts as 2 transactions)
   IF p_max_transactions != -1 THEN
     SELECT COALESCE("transactions_count", 0) INTO v_current_count
     FROM "public"."user_monthly_usage"
     WHERE "user_id" = p_user_id AND "month_date" = v_month_date;
     
-    IF v_current_count >= p_max_transactions THEN
-      RAISE EXCEPTION 'Transaction limit reached for this month';
+    IF v_current_count + 2 > p_max_transactions THEN
+      PERFORM public.raise_error_with_code('TRANSACTION_LIMIT_REACHED', 
+        'Current: ' || v_current_count || ', Limit: ' || p_max_transactions || ' (transfer requires 2 transactions)');
     END IF;
   END IF;
   
-  -- Increment counter ONCE (transfer = 1 action, not 2)
+  -- Increment counter twice (for both transactions)
+  v_new_count := "public"."increment_transaction_count"(p_user_id, v_month_date);
   v_new_count := "public"."increment_transaction_count"(p_user_id, v_month_date);
   
-  -- Prepare descriptions
-  v_outgoing_description := COALESCE(p_description, 'Transfer to account');
-  v_incoming_description := COALESCE(p_description, 'Transfer from account');
+  -- Build descriptions
+  v_outgoing_description := COALESCE(p_description, 'Transfer out');
+  v_incoming_description := COALESCE(p_description, 'Transfer in');
   
-  -- Create outgoing transaction (expense from source account)
+  -- Create outgoing transaction
   INSERT INTO "public"."Transaction" (
-    "id", "date", "type", "amount", "accountId", "userId",
-    "categoryId", "subcategoryId", "description", "description_search",
-    "recurring", "transferToId", "createdAt", "updatedAt"
+    "id", "date", "type", "amount", "accountId", "userId", "householdId",
+    "transferToId", "description", "description_search", "isRecurring",
+    "createdAt", "updatedAt"
   ) VALUES (
-    v_outgoing_id, p_date, 'expense', p_amount, p_from_account_id, p_user_id,
-    NULL, NULL, v_outgoing_description, p_description_search,
-    p_recurring, v_incoming_id, v_now, v_now
+    v_outgoing_id, p_date, 'transfer', p_amount, p_from_account_id, p_user_id, v_household_id,
+    p_to_account_id, v_outgoing_description, p_description_search, p_is_recurring,
+    v_now, v_now
   );
   
-  -- Create incoming transaction (income to destination account)
+  -- Create incoming transaction
   INSERT INTO "public"."Transaction" (
-    "id", "date", "type", "amount", "accountId", "userId",
-    "categoryId", "subcategoryId", "description", "description_search",
-    "recurring", "transferFromId", "createdAt", "updatedAt"
+    "id", "date", "type", "amount", "accountId", "userId", "householdId",
+    "transferFromId", "description", "description_search", "isRecurring",
+    "createdAt", "updatedAt"
   ) VALUES (
-    v_incoming_id, p_date, 'income', p_amount, p_to_account_id, p_user_id,
-    NULL, NULL, v_incoming_description, p_description_search,
-    p_recurring, v_outgoing_id, v_now, v_now
+    v_incoming_id, p_date, 'transfer', p_amount, p_to_account_id, p_user_id, v_household_id,
+    p_from_account_id, v_incoming_description, p_description_search, p_is_recurring,
+    v_now, v_now
   );
   
   -- Return JSON with transaction IDs and new count
   RETURN jsonb_build_object(
-    'outgoing_id', v_outgoing_id,
-    'incoming_id', v_incoming_id,
+    'outgoing_transaction_id', v_outgoing_id,
+    'incoming_transaction_id', v_incoming_id,
     'new_count', v_new_count
   );
 END;
 $$;
 
 
-ALTER FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) OWNER TO "postgres";
+ALTER FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_max_transactions" integer) OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) IS 'Creates a transfer (2 transactions) atomically with limit checking. Both transactions are created as type "transfer" since transfers do not affect net worth. Counts as 1 transaction. Amount is now numeric (no longer encrypted).';
+COMMENT ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_max_transactions" integer) IS 'Creates a transfer (two transactions) atomically with limit checking. Uses improved error handling with error codes. Updated to use isRecurring instead of recurring and timestamptz instead of timestamp.';
 
 
 
@@ -538,6 +730,60 @@ COMMENT ON FUNCTION "public"."get_latest_updates"("p_user_id" "uuid") IS 'Retorn
 
 
 
+CREATE OR REPLACE FUNCTION "public"."get_or_create_default_personal_household"("p_user_id" "uuid") RETURNS "uuid"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_household_id uuid;
+    v_user_name text;
+BEGIN
+    -- First, try to find existing default personal household
+    SELECT h."id" INTO v_household_id
+    FROM "public"."Household" h
+    JOIN "public"."HouseholdMember" hm ON hm."householdId" = h."id"
+    WHERE hm."userId" = p_user_id
+      AND h."type" = 'personal'
+      AND hm."isDefault" = true
+      AND hm."status" = 'active'
+    LIMIT 1;
+    
+    -- If found, return it
+    IF v_household_id IS NOT NULL THEN
+        RETURN v_household_id;
+    END IF;
+    
+    -- If not found, create a new personal household
+    -- Get user name for household name
+    SELECT COALESCE("name", "email", 'Personal') INTO v_user_name
+    FROM "public"."User"
+    WHERE "id" = p_user_id;
+    
+    -- Create household
+    INSERT INTO "public"."Household" ("id", "name", "type", "createdBy", "settings")
+    VALUES (gen_random_uuid(), v_user_name || '''s Personal', 'personal', p_user_id, '{}'::jsonb)
+    RETURNING "id" INTO v_household_id;
+    
+    -- Create household membership
+    INSERT INTO "public"."HouseholdMember" (
+        "householdId", "userId", "role", "status", "isDefault", "joinedAt"
+    )
+    VALUES (
+        v_household_id, p_user_id, 'owner', 'active', true, NOW()
+    );
+    
+    RETURN v_household_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_or_create_default_personal_household"("p_user_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."get_or_create_default_personal_household"("p_user_id" "uuid") IS 'Gets or creates a default personal household for a user. Used for migrating NULL householdId records. Uses SET search_path for security.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."get_owner_info_for_invitation"("p_owner_id" "uuid") RETURNS TABLE("name" "text", "email" "text")
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
@@ -563,7 +809,7 @@ CREATE OR REPLACE FUNCTION "public"."get_user_accessible_households"() RETURNS T
 BEGIN
     RETURN QUERY
     SELECT hm."householdId"
-    FROM "public"."HouseholdMemberNew" hm
+    FROM "public"."HouseholdMember" hm
     WHERE hm."userId" = auth.uid()
       AND hm."status" = 'active';
 END;
@@ -592,7 +838,7 @@ BEGIN
     -- If no active household set, return default (personal) household
     IF active_household_id IS NULL THEN
         SELECT hm."householdId" INTO active_household_id
-        FROM "public"."HouseholdMemberNew" hm
+        FROM "public"."HouseholdMember" hm
         JOIN "public"."Household" h ON h."id" = hm."householdId"
         WHERE hm."userId" = auth.uid()
           AND hm."isDefault" = true
@@ -620,7 +866,7 @@ CREATE OR REPLACE FUNCTION "public"."get_user_admin_household_ids"() RETURNS TAB
 BEGIN
     RETURN QUERY
     SELECT hm."householdId" as household_id
-    FROM "public"."HouseholdMemberNew" hm
+    FROM "public"."HouseholdMember" hm
     WHERE hm."userId" = auth.uid()
       AND hm."role" IN ('owner', 'admin')
       AND hm."status" = 'active';
@@ -642,7 +888,7 @@ CREATE OR REPLACE FUNCTION "public"."get_user_household_ids"() RETURNS TABLE("ho
 BEGIN
     RETURN QUERY
     SELECT hm."householdId" as household_id
-    FROM "public"."HouseholdMemberNew" hm
+    FROM "public"."HouseholdMember" hm
     WHERE hm."userId" = auth.uid()
       AND hm."status" = 'active';
 END;
@@ -665,7 +911,7 @@ DECLARE
 BEGIN
     SELECT hm."role"
     INTO user_role
-    FROM "public"."HouseholdMemberNew" hm
+    FROM "public"."HouseholdMember" hm
     WHERE hm."householdId" = p_household_id
       AND hm."userId" = auth.uid()
       AND hm."status" = 'active';
@@ -769,7 +1015,7 @@ CREATE OR REPLACE FUNCTION "public"."is_household_member"("p_household_id" "uuid
 BEGIN
     RETURN EXISTS (
         SELECT 1
-        FROM "public"."HouseholdMemberNew" hm
+        FROM "public"."HouseholdMember" hm
         WHERE hm."householdId" = p_household_id
           AND hm."userId" = auth.uid()
           AND hm."status" = 'active'
@@ -782,6 +1028,73 @@ ALTER FUNCTION "public"."is_household_member"("p_household_id" "uuid") OWNER TO 
 
 
 COMMENT ON FUNCTION "public"."is_household_member"("p_household_id" "uuid") IS 'Returns true if the current user is an active member of the specified household. Uses SET search_path for security.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."is_not_deleted"("p_table_name" "text", "p_record_id" "text") RETURNS boolean
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_deleted_at timestamptz;
+BEGIN
+    -- Check if record exists and is not deleted
+    CASE p_table_name
+        WHEN 'Account' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."Account"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Transaction' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."Transaction"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Budget' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."Budget"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Goal' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."Goal"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'Debt' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."Debt"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'PlannedPayment' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."PlannedPayment"
+            WHERE "id" = p_record_id;
+        
+        WHEN 'AccountOwner' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."AccountOwner"
+            WHERE "id"::text = p_record_id;
+        
+        WHEN 'UserServiceSubscription' THEN
+            SELECT "deletedAt" INTO v_deleted_at
+            FROM "public"."UserServiceSubscription"
+            WHERE "id" = p_record_id;
+        
+        ELSE
+            -- Unknown table, assume not deleted
+            RETURN true;
+    END CASE;
+    
+    -- Return true if not found (doesn't exist) or deletedAt is NULL (not deleted)
+    RETURN v_deleted_at IS NULL;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."is_not_deleted"("p_table_name" "text", "p_record_id" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."is_not_deleted"("p_table_name" "text", "p_record_id" "text") IS 'Checks if a record is not soft-deleted. Returns true if record exists and deletedAt is NULL. Uses SET search_path for security.';
 
 
 
@@ -818,6 +1131,45 @@ COMMENT ON FUNCTION "public"."prevent_emergency_fund_deletion"() IS 'Prevents de
 
 
 
+CREATE OR REPLACE FUNCTION "public"."raise_error_with_code"("p_error_code" "text", "p_additional_info" "text" DEFAULT NULL::"text") RETURNS "void"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO ''
+    AS $$
+DECLARE
+    v_message text;
+    v_user_message text;
+BEGIN
+    -- Get error message from error_codes table
+    SELECT "message", "user_message"
+    INTO v_message, v_user_message
+    FROM "public"."error_codes"
+    WHERE "code" = p_error_code;
+    
+    -- If error code not found, use the code as message
+    IF NOT FOUND THEN
+        v_message := p_error_code;
+        v_user_message := 'An error occurred';
+    END IF;
+    
+    -- Add additional info if provided
+    IF p_additional_info IS NOT NULL THEN
+        v_message := v_message || ': ' || p_additional_info;
+    END IF;
+    
+    -- Raise exception with error code in hint
+    RAISE EXCEPTION '%', v_message
+        USING HINT = 'ERROR_CODE:' || p_error_code || '|USER_MESSAGE:' || v_user_message;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."raise_error_with_code"("p_error_code" "text", "p_additional_info" "text") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."raise_error_with_code"("p_error_code" "text", "p_additional_info" "text") IS 'Raises an exception with a standardized error code. Error code and user message are included in the hint for application layer to extract. Uses SET search_path for security.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."trigger_update_subscription_cache"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -841,7 +1193,7 @@ BEGIN
       -- Fallback to default household
       IF v_household_id IS NULL THEN
         SELECT "householdId" INTO v_household_id
-        FROM "public"."HouseholdMemberNew"
+        FROM "public"."HouseholdMember"
         WHERE "userId" = NEW."userId"
           AND "isDefault" = true
           AND "status" = 'active'
@@ -882,7 +1234,7 @@ BEGIN
   -- Update all active household members of this household
   FOR v_member_record IN
     SELECT "userId"
-    FROM "public"."HouseholdMemberNew"
+    FROM "public"."HouseholdMember"
     WHERE "householdId" = p_household_id
       AND "status" = 'active'
       AND "userId" IS NOT NULL
@@ -896,7 +1248,7 @@ $$;
 ALTER FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") IS 'Updates subscription cache for all active members of a household when the household subscription changes. Uses HouseholdMemberNew. Uses SET search_path for security.';
+COMMENT ON FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") IS 'Updates subscription cache for all active members of a household when the household subscription changes. Uses HouseholdMember. Uses SET search_path for security.';
 
 
 
@@ -931,7 +1283,7 @@ BEGIN
   -- Fallback to default (personal) household if no active household set
   IF v_household_id IS NULL THEN
     SELECT "householdId" INTO v_household_id
-    FROM "public"."HouseholdMemberNew"
+    FROM "public"."HouseholdMember"
     WHERE "userId" = p_user_id
       AND "isDefault" = true
       AND "status" = 'active'
@@ -992,7 +1344,7 @@ $$;
 ALTER FUNCTION "public"."update_user_subscription_cache"("p_user_id" "uuid") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."update_user_subscription_cache"("p_user_id" "uuid") IS 'Updates the subscription cache in the User table. Uses HouseholdMemberNew and householdId-based subscriptions. Falls back to userId-based subscriptions for backward compatibility.';
+COMMENT ON FUNCTION "public"."update_user_subscription_cache"("p_user_id" "uuid") IS 'Updates the subscription cache in the User table. Uses HouseholdMember and householdId-based subscriptions. Falls back to userId-based subscriptions for backward compatibility.';
 
 
 
@@ -1009,7 +1361,7 @@ BEGIN
     hm.role,
     hm.status,
     h."createdBy" as owner_id
-  FROM "HouseholdMemberNew" hm
+  FROM "HouseholdMember" hm
   JOIN "Household" h ON h."id" = hm."householdId"
   WHERE hm."invitationToken" = p_token
     AND hm.status = 'pending';
@@ -1020,7 +1372,7 @@ $$;
 ALTER FUNCTION "public"."validate_invitation_token"("p_token" "text") OWNER TO "postgres";
 
 
-COMMENT ON FUNCTION "public"."validate_invitation_token"("p_token" "text") IS 'Validates an invitation token and returns invitation details. Updated to use HouseholdMemberNew table.';
+COMMENT ON FUNCTION "public"."validate_invitation_token"("p_token" "text") IS 'Validates an invitation token and returns invitation details. Updated to use HouseholdMember table.';
 
 
 
@@ -1128,15 +1480,15 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
     "type" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
-    "creditLimit" double precision,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
+    "creditLimit" numeric(15,2),
     "userId" "uuid",
-    "initialBalance" double precision,
+    "initialBalance" numeric(15,2),
     "plaidItemId" "text",
     "plaidAccountId" "text",
     "isConnected" boolean DEFAULT false,
-    "lastSyncedAt" timestamp(3) without time zone,
+    "lastSyncedAt" timestamp with time zone,
     "syncEnabled" boolean DEFAULT true,
     "plaidMask" "text",
     "plaidOfficialName" "text",
@@ -1151,6 +1503,7 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
     "plaidVerificationName" "text",
     "plaidAvailableBalance" numeric,
     "plaidUnofficialCurrencyCode" "text",
+    "deletedAt" timestamp with time zone,
     CONSTRAINT "Account_currency_exclusive_check" CHECK ((NOT (("plaidUnofficialCurrencyCode" IS NOT NULL) AND ("plaidUnofficialCurrencyCode" <> ''::"text") AND (("currencyCode" IS NOT NULL) AND ("currencyCode" <> ''::"text"))))),
     CONSTRAINT "Account_type_check" CHECK (("type" = ANY (ARRAY['cash'::"text", 'checking'::"text", 'savings'::"text", 'credit'::"text", 'investment'::"text", 'other'::"text"])))
 );
@@ -1159,7 +1512,11 @@ CREATE TABLE IF NOT EXISTS "public"."Account" (
 ALTER TABLE "public"."Account" OWNER TO "postgres";
 
 
-COMMENT ON COLUMN "public"."Account"."initialBalance" IS 'Initial balance for checking and savings accounts. Used as starting point for balance calculations.';
+COMMENT ON COLUMN "public"."Account"."creditLimit" IS 'Credit limit for credit card accounts. Stored as numeric(15,2) to prevent floating point rounding errors.';
+
+
+
+COMMENT ON COLUMN "public"."Account"."initialBalance" IS 'Initial balance for checking and savings accounts. Stored as numeric(15,2) to prevent floating point rounding errors.';
 
 
 
@@ -1199,6 +1556,10 @@ COMMENT ON COLUMN "public"."Account"."plaidUnofficialCurrencyCode" IS 'Unofficia
 
 
 
+COMMENT ON COLUMN "public"."Account"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 COMMENT ON CONSTRAINT "Account_currency_exclusive_check" ON "public"."Account" IS 'Ensures currencyCode and plaidUnofficialCurrencyCode are mutually exclusive. ISO currency codes take precedence over unofficial codes (crypto).';
 
 
@@ -1206,9 +1567,9 @@ COMMENT ON CONSTRAINT "Account_currency_exclusive_check" ON "public"."Account" I
 CREATE TABLE IF NOT EXISTS "public"."AccountInvestmentValue" (
     "id" "text" NOT NULL,
     "accountId" "text" NOT NULL,
-    "totalValue" double precision NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "totalValue" numeric(15,2) NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid"
 );
 
@@ -1216,36 +1577,50 @@ CREATE TABLE IF NOT EXISTS "public"."AccountInvestmentValue" (
 ALTER TABLE "public"."AccountInvestmentValue" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."AccountInvestmentValue"."totalValue" IS 'Total investment value. Stored as numeric(15,2) to prevent floating point rounding errors.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."AccountOwner" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "accountId" "text" NOT NULL,
     "ownerId" "uuid" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "deletedAt" timestamp with time zone
 );
 
 
 ALTER TABLE "public"."AccountOwner" OWNER TO "postgres";
 
 
+COMMENT ON COLUMN "public"."AccountOwner"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."Budget" (
     "id" "text" NOT NULL,
-    "period" timestamp(3) without time zone NOT NULL,
+    "period" timestamp with time zone NOT NULL,
     "categoryId" "text",
-    "amount" double precision NOT NULL,
+    "amount" numeric(15,2) NOT NULL,
     "note" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "groupId" "text",
     "userId" "uuid" NOT NULL,
     "subcategoryId" "text",
     "isRecurring" boolean DEFAULT true NOT NULL,
     "householdId" "uuid",
-    CONSTRAINT "budget_amount_positive" CHECK (("amount" > (0)::double precision))
+    "deletedAt" timestamp with time zone,
+    CONSTRAINT "budget_amount_positive" CHECK ((("amount")::double precision > (0)::double precision))
 );
 
 
 ALTER TABLE "public"."Budget" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Budget"."amount" IS 'Budget amount. Stored as numeric(15,2) to prevent floating point rounding errors.';
+
 
 
 COMMENT ON COLUMN "public"."Budget"."userId" IS 'User ID - obrigatório para RLS policies';
@@ -1256,11 +1631,15 @@ COMMENT ON COLUMN "public"."Budget"."isRecurring" IS 'Indicates if the budget is
 
 
 
+COMMENT ON COLUMN "public"."Budget"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."BudgetCategory" (
     "id" "text" NOT NULL,
     "budgetId" "text" NOT NULL,
     "categoryId" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -1271,8 +1650,8 @@ CREATE TABLE IF NOT EXISTS "public"."Candle" (
     "id" "text" NOT NULL,
     "securityId" "text" NOT NULL,
     "symbolId" bigint NOT NULL,
-    "start" timestamp(3) without time zone NOT NULL,
-    "end" timestamp(3) without time zone NOT NULL,
+    "start" timestamp with time zone NOT NULL,
+    "end" timestamp with time zone NOT NULL,
     "low" numeric(15,4) NOT NULL,
     "high" numeric(15,4) NOT NULL,
     "open" numeric(15,4) NOT NULL,
@@ -1280,8 +1659,8 @@ CREATE TABLE IF NOT EXISTS "public"."Candle" (
     "volume" bigint DEFAULT 0 NOT NULL,
     "VWAP" numeric(15,4),
     "interval" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
 );
 
 
@@ -1296,8 +1675,8 @@ CREATE TABLE IF NOT EXISTS "public"."Category" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
     "groupId" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "userId" "uuid"
 );
 
@@ -1314,8 +1693,8 @@ CREATE TABLE IF NOT EXISTS "public"."ContactForm" (
     "message" "text" NOT NULL,
     "status" "text" DEFAULT 'pending'::"text" NOT NULL,
     "adminNotes" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "ContactForm_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'read'::"text", 'replied'::"text", 'resolved'::"text"])))
 );
 
@@ -1332,7 +1711,7 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     "currentBalance" double precision NOT NULL,
     "interestRate" double precision NOT NULL,
     "totalMonths" integer,
-    "firstPaymentDate" timestamp(3) without time zone NOT NULL,
+    "firstPaymentDate" timestamp with time zone NOT NULL,
     "monthlyPayment" double precision NOT NULL,
     "principalPaid" double precision DEFAULT 0 NOT NULL,
     "interestPaid" double precision DEFAULT 0 NOT NULL,
@@ -1342,17 +1721,18 @@ CREATE TABLE IF NOT EXISTS "public"."Debt" (
     "description" "text",
     "isPaidOff" boolean DEFAULT false NOT NULL,
     "isPaused" boolean DEFAULT false NOT NULL,
-    "paidOffAt" timestamp(3) without time zone,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "paidOffAt" timestamp with time zone,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "paymentFrequency" "text" DEFAULT 'monthly'::"text" NOT NULL,
     "paymentAmount" double precision,
     "accountId" "text",
     "userId" "uuid" NOT NULL,
-    "startDate" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP,
+    "startDate" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     "status" "text" DEFAULT 'active'::"text" NOT NULL,
     "nextDueDate" "date",
     "householdId" "uuid",
+    "deletedAt" timestamp with time zone,
     CONSTRAINT "Debt_additionalContributionAmount_check" CHECK (("additionalContributionAmount" >= (0)::double precision)),
     CONSTRAINT "Debt_currentBalance_check" CHECK (("currentBalance" >= (0)::double precision)),
     CONSTRAINT "Debt_downPayment_check" CHECK ((("downPayment" IS NULL) OR ("downPayment" >= (0)::double precision))),
@@ -1388,6 +1768,10 @@ COMMENT ON COLUMN "public"."Debt"."nextDueDate" IS 'Data de vencimento da fatura
 
 
 
+COMMENT ON COLUMN "public"."Debt"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 COMMENT ON CONSTRAINT "debt_first_payment_date_valid" ON "public"."Debt" IS 'Valida que a data do primeiro pagamento está em um range válido';
 
 
@@ -1407,7 +1791,7 @@ CREATE TABLE IF NOT EXISTS "public"."Execution" (
     "orderId" bigint NOT NULL,
     "orderChainId" bigint NOT NULL,
     "exchangeExecId" "text",
-    "timestamp" timestamp(3) without time zone NOT NULL,
+    "timestamp" timestamp with time zone NOT NULL,
     "notes" "text",
     "venue" "text",
     "totalCost" numeric(15,2) DEFAULT 0 NOT NULL,
@@ -1417,9 +1801,9 @@ CREATE TABLE IF NOT EXISTS "public"."Execution" (
     "secFee" numeric(15,2) DEFAULT 0,
     "canadianExecutionFee" numeric(15,2) DEFAULT 0,
     "parentId" bigint,
-    "lastSyncedAt" timestamp(3) without time zone NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "lastSyncedAt" timestamp with time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid"
 );
 
@@ -1436,8 +1820,8 @@ CREATE TABLE IF NOT EXISTS "public"."Feedback" (
     "userId" "uuid" NOT NULL,
     "rating" integer NOT NULL,
     "feedback" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "Feedback_rating_check" CHECK ((("rating" >= 1) AND ("rating" <= 5)))
 );
 
@@ -1451,10 +1835,10 @@ CREATE TABLE IF NOT EXISTS "public"."Goal" (
     "targetAmount" double precision NOT NULL,
     "incomePercentage" double precision NOT NULL,
     "isCompleted" boolean DEFAULT false NOT NULL,
-    "completedAt" timestamp(3) without time zone,
+    "completedAt" timestamp with time zone,
     "description" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "currentBalance" double precision DEFAULT 0 NOT NULL,
     "priority" "text" DEFAULT 'Medium'::"text" NOT NULL,
     "isPaused" boolean DEFAULT false NOT NULL,
@@ -1465,6 +1849,7 @@ CREATE TABLE IF NOT EXISTS "public"."Goal" (
     "holdingId" "text",
     "householdId" "uuid",
     "isSystemGoal" boolean DEFAULT false NOT NULL,
+    "deletedAt" timestamp with time zone,
     CONSTRAINT "Goal_currentBalance_check" CHECK (("currentBalance" >= (0)::double precision)),
     CONSTRAINT "Goal_priority_check" CHECK (("priority" = ANY (ARRAY['High'::"text", 'Medium'::"text", 'Low'::"text"]))),
     CONSTRAINT "Goal_targetMonths_check" CHECK ((("targetMonths" IS NULL) OR ("targetMonths" > (0)::double precision))),
@@ -1483,11 +1868,15 @@ COMMENT ON COLUMN "public"."Goal"."isSystemGoal" IS 'Indicates if this is a syst
 
 
 
+COMMENT ON COLUMN "public"."Goal"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."Group" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "userId" "uuid",
     "type" "text",
     CONSTRAINT "Group_type_check" CHECK (("type" = ANY (ARRAY['income'::"text", 'expense'::"text"])))
@@ -1501,8 +1890,8 @@ CREATE TABLE IF NOT EXISTS "public"."Household" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
     "type" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "createdBy" "uuid" NOT NULL,
     "settings" "jsonb" DEFAULT '{}'::"jsonb",
     CONSTRAINT "Household_type_check" CHECK (("type" = ANY (ARRAY['personal'::"text", 'household'::"text"])))
@@ -1524,68 +1913,68 @@ COMMENT ON COLUMN "public"."Household"."createdBy" IS 'User who created this hou
 
 
 
-COMMENT ON COLUMN "public"."Household"."settings" IS 'Household-specific settings stored as JSON';
+COMMENT ON COLUMN "public"."Household"."settings" IS 'Household settings stored as JSONB. Fields include: expectedIncome, expectedIncomeAmount, country (ISO 3166-1 alpha-2), stateOrProvince (state/province code). Location fields are used for tax calculations.';
 
 
 
-CREATE TABLE IF NOT EXISTS "public"."HouseholdMemberNew" (
+CREATE TABLE IF NOT EXISTS "public"."HouseholdMember" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "householdId" "uuid" NOT NULL,
     "userId" "uuid",
     "role" "text" DEFAULT 'member'::"text" NOT NULL,
     "status" "text" DEFAULT 'pending'::"text" NOT NULL,
     "isDefault" boolean DEFAULT false NOT NULL,
-    "joinedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "joinedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "invitedBy" "uuid",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "email" "text",
     "name" "text",
     "invitationToken" "text",
-    "invitedAt" timestamp(3) without time zone,
-    "acceptedAt" timestamp(3) without time zone,
-    CONSTRAINT "HouseholdMemberNew_role_check" CHECK (("role" = ANY (ARRAY['owner'::"text", 'admin'::"text", 'member'::"text"]))),
-    CONSTRAINT "HouseholdMemberNew_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'pending'::"text", 'inactive'::"text"]))),
-    CONSTRAINT "HouseholdMemberNew_userId_or_email_check" CHECK ((("userId" IS NOT NULL) OR (("email" IS NOT NULL) AND ("status" = 'pending'::"text"))))
+    "invitedAt" timestamp with time zone,
+    "acceptedAt" timestamp with time zone,
+    CONSTRAINT "HouseholdMember_role_check" CHECK (("role" = ANY (ARRAY['owner'::"text", 'admin'::"text", 'member'::"text"]))),
+    CONSTRAINT "HouseholdMember_status_check" CHECK (("status" = ANY (ARRAY['active'::"text", 'pending'::"text", 'inactive'::"text"]))),
+    CONSTRAINT "HouseholdMember_userId_or_email_check" CHECK ((("userId" IS NOT NULL) OR (("email" IS NOT NULL) AND ("status" = 'pending'::"text"))))
 );
 
 
-ALTER TABLE "public"."HouseholdMemberNew" OWNER TO "postgres";
+ALTER TABLE "public"."HouseholdMember" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."HouseholdMemberNew" IS 'Membership relationship between users and households (new architecture)';
-
-
-
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."role" IS 'Role in the household: owner (full control), admin (can modify), member (read-only)';
+COMMENT ON TABLE "public"."HouseholdMember" IS 'Membership relationship between users and households';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."status" IS 'Membership status: active, pending (invitation), inactive';
+COMMENT ON COLUMN "public"."HouseholdMember"."role" IS 'Role in the household: owner (full control), admin (can modify), member (read-only)';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."isDefault" IS 'Whether this is the default household for the user (typically their personal household)';
+COMMENT ON COLUMN "public"."HouseholdMember"."status" IS 'Membership status: active, pending (invitation), inactive';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."email" IS 'Email for pending invitations (when userId is null)';
+COMMENT ON COLUMN "public"."HouseholdMember"."isDefault" IS 'Whether this is the default household for the user (typically their personal household)';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."name" IS 'Name for pending invitations';
+COMMENT ON COLUMN "public"."HouseholdMember"."email" IS 'Email for pending invitations (when userId is null)';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."invitationToken" IS 'Token for invitation acceptance';
+COMMENT ON COLUMN "public"."HouseholdMember"."name" IS 'Name for pending invitations';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."invitedAt" IS 'When the invitation was sent';
+COMMENT ON COLUMN "public"."HouseholdMember"."invitationToken" IS 'Token for invitation acceptance';
 
 
 
-COMMENT ON COLUMN "public"."HouseholdMemberNew"."acceptedAt" IS 'When the invitation was accepted';
+COMMENT ON COLUMN "public"."HouseholdMember"."invitedAt" IS 'When the invitation was sent';
+
+
+
+COMMENT ON COLUMN "public"."HouseholdMember"."acceptedAt" IS 'When the invitation was accepted';
 
 
 
@@ -1626,8 +2015,8 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
     "name" "text" NOT NULL,
     "type" "text" NOT NULL,
     "accountId" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "userId" "uuid" NOT NULL,
     "cash" numeric(15,2),
     "marketValue" numeric(15,2),
@@ -1635,7 +2024,7 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentAccount" (
     "buyingPower" numeric(15,2),
     "maintenanceExcess" numeric(15,2),
     "currency" "text" DEFAULT 'CAD'::"text",
-    "balanceLastUpdatedAt" timestamp(3) without time zone,
+    "balanceLastUpdatedAt" timestamp with time zone,
     "householdId" "uuid"
 );
 
@@ -1681,7 +2070,7 @@ COMMENT ON COLUMN "public"."InvestmentAccount"."balanceLastUpdatedAt" IS 'Last t
 
 CREATE TABLE IF NOT EXISTS "public"."InvestmentTransaction" (
     "id" "text" NOT NULL,
-    "date" timestamp(3) without time zone NOT NULL,
+    "date" timestamp with time zone NOT NULL,
     "accountId" "text" NOT NULL,
     "securityId" "text",
     "type" "text" NOT NULL,
@@ -1691,8 +2080,8 @@ CREATE TABLE IF NOT EXISTS "public"."InvestmentTransaction" (
     "notes" "text",
     "transferToId" "text",
     "transferFromId" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid",
     "plaidInvestmentTransactionId" "text",
     "plaidSubtype" "text",
@@ -1746,12 +2135,12 @@ CREATE TABLE IF NOT EXISTS "public"."Order" (
     "lastExecPrice" numeric(15,4),
     "source" "text",
     "timeInForce" "text" NOT NULL,
-    "gtdDate" timestamp(3) without time zone,
+    "gtdDate" timestamp with time zone,
     "state" "text" NOT NULL,
     "clientReasonStr" "text",
     "chainId" bigint NOT NULL,
-    "creationTime" timestamp(3) without time zone NOT NULL,
-    "updateTime" timestamp(3) without time zone NOT NULL,
+    "creationTime" timestamp with time zone NOT NULL,
+    "updateTime" timestamp with time zone NOT NULL,
     "notes" "text",
     "primaryRoute" "text",
     "secondaryRoute" "text",
@@ -1766,9 +2155,9 @@ CREATE TABLE IF NOT EXISTS "public"."Order" (
     "placementCommission" numeric(15,2),
     "strategyType" "text",
     "triggerStopPrice" numeric(15,4),
-    "lastSyncedAt" timestamp(3) without time zone NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "lastSyncedAt" timestamp with time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid"
 );
 
@@ -1787,8 +2176,8 @@ CREATE TABLE IF NOT EXISTS "public"."PlaidConnection" (
     "accessToken" "text" NOT NULL,
     "institutionId" "text",
     "institutionName" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "errorCode" "text",
     "errorMessage" "text",
     "institutionLogo" "text",
@@ -1811,17 +2200,17 @@ CREATE TABLE IF NOT EXISTS "public"."PlaidLiability" (
     "interestRate" double precision,
     "minimumPayment" double precision,
     "lastPaymentAmount" double precision,
-    "lastPaymentDate" timestamp(3) without time zone,
-    "nextPaymentDueDate" timestamp(3) without time zone,
+    "lastPaymentDate" timestamp with time zone,
+    "nextPaymentDueDate" timestamp with time zone,
     "lastStatementBalance" double precision,
-    "lastStatementDate" timestamp(3) without time zone,
+    "lastStatementDate" timestamp with time zone,
     "creditLimit" double precision,
     "currentBalance" double precision,
     "availableCredit" double precision,
     "plaidAccountId" "text",
     "plaidItemId" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid",
     CONSTRAINT "PlaidLiability_liabilityType_check" CHECK (("liabilityType" = ANY (ARRAY['credit_card'::"text", 'student_loan'::"text", 'mortgage'::"text", 'auto_loan'::"text", 'personal_loan'::"text", 'business_loan'::"text", 'other'::"text"])))
 );
@@ -1839,8 +2228,8 @@ CREATE TABLE IF NOT EXISTS "public"."Plan" (
     "stripePriceIdMonthly" "text",
     "stripePriceIdYearly" "text",
     "stripeProductId" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -1861,11 +2250,12 @@ CREATE TABLE IF NOT EXISTS "public"."PlannedPayment" (
     "linkedTransactionId" "text",
     "debtId" "text",
     "userId" "uuid" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "toAccountId" "text",
     "subscriptionId" "text",
     "householdId" "uuid",
+    "deletedAt" timestamp with time zone,
     CONSTRAINT "PlannedPayment_paid_has_transaction" CHECK ((("status" <> 'paid'::"text") OR ("linkedTransactionId" IS NOT NULL))),
     CONSTRAINT "PlannedPayment_skipped_cancelled_no_transaction" CHECK ((("status" <> ALL (ARRAY['skipped'::"text", 'cancelled'::"text"])) OR ("linkedTransactionId" IS NULL))),
     CONSTRAINT "PlannedPayment_source_check" CHECK (("source" = ANY (ARRAY['recurring'::"text", 'debt'::"text", 'manual'::"text", 'subscription'::"text"]))),
@@ -1907,6 +2297,10 @@ COMMENT ON COLUMN "public"."PlannedPayment"."subscriptionId" IS 'Subscription ID
 
 
 
+COMMENT ON COLUMN "public"."PlannedPayment"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 COMMENT ON CONSTRAINT "planned_payment_date_valid" ON "public"."PlannedPayment" IS 'Valida que a data do pagamento planejado está em um range válido (1900 até 5 anos no futuro)';
 
 
@@ -1925,9 +2319,9 @@ CREATE TABLE IF NOT EXISTS "public"."Position" (
     "totalCost" numeric(15,2) DEFAULT 0 NOT NULL,
     "isRealTime" boolean DEFAULT false,
     "isUnderReorg" boolean DEFAULT false,
-    "lastUpdatedAt" timestamp(3) without time zone NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "lastUpdatedAt" timestamp with time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid"
 );
 
@@ -1947,12 +2341,12 @@ CREATE TABLE IF NOT EXISTS "public"."PromoCode" (
     "duration" "text" NOT NULL,
     "durationInMonths" integer,
     "maxRedemptions" integer,
-    "expiresAt" timestamp(3) without time zone,
+    "expiresAt" timestamp with time zone,
     "isActive" boolean DEFAULT true NOT NULL,
     "stripeCouponId" "text",
     "planIds" "jsonb" DEFAULT '[]'::"jsonb",
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "PromoCode_discountType_check" CHECK (("discountType" = ANY (ARRAY['percent'::"text", 'fixed'::"text"]))),
     CONSTRAINT "PromoCode_duration_check" CHECK (("duration" = ANY (ARRAY['once'::"text", 'forever'::"text", 'repeating'::"text"])))
 );
@@ -1966,11 +2360,11 @@ CREATE TABLE IF NOT EXISTS "public"."Security" (
     "symbol" "text" NOT NULL,
     "name" "text" NOT NULL,
     "class" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "sector" "text",
     "closePrice" numeric(15,4),
-    "closePriceAsOf" timestamp(3) without time zone,
+    "closePriceAsOf" timestamp with time zone,
     "currencyCode" "text"
 );
 
@@ -1997,9 +2391,9 @@ COMMENT ON COLUMN "public"."Security"."currencyCode" IS 'ISO currency code for t
 CREATE TABLE IF NOT EXISTS "public"."SecurityPrice" (
     "id" "text" NOT NULL,
     "securityId" "text" NOT NULL,
-    "date" timestamp(3) without time zone NOT NULL,
+    "date" timestamp with time zone NOT NULL,
     "price" double precision NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2009,12 +2403,12 @@ ALTER TABLE "public"."SecurityPrice" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."SimpleInvestmentEntry" (
     "id" "text" NOT NULL,
     "accountId" "text" NOT NULL,
-    "date" timestamp(3) without time zone NOT NULL,
+    "date" timestamp with time zone NOT NULL,
     "type" "text" NOT NULL,
     "amount" double precision NOT NULL,
     "description" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid"
 );
 
@@ -2026,8 +2420,8 @@ CREATE TABLE IF NOT EXISTS "public"."Subcategory" (
     "id" "text" NOT NULL,
     "name" "text" NOT NULL,
     "categoryId" "text" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "userId" "uuid",
     "logo" "text"
 );
@@ -2047,16 +2441,16 @@ CREATE TABLE IF NOT EXISTS "public"."Subscription" (
     "status" "text" DEFAULT 'active'::"text" NOT NULL,
     "stripeSubscriptionId" "text",
     "stripeCustomerId" "text",
-    "currentPeriodStart" timestamp(3) without time zone,
-    "currentPeriodEnd" timestamp(3) without time zone,
+    "currentPeriodStart" timestamp with time zone,
+    "currentPeriodEnd" timestamp with time zone,
     "cancelAtPeriodEnd" boolean DEFAULT false NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "trialStartDate" timestamp(3) without time zone,
-    "trialEndDate" timestamp(3) without time zone,
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "trialStartDate" timestamp with time zone,
+    "trialEndDate" timestamp with time zone,
     "gracePeriodDays" integer DEFAULT 7,
-    "lastUpgradePrompt" timestamp(3) without time zone,
-    "expiredAt" timestamp(3) without time zone,
+    "lastUpgradePrompt" timestamp with time zone,
+    "expiredAt" timestamp with time zone,
     "pendingEmail" "text",
     "householdId" "uuid",
     CONSTRAINT "Subscription_userId_or_householdId_check" CHECK ((("userId" IS NOT NULL) OR ("householdId" IS NOT NULL)))
@@ -2101,8 +2495,8 @@ CREATE TABLE IF NOT EXISTS "public"."SubscriptionService" (
     "logo" "text",
     "displayOrder" integer DEFAULT 0 NOT NULL,
     "isActive" boolean DEFAULT true NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
 );
 
 
@@ -2138,8 +2532,8 @@ CREATE TABLE IF NOT EXISTS "public"."SubscriptionServiceCategory" (
     "name" "text" NOT NULL,
     "displayOrder" integer DEFAULT 0 NOT NULL,
     "isActive" boolean DEFAULT true NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL
 );
 
 
@@ -2169,8 +2563,8 @@ CREATE TABLE IF NOT EXISTS "public"."SubscriptionServicePlan" (
     "price" numeric(15,2) NOT NULL,
     "currency" "text" DEFAULT 'USD'::"text" NOT NULL,
     "isActive" boolean DEFAULT true NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     CONSTRAINT "SubscriptionServicePlan_currency_check" CHECK (("currency" = ANY (ARRAY['USD'::"text", 'CAD'::"text"]))),
     CONSTRAINT "SubscriptionServicePlan_price_check" CHECK (("price" >= (0)::numeric))
 );
@@ -2206,8 +2600,8 @@ COMMENT ON COLUMN "public"."SubscriptionServicePlan"."isActive" IS 'Whether the 
 CREATE TABLE IF NOT EXISTS "public"."SystemSettings" (
     "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
     "maintenanceMode" boolean DEFAULT false NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "seoSettings" "jsonb"
 );
 
@@ -2237,9 +2631,9 @@ CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "tags" "text" DEFAULT ''::"text" NOT NULL,
     "transferToId" "text",
     "transferFromId" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
-    "recurring" boolean DEFAULT false NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
+    "isRecurring" boolean DEFAULT false NOT NULL,
     "userId" "uuid" NOT NULL,
     "suggestedCategoryId" "text",
     "suggestedSubcategoryId" "text",
@@ -2250,11 +2644,16 @@ CREATE TABLE IF NOT EXISTS "public"."Transaction" (
     "householdId" "uuid",
     "amount" numeric(15,2) NOT NULL,
     "receiptUrl" "text",
+    "deletedAt" timestamp with time zone,
     CONSTRAINT "transaction_date_valid" CHECK ((("date" >= '1900-01-01'::"date") AND ("date" <= (CURRENT_DATE + '1 year'::interval))))
 );
 
 
 ALTER TABLE "public"."Transaction" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."Transaction"."isRecurring" IS 'Whether this transaction is part of a recurring series. Renamed from "recurring" for consistency with other boolean columns.';
+
 
 
 COMMENT ON COLUMN "public"."Transaction"."expenseType" IS 'Indicates if expense is fixed or variable. Only applies to expense transactions. Values: "fixed" or "variable"';
@@ -2277,6 +2676,10 @@ COMMENT ON COLUMN "public"."Transaction"."receiptUrl" IS 'URL to the receipt fil
 
 
 
+COMMENT ON COLUMN "public"."Transaction"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
 COMMENT ON CONSTRAINT "transaction_date_valid" ON "public"."Transaction" IS 'Valida que a data da transação está em um range válido (1900 até 1 ano no futuro)';
 
 
@@ -2286,7 +2689,7 @@ CREATE TABLE IF NOT EXISTS "public"."TransactionSync" (
     "accountId" "text" NOT NULL,
     "plaidTransactionId" "text" NOT NULL,
     "transactionId" "text",
-    "syncDate" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "syncDate" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "status" "text" DEFAULT 'synced'::"text",
     "householdId" "uuid"
 );
@@ -2300,15 +2703,15 @@ CREATE TABLE IF NOT EXISTS "public"."User" (
     "email" "text" NOT NULL,
     "name" "text",
     "avatarUrl" "text",
-    "createdAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT "now"() NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updatedAt" timestamp with time zone DEFAULT "now"() NOT NULL,
     "role" "text" DEFAULT 'admin'::"text" NOT NULL,
     "phoneNumber" "text",
     "dateOfBirth" "date",
     "effectivePlanId" "text",
     "effectiveSubscriptionStatus" "text",
     "effectiveSubscriptionId" "text",
-    "subscriptionUpdatedAt" timestamp(3) without time zone,
+    "subscriptionUpdatedAt" timestamp with time zone,
     "isBlocked" boolean DEFAULT false NOT NULL,
     "temporaryExpectedIncome" "text",
     "temporaryExpectedIncomeAmount" numeric(12,2)
@@ -2353,7 +2756,7 @@ COMMENT ON COLUMN "public"."User"."temporaryExpectedIncomeAmount" IS 'Temporary 
 CREATE TABLE IF NOT EXISTS "public"."UserActiveHousehold" (
     "userId" "uuid" NOT NULL,
     "householdId" "uuid" NOT NULL,
-    "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    "updatedAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 
@@ -2374,7 +2777,7 @@ CREATE TABLE IF NOT EXISTS "public"."UserBlockHistory" (
     "action" "text" NOT NULL,
     "reason" "text",
     "blockedBy" "uuid" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT "UserBlockHistory_action_check" CHECK (("action" = ANY (ARRAY['block'::"text", 'unblock'::"text"])))
 );
 
@@ -2410,10 +2813,11 @@ CREATE TABLE IF NOT EXISTS "public"."UserServiceSubscription" (
     "accountId" "text" NOT NULL,
     "isActive" boolean DEFAULT true NOT NULL,
     "firstBillingDate" "date" NOT NULL,
-    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    "updatedAt" timestamp(3) without time zone NOT NULL,
+    "createdAt" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp with time zone NOT NULL,
     "householdId" "uuid",
     "planId" "text",
+    "deletedAt" timestamp with time zone,
     CONSTRAINT "UserServiceSubscription_amount_check" CHECK (("amount" > (0)::numeric)),
     CONSTRAINT "UserServiceSubscription_billingDay_check" CHECK (((("billingFrequency" = 'monthly'::"text") AND ("billingDay" >= 1) AND ("billingDay" <= 31)) OR (("billingFrequency" = 'semimonthly'::"text") AND ("billingDay" >= 1) AND ("billingDay" <= 31)) OR (("billingFrequency" = 'weekly'::"text") AND ("billingDay" >= 0) AND ("billingDay" <= 6)) OR (("billingFrequency" = 'biweekly'::"text") AND ("billingDay" >= 0) AND ("billingDay" <= 6)) OR (("billingFrequency" = 'daily'::"text") AND ("billingDay" IS NULL)))),
     CONSTRAINT "UserServiceSubscription_billingFrequency_check" CHECK (("billingFrequency" = ANY (ARRAY['monthly'::"text", 'weekly'::"text", 'biweekly'::"text", 'semimonthly'::"text", 'daily'::"text"])))
@@ -2455,6 +2859,58 @@ COMMENT ON COLUMN "public"."UserServiceSubscription"."planId" IS 'ID of the sele
 
 
 
+COMMENT ON COLUMN "public"."UserServiceSubscription"."deletedAt" IS 'Soft delete timestamp. When set, the record is considered deleted but not removed from database.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."audit_log" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "table_name" "text" NOT NULL,
+    "record_id" "text" NOT NULL,
+    "action" "text" NOT NULL,
+    "user_id" "uuid",
+    "old_data" "jsonb",
+    "new_data" "jsonb",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "audit_log_action_check" CHECK (("action" = ANY (ARRAY['INSERT'::"text", 'UPDATE'::"text", 'DELETE'::"text"])))
+);
+
+
+ALTER TABLE "public"."audit_log" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."audit_log" IS 'Audit log for tracking changes to critical tables. Only admins can read.';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."table_name" IS 'Name of the table that was modified';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."record_id" IS 'ID of the record that was modified';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."action" IS 'Action performed: INSERT, UPDATE, or DELETE';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."user_id" IS 'User who performed the action (from auth.uid())';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."old_data" IS 'Previous data (for UPDATE and DELETE)';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."new_data" IS 'New data (for INSERT and UPDATE)';
+
+
+
+COMMENT ON COLUMN "public"."audit_log"."created_at" IS 'When the action was performed';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."category_learning" (
     "user_id" "uuid" NOT NULL,
     "normalized_description" "text" NOT NULL,
@@ -2463,7 +2919,7 @@ CREATE TABLE IF NOT EXISTS "public"."category_learning" (
     "subcategory_id" "text",
     "description_and_amount_count" integer DEFAULT 0 NOT NULL,
     "description_only_count" integer DEFAULT 0 NOT NULL,
-    "last_used_at" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "last_used_at" timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT "category_learning_type_check" CHECK (("type" = ANY (ARRAY['expense'::"text", 'income'::"text"])))
 );
 
@@ -2488,6 +2944,22 @@ COMMENT ON COLUMN "public"."category_learning"."description_only_count" IS 'Numb
 
 
 COMMENT ON COLUMN "public"."category_learning"."last_used_at" IS 'Last time this category was used for this description. Used to prioritize recent suggestions.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."error_codes" (
+    "code" "text" NOT NULL,
+    "message" "text" NOT NULL,
+    "user_message" "text" NOT NULL,
+    "category" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."error_codes" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."error_codes" IS 'Standard error codes for database functions. Maps internal error codes to user-friendly messages.';
 
 
 
@@ -2524,7 +2996,7 @@ CREATE OR REPLACE VIEW "public"."vw_transactions_for_reports" WITH ("security_in
     "subcategoryId",
     "description",
     "description_search",
-    "recurring",
+    "isRecurring",
     "expenseType",
     "createdAt",
     "updatedAt",
@@ -2542,7 +3014,7 @@ CREATE OR REPLACE VIEW "public"."vw_transactions_for_reports" WITH ("security_in
 ALTER VIEW "public"."vw_transactions_for_reports" OWNER TO "postgres";
 
 
-COMMENT ON VIEW "public"."vw_transactions_for_reports" IS 'Transactions for reports, excluding transfers. Use this view for income/expense calculations to avoid double-counting transfers. Uses SECURITY INVOKER to ensure RLS policies on Transaction table are properly enforced. Amount is now numeric (no longer encrypted).';
+COMMENT ON VIEW "public"."vw_transactions_for_reports" IS 'Transactions for reports, excluding transfers. Use this view for income/expense calculations to avoid double-counting transfers. Uses SECURITY INVOKER to ensure RLS policies on Transaction table are properly enforced. Amount is now numeric (no longer encrypted). Updated to use isRecurring instead of recurring.';
 
 
 
@@ -2626,8 +3098,8 @@ ALTER TABLE ONLY "public"."Group"
 
 
 
-ALTER TABLE ONLY "public"."HouseholdMemberNew"
-    ADD CONSTRAINT "HouseholdMemberNew_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "public"."HouseholdMember"
+    ADD CONSTRAINT "HouseholdMember_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2816,6 +3288,11 @@ ALTER TABLE ONLY "public"."category_learning"
 
 
 
+ALTER TABLE ONLY "public"."error_codes"
+    ADD CONSTRAINT "error_codes_pkey" PRIMARY KEY ("code");
+
+
+
 ALTER TABLE ONLY "public"."user_monthly_usage"
     ADD CONSTRAINT "user_monthly_usage_pkey" PRIMARY KEY ("user_id", "month_date");
 
@@ -2993,27 +3470,27 @@ CREATE INDEX "Group_userId_idx" ON "public"."Group" USING "btree" ("userId") WHE
 
 
 
-CREATE INDEX "HouseholdMemberNew_email_idx" ON "public"."HouseholdMemberNew" USING "btree" ("email") WHERE ("email" IS NOT NULL);
+CREATE INDEX "HouseholdMember_email_idx" ON "public"."HouseholdMember" USING "btree" ("email") WHERE ("email" IS NOT NULL);
 
 
 
-CREATE UNIQUE INDEX "HouseholdMemberNew_householdId_userId_key" ON "public"."HouseholdMemberNew" USING "btree" ("householdId", "userId") WHERE ("userId" IS NOT NULL);
+CREATE UNIQUE INDEX "HouseholdMember_householdId_userId_key" ON "public"."HouseholdMember" USING "btree" ("householdId", "userId") WHERE ("userId" IS NOT NULL);
 
 
 
-CREATE INDEX "HouseholdMemberNew_householdId_userId_status_idx" ON "public"."HouseholdMemberNew" USING "btree" ("householdId", "userId", "status");
+CREATE INDEX "HouseholdMember_householdId_userId_status_idx" ON "public"."HouseholdMember" USING "btree" ("householdId", "userId", "status");
 
 
 
-CREATE UNIQUE INDEX "HouseholdMemberNew_invitationToken_idx" ON "public"."HouseholdMemberNew" USING "btree" ("invitationToken") WHERE ("invitationToken" IS NOT NULL);
+CREATE UNIQUE INDEX "HouseholdMember_invitationToken_idx" ON "public"."HouseholdMember" USING "btree" ("invitationToken") WHERE ("invitationToken" IS NOT NULL);
 
 
 
-CREATE INDEX "HouseholdMemberNew_invitedBy_idx" ON "public"."HouseholdMemberNew" USING "btree" ("invitedBy");
+CREATE INDEX "HouseholdMember_invitedBy_idx" ON "public"."HouseholdMember" USING "btree" ("invitedBy");
 
 
 
-CREATE INDEX "HouseholdMemberNew_userId_status_idx" ON "public"."HouseholdMemberNew" USING "btree" ("userId", "status");
+CREATE INDEX "HouseholdMember_userId_status_idx" ON "public"."HouseholdMember" USING "btree" ("userId", "status");
 
 
 
@@ -3217,7 +3694,7 @@ CREATE INDEX "Transaction_householdId_idx" ON "public"."Transaction" USING "btre
 
 
 
-CREATE INDEX "Transaction_recurring_idx" ON "public"."Transaction" USING "btree" ("recurring");
+CREATE INDEX "Transaction_recurring_idx" ON "public"."Transaction" USING "btree" ("isRecurring");
 
 
 
@@ -3281,7 +3758,31 @@ CREATE INDEX "category_learning_user_type_desc_idx" ON "public"."category_learni
 
 
 
+CREATE INDEX "idx_account_deleted_at" ON "public"."Account" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_account_household" ON "public"."Account" USING "btree" ("householdId") WHERE (("householdId" IS NOT NULL) AND ("deletedAt" IS NULL));
+
+
+
+COMMENT ON INDEX "public"."idx_account_household" IS 'Index for querying accounts by household.';
+
+
+
 CREATE INDEX "idx_account_isconnected" ON "public"."Account" USING "btree" ("isConnected") WHERE ("isConnected" = true);
+
+
+
+CREATE INDEX "idx_account_owner_account" ON "public"."AccountOwner" USING "btree" ("accountId") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_account_owner_deleted_at" ON "public"."AccountOwner" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_account_owner_owner" ON "public"."AccountOwner" USING "btree" ("ownerId") WHERE ("deletedAt" IS NULL);
 
 
 
@@ -3305,7 +3806,35 @@ CREATE INDEX "idx_accountowner_ownerid" ON "public"."AccountOwner" USING "btree"
 
 
 
+CREATE INDEX "idx_audit_log_action" ON "public"."audit_log" USING "btree" ("action");
+
+
+
+CREATE INDEX "idx_audit_log_created_at" ON "public"."audit_log" USING "btree" ("created_at" DESC);
+
+
+
+CREATE INDEX "idx_audit_log_table_record" ON "public"."audit_log" USING "btree" ("table_name", "record_id");
+
+
+
+CREATE INDEX "idx_audit_log_user_id" ON "public"."audit_log" USING "btree" ("user_id") WHERE ("user_id" IS NOT NULL);
+
+
+
 CREATE INDEX "idx_budget_category" ON "public"."Budget" USING "btree" ("categoryId") WHERE ("categoryId" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_budget_deleted_at" ON "public"."Budget" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_budget_household_period" ON "public"."Budget" USING "btree" ("householdId", "period" DESC) WHERE (("householdId" IS NOT NULL) AND ("deletedAt" IS NULL));
+
+
+
+COMMENT ON INDEX "public"."idx_budget_household_period" IS 'Composite index for querying budgets by household and period.';
 
 
 
@@ -3333,11 +3862,43 @@ CREATE INDEX "idx_category_userid_groupid" ON "public"."Category" USING "btree" 
 
 
 
+CREATE INDEX "idx_debt_deleted_at" ON "public"."Debt" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_debt_household" ON "public"."Debt" USING "btree" ("householdId") WHERE (("householdId" IS NOT NULL) AND ("deletedAt" IS NULL));
+
+
+
+COMMENT ON INDEX "public"."idx_debt_household" IS 'Index for querying debts by household.';
+
+
+
 CREATE INDEX "idx_debt_user_updated" ON "public"."Debt" USING "btree" ("userId", "updatedAt" DESC, "createdAt" DESC) WHERE ("updatedAt" IS NOT NULL);
 
 
 
+CREATE INDEX "idx_goal_deleted_at" ON "public"."Goal" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_goal_household" ON "public"."Goal" USING "btree" ("householdId") WHERE (("householdId" IS NOT NULL) AND ("deletedAt" IS NULL));
+
+
+
+COMMENT ON INDEX "public"."idx_goal_household" IS 'Index for querying goals by household.';
+
+
+
 CREATE INDEX "idx_goal_user_updated" ON "public"."Goal" USING "btree" ("userId", "updatedAt" DESC, "createdAt" DESC) WHERE ("updatedAt" IS NOT NULL);
+
+
+
+CREATE INDEX "idx_household_member_active" ON "public"."HouseholdMember" USING "btree" ("householdId", "userId") WHERE ("status" = 'active'::"text");
+
+
+
+COMMENT ON INDEX "public"."idx_household_member_active" IS 'Partial index for active household members. Speeds up membership checks.';
 
 
 
@@ -3369,6 +3930,18 @@ CREATE INDEX "idx_planned_payment_date_status_user" ON "public"."PlannedPayment"
 
 
 
+CREATE INDEX "idx_planned_payment_deleted_at" ON "public"."PlannedPayment" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_planned_payment_household" ON "public"."PlannedPayment" USING "btree" ("householdId") WHERE (("householdId" IS NOT NULL) AND ("deletedAt" IS NULL));
+
+
+
+COMMENT ON INDEX "public"."idx_planned_payment_household" IS 'Index for querying planned payments by household.';
+
+
+
 CREATE INDEX "idx_planned_payment_user_id" ON "public"."PlannedPayment" USING "btree" ("userId");
 
 
@@ -3393,11 +3966,35 @@ CREATE INDEX "idx_subscription_service_plan_service_id" ON "public"."Subscriptio
 
 
 
+CREATE INDEX "idx_transaction_account_date" ON "public"."Transaction" USING "btree" ("accountId", "date" DESC) WHERE ("deletedAt" IS NULL);
+
+
+
+COMMENT ON INDEX "public"."idx_transaction_account_date" IS 'Index for querying transactions by account and date.';
+
+
+
 CREATE INDEX "idx_transaction_category_date" ON "public"."Transaction" USING "btree" ("categoryId", "date" DESC) WHERE (("categoryId" IS NOT NULL) AND ("date" IS NOT NULL));
 
 
 
-CREATE INDEX "idx_transaction_recurring" ON "public"."Transaction" USING "btree" ("recurring", "date" DESC) WHERE ("recurring" = true);
+COMMENT ON INDEX "public"."idx_transaction_category_date" IS 'Index for querying transactions by category and date.';
+
+
+
+CREATE INDEX "idx_transaction_deleted_at" ON "public"."Transaction" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
+
+
+
+CREATE INDEX "idx_transaction_household_date" ON "public"."Transaction" USING "btree" ("householdId", "date" DESC) WHERE (("householdId" IS NOT NULL) AND ("deletedAt" IS NULL));
+
+
+
+COMMENT ON INDEX "public"."idx_transaction_household_date" IS 'Composite index for querying transactions by household and date. Most common query pattern.';
+
+
+
+CREATE INDEX "idx_transaction_recurring" ON "public"."Transaction" USING "btree" ("isRecurring", "date" DESC) WHERE ("isRecurring" = true);
 
 
 
@@ -3405,11 +4002,19 @@ CREATE INDEX "idx_transaction_user_date" ON "public"."Transaction" USING "btree"
 
 
 
-COMMENT ON INDEX "public"."idx_transaction_user_date" IS 'Índice otimizado para queries de transações por usuário e período (query mais comum do sistema)';
+COMMENT ON INDEX "public"."idx_transaction_user_date" IS 'Index for backward compatibility with userId-based queries.';
+
+
+
+CREATE INDEX "idx_user_active_household_user" ON "public"."UserActiveHousehold" USING "btree" ("userId");
 
 
 
 CREATE INDEX "idx_user_service_subscription_account_id" ON "public"."UserServiceSubscription" USING "btree" ("accountId");
+
+
+
+CREATE INDEX "idx_user_service_subscription_deleted_at" ON "public"."UserServiceSubscription" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
 
 
 
@@ -3422,6 +4027,26 @@ CREATE INDEX "idx_user_service_subscription_user_active" ON "public"."UserServic
 
 
 CREATE INDEX "user_monthly_usage_user_month_idx" ON "public"."user_monthly_usage" USING "btree" ("user_id", "month_date");
+
+
+
+CREATE OR REPLACE TRIGGER "audit_account_changes" AFTER INSERT OR DELETE OR UPDATE ON "public"."Account" FOR EACH ROW EXECUTE FUNCTION "public"."audit_table_changes"();
+
+
+
+CREATE OR REPLACE TRIGGER "audit_household_changes" AFTER INSERT OR DELETE OR UPDATE ON "public"."Household" FOR EACH ROW EXECUTE FUNCTION "public"."audit_table_changes"();
+
+
+
+CREATE OR REPLACE TRIGGER "audit_subscription_changes" AFTER INSERT OR DELETE OR UPDATE ON "public"."Subscription" FOR EACH ROW EXECUTE FUNCTION "public"."audit_table_changes"();
+
+
+
+CREATE OR REPLACE TRIGGER "audit_transaction_changes" AFTER INSERT OR DELETE OR UPDATE ON "public"."Transaction" FOR EACH ROW EXECUTE FUNCTION "public"."audit_table_changes"();
+
+
+
+CREATE OR REPLACE TRIGGER "audit_user_changes" AFTER DELETE OR UPDATE ON "public"."User" FOR EACH ROW EXECUTE FUNCTION "public"."audit_table_changes"();
 
 
 
@@ -3588,18 +4213,18 @@ ALTER TABLE ONLY "public"."Group"
 
 
 
-ALTER TABLE ONLY "public"."HouseholdMemberNew"
-    ADD CONSTRAINT "HouseholdMemberNew_householdId_fkey" FOREIGN KEY ("householdId") REFERENCES "public"."Household"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."HouseholdMember"
+    ADD CONSTRAINT "HouseholdMember_householdId_fkey" FOREIGN KEY ("householdId") REFERENCES "public"."Household"("id") ON DELETE CASCADE;
 
 
 
-ALTER TABLE ONLY "public"."HouseholdMemberNew"
-    ADD CONSTRAINT "HouseholdMemberNew_invitedBy_fkey" FOREIGN KEY ("invitedBy") REFERENCES "public"."User"("id") ON DELETE SET NULL;
+ALTER TABLE ONLY "public"."HouseholdMember"
+    ADD CONSTRAINT "HouseholdMember_invitedBy_fkey" FOREIGN KEY ("invitedBy") REFERENCES "public"."User"("id") ON DELETE SET NULL;
 
 
 
-ALTER TABLE ONLY "public"."HouseholdMemberNew"
-    ADD CONSTRAINT "HouseholdMemberNew_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."HouseholdMember"
+    ADD CONSTRAINT "HouseholdMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE;
 
 
 
@@ -3924,6 +4549,12 @@ CREATE POLICY "Admins can insert securities" ON "public"."Security" FOR INSERT W
 
 
 
+CREATE POLICY "Admins can view audit logs" ON "public"."audit_log" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = ANY (ARRAY['admin'::"text", 'super_admin'::"text"]))))));
+
+
+
 CREATE POLICY "Anyone can view securities" ON "public"."Security" FOR SELECT USING (true);
 
 
@@ -3965,7 +4596,7 @@ ALTER TABLE "public"."Group" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."Household" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."HouseholdMemberNew" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."HouseholdMember" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."ImportJob" ENABLE ROW LEVEL SECURITY;
@@ -3980,12 +4611,12 @@ ALTER TABLE "public"."InvestmentTransaction" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."Order" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "Owners and admins can remove household members" ON "public"."HouseholdMemberNew" FOR DELETE USING ((("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
+CREATE POLICY "Owners and admins can remove household members" ON "public"."HouseholdMember" FOR DELETE USING ((("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
    FROM "public"."get_user_admin_household_ids"() "get_user_admin_household_ids"("household_id"))) OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
 
 
 
-CREATE POLICY "Owners and admins can update household members" ON "public"."HouseholdMemberNew" FOR UPDATE USING ((("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
+CREATE POLICY "Owners and admins can update household members" ON "public"."HouseholdMember" FOR UPDATE USING ((("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
    FROM "public"."get_user_admin_household_ids"() "get_user_admin_household_ids"("household_id"))) OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
 
 
@@ -4046,7 +4677,7 @@ CREATE POLICY "Public and super admins can access subscription services" ON "pub
 
 CREATE POLICY "Public and super admins can read promo codes" ON "public"."PromoCode" FOR SELECT USING (((("isActive" = true) AND (("expiresAt" IS NULL) OR ("expiresAt" > "now"()))) OR (EXISTS ( SELECT 1
    FROM "public"."User"
-  WHERE (("User"."id" = ( SELECT "auth"."uid"() AS "uid")) AND ("User"."role" = 'super_admin'::"text"))))));
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text"))))));
 
 
 
@@ -4069,6 +4700,10 @@ CREATE POLICY "Service role and users can update subscriptions" ON "public"."Sub
 
 
 CREATE POLICY "Service role can delete plans" ON "public"."Plan" FOR DELETE USING ((( SELECT "auth"."role"() AS "role") = 'service_role'::"text"));
+
+
+
+CREATE POLICY "Service role can insert audit logs" ON "public"."audit_log" FOR INSERT WITH CHECK ((( SELECT "auth"."role"() AS "role") = 'service_role'::"text"));
 
 
 
@@ -4247,7 +4882,7 @@ CREATE POLICY "Users and super admins can view feedback submissions" ON "public"
 
 
 
-CREATE POLICY "Users can be added to households" ON "public"."HouseholdMemberNew" FOR INSERT WITH CHECK ((("userId" = ( SELECT "auth"."uid"() AS "uid")) OR ("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
+CREATE POLICY "Users can be added to households" ON "public"."HouseholdMember" FOR INSERT WITH CHECK ((("userId" = ( SELECT "auth"."uid"() AS "uid")) OR ("householdId" IN ( SELECT "get_user_admin_household_ids"."household_id"
    FROM "public"."get_user_admin_household_ids"() "get_user_admin_household_ids"("household_id")))));
 
 
@@ -4284,15 +4919,15 @@ CREATE POLICY "Users can delete household account investment values" ON "public"
 
 
 
-CREATE POLICY "Users can delete household accounts" ON "public"."Account" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()));
+CREATE POLICY "Users can delete household accounts" ON "public"."Account" FOR DELETE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'delete'::"text")) OR ("userId" = "auth"."uid"()) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()) AND ("deletedAt" IS NULL)));
 
 
 
-CREATE POLICY "Users can delete household budgets" ON "public"."Budget" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can delete household budgets" ON "public"."Budget" FOR DELETE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'delete'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
-CREATE POLICY "Users can delete household debts" ON "public"."Debt" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can delete household debts" ON "public"."Debt" FOR DELETE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'delete'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4306,7 +4941,7 @@ COMMENT ON POLICY "Users can delete household executions" ON "public"."Execution
 
 
 
-CREATE POLICY "Users can delete household goals" ON "public"."Goal" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can delete household goals" ON "public"."Goal" FOR DELETE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'delete'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4330,7 +4965,7 @@ COMMENT ON POLICY "Users can delete household orders" ON "public"."Order" IS 'Al
 
 
 
-CREATE POLICY "Users can delete household planned payments" ON "public"."PlannedPayment" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can delete household planned payments" ON "public"."PlannedPayment" FOR DELETE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'delete'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4350,7 +4985,7 @@ CREATE POLICY "Users can delete household simple investment entries" ON "public"
 
 
 
-CREATE POLICY "Users can delete household transactions" ON "public"."Transaction" FOR DELETE USING (("public"."can_access_household_data"("householdId", 'delete'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can delete household transactions" ON "public"."Transaction" FOR DELETE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'delete'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4412,15 +5047,15 @@ CREATE POLICY "Users can insert household account investment values" ON "public"
 
 
 
-CREATE POLICY "Users can insert household accounts" ON "public"."Account" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can insert household accounts" ON "public"."Account" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())));
 
 
 
-CREATE POLICY "Users can insert household budgets" ON "public"."Budget" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can insert household budgets" ON "public"."Budget" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())));
 
 
 
-CREATE POLICY "Users can insert household debts" ON "public"."Debt" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can insert household debts" ON "public"."Debt" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -4434,7 +5069,7 @@ COMMENT ON POLICY "Users can insert household executions" ON "public"."Execution
 
 
 
-CREATE POLICY "Users can insert household goals" ON "public"."Goal" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can insert household goals" ON "public"."Goal" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -4458,7 +5093,7 @@ COMMENT ON POLICY "Users can insert household orders" ON "public"."Order" IS 'Al
 
 
 
-CREATE POLICY "Users can insert household planned payments" ON "public"."PlannedPayment" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can insert household planned payments" ON "public"."PlannedPayment" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -4478,7 +5113,7 @@ CREATE POLICY "Users can insert household simple investment entries" ON "public"
 
 
 
-CREATE POLICY "Users can insert household transactions" ON "public"."Transaction" FOR INSERT WITH CHECK (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can insert household transactions" ON "public"."Transaction" FOR INSERT WITH CHECK (((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -4553,15 +5188,15 @@ CREATE POLICY "Users can update household account investment values" ON "public"
 
 
 
-CREATE POLICY "Users can update household accounts" ON "public"."Account" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()));
+CREATE POLICY "Users can update household accounts" ON "public"."Account" FOR UPDATE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"()) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()) AND ("deletedAt" IS NULL)));
 
 
 
-CREATE POLICY "Users can update household budgets" ON "public"."Budget" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can update household budgets" ON "public"."Budget" FOR UPDATE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
-CREATE POLICY "Users can update household debts" ON "public"."Debt" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can update household debts" ON "public"."Debt" FOR UPDATE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4573,7 +5208,7 @@ CREATE POLICY "Users can update household executions" ON "public"."Execution" FO
 
 
 
-CREATE POLICY "Users can update household goals" ON "public"."Goal" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can update household goals" ON "public"."Goal" FOR UPDATE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4597,7 +5232,7 @@ CREATE POLICY "Users can update household orders" ON "public"."Order" FOR UPDATE
 
 
 
-CREATE POLICY "Users can update household planned payments" ON "public"."PlannedPayment" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can update household planned payments" ON "public"."PlannedPayment" FOR UPDATE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4621,7 +5256,7 @@ CREATE POLICY "Users can update household simple investment entries" ON "public"
 
 
 
-CREATE POLICY "Users can update household transactions" ON "public"."Transaction" FOR UPDATE USING (("public"."can_access_household_data"("householdId", 'write'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can update household transactions" ON "public"."Transaction" FOR UPDATE USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'write'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4671,7 +5306,7 @@ CREATE POLICY "Users can update their own import jobs" ON "public"."ImportJob" F
 
 
 
-CREATE POLICY "Users can view account owners" ON "public"."AccountOwner" FOR SELECT USING ((("ownerId" = ( SELECT "auth"."uid"() AS "uid")) OR ("public"."get_account_user_id"("accountId") = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view account owners" ON "public"."AccountOwner" FOR SELECT USING (((("ownerId" = "auth"."uid"()) OR ("public"."get_account_user_id"("accountId") = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4703,7 +5338,7 @@ CREATE POLICY "Users can view household account investment values" ON "public"."
 
 
 
-CREATE POLICY "Users can view household accounts" ON "public"."Account" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid")) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()));
+CREATE POLICY "Users can view household accounts" ON "public"."Account" FOR SELECT USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'read'::"text")) OR ("userId" = "auth"."uid"()) OR "public"."can_access_account_via_accountowner"("id") OR "public"."is_current_user_admin"()) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4713,11 +5348,11 @@ CREATE POLICY "Users can view household budget categories" ON "public"."BudgetCa
 
 
 
-CREATE POLICY "Users can view household budgets" ON "public"."Budget" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household budgets" ON "public"."Budget" FOR SELECT USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'read'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
-CREATE POLICY "Users can view household debts" ON "public"."Debt" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household debts" ON "public"."Debt" FOR SELECT USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'read'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4728,7 +5363,7 @@ CREATE POLICY "Users can view household executions" ON "public"."Execution" FOR 
 
 
 
-CREATE POLICY "Users can view household goals" ON "public"."Goal" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household goals" ON "public"."Goal" FOR SELECT USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'read'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4744,8 +5379,8 @@ CREATE POLICY "Users can view household investment transactions" ON "public"."In
 
 
 
-CREATE POLICY "Users can view household members" ON "public"."HouseholdMemberNew" FOR SELECT USING ((("householdId" IN ( SELECT "get_user_household_ids"."household_id"
-   FROM "public"."get_user_household_ids"() "get_user_household_ids"("household_id"))) OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household members" ON "public"."HouseholdMember" FOR SELECT USING ((("householdId" IN ( SELECT "get_user_household_ids"."household_id"
+   FROM "public"."get_user_household_ids"() "get_user_household_ids"("household_id"))) OR ("userId" = "auth"."uid"())));
 
 
 
@@ -4756,7 +5391,7 @@ CREATE POLICY "Users can view household orders" ON "public"."Order" FOR SELECT U
 
 
 
-CREATE POLICY "Users can view household planned payments" ON "public"."PlannedPayment" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household planned payments" ON "public"."PlannedPayment" FOR SELECT USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'read'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4768,7 +5403,7 @@ CREATE POLICY "Users can view household positions" ON "public"."Position" FOR SE
 
 
 
-CREATE POLICY "Users can view household service subscriptions" ON "public"."UserServiceSubscription" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household service subscriptions" ON "public"."UserServiceSubscription" FOR SELECT USING ((("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
@@ -4784,14 +5419,14 @@ CREATE POLICY "Users can view household subscriptions" ON "public"."Subscription
 
 
 
-CREATE POLICY "Users can view household transactions" ON "public"."Transaction" FOR SELECT USING (("public"."can_access_household_data"("householdId", 'read'::"text") OR ("userId" = ( SELECT "auth"."uid"() AS "uid"))));
+CREATE POLICY "Users can view household transactions" ON "public"."Transaction" FOR SELECT USING ((((("householdId" IS NOT NULL) AND "public"."can_access_household_data"("householdId", 'read'::"text")) OR ("userId" = "auth"."uid"())) AND ("deletedAt" IS NULL)));
 
 
 
-CREATE POLICY "Users can view own and household member profiles" ON "public"."User" FOR SELECT USING ((("id" = ( SELECT "auth"."uid"() AS "uid")) OR ("id" IN ( SELECT "HouseholdMemberNew"."userId"
-   FROM "public"."HouseholdMemberNew"
-  WHERE (("HouseholdMemberNew"."householdId" IN ( SELECT "get_user_household_ids"."household_id"
-           FROM "public"."get_user_household_ids"() "get_user_household_ids"("household_id"))) AND ("HouseholdMemberNew"."status" = 'active'::"text"))))));
+CREATE POLICY "Users can view own and household member profiles" ON "public"."User" FOR SELECT USING ((("id" = ( SELECT "auth"."uid"() AS "uid")) OR ("id" IN ( SELECT "HouseholdMember"."userId"
+   FROM "public"."HouseholdMember"
+  WHERE (("HouseholdMember"."householdId" IN ( SELECT "get_user_household_ids"."household_id"
+           FROM "public"."get_user_household_ids"() "get_user_household_ids"("household_id"))) AND ("HouseholdMember"."status" = 'active'::"text"))))));
 
 
 
@@ -4834,6 +5469,9 @@ CREATE POLICY "Users cannot delete own profile" ON "public"."User" FOR DELETE US
 
 
 
+ALTER TABLE "public"."audit_log" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."category_learning" ENABLE ROW LEVEL SECURITY;
 
 
@@ -4853,6 +5491,12 @@ GRANT ALL ON FUNCTION "public"."are_users_in_same_household"("p_user1_id" "uuid"
 
 
 
+GRANT ALL ON FUNCTION "public"."audit_table_changes"() TO "anon";
+GRANT ALL ON FUNCTION "public"."audit_table_changes"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."audit_table_changes"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."can_access_account_via_accountowner"("p_account_id" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."can_access_account_via_accountowner"("p_account_id" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."can_access_account_via_accountowner"("p_account_id" "text") TO "service_role";
@@ -4862,6 +5506,12 @@ GRANT ALL ON FUNCTION "public"."can_access_account_via_accountowner"("p_account_
 GRANT ALL ON FUNCTION "public"."can_access_household_data"("p_household_id" "uuid", "p_operation" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."can_access_household_data"("p_household_id" "uuid", "p_operation" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."can_access_household_data"("p_household_id" "uuid", "p_operation" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."can_access_record"("p_table_name" "text", "p_record_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."can_access_record"("p_table_name" "text", "p_record_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."can_access_record"("p_table_name" "text", "p_record_id" "text") TO "service_role";
 
 
 
@@ -4878,18 +5528,19 @@ GRANT ALL ON FUNCTION "public"."check_invitation_email_match"("invitation_email"
 
 GRANT ALL ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned_payment_id" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned_payment_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."convert_planned_payment_to_transaction"("p_planned_payment_id" "text") TO "anon";
 
 
 
-GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp without time zone, "p_updated_at" timestamp without time zone, "p_max_transactions" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp with time zone, "p_updated_at" timestamp with time zone, "p_max_transactions" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp with time zone, "p_updated_at" timestamp with time zone, "p_max_transactions" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_transaction_with_limit"("p_id" "text", "p_date" "date", "p_type" "text", "p_amount" numeric, "p_account_id" "text", "p_user_id" "uuid", "p_category_id" "text", "p_subcategory_id" "text", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_expense_type" "text", "p_created_at" timestamp with time zone, "p_updated_at" timestamp with time zone, "p_max_transactions" integer) TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "anon";
-GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "authenticated";
-GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_recurring" boolean, "p_max_transactions" integer) TO "service_role";
+GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_max_transactions" integer) TO "anon";
+GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_max_transactions" integer) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."create_transfer_with_limit"("p_user_id" "uuid", "p_from_account_id" "text", "p_to_account_id" "text", "p_amount" numeric, "p_date" "date", "p_description" "text", "p_description_search" "text", "p_is_recurring" boolean, "p_max_transactions" integer) TO "service_role";
 
 
 
@@ -4907,6 +5558,12 @@ GRANT ALL ON FUNCTION "public"."get_account_user_id"("p_account_id" "text") TO "
 
 GRANT ALL ON FUNCTION "public"."get_latest_updates"("p_user_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."get_latest_updates"("p_user_id" "uuid") TO "authenticated";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_or_create_default_personal_household"("p_user_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."get_or_create_default_personal_household"("p_user_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_or_create_default_personal_household"("p_user_id" "uuid") TO "service_role";
 
 
 
@@ -4972,9 +5629,21 @@ GRANT ALL ON FUNCTION "public"."is_household_member"("p_household_id" "uuid") TO
 
 
 
+GRANT ALL ON FUNCTION "public"."is_not_deleted"("p_table_name" "text", "p_record_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."is_not_deleted"("p_table_name" "text", "p_record_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."is_not_deleted"("p_table_name" "text", "p_record_id" "text") TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."prevent_emergency_fund_deletion"() TO "anon";
 GRANT ALL ON FUNCTION "public"."prevent_emergency_fund_deletion"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."prevent_emergency_fund_deletion"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."raise_error_with_code"("p_error_code" "text", "p_additional_info" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."raise_error_with_code"("p_error_code" "text", "p_additional_info" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."raise_error_with_code"("p_error_code" "text", "p_additional_info" "text") TO "service_role";
 
 
 
@@ -5085,8 +5754,8 @@ GRANT ALL ON TABLE "public"."Household" TO "service_role";
 
 
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."HouseholdMemberNew" TO "authenticated";
-GRANT ALL ON TABLE "public"."HouseholdMemberNew" TO "service_role";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."HouseholdMember" TO "authenticated";
+GRANT ALL ON TABLE "public"."HouseholdMember" TO "service_role";
 
 
 
@@ -5221,8 +5890,18 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."UserServiceSubscription" TO
 
 
 
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."audit_log" TO "authenticated";
+GRANT ALL ON TABLE "public"."audit_log" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."category_learning" TO "service_role";
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."category_learning" TO "authenticated";
+
+
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."error_codes" TO "authenticated";
+GRANT ALL ON TABLE "public"."error_codes" TO "service_role";
 
 
 

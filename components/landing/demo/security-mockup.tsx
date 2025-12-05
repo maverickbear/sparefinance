@@ -7,7 +7,7 @@ export function SecurityMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[280px] space-y-3">
         {/* Security Badge */}
-        <div className="bg-card  rounded-xl p-6  text-center">
+        <div className="bg-card border border-border rounded-xl p-6 text-center">
           <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
             <Shield className="w-8 h-8 text-green-600" />
           </div>

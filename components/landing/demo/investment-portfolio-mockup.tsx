@@ -7,7 +7,7 @@ export function InvestmentPortfolioMockup() {
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="w-full max-w-[280px]">
         {/* Portfolio Card */}
-        <div className="bg-card rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold">Total Portfolio</p>
             <TrendingUp className="w-4 h-4 text-green-600" />

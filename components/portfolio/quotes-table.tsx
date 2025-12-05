@@ -113,7 +113,7 @@ export function QuotesTable() {
             </div>
           </div>
         ) : (
-          <div className="rounded-[12px] border overflow-x-auto">
+          <div className="rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

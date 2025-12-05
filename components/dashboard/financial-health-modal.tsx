@@ -111,7 +111,7 @@ export function FinancialHealthModal({
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="space-y-6">
           {/* Score Overview */}
-          <div className="flex items-center justify-between p-6 rounded-[12px] bg-card">
+          <div className="flex items-center justify-between p-6 rounded-lg bg-card">
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline gap-2">
                 <span className={cn("text-2xl font-semibold", getScoreColor(data.score))}>
@@ -151,7 +151,7 @@ export function FinancialHealthModal({
               Monthly Income vs Expenses
             </h3>
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-[12px] bg-card">
+              <div className="p-4 rounded-lg bg-card">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -173,7 +173,7 @@ export function FinancialHealthModal({
                 </p>
               </div>
 
-              <div className="p-4 rounded-[12px] bg-card">
+              <div className="p-4 rounded-lg bg-card">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -197,7 +197,7 @@ export function FinancialHealthModal({
             </div>
 
             {/* Net Amount and Savings Rate */}
-            <div className="p-4 rounded-[12px] bg-card">
+            <div className="p-4 rounded-lg bg-card">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   {data.netAmount >= 0 ? (
@@ -221,11 +221,11 @@ export function FinancialHealthModal({
                     <div
                       className={cn(
                         "h-full transition-all",
-                        data.savingsRate >= 50 ? "bg-green-500 dark:bg-green-600" :
-                        data.savingsRate >= 30 ? "bg-blue-500 dark:bg-blue-600" :
-                        data.savingsRate >= 20 ? "bg-yellow-500 dark:bg-yellow-600" :
-                        data.savingsRate >= 10 ? "bg-orange-500 dark:bg-orange-600" :
-                        data.savingsRate >= 0 ? "bg-orange-300 dark:bg-orange-500" : "bg-red-500 dark:bg-red-600"
+                        data.savingsRate >= 50 ? "bg-sentiment-positive dark:bg-sentiment-positive" :
+                        data.savingsRate >= 30 ? "bg-interactive-primary dark:bg-interactive-primary" :
+                        data.savingsRate >= 20 ? "bg-sentiment-warning dark:bg-sentiment-warning" :
+                        data.savingsRate >= 10 ? "bg-sentiment-warning dark:bg-sentiment-warning" :
+                        data.savingsRate >= 0 ? "bg-sentiment-warning/70 dark:bg-sentiment-warning/70" : "bg-sentiment-negative dark:bg-sentiment-negative"
                       )}
                       style={{ width: `${Math.min(Math.max(data.savingsRate, -100), 100) + 100}%` }}
                     />
@@ -254,7 +254,7 @@ export function FinancialHealthModal({
                   <div
                     key={alert.id}
                     className={cn(
-                      "p-4 rounded-[12px] border",
+                      "p-4 rounded-lg border",
                       alert.severity === "critical"
                         ? "bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800"
                         : alert.severity === "warning"
@@ -294,7 +294,7 @@ export function FinancialHealthModal({
                   <div
                     key={suggestion.id}
                     className={cn(
-                      "p-4 rounded-[12px] border",
+                      "p-4 rounded-lg border",
                       getImpactColor(suggestion.impact)
                     )}
                   >

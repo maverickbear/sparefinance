@@ -12,7 +12,7 @@ interface TrialWidgetProps {
   planName?: string | null;
 }
 
-function calculateTrialDaysRemaining(trialEndDate: string | null | undefined): number {
+export function calculateTrialDaysRemaining(trialEndDate: string | null | undefined): number {
   if (!trialEndDate) return 0;
   const endDate = new Date(trialEndDate);
   const now = new Date();
@@ -21,7 +21,7 @@ function calculateTrialDaysRemaining(trialEndDate: string | null | undefined): n
   return Math.max(0, diffDays);
 }
 
-function calculateTrialProgress(
+export function calculateTrialProgress(
   trialStartDate: string | null | undefined, 
   trialEndDate: string | null | undefined,
   daysRemaining?: number
@@ -146,7 +146,7 @@ export function TrialWidget({
     if (onUpgrade) {
       onUpgrade();
     } else {
-      router.push("/settings?tab=billing");
+      router.push("/settings/billing");
     }
   };
 
@@ -203,7 +203,4 @@ export function TrialWidget({
     </div>
   );
 }
-
-// Export helper functions for use in other components
-export { calculateTrialDaysRemaining, calculateTrialProgress };
 

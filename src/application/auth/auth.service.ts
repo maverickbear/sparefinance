@@ -436,9 +436,9 @@ export class AuthService {
       return;
     }
 
-    // Create HouseholdMemberNew using service role (bypasses RLS)
+    // Create HouseholdMember using service role (bypasses RLS)
     const { error: memberError } = await serviceRoleClient
-      .from("HouseholdMemberNew")
+      .from("HouseholdMember")
       .insert({
         householdId: household.id,
         userId: userId,

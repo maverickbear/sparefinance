@@ -82,7 +82,7 @@ export class SubscriptionsService {
         // If household subscription, invalidate all household members
         if (sub.householdId) {
           const { data: members } = await supabase
-            .from("HouseholdMemberNew")
+            .from("HouseholdMember")
             .select("userId")
             .eq("householdId", sub.householdId)
             .eq("status", "active");
@@ -525,13 +525,24 @@ export class SubscriptionsService {
       logger.debug("[SubscriptionsService] Checking user's own subscription as fallback", { userId });
       const subscriptionRow = await this.repository.findByUserId(userId);
       if (subscriptionRow) {
-        subscription = SubscriptionsMapper.subscriptionToDomain(subscriptionRow);
-        logger.debug("[SubscriptionsService] Found user's own subscription", {
-          subscriptionId: subscription.id,
-          planId: subscription.planId,
-          status: subscription.status,
-          userId,
-        });
+        // Check if subscription is paused in Stripe
+        const pauseStatus = await this.isSubscriptionPaused(userId);
+        if (pauseStatus.isPaused && pauseStatus.pausedReason === "household_member") {
+          // Subscription is paused because user is a household member
+          // Don't use this subscription - user should use household/owner subscription instead
+          logger.debug("[SubscriptionsService] User's subscription is paused (household_member), ignoring", {
+            subscriptionId: subscriptionRow.id,
+            userId,
+          });
+        } else {
+          subscription = SubscriptionsMapper.subscriptionToDomain(subscriptionRow);
+          logger.debug("[SubscriptionsService] Found user's own subscription", {
+            subscriptionId: subscription.id,
+            planId: subscription.planId,
+            status: subscription.status,
+            userId,
+          });
+        }
       } else {
         logger.debug("[SubscriptionsService] No subscription found for user", { userId });
       }
@@ -590,6 +601,192 @@ export class SubscriptionsService {
       plansCacheTimestamp = Date.now();
     } catch (error) {
       logger.error("[SubscriptionsService] Error refreshing plans cache:", error);
+    }
+  }
+
+  /**
+   * Pause user's personal subscription (e.g., when joining household with subscription)
+   * Pauses collection in Stripe but keeps subscription active
+   */
+  async pauseUserSubscription(userId: string, reason: string, metadata?: Record<string, string>): Promise<{
+    paused: boolean;
+    error?: string;
+  }> {
+    try {
+      // Get user's personal subscription (by userId, not householdId)
+      const subscriptionRow = await this.repository.findByUserId(userId);
+      
+      if (!subscriptionRow || !subscriptionRow.stripeSubscriptionId) {
+        // No subscription to pause
+        return { paused: true };
+      }
+
+      // Check if subscription is already paused
+      try {
+        const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
+        const stripe = getStripeClient();
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        
+        if (stripeSubscription.pause_collection) {
+          // Already paused
+          logger.debug("[SubscriptionsService] Subscription already paused:", subscriptionRow.stripeSubscriptionId);
+          return { paused: true };
+        }
+      } catch (stripeError) {
+        logger.error("[SubscriptionsService] Error checking subscription pause status:", stripeError);
+        // Continue to try pausing anyway
+      }
+
+      // Pause subscription in Stripe
+      try {
+        const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
+        const stripe = getStripeClient();
+        
+        // Get existing subscription to preserve metadata
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const existingMetadata = stripeSubscription.metadata || {};
+        
+        const updateData: any = {
+          pause_collection: {
+            behavior: "keep_as_draft",
+          },
+          metadata: {
+            ...existingMetadata,
+            pausedReason: reason,
+            pausedAt: new Date().toISOString(),
+            ...metadata,
+          },
+        };
+
+        await stripe.subscriptions.update(subscriptionRow.stripeSubscriptionId, updateData);
+        logger.debug("[SubscriptionsService] Paused Stripe subscription:", {
+          subscriptionId: subscriptionRow.stripeSubscriptionId,
+          reason,
+        });
+      } catch (stripeError) {
+        logger.error("[SubscriptionsService] Error pausing Stripe subscription:", stripeError);
+        return { paused: false, error: "Failed to pause subscription in Stripe" };
+      }
+
+      // Invalidate cache
+      this.invalidateSubscriptionCache(userId);
+
+      return { paused: true };
+    } catch (error) {
+      logger.error("[SubscriptionsService] Error in pauseUserSubscription:", error);
+      return { paused: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+  }
+
+  /**
+   * Resume user's personal subscription (e.g., when leaving household)
+   * Removes pause_collection in Stripe
+   */
+  async resumeUserSubscription(userId: string): Promise<{
+    resumed: boolean;
+    error?: string;
+  }> {
+    try {
+      // Get user's personal subscription (by userId, not householdId)
+      const subscriptionRow = await this.repository.findByUserId(userId);
+      
+      if (!subscriptionRow || !subscriptionRow.stripeSubscriptionId) {
+        // No subscription to resume
+        return { resumed: true };
+      }
+
+      // Check if subscription is paused
+      try {
+        const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
+        const stripe = getStripeClient();
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        
+        if (!stripeSubscription.pause_collection) {
+          // Not paused
+          logger.debug("[SubscriptionsService] Subscription not paused:", subscriptionRow.stripeSubscriptionId);
+          return { resumed: true };
+        }
+      } catch (stripeError) {
+        logger.error("[SubscriptionsService] Error checking subscription pause status:", stripeError);
+        // Continue to try resuming anyway
+      }
+
+      // Resume subscription in Stripe
+      try {
+        const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
+        const stripe = getStripeClient();
+        
+        const updateData: any = {
+          pause_collection: null,
+        };
+
+        // Remove pause metadata
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const metadata = { ...stripeSubscription.metadata };
+        delete metadata.pausedReason;
+        delete metadata.pausedAt;
+        delete metadata.pausedByHouseholdId;
+        
+        if (Object.keys(metadata).length > 0) {
+          updateData.metadata = metadata;
+        } else {
+          // If no metadata left, set to empty object to clear it
+          updateData.metadata = {};
+        }
+
+        await stripe.subscriptions.update(subscriptionRow.stripeSubscriptionId, updateData);
+        logger.debug("[SubscriptionsService] Resumed Stripe subscription:", subscriptionRow.stripeSubscriptionId);
+      } catch (stripeError) {
+        logger.error("[SubscriptionsService] Error resuming Stripe subscription:", stripeError);
+        return { resumed: false, error: "Failed to resume subscription in Stripe" };
+      }
+
+      // Invalidate cache
+      this.invalidateSubscriptionCache(userId);
+
+      return { resumed: true };
+    } catch (error) {
+      logger.error("[SubscriptionsService] Error in resumeUserSubscription:", error);
+      return { resumed: false, error: error instanceof Error ? error.message : "Unknown error" };
+    }
+  }
+
+  /**
+   * Check if user's subscription is paused
+   */
+  async isSubscriptionPaused(userId: string): Promise<{
+    isPaused: boolean;
+    pausedReason?: string;
+    pausedAt?: string;
+  }> {
+    try {
+      const subscriptionRow = await this.repository.findByUserId(userId);
+      
+      if (!subscriptionRow || !subscriptionRow.stripeSubscriptionId) {
+        return { isPaused: false };
+      }
+
+      try {
+        const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
+        const stripe = getStripeClient();
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        
+        const isPaused = !!stripeSubscription.pause_collection;
+        const pausedReason = stripeSubscription.metadata?.pausedReason;
+        const pausedAt = stripeSubscription.metadata?.pausedAt;
+
+        return {
+          isPaused,
+          pausedReason,
+          pausedAt,
+        };
+      } catch (stripeError) {
+        logger.error("[SubscriptionsService] Error checking subscription pause status:", stripeError);
+        return { isPaused: false };
+      }
+    } catch (error) {
+      logger.error("[SubscriptionsService] Error in isSubscriptionPaused:", error);
+      return { isPaused: false };
     }
   }
 

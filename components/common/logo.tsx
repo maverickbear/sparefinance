@@ -97,8 +97,8 @@ export function Logo({
   // Default dimensions based on variant
   const defaultDimensions = {
     icon: { width: 40, height: 40 },
-    wordmark: { width: 150, height: 40 },
-    full: { width: 180, height: 40 },
+    wordmark: { width: 200, height: 53 },
+    full: { width: 240, height: 53 },
   };
 
   const finalWidth = width ?? defaultDimensions[variant].width;

@@ -14,7 +14,6 @@ import {
 import { Edit, Trash2, ChevronRight, ChevronDown, X, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { CategoryDialog } from "@/components/categories/category-dialog";
-import { GroupDialog } from "@/components/categories/group-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,17 +44,14 @@ export function CategoriesModule() {
   const { checkWriteAccess, canWrite } = useWriteGuard();
   const { openDialog: openDeleteCategoryDialog, ConfirmDialog: DeleteCategoryConfirmDialog } = useConfirmDialog();
   const { openDialog: openDeleteSubcategoryDialog, ConfirmDialog: DeleteSubcategoryConfirmDialog } = useConfirmDialog();
-  const { openDialog: openDeleteGroupDialog, ConfirmDialog: DeleteGroupConfirmDialog } = useConfirmDialog();
   const [categories, setCategories] = useState<Category[]>([]);
   const [macros, setMacros] = useState<Macro[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [deletingSubcategoryId, setDeletingSubcategoryId] = useState<string | null>(null);
-  const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -77,10 +73,17 @@ export function CategoriesModule() {
     }
   }
 
-  async function loadData() {
+  async function loadData(forceRefresh = false) {
     try {
       // OPTIMIZED: Single API call to get both groups and categories using v2 API route
-      const response = await fetch("/api/v2/categories?consolidated=true");
+      // Add cache-busting parameter if forceRefresh is true
+      const url = forceRefresh 
+        ? `/api/v2/categories?consolidated=true&_t=${Date.now()}`
+        : "/api/v2/categories?consolidated=true";
+      
+      const response = await fetch(url, {
+        cache: forceRefresh ? 'no-store' : 'default',
+      });
       if (!response.ok) {
         throw new Error("Failed to fetch categories data");
       }
@@ -129,28 +132,16 @@ export function CategoriesModule() {
       });
     });
     
-    // For user groups, only initialize macros that:
-    // 1. Are created by the user (userId !== null && userId === currentUserId), OR
-    // 2. Have at least one category created by the user
+    // For user groups, only initialize system macros that have at least one user-created category
+    // Users cannot create groups, so all groups are system groups (userId IS NULL)
     const userMacroIds = new Set<string>();
     
-    // Add macros created by the user
-    macros
-      .filter((macro) => macro.userId !== null && (currentUserId ? macro.userId === currentUserId : false))
-      .forEach((macro) => {
-        userMacroIds.add(macro.id);
-        userGroupsMap.set(macro.id, {
-          macro,
-          categories: [],
-        });
-      });
-    
-    // Add macros that have at least one user-created category
+    // Add system macros that have at least one user-created category
     userCategoriesWithFilteredSubcategories.forEach((category) => {
       const macroId = category.groupId;
       if (!macroId) return;
       if (!userMacroIds.has(macroId)) {
-        // Find the macro (could be system macro or user macro)
+        // Find the macro (must be a system macro since users can't create groups)
         const macro = macros.find((m) => m.id === macroId);
         if (macro) {
           userMacroIds.add(macroId);
@@ -325,57 +316,6 @@ export function CategoriesModule() {
     );
   }
 
-  function handleDeleteGroup(macroId: string) {
-    if (!checkWriteAccess()) return;
-    openDeleteGroupDialog(
-      {
-        title: "Delete Group",
-        description: "Are you sure you want to delete this group? This will also delete all associated categories and subcategories.",
-        variant: "destructive",
-        confirmLabel: "Delete",
-      },
-      async () => {
-        const groupToDelete = macros.find(m => m.id === macroId);
-        
-        // Optimistic update: remove from UI immediately
-        setMacros(prev => prev.filter(m => m.id !== macroId));
-        setDeletingGroupId(macroId);
-
-        try {
-          const response = await fetch(`/api/v2/categories/groups/${macroId}`, {
-            method: "DELETE",
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Failed to delete group");
-          }
-          
-          toast({
-            title: "Group deleted",
-            description: "Your group has been deleted successfully.",
-            variant: "success",
-          });
-          
-          loadData();
-        } catch (error) {
-          logger.error("Error deleting group:", error);
-          // Revert optimistic update on error
-          if (groupToDelete) {
-            setMacros(prev => [...prev, groupToDelete]);
-          }
-          const errorMessage = error instanceof Error ? error.message : "Failed to delete group";
-          toast({
-            title: "Error",
-            description: errorMessage,
-            variant: "destructive",
-          });
-        } finally {
-          setDeletingGroupId(null);
-        }
-      }
-    );
-  }
 
   return (
     <div className="w-full">
@@ -394,14 +334,6 @@ export function CategoriesModule() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                if (!checkWriteAccess()) return;
-                setIsGroupDialogOpen(true);
-              }}
-            >
-              Create Group
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 if (!checkWriteAccess()) return;
@@ -452,25 +384,6 @@ export function CategoriesModule() {
                                 </p>
                               </div>
                             </div>
-                            {group.macro.userId !== null && (currentUserId ? group.macro.userId === currentUserId : false) && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => {
-                                  if (!checkWriteAccess()) return;
-                                  handleDeleteGroup(group.macro.id);
-                                }}
-                                title="Delete group"
-                                disabled={deletingGroupId === group.macro.id}
-                              >
-                                {deletingGroupId === group.macro.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
                           </div>
                           
                           {isExpanded && (
@@ -571,7 +484,7 @@ export function CategoriesModule() {
               </div>
 
               {/* Desktop Table View */}
-              <div className="hidden lg:block rounded-[12px] border overflow-x-auto">
+              <div className="hidden lg:block rounded-lg border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -616,29 +529,7 @@ export function CategoriesModule() {
                                 ? "subcategory"
                                 : "subcategories"}
                             </TableCell>
-                            <TableCell>
-                              {group.macro.userId !== null && (currentUserId ? group.macro.userId === currentUserId : false) && (
-                                <div className="flex space-x-1 md:space-x-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 md:h-10 md:w-10"
-                                    onClick={() => {
-                                      if (!checkWriteAccess()) return;
-                                      handleDeleteGroup(group.macro.id);
-                                    }}
-                                    title="Delete group"
-                                    disabled={deletingGroupId === group.macro.id}
-                                  >
-                                    {deletingGroupId === group.macro.id ? (
-                                      <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                                    )}
-                                  </Button>
-                                </div>
-                              )}
-                            </TableCell>
+                            <TableCell></TableCell>
                           </TableRow>
                           
                           {/* Categories rows (shown when expanded) */}
@@ -750,7 +641,7 @@ export function CategoriesModule() {
               </div>
             </>
           ) : (
-            <div className="rounded-[12px] border p-12">
+            <div className="rounded-lg border p-12">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
                   No custom categories found
@@ -813,14 +704,8 @@ export function CategoriesModule() {
           }
         }}
       />
-      <GroupDialog
-        open={isGroupDialogOpen}
-        onOpenChange={setIsGroupDialogOpen}
-        onSuccess={loadData}
-      />
       {DeleteCategoryConfirmDialog}
       {DeleteSubcategoryConfirmDialog}
-      {DeleteGroupConfirmDialog}
       </div>
     </div>
   );
