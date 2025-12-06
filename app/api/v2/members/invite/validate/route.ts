@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { makeMembersService } from "@/src/application/members/members.factory";
 import { AppError } from "@/src/application/shared/app-error";
 
@@ -8,6 +9,9 @@ import { AppError } from "@/src/application/shared/app-error";
  * This endpoint can be called without authentication
  */
 export async function GET(request: NextRequest) {
+  // Opt out of static generation - this route uses searchParams
+  noStore();
+  
   try {
     // Use nextUrl.searchParams for NextRequest (avoids prerendering issues)
     const searchParams = request.nextUrl.searchParams;
