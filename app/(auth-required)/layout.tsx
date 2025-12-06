@@ -8,7 +8,6 @@ import { verifyUserExists } from "@/lib/utils/verify-user-exists";
  * Auth Required Layout
  * 
  * This layout protects routes that require authentication but not subscription.
- * Examples: /welcome
  * 
  * It verifies:
  * 1. User is authenticated

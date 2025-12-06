@@ -35,7 +35,6 @@ export default function robots(): MetadataRoute.Robots {
           "/account-blocked",
           "/account-deleted",
           "/maintenance",
-          "/welcome",
         ],
       },
       {
@@ -61,7 +60,6 @@ export default function robots(): MetadataRoute.Robots {
           "/account-blocked",
           "/account-deleted",
           "/maintenance",
-          "/welcome",
         ],
         crawlDelay: 0,
       },
@@ -88,7 +86,6 @@ export default function robots(): MetadataRoute.Robots {
           "/account-blocked",
           "/account-deleted",
           "/maintenance",
-          "/welcome",
         ],
         crawlDelay: 1,
       },

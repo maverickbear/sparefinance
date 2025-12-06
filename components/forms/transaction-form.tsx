@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { transactionSchema, TransactionFormData } from "@/src/domain/transactions/transactions.validations";
@@ -287,6 +287,10 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
     },
   });
 
+  // Watch form values to sync with local state (must be declared before useEffects that use them)
+  const formCategoryId = useWatch({ control: form.control, name: "categoryId" });
+  const formType = useWatch({ control: form.control, name: "type" });
+
   // Update form default value when date is available
   useEffect(() => {
     if (defaultDate && !transaction) {
@@ -461,14 +465,14 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
     if (open) {
       loadAllCategories();
     }
-  }, [open, form.watch("type")]);
+  }, [open, formType]);
 
   // Load available groups when form opens, type changes, or add category dialog opens
   useEffect(() => {
     if (open) {
       loadAvailableGroups();
     }
-  }, [open, form.watch("type"), showAddCategoryDialog]);
+  }, [open, formType, showAddCategoryDialog]);
 
   // Load subcategories when category is selected
   useEffect(() => {
@@ -480,19 +484,15 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
     }
   }, [selectedCategoryId, open]);
 
-  // Keep form.categoryId in sync with selectedCategoryId
+  // Keep form.categoryId in sync with selectedCategoryId (one-way: state -> form)
   useEffect(() => {
-    if (open && form.watch("type") !== "transfer") {
-      const formCategoryId = form.watch("categoryId");
+    if (open && formType !== "transfer") {
+      // Only sync from state to form, not the other way around to avoid loops
       if (selectedCategoryId && selectedCategoryId !== "" && formCategoryId !== selectedCategoryId) {
-        form.setValue("categoryId", selectedCategoryId, { shouldValidate: false });
-      } else if (!selectedCategoryId && formCategoryId) {
-        // If form has categoryId but state doesn't, sync state from form
-        setSelectedCategoryId(formCategoryId);
+        form.setValue("categoryId", selectedCategoryId, { shouldValidate: false, shouldDirty: false });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategoryId, open]);
+  }, [selectedCategoryId, open, formType, formCategoryId, form]);
 
   async function loadData() {
     try {
@@ -969,35 +969,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         </DialogHeader>
 
         <form 
-          onSubmit={(e) => {
-            console.log("[TransactionForm] Form submit event", { 
-              formState: form.formState,
-              errors: form.formState.errors,
-              values: form.getValues()
-            });
-            e.preventDefault();
-            form.handleSubmit(onSubmit, (errors) => {
-              console.log("[TransactionForm] Validation errors", errors);
-              
-              // Build detailed error message
-              const errorMessages = Object.entries(errors).map(([field, error]) => {
-                if (error && 'message' in error) {
-                  return `${field}: ${error.message}`;
-                }
-                return `${field}: Invalid value`;
-              });
-              
-              const errorMessage = errorMessages.length > 0 
-                ? errorMessages.join(', ')
-                : "Please check the form fields and try again.";
-              
-              toast({
-                title: "Validation Error",
-                description: errorMessage,
-                variant: "destructive",
-              });
-            })(e);
-          }} 
+          onSubmit={form.handleSubmit(onSubmit)} 
           className="flex flex-col flex-1 overflow-hidden"
         >
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
@@ -1687,27 +1659,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                 disabled={isSubmitting}
                 onClick={(e) => {
                   e.preventDefault();
-                  form.handleSubmit(onSubmitAndNew, (errors) => {
-                    console.log("[TransactionForm] Validation errors", errors);
-                    
-                    // Build detailed error message
-                    const errorMessages = Object.entries(errors).map(([field, error]) => {
-                      if (error && 'message' in error) {
-                        return `${field}: ${error.message}`;
-                      }
-                      return `${field}: Invalid value`;
-                    });
-                    
-                    const errorMessage = errorMessages.length > 0 
-                      ? errorMessages.join(', ')
-                      : "Please check the form fields and try again.";
-                    
-                    toast({
-                      title: "Validation Error",
-                      description: errorMessage,
-                      variant: "destructive",
-                    });
-                  })();
+                  form.handleSubmit(onSubmitAndNew)();
                 }}
               >
                 {isSubmitting ? (

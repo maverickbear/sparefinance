@@ -1,7 +1,15 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 export function SimpleFooter() {
-  const currentYear = new Date().getFullYear();
+  const [currentYear, setCurrentYear] = useState(2024);
+  
+  useEffect(() => {
+    // Only access Date on client side after mount
+    setCurrentYear(new Date().getFullYear());
+  }, []);
 
   return (
     <footer className="border-t border-border bg-muted/50 py-8">
