@@ -798,17 +798,17 @@ export function PlannedPaymentList() {
                         </TableCell>
                         <TableCell className="text-xs md:text-sm hidden lg:table-cell">
                           {payment.source === "debt" && (
-                            <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            <span className="text-xs px-2 py-1 rounded bg-interactive-primary/10 text-interactive-primary">
                               Debt
                             </span>
                           )}
                           {payment.source === "recurring" && (
-                            <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            <span className="text-xs px-2 py-1 rounded bg-interactive-primary/10 text-interactive-primary">
                               Recurring
                             </span>
                           )}
                           {payment.source === "subscription" && (
-                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <span className="text-xs px-2 py-1 rounded bg-sentiment-positive/10 text-sentiment-positive">
                               Subscription
                             </span>
                           )}
@@ -948,12 +948,12 @@ export function PlannedPaymentList() {
                         </TableCell>
                         <TableCell className="text-xs md:text-sm hidden lg:table-cell">
                           {payment.source === "recurring" && (
-                            <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            <span className="text-xs px-2 py-1 rounded bg-interactive-primary/10 text-interactive-primary">
                               Recurring
                             </span>
                           )}
                           {payment.source === "subscription" && (
-                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <span className="text-xs px-2 py-1 rounded bg-sentiment-positive/10 text-sentiment-positive">
                               Subscription
                             </span>
                           )}
@@ -1096,12 +1096,12 @@ export function PlannedPaymentList() {
                         </TableCell>
                         <TableCell className="text-xs md:text-sm hidden lg:table-cell">
                           {payment.source === "recurring" && (
-                            <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            <span className="text-xs px-2 py-1 rounded bg-interactive-primary/10 text-interactive-primary">
                               Recurring
                             </span>
                           )}
                           {payment.source === "subscription" && (
-                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <span className="text-xs px-2 py-1 rounded bg-sentiment-positive/10 text-sentiment-positive">
                               Subscription
                             </span>
                           )}

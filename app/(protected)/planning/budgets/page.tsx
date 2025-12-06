@@ -320,8 +320,8 @@ export default function BudgetsPage() {
 
   function getStatusColor(status?: "ok" | "warning" | "over") {
     if (status === "over") return "bg-destructive";
-    if (status === "warning") return "bg-yellow-500 dark:bg-yellow-600";
-    return "bg-green-500 dark:bg-green-600";
+    if (status === "warning") return "bg-sentiment-warning";
+    return "bg-sentiment-positive";
   }
 
   function getStatusTextColor(status?: "ok" | "warning" | "over") {

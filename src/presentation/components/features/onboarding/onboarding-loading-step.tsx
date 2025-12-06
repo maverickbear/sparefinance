@@ -455,7 +455,7 @@ export function OnboardingLoadingStep({
               step.status === "loading"
                 ? "bg-primary/10"
                 : step.status === "success"
-                ? "bg-green-500/10"
+                ? "bg-sentiment-positive/10"
                 : step.status === "error"
                 ? "bg-destructive/10"
                 : "bg-muted/50"

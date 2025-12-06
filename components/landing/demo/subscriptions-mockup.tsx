@@ -10,8 +10,8 @@ export function SubscriptionsMockup() {
         <div className="bg-card border border-border rounded-lg p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center">
-                <Repeat className="w-3 h-3 text-blue-600" />
+              <div className="w-6 h-6 rounded bg-interactive-primary/10 flex items-center justify-center">
+                <Repeat className="w-3 h-3 text-interactive-primary" />
               </div>
               <div>
                 <p className="text-sm font-semibold">Netflix</p>
@@ -26,8 +26,8 @@ export function SubscriptionsMockup() {
         <div className="bg-card border border-border rounded-lg p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-green-100 flex items-center justify-center">
-                <Repeat className="w-3 h-3 text-green-600" />
+              <div className="w-6 h-6 rounded bg-sentiment-positive/10 flex items-center justify-center">
+                <Repeat className="w-3 h-3 text-sentiment-positive" />
               </div>
               <div>
                 <p className="text-sm font-semibold">Spotify</p>

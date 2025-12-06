@@ -881,9 +881,9 @@ export default function SubscriptionsPage() {
               detectedSubscriptions.map((detected, index) => {
                 const isSelected = selectedDetectedSubscriptions.has(index.toString());
                 const confidenceColors = {
-                  high: "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400",
-                  medium: "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400",
-                  low: "bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400",
+                  high: "bg-sentiment-positive/10 text-sentiment-positive",
+                  medium: "bg-sentiment-warning/10 text-sentiment-warning",
+                  low: "bg-sentiment-warning/10 text-sentiment-warning",
                 };
                 
                 return (

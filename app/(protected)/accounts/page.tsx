@@ -550,7 +550,7 @@ export default function AccountsPage() {
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             {account.isConnected && (
-                              <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-xs w-fit">
+                              <Badge variant="default" className="bg-sentiment-positive text-white text-xs w-fit">
                                 Connected
                               </Badge>
                             )}

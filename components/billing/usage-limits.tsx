@@ -66,9 +66,9 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               <div
                 className={`h-2 rounded-full transition-all ${
                   isAtLimit(transactionLimit)
-                    ? "bg-red-500"
+                    ? "bg-sentiment-negative"
                     : isNearLimit(transactionLimit)
-                    ? "bg-yellow-500"
+                    ? "bg-sentiment-warning"
                     : "bg-primary"
                 }`}
                 style={{ width: `${getProgress(transactionLimit)}%` }}
@@ -107,9 +107,9 @@ export function UsageLimits({ limits, transactionLimit, accountLimit }: UsageLim
               <div
                 className={`h-2 rounded-full transition-all ${
                   isAtLimit(accountLimit)
-                    ? "bg-red-500"
+                    ? "bg-sentiment-negative"
                     : isNearLimit(accountLimit)
-                    ? "bg-yellow-500"
+                    ? "bg-sentiment-warning"
                     : "bg-primary"
                 }`}
                 style={{ width: `${getProgress(accountLimit)}%` }}

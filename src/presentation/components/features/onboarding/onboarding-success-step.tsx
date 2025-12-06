@@ -41,8 +41,8 @@ export function OnboardingSuccessStep({
   return (
     <div className="flex flex-col items-center justify-center py-8 px-4">
       <div className="flex justify-center mb-6">
-        <div className="rounded-full bg-green-100 dark:bg-green-900 p-3">
-          <CheckCircle2 className="w-12 h-12 text-green-600 dark:text-green-400" />
+        <div className="rounded-full bg-sentiment-positive/10 p-3">
+          <CheckCircle2 className="w-12 h-12 text-sentiment-positive" />
         </div>
       </div>
 

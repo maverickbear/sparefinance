@@ -516,21 +516,21 @@ export function FeaturePromotionWidget({ featureName }: FeaturePromotionWidgetPr
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <div className="w-2 h-2 rounded-full bg-sentiment-positive"></div>
                 <span>TD Canada Trust</span>
               </div>
               <span className="text-muted-foreground">2 accounts</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <div className="w-2 h-2 rounded-full bg-sentiment-positive"></div>
                 <span>RBC Royal Bank</span>
               </div>
               <span className="text-muted-foreground">1 account</span>
             </div>
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <div className="w-2 h-2 rounded-full bg-sentiment-positive"></div>
                 <span>CIBC</span>
               </div>
               <span className="text-muted-foreground">1 account</span>

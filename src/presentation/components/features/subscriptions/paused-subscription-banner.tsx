@@ -55,8 +55,8 @@ export function PausedSubscriptionBanner({ isSidebarCollapsed = false }: PausedS
       variant="default"
       className={cn(
         "w-full rounded-none border-0",
-        "bg-blue-50 dark:bg-blue-900/20",
-        "border-blue-200 dark:border-blue-800",
+        "bg-interactive-primary/10",
+        "border-interactive-primary/30",
         "text-foreground"
       )}
     >

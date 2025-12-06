@@ -102,7 +102,7 @@ export function PaymentHistory({ className }: PaymentHistoryProps) {
     const statusInfo = statusMap[status] || { label: status, variant: "outline" as const };
     
     return (
-      <Badge variant={statusInfo.variant} className="text-xs bg-green-500 text-white hover:bg-green-600">
+      <Badge variant={statusInfo.variant} className="text-xs bg-sentiment-positive text-white hover:bg-sentiment-positive">
         {statusInfo.label}
       </Badge>
     );

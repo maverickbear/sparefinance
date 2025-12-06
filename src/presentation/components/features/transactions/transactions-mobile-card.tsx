@@ -148,15 +148,23 @@ function getCategoryIcon(categoryName: string | null | undefined) {
 }
 
 // Helper function to get color for avatar based on category
-function getCategoryColor(categoryName: string | null | undefined): string {
-  if (!categoryName) return "bg-gray-500";
+// Returns a style object with backgroundColor for inline styles
+function getCategoryColorStyle(categoryName: string | null | undefined): React.CSSProperties {
+  if (!categoryName) return { backgroundColor: "#6b7280" }; // gray-500
   const colors = [
-    "bg-green-500", "bg-blue-500", "bg-purple-500", "bg-pink-500",
-    "bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-indigo-500",
-    "bg-teal-500", "bg-cyan-500"
+    "#10b981", // green-500
+    "#3b82f6", // blue-500
+    "#8b5cf6", // purple-500
+    "#ec4899", // pink-500
+    "#ef4444", // red-500
+    "#f97316", // orange-500
+    "#eab308", // yellow-500
+    "#6366f1", // indigo-500
+    "#14b8a6", // teal-500
+    "#06b6d4"  // cyan-500
   ];
   const hash = categoryName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[hash % colors.length];
+  return { backgroundColor: colors[hash % colors.length] };
 }
 
 export function TransactionsMobileCard({
@@ -189,10 +197,10 @@ export function TransactionsMobileCard({
         <div className="flex items-center gap-3">
           {/* Avatar - Category Icon */}
           <div className="flex-shrink-0">
-            <div className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center text-white",
-              getCategoryColor(categoryName)
-            )}>
+            <div 
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white"
+              style={getCategoryColorStyle(categoryName)}
+            >
               <CategoryIcon className="h-5 w-5" />
             </div>
           </div>
@@ -227,7 +235,7 @@ export function TransactionsMobileCard({
                     <Button
                       variant="outline"
                       size="icon"
-                  className="h-8 w-8 rounded-[8px] border-red-300 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="h-8 w-8 rounded-[8px] border-sentiment-negative/30 text-sentiment-negative hover:text-sentiment-negative hover:bg-sentiment-negative/10"
                       onClick={(e) => {
                         e.stopPropagation();
                         onRejectSuggestion();
@@ -245,7 +253,7 @@ export function TransactionsMobileCard({
                     <Button
                       variant="outline"
                       size="icon"
-                  className="h-8 w-8 rounded-[8px] border-green-300 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  className="h-8 w-8 rounded-[8px] border-sentiment-positive/30 text-sentiment-positive hover:text-sentiment-positive hover:bg-sentiment-positive/10"
                       onClick={(e) => {
                         e.stopPropagation();
                         onApplySuggestion();

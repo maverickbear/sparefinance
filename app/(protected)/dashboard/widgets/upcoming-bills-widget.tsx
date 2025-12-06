@@ -55,12 +55,12 @@ export function UpcomingBillsWidget({
                         {transaction.description || transaction.category?.name || "Transaction"}
                       </div>
                       {isExpense && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sentiment-negative/10 text-sentiment-negative">
                           Expense
                         </span>
                       )}
                       {isIncome && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sentiment-positive/10 text-sentiment-positive">
                           Income
                         </span>
                       )}

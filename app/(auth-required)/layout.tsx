@@ -4,6 +4,9 @@ import { unstable_noStore as noStore } from "next/cache";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 
+// Force dynamic rendering - this route requires authentication and should not be statically generated
+export const dynamic = 'force-dynamic';
+
 /**
  * Auth Required Layout
  * 

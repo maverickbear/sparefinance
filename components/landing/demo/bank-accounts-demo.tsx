@@ -87,7 +87,7 @@ export function BankAccountsDemo() {
                     {account.type}
                   </Badge>
                   {account.isConnected && (
-                    <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-xs">
+                    <Badge variant="default" className="bg-sentiment-positive text-white text-xs">
                       Connected
                     </Badge>
                   )}
@@ -100,8 +100,8 @@ export function BankAccountsDemo() {
                     <div className={cn(
                       "text-2xl font-bold",
                       account.balance >= 0 
-                        ? "text-green-600 dark:text-green-400" 
-                        : "text-red-600 dark:text-red-400"
+                        ? "text-sentiment-positive" 
+                        : "text-sentiment-negative"
                     )}>
                       {formatMoney(account.balance)}
                     </div>
@@ -119,8 +119,8 @@ export function BankAccountsDemo() {
                         <div className={cn(
                           "text-sm font-semibold",
                           available !== null && available >= 0
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
+                            ? "text-sentiment-positive"
+                            : "text-sentiment-negative"
                         )}>
                           {available !== null ? formatMoney(available) : "-"}
                         </div>

@@ -71,9 +71,9 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
     .slice(0, 3);
 
   const priorityColors = {
-    High: "bg-red-500 dark:bg-red-600 hover:bg-red-500 dark:hover:bg-red-600",
-    Medium: "bg-yellow-500 dark:bg-yellow-600 hover:bg-yellow-500 dark:hover:bg-yellow-600",
-    Low: "bg-blue-500 dark:bg-blue-600 hover:bg-blue-500 dark:hover:bg-blue-600",
+    High: "bg-sentiment-negative hover:bg-sentiment-negative",
+    Medium: "bg-sentiment-warning hover:bg-sentiment-warning",
+    Low: "bg-interactive-primary hover:bg-interactive-primary",
   };
 
   return (

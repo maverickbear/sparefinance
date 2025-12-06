@@ -108,7 +108,7 @@ export function ImportStatusBanner() {
     .filter((name, index, self) => self.indexOf(name) === index); // Unique names
 
   return (
-    <Alert className="mb-4 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+    <Alert className="mb-4 border-interactive-primary/30 bg-interactive-primary/10">
       <div className="flex items-start gap-3">
         <div className="flex-shrink-0 mt-0.5">
           <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin" />

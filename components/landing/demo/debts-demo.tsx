@@ -57,11 +57,11 @@ const getLoanTypeLabel = (type: string) => {
 const getPriorityColor = (priority: string) => {
   switch (priority) {
     case "High":
-      return "bg-red-500 dark:bg-red-600 text-white";
+      return "bg-sentiment-negative text-white";
     case "Medium":
-      return "bg-yellow-500 dark:bg-yellow-600 text-white";
+      return "bg-sentiment-warning text-white";
     case "Low":
-      return "bg-blue-500 dark:bg-blue-600 text-white";
+      return "bg-interactive-primary text-white";
     default:
       return "bg-gray-500 text-white";
   }
@@ -99,7 +99,7 @@ export function DebtsDemo() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Current Balance</span>
-                      <span className="font-semibold text-red-600 dark:text-red-400">
+                      <span className="font-semibold text-sentiment-negative">
                         {formatMoney(debt.currentBalance)}
                       </span>
                     </div>
@@ -151,7 +151,7 @@ export function DebtsDemo() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Current Balance</span>
-                      <span className="font-semibold text-red-600 dark:text-red-400">
+                      <span className="font-semibold text-sentiment-negative">
                         {formatMoney(debt.currentBalance)}
                       </span>
                     </div>

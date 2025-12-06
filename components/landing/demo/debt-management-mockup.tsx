@@ -10,12 +10,12 @@ export function DebtManagementMockup() {
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                <CreditCard className="w-4 h-4 text-red-600" />
+              <div className="w-8 h-8 rounded-lg bg-sentiment-negative/10 flex items-center justify-center">
+                <CreditCard className="w-4 h-4 text-sentiment-negative" />
               </div>
               <p className="text-sm font-semibold">Credit Card</p>
             </div>
-            <TrendingDown className="w-4 h-4 text-green-600" />
+            <TrendingDown className="w-4 h-4 text-sentiment-positive" />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -27,9 +27,9 @@ export function DebtManagementMockup() {
               <span className="text-muted-foreground line-through">$5,000</span>
             </div>
             <div className="w-full bg-muted rounded-full h-2 mt-2">
-              <div className="bg-green-600 h-2 rounded-full" style={{ width: "30%" }} />
+              <div className="bg-sentiment-positive h-2 rounded-full" style={{ width: "30%" }} />
             </div>
-            <p className="text-xs text-green-600 font-medium mt-1">30% paid off</p>
+            <p className="text-xs text-sentiment-positive font-medium mt-1">30% paid off</p>
           </div>
         </div>
       </div>

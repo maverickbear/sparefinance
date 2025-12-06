@@ -58,7 +58,7 @@ export function ReconnectAccountDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="rounded-lg border border-orange-500/50 bg-orange-500/10 p-4 space-y-3">
+          <div className="rounded-lg border border-sentiment-warning/50 bg-sentiment-warning/10 p-4 space-y-3">
             <p className="text-sm font-medium text-foreground">
               Why do I need to reconnect?
             </p>

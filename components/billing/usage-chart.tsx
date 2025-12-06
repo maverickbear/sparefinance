@@ -57,7 +57,7 @@ export function UsageChart({ limits, transactionLimit, accountLimit }: UsageChar
           {/* Always show the bar, even if unlimited or 0 */}
           <div className="w-full h-4 bg-muted rounded-lg overflow-hidden relative">
             <div 
-              className="bg-blue-500 h-full transition-all"
+              className="bg-interactive-primary h-full transition-all"
               style={{ width: `${Math.min(transactionUsagePercentage, 100)}%` }}
             />
           </div>

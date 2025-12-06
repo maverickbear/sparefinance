@@ -114,8 +114,8 @@ export function ImportProgress({ jobIds, onComplete }: ImportProgressProps) {
   if (!hasActiveJobs && !hasFailedJobs) {
     // All jobs completed successfully
     return (
-      <Alert className="mb-4 border-green-200 bg-green-50">
-        <CheckCircle2 className="h-4 w-4 text-green-600" />
+      <Alert className="mb-4 border-sentiment-positive/30 bg-sentiment-positive/10">
+        <CheckCircle2 className="h-4 w-4 text-sentiment-positive" />
         <AlertDescription className="text-green-800">
           Import completed successfully! {allJobs.reduce((sum, j) => sum + (j.syncedItems || 0), 0)} transactions imported.
         </AlertDescription>

@@ -185,7 +185,7 @@ export function AccountCard({
             </div>
           )}
           {account.isConnected && (
-            <Badge variant="default" className="bg-green-600 dark:bg-green-500 text-white text-sm px-1.5 py-0.5">
+            <Badge variant="default" className="bg-sentiment-positive text-white text-sm px-1.5 py-0.5">
               Connected
             </Badge>
           )}

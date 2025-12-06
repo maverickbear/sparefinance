@@ -223,11 +223,11 @@ export function BudgetsTab() {
                 <p className="text-sm font-medium text-muted-foreground">Status</p>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    <div className="h-2 w-2 rounded-full bg-green-500" />
+                    <div className="h-2 w-2 rounded-full bg-sentiment-positive" />
                     <span className="text-sm">{budgetsOnTrack}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                    <div className="h-2 w-2 rounded-full bg-sentiment-warning" />
                     <span className="text-sm">{budgetsWarning}</span>
                   </div>
                   <div className="flex items-center gap-1">

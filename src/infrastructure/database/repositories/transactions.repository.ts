@@ -243,29 +243,33 @@ export class TransactionsRepository {
   }): Promise<TransactionRow> {
     const supabase = await createServerClient();
 
+    // Filter out plaidMetadata if the column doesn't exist in the database
+    // This prevents errors when the column is not in the schema
+    const { plaidMetadata, ...insertData } = data;
+
     const { data: transaction, error } = await supabase
       .from("Transaction")
       .insert({
-        id: data.id,
-        date: data.date,
-        type: data.type,
-        amount: data.amount,
-        accountId: data.accountId,
-        categoryId: data.categoryId ?? null,
-        subcategoryId: data.subcategoryId ?? null,
-        description: data.description ?? null,
-        isRecurring: data.isRecurring ?? false,
-        expenseType: data.expenseType ?? null,
-        transferToId: data.transferToId ?? null,
-        transferFromId: data.transferFromId ?? null,
-        userId: data.userId,
-        householdId: data.householdId,
-        suggestedCategoryId: data.suggestedCategoryId ?? null,
-        suggestedSubcategoryId: data.suggestedSubcategoryId ?? null,
-        plaidMetadata: data.plaidMetadata ?? null,
-        receiptUrl: data.receiptUrl ?? null,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
+        id: insertData.id,
+        date: insertData.date,
+        type: insertData.type,
+        amount: insertData.amount,
+        accountId: insertData.accountId,
+        categoryId: insertData.categoryId ?? null,
+        subcategoryId: insertData.subcategoryId ?? null,
+        description: insertData.description ?? null,
+        isRecurring: insertData.isRecurring ?? false,
+        expenseType: insertData.expenseType ?? null,
+        transferToId: insertData.transferToId ?? null,
+        transferFromId: insertData.transferFromId ?? null,
+        userId: insertData.userId,
+        householdId: insertData.householdId,
+        suggestedCategoryId: insertData.suggestedCategoryId ?? null,
+        suggestedSubcategoryId: insertData.suggestedSubcategoryId ?? null,
+        // plaidMetadata column doesn't exist in database, so we skip it
+        receiptUrl: insertData.receiptUrl ?? null,
+        createdAt: insertData.createdAt,
+        updatedAt: insertData.updatedAt,
       })
       .select()
       .single();
@@ -302,12 +306,19 @@ export class TransactionsRepository {
   ): Promise<TransactionRow> {
     const supabase = await createServerClient();
 
+    // Filter out plaidMetadata if the column doesn't exist in the database
+    // This prevents errors when the column is not in the schema
+    const { plaidMetadata, ...updateData } = data;
+    
     const { data: transaction, error } = await supabase
       .from("Transaction")
-      .update(data)
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
+    
+    // Note: plaidMetadata is intentionally excluded from updates
+    // as the column doesn't exist in the database schema
 
     if (error) {
       logger.error("[TransactionsRepository] Error updating transaction:", error);

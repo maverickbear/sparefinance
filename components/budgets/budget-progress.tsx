@@ -20,8 +20,8 @@ export function BudgetProgress({
 }: BudgetProgressProps) {
   const getStatusColor = () => {
     if (status === "over") return "bg-destructive";
-    if (status === "warning") return "bg-yellow-500 dark:bg-yellow-600";
-    return "bg-green-500 dark:bg-green-600";
+    if (status === "warning") return "bg-sentiment-warning";
+    return "bg-sentiment-positive";
   };
 
   const clampedPercentage = Math.min(percentage, 100);
@@ -36,8 +36,8 @@ export function BudgetProgress({
           className={cn(
             "font-semibold",
             status === "over" && "text-destructive",
-            status === "warning" && "text-yellow-600 dark:text-yellow-400",
-            status === "ok" && "text-green-600 dark:text-green-400"
+            status === "warning" && "text-sentiment-warning",
+            status === "ok" && "text-sentiment-positive"
           )}
         >
           {percentage.toFixed(1)}%

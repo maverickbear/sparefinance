@@ -2089,9 +2089,9 @@ export default function TransactionsPage() {
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <span className={`rounded-lg px-1.5 md:px-2 py-0.5 md:py-1 text-[10px] md:text-xs ${
-                      tx.type === "income" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
-                      tx.type === "expense" ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" :
-                      "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                      tx.type === "income" ? "bg-sentiment-positive/10 text-sentiment-positive" :
+                      tx.type === "expense" ? "bg-sentiment-negative/10 text-sentiment-negative" :
+                      "bg-interactive-primary/10 text-interactive-primary"
                     }`}>
                       {tx.type}
                     </span>
@@ -2129,7 +2129,7 @@ export default function TransactionsPage() {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-6 w-6 rounded-[8px] bg-white border border-border text-red-600 hover:text-red-700 hover:bg-red-50 dark:bg-white dark:hover:bg-red-50"
+                          className="h-6 w-6 rounded-[8px] bg-white border border-border text-sentiment-negative hover:text-sentiment-negative hover:bg-sentiment-negative/10 dark:bg-white dark:hover:bg-sentiment-negative/10"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRejectSuggestion(tx.id);
@@ -2146,7 +2146,7 @@ export default function TransactionsPage() {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-6 w-6 rounded-[8px] bg-white border border-border text-green-600 hover:text-green-700 hover:bg-green-50 dark:bg-white dark:hover:bg-green-50"
+                          className="h-6 w-6 rounded-[8px] bg-white border border-border text-sentiment-positive hover:text-sentiment-positive hover:bg-sentiment-positive/10 dark:bg-white dark:hover:bg-sentiment-positive/10"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleApplySuggestion(tx.id);

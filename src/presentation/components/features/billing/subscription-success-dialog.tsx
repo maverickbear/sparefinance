@@ -173,8 +173,8 @@ export function SubscriptionSuccessDialog({
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-green-100 dark:bg-green-900 p-3">
-              <CheckCircle2 className="w-12 h-12 text-green-600 dark:text-green-400" />
+            <div className="rounded-full bg-sentiment-positive/10 p-3">
+              <CheckCircle2 className="w-12 h-12 text-sentiment-positive" />
             </div>
           </div>
           <DialogTitle className="text-2xl mb-2">

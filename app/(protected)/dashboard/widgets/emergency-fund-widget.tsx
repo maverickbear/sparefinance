@@ -53,8 +53,8 @@ export function EmergencyFundWidget({
               <div
                 className={cn(
                   "h-full transition-all",
-                  progressPercentage >= 100 ? "bg-green-500" :
-                  progressPercentage >= 50 ? "bg-yellow-500" : "bg-red-500"
+                  progressPercentage >= 100 ? "bg-sentiment-positive" :
+                  progressPercentage >= 50 ? "bg-sentiment-warning" : "bg-sentiment-negative"
                 )}
                 style={{ width: `${Math.min(progressPercentage, 100)}%` }}
               />

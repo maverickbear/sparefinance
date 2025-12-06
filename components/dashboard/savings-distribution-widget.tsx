@@ -298,8 +298,8 @@ export function SavingsDistributionWidget({
             <span className={cn(
               "text-2xl font-semibold",
               hasSavings 
-                ? "text-green-600 dark:text-green-400"
-                : "text-orange-600 dark:text-orange-400"
+                ? "text-sentiment-positive"
+                : "text-sentiment-warning"
             )}>
               {formatMoney(hasSavings ? savings : potentialSavings)}
             </span>
@@ -327,9 +327,9 @@ export function SavingsDistributionWidget({
                           <Badge
                             variant="default"
                             className={cn(
-                              goal.priority === "High" && "bg-red-500 dark:bg-red-600",
-                              goal.priority === "Medium" && "bg-yellow-500 dark:bg-yellow-600",
-                              goal.priority === "Low" && "bg-blue-500 dark:bg-blue-600"
+                              goal.priority === "High" && "bg-sentiment-negative",
+                              goal.priority === "Medium" && "bg-sentiment-warning",
+                              goal.priority === "Low" && "bg-interactive-primary"
                             )}
                           >
                             {goal.priority}
@@ -349,7 +349,7 @@ export function SavingsDistributionWidget({
                 </div>
                 <Button
                   onClick={handleOpenDistributionDialog}
-                  className="w-full bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+                  className="w-full bg-sentiment-positive hover:bg-sentiment-positive dark:bg-sentiment-positive dark:hover:bg-sentiment-positive"
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
                   Distribute Automatically
@@ -394,9 +394,9 @@ export function SavingsDistributionWidget({
                             <Badge
                               variant="default"
                               className={cn(
-                                goal.priority === "High" && "bg-red-500 dark:bg-red-600",
-                                goal.priority === "Medium" && "bg-yellow-500 dark:bg-yellow-600",
-                                goal.priority === "Low" && "bg-blue-500 dark:bg-blue-600"
+                                goal.priority === "High" && "bg-sentiment-negative",
+                                goal.priority === "Medium" && "bg-sentiment-warning",
+                                goal.priority === "Low" && "bg-interactive-primary"
                               )}
                             >
                               {goal.priority}
@@ -448,9 +448,9 @@ export function SavingsDistributionWidget({
                         <Badge
                           variant="default"
                           className={cn(
-                            goal.priority === "High" && "bg-red-500 dark:bg-red-600",
-                            goal.priority === "Medium" && "bg-yellow-500 dark:bg-yellow-600",
-                            goal.priority === "Low" && "bg-blue-500 dark:bg-blue-600"
+                            goal.priority === "High" && "bg-sentiment-negative",
+                            goal.priority === "Medium" && "bg-sentiment-warning",
+                            goal.priority === "Low" && "bg-interactive-primary"
                           )}
                         >
                           {goal.priority}
@@ -483,7 +483,7 @@ export function SavingsDistributionWidget({
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">New balance</span>
-                        <span className="font-medium text-green-600 dark:text-green-400">
+                        <span className="font-medium text-sentiment-positive">
                           {formatMoney(goal.currentBalance + amount)}
                         </span>
                       </div>
@@ -502,8 +502,8 @@ export function SavingsDistributionWidget({
                   Math.abs(
                     Object.values(distributionAmounts).reduce((sum, val) => sum + val, 0) - savings
                   ) > 0.01
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-green-600 dark:text-green-400"
+                    ? "text-sentiment-negative"
+                    : "text-sentiment-positive"
                 )}
               >
                 {formatMoney(
@@ -532,7 +532,7 @@ export function SavingsDistributionWidget({
                   Object.values(distributionAmounts).reduce((sum, val) => sum + val, 0) - savings
                 ) > 0.01
               }
-              className="bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+              className="bg-sentiment-positive hover:bg-sentiment-positive dark:bg-sentiment-positive dark:hover:bg-sentiment-positive"
             >
               {isDistributing ? (
                 <>
