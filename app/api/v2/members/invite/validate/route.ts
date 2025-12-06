@@ -8,8 +8,6 @@ import { AppError } from "@/src/application/shared/app-error";
  * Validate an invitation token
  * This endpoint can be called without authentication
  */
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
   // Opt out of static generation - this route uses searchParams
   noStore();
