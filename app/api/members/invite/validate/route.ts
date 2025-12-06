@@ -3,6 +3,8 @@ import { unstable_noStore as noStore } from "next/cache";
 import { makeMembersService } from "@/src/application/members/members.factory";
 import { AppError } from "@/src/application/shared/app-error";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   // Opt out of static generation - this route uses request.url
   noStore();

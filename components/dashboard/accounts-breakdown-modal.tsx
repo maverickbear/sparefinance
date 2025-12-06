@@ -56,11 +56,11 @@ export function AccountsBreakdownModal({
   const getAccountTypeColor = (type: string) => {
     switch (type) {
       case "checking":
-        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800";
+        return "bg-blue-100 dark:bg-blue-900/30 text-primary border-blue-200 dark:border-blue-800";
       case "savings":
-        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800";
+        return "bg-green-100 dark:bg-green-900/30 text-sentiment-positive border-green-200 dark:border-green-800";
       case "credit":
-        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800";
+        return "bg-red-100 dark:bg-red-900/30 text-sentiment-negative border-red-200 dark:border-red-800";
       case "investment":
         return "bg-primary/10 dark:bg-primary/30 text-primary dark:text-primary border-primary/20 dark:border-primary/30";
       default:
@@ -103,13 +103,13 @@ export function AccountsBreakdownModal({
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Balance</p>
                 <div className="flex items-center gap-2">
                   {totalBalance >= 0 ? (
-                    <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <TrendingUp className="h-5 w-5 text-sentiment-positive" />
                   ) : (
-                    <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <TrendingDown className="h-5 w-5 text-sentiment-negative" />
                   )}
                   <p className={cn(
                     "text-3xl font-bold tabular-nums",
-                    totalBalance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    totalBalance >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
                   )}>
                     {formatMoney(totalBalance)}
                   </p>
@@ -144,7 +144,7 @@ export function AccountsBreakdownModal({
                   <p className="text-xs font-medium text-muted-foreground mb-1">Household Total</p>
                   <p className={cn(
                     "text-2xl font-bold tabular-nums",
-                    total >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    total >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
                   )}>
                     {formatMoney(total)}
                   </p>
@@ -184,8 +184,8 @@ export function AccountsBreakdownModal({
                         <p className={cn(
                           "text-base font-bold tabular-nums",
                           account.balance >= 0 
-                            ? "text-green-600 dark:text-green-400" 
-                            : "text-red-600 dark:text-red-400"
+                            ? "text-sentiment-positive" 
+                            : "text-sentiment-negative"
                         )}>
                           {formatMoney(account.balance)}
                         </p>

@@ -6,6 +6,8 @@ import { AppError } from "@/src/application/shared/app-error";
  * GET /api/subscription-services/plans
  * Get active plans for a subscription service (public endpoint)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

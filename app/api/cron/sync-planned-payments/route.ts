@@ -13,6 +13,8 @@ import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-
  * 
  * Security: Requires Vercel Cron header or CRON_SECRET
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     // Security: Check for cron authentication

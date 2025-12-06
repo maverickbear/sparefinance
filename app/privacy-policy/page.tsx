@@ -14,6 +14,8 @@ export const metadata = {
   description: "Privacy Policy for Spare Finance",
 };
 
+export const dynamic = 'force-dynamic';
+
 export default async function PrivacyPolicyPage() {
   // Fetch plans to get dynamic plan names
   const subscriptionsService = makeSubscriptionsService();

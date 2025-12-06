@@ -6,8 +6,12 @@ import { SpareScoreInsightsPage } from "./insights-content";
 import { PageHeader } from "@/components/common/page-header";
 import { Loader2 } from "lucide-react";
 import { recalculateFinancialHealthFromTransactions } from "@/src/application/shared/financial-health";
+import { cookies } from "next/headers";
 
 async function InsightsContent() {
+  // Access request data (cookies) first to unlock Date usage during prerendering
+  await cookies();
+  
   const selectedMonthDate = startOfMonth(new Date());
   const startDate = startOfMonth(selectedMonthDate);
   const endDate = endOfMonth(selectedMonthDate);

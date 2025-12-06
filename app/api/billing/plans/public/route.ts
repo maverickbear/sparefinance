@@ -6,6 +6,8 @@ import { AppError } from "@/src/application/shared/app-error";
  * Public endpoint to fetch plans without authentication
  * Used for landing page pricing section
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const service = makeSubscriptionsService();

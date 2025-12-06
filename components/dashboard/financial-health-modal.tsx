@@ -52,37 +52,37 @@ export function FinancialHealthModal({
   const getClassificationColor = (classification: string) => {
     switch (classification) {
       case "Excellent":
-        return "text-green-600 dark:text-green-400";
+        return "text-sentiment-positive";
       case "Good":
-        return "text-green-600 dark:text-green-400";
+        return "text-sentiment-positive";
       case "Fair":
-        return "text-yellow-600 dark:text-yellow-400";
+        return "text-sentiment-warning";
       case "Poor":
-        return "text-orange-600 dark:text-orange-400";
+        return "text-sentiment-warning";
       case "Critical":
-        return "text-red-600 dark:text-red-400";
+        return "text-sentiment-negative";
       default:
         return "text-muted-foreground";
     }
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 91) return "text-green-600 dark:text-green-400"; // Excellent
-    if (score >= 81) return "text-green-600 dark:text-green-400"; // Good
-    if (score >= 71) return "text-yellow-600 dark:text-yellow-400"; // Fair
-    if (score >= 61) return "text-orange-600 dark:text-orange-400"; // Poor
-    return "text-red-600 dark:text-red-400"; // Critical
+    if (score >= 91) return "text-sentiment-positive"; // Excellent
+    if (score >= 81) return "text-sentiment-positive"; // Good
+    if (score >= 71) return "text-sentiment-warning"; // Fair
+    if (score >= 61) return "text-sentiment-warning"; // Poor
+    return "text-sentiment-negative"; // Critical
   };
 
 
   const getAlertIcon = (severity: string) => {
     switch (severity) {
       case "critical":
-        return <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />;
+        return <AlertTriangle className="h-5 w-5 text-sentiment-negative" />;
       case "warning":
-        return <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />;
+        return <AlertTriangle className="h-5 w-5 text-sentiment-warning" />;
       default:
-        return <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+        return <Info className="h-5 w-5 text-primary" />;
     }
   };
 
@@ -137,7 +137,7 @@ export function FinancialHealthModal({
               <p className="text-sm text-muted-foreground">Net Amount</p>
               <p className={cn(
                 "text-2xl font-semibold",
-                data.netAmount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                data.netAmount >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
               )}>
                 {formatMoney(data.netAmount)}
               </p>
@@ -154,16 +154,16 @@ export function FinancialHealthModal({
               <div className="p-4 rounded-lg bg-card">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <TrendingUp className="h-4 w-4 text-sentiment-positive" />
                     <span className="text-sm font-medium">Monthly Income</span>
                   </div>
                 </div>
-                <p className="text-2xl font-semibold text-green-600 dark:text-green-400">
+                <p className="text-2xl font-semibold text-sentiment-positive">
                   {formatMoney(data.monthlyIncome)}
                 </p>
                 <p className={`text-xs mt-1 ${
                   hasLastMonthIncome && incomeMomChange !== null
-                    ? incomeMomChange >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    ? incomeMomChange >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
                     : "text-muted-foreground"
                 }`}>
                   {hasLastMonthIncome && incomeMomChange !== null
@@ -176,11 +176,11 @@ export function FinancialHealthModal({
               <div className="p-4 rounded-lg bg-card">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+                    <TrendingDown className="h-4 w-4 text-sentiment-negative" />
                     <span className="text-sm font-medium">Monthly Expenses</span>
                   </div>
                 </div>
-                <p className="text-2xl font-semibold text-red-600 dark:text-red-400">
+                <p className="text-2xl font-semibold text-sentiment-negative">
                   {formatMoney(data.monthlyExpenses)}
                 </p>
                 <p className={`text-xs mt-1 ${

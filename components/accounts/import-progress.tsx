@@ -116,7 +116,7 @@ export function ImportProgress({ jobIds, onComplete }: ImportProgressProps) {
     return (
       <Alert className="mb-4 border-green-200 bg-green-50">
         <CheckCircle2 className="h-4 w-4 text-green-600" />
-        <AlertDescription className="text-green-800">
+        <AlertDescription className="text-sentiment-positive">
           Import completed successfully! {allJobs.reduce((sum, j) => sum + (j.syncedItems || 0), 0)} transactions imported.
         </AlertDescription>
       </Alert>
@@ -130,13 +130,13 @@ export function ImportProgress({ jobIds, onComplete }: ImportProgressProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {job.status === 'processing' && (
-                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
               )}
               {job.status === 'completed' && (
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4 text-sentiment-positive" />
               )}
               {job.status === 'failed' && (
-                <XCircle className="h-4 w-4 text-red-600" />
+                <XCircle className="h-4 w-4 text-sentiment-negative" />
               )}
               {job.status === 'pending' && (
                 <Loader2 className="h-4 w-4 text-gray-400" />

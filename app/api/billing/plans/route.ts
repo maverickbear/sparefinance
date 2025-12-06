@@ -13,6 +13,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   typescript: true,
 });
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   console.log("[API/BILLING/PLANS] GET request received");
   try {

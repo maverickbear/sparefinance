@@ -31,15 +31,15 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
   const getClassificationColor = (classification: string) => {
     switch (classification) {
       case "Excellent":
-        return "text-green-600 dark:text-green-400";
+        return "text-sentiment-positive";
       case "Good":
-        return "text-green-600 dark:text-green-400";
+        return "text-sentiment-positive";
       case "Fair":
-        return "text-yellow-600 dark:text-yellow-400";
+        return "text-sentiment-warning";
       case "Poor":
-        return "text-orange-600 dark:text-orange-400";
+        return "text-sentiment-warning";
       case "Critical":
-        return "text-red-600 dark:text-red-400";
+        return "text-sentiment-negative";
       default:
         return "text-muted-foreground";
     }
@@ -63,21 +63,21 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 91) return "text-green-600 dark:text-green-400"; // Excellent
-    if (score >= 81) return "text-green-600 dark:text-green-400"; // Good
-    if (score >= 71) return "text-yellow-600 dark:text-yellow-400"; // Fair
-    if (score >= 61) return "text-orange-600 dark:text-orange-400"; // Poor
-    return "text-red-600 dark:text-red-400"; // Critical
+    if (score >= 91) return "text-sentiment-positive"; // Excellent
+    if (score >= 81) return "text-sentiment-positive"; // Good
+    if (score >= 71) return "text-sentiment-warning"; // Fair
+    if (score >= 61) return "text-sentiment-warning"; // Poor
+    return "text-sentiment-negative"; // Critical
   };
 
   const getAlertIcon = (severity: string) => {
     switch (severity) {
       case "critical":
-        return <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />;
+        return <AlertTriangle className="h-4 w-4 text-sentiment-negative" />;
       case "warning":
-        return <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />;
+        return <AlertTriangle className="h-4 w-4 text-sentiment-warning" />;
       default:
-        return <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
+        return <Info className="h-4 w-4 text-primary" />;
     }
   };
 

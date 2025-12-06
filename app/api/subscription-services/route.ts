@@ -6,6 +6,8 @@ import { AppError } from "@/src/application/shared/app-error";
  * GET /api/subscription-services
  * Get active subscription service categories and services (public endpoint)
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const service = makeSubscriptionServicesService();
