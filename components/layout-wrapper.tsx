@@ -36,9 +36,10 @@ function useProfilePreload() {
 
 export const LayoutWrapper = memo(function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // Use safe pathname hook to avoid accessing uncached data during prerender
+  // This hook returns null during SSR/prerender, which we handle below
   const pathname = usePathnameSafe();
   // Use safe hook to avoid errors when SubscriptionProvider is not available (public pages, prerendering)
-  // This prevents "uncached data accessed" errors during build time
+  // This hook returns safe defaults during SSR/prerender
   const context = useSubscriptionSafe();
   const subscription = context.subscription;
   const checking = context.checking;
@@ -46,9 +47,11 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // Calculate fixed elements height (header + banner)
+  // This hook is safe - it only accesses DOM after mount
   useFixedElementsHeight();
   
   // Preload profile data in background
+  // This hook is safe - it only runs after mount
   useProfilePreload();
   
   // Determine route types - memoized to avoid recalculation

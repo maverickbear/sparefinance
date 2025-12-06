@@ -1,6 +1,7 @@
 import { LandingHeader } from "@/components/landing/landing-header";
 import { Wrench, Clock } from "lucide-react";
 import { makeAuthService } from "@/src/application/auth/auth.factory";
+import { unstable_noStore as noStore } from "next/cache";
 
 export const metadata = {
   title: "Maintenance - Spare Finance",
@@ -8,6 +9,9 @@ export const metadata = {
 };
 
 export default async function MaintenancePage() {
+  // Opt out of static generation - this page uses dynamic data
+  noStore();
+  
   // Check authentication status on server to show correct buttons in header
   const authService = makeAuthService();
   const user = await authService.getCurrentUser();

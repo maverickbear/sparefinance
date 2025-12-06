@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { makeSubscriptionServicesService } from "@/src/application/subscription-services/subscription-services.factory";
 import { AppError } from "@/src/application/shared/app-error";
 
@@ -6,9 +7,8 @@ import { AppError } from "@/src/application/shared/app-error";
  * GET /api/subscription-services/plans
  * Get active plans for a subscription service (public endpoint)
  */
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
+  noStore();
   try {
     const { searchParams } = new URL(request.url);
     const serviceId = searchParams.get("serviceId");

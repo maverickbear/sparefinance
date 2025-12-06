@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
@@ -13,9 +14,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   typescript: true,
 });
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
+  noStore();
   console.log("[API/BILLING/PLANS] GET request received");
   try {
     console.log("[API/BILLING/PLANS] Fetching plans");

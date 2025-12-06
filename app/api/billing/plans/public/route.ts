@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 import { AppError } from "@/src/application/shared/app-error";
 
@@ -6,9 +7,8 @@ import { AppError } from "@/src/application/shared/app-error";
  * Public endpoint to fetch plans without authentication
  * Used for landing page pricing section
  */
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
+  noStore();
   try {
     const service = makeSubscriptionsService();
     const plans = await service.getPlans();

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { LayoutWrapper } from "@/components/layout-wrapper";
+import { LayoutWrapperClient } from "@/components/layout-wrapper-client";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
 import { StripeProvider } from "@/components/stripe-provider";
@@ -85,7 +85,7 @@ export default function RootLayout({
           <ToastProvider>
             <AuthProvider>
               <BreakpointLogger />
-              <LayoutWrapper>{children}</LayoutWrapper>
+              <LayoutWrapperClient>{children}</LayoutWrapperClient>
               <KBarWrapper />
               <ServiceWorkerRegister />
               <CookieConsentBanner />

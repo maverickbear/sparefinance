@@ -10,8 +10,6 @@ import { AppError } from "@/src/application/shared/app-error";
  * 
  * OPTIMIZED: Uses Redis cache (5s TTL) + RPC function for better performance
  */
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: Request) {
   // Opt out of static generation - this route uses request.url
   noStore();

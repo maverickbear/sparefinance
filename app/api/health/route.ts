@@ -7,8 +7,6 @@ import { NextResponse } from 'next/server';
 import { unstable_noStore as noStore } from 'next/cache';
 import { performHealthCheck } from '@/lib/services/monitoring';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   noStore();
   try {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unstable_noStore as noStore } from "next/cache";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -15,9 +16,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
  * Returns customer email from Stripe checkout session
  * Used to pre-fill signup form for new users
  */
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
+  noStore();
   try {
     const searchParams = request.nextUrl.searchParams;
     const sessionId = searchParams.get("session_id");
