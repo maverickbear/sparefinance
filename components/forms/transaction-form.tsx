@@ -1662,7 +1662,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
               
               if (isFuture) {
                 return (
-                  <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                  <Alert className="bg-interactive-primary/10 border-interactive-primary/30">
                     <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
                       This transaction will be automatically saved as a <strong>Planned Payment</strong> and won't affect your current balance.

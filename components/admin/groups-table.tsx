@@ -93,8 +93,8 @@ export function GroupsTable({
                 <TableCell>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                     group.type === "income" 
-                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                      : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                      ? "bg-sentiment-positive/10 text-sentiment-positive"
+                      : "bg-sentiment-negative/10 text-sentiment-negative"
                   }`}>
                     {group.type === "income" ? "Income" : group.type === "expense" ? "Expense" : "N/A"}
                   </span>

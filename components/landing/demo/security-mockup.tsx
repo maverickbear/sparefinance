@@ -18,15 +18,15 @@ export function SecurityMockup() {
         {/* Security Features */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <CheckCircle2 className="w-4 h-4 text-sentiment-positive" />
             <span className="text-muted-foreground">SOC 2 Type 2 Certified</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <CheckCircle2 className="w-4 h-4 text-sentiment-positive" />
             <span className="text-muted-foreground">Row Level Security</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <CheckCircle2 className="w-4 h-4 text-sentiment-positive" />
             <span className="text-muted-foreground">No Credential Storage</span>
           </div>
         </div>

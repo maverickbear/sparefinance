@@ -499,7 +499,7 @@ export function UsersTable({ users: initialUsers, loading: initialLoading, searc
                           <div className="flex flex-col gap-1 pl-6">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{pending.name || pending.email || "Pending"}</span>
-                              <Badge variant="outline" className="text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                              <Badge variant="outline" className="text-xs bg-sentiment-warning/10 text-sentiment-warning">
                                 Pending
                               </Badge>
                             </div>

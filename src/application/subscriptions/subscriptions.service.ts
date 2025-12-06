@@ -255,7 +255,9 @@ export class SubscriptionsService {
     }
 
     // Try cached subscription data from User table first
-    const userCache = await this.repository.getUserSubscriptionCache(userId);
+    // Pass useServiceRole=true because this is called from within "use cache" functions
+    // which cannot access cookies()
+    const userCache = await this.repository.getUserSubscriptionCache(userId, true);
     
     if (userCache?.effectivePlanId && userCache?.effectiveSubscriptionStatus && userCache?.subscriptionUpdatedAt) {
       const subscriptionUpdatedAtTime = new Date(userCache.subscriptionUpdatedAt).getTime();

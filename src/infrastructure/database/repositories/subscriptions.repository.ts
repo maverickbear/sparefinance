@@ -222,8 +222,12 @@ export class SubscriptionsRepository {
 
   /**
    * Get user subscription cache from User table
+   * 
+   * CRITICAL: When called from within "use cache" functions, this method
+   * must use the service role client directly to avoid accessing cookies()
+   * which is not allowed inside cached functions.
    */
-  async getUserSubscriptionCache(userId: string): Promise<{
+  async getUserSubscriptionCache(userId: string, useServiceRole: boolean = false): Promise<{
     effectivePlanId: string | null;
     effectiveSubscriptionStatus: string | null;
     effectiveSubscriptionId: string | null;
@@ -235,22 +239,38 @@ export class SubscriptionsRepository {
       return null;
     }
 
-    // Try to use regular client first, but fall back to service role client
-    // if we're inside a cached function (can't access cookies) or if RLS blocks access
+    // If explicitly requested or if we're in a cache context, use service role client directly
+    // This avoids trying to access cookies() which is not allowed inside "use cache"
     let supabase;
-    try {
-      supabase = await createServerClient();
-    } catch (error: any) {
-      // If we can't access cookies (e.g., inside "use cache"), use service role client
-      // This is safe because we're only reading cached subscription data
-      const errorMessage = error?.message || '';
-      if (errorMessage.includes('use cache') || 
+    if (useServiceRole) {
+      logger.debug("[SubscriptionsRepository] Using service role client for cache lookup (explicit flag):", { userId });
+      supabase = createServiceRoleClient();
+    } else {
+      // Try to use regular client first, but fall back to service role client
+      // if we're inside a cached function (can't access cookies) or if RLS blocks access
+      try {
+        supabase = await createServerClient();
+      } catch (error: any) {
+        // If we can't access cookies (e.g., inside "use cache"), use service role client
+        // This is safe because we're only reading cached subscription data
+        const errorMessage = error?.message || '';
+        const errorString = String(error || '');
+        
+        const isCacheError = 
+          errorMessage.includes('use cache') || 
           errorMessage.includes('unstable_cache') || 
-          errorMessage.includes('Dynamic data sources')) {
-        logger.debug("[SubscriptionsRepository] Using service role client for cache lookup (inside cached function):", { userId });
-        supabase = createServiceRoleClient();
-      } else {
-        throw error;
+          errorMessage.includes('Dynamic data sources') ||
+          errorMessage.includes('cookies() inside') ||
+          errorString.includes('use cache') ||
+          errorString.includes('unstable_cache') ||
+          errorString.includes('Dynamic data sources');
+        
+        if (isCacheError) {
+          logger.debug("[SubscriptionsRepository] Using service role client for cache lookup (inside cached function):", { userId });
+          supabase = createServiceRoleClient();
+        } else {
+          throw error;
+        }
       }
     }
 

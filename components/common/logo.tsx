@@ -123,8 +123,8 @@ export function Logo({
         className={cn(
           "flex items-center justify-center rounded-lg",
           effectiveColorForFallback === "white"
-            ? "bg-purple-600 text-white"
-            : "bg-purple-100 text-purple-600",
+            ? "bg-interactive-primary text-white"
+            : "bg-interactive-primary/10 text-interactive-primary",
           className
         )}
         style={{ width: finalWidth, height: finalHeight }}

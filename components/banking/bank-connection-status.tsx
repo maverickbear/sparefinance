@@ -193,7 +193,7 @@ export function BankConnectionStatus({
       </div>
       <Badge 
         variant="outline" 
-        className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
+        className="text-xs bg-sentiment-positive/10 text-sentiment-positive border-sentiment-positive/30"
       >
         Connected
       </Badge>

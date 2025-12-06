@@ -235,7 +235,7 @@ export function TransactionsMobileCard({
                     <Button
                       variant="outline"
                       size="icon"
-                  className="h-8 w-8 rounded-[8px] border-red-300 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="h-8 w-8 rounded-[8px] border-sentiment-negative/30 text-sentiment-negative hover:text-sentiment-negative hover:bg-sentiment-negative/10"
                       onClick={(e) => {
                         e.stopPropagation();
                         onRejectSuggestion();
@@ -253,7 +253,7 @@ export function TransactionsMobileCard({
                     <Button
                       variant="outline"
                       size="icon"
-                  className="h-8 w-8 rounded-[8px] border-green-300 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  className="h-8 w-8 rounded-[8px] border-sentiment-positive/30 text-sentiment-positive hover:text-sentiment-positive hover:bg-sentiment-positive/10"
                       onClick={(e) => {
                         e.stopPropagation();
                         onApplySuggestion();

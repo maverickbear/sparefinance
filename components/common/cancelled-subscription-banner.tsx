@@ -104,7 +104,7 @@ export function CancelledSubscriptionBanner({ isSidebarCollapsed = false }: Canc
       variant="default"
       className={cn(
         "w-full rounded-none border-0",
-        "bg-purple-100 dark:bg-purple-900/30",
+        "bg-interactive-primary/10",
         "text-foreground dark:text-white"
       )}
     >

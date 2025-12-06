@@ -30,8 +30,8 @@ export function HouseholdMockup() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-blue-600" />
+              <div className="w-7 h-7 rounded-full bg-interactive-primary/10 flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-interactive-primary" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium">Jane Doe</p>
