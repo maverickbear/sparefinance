@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { checkTransactionLimit, checkAccountLimit } from "@/src/application/shared/feature-guard";
 import Stripe from "stripe";
 
@@ -29,9 +29,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Use SubscriptionsService - single source of truth
-    const subscriptionsService = makeSubscriptionsService();
-    const { subscription, plan, limits } = await subscriptionsService.getUserSubscriptionData(userId);
+    // Use cached subscription data - single source of truth
+    const { subscription, plan, limits } = await getCachedSubscriptionData(userId);
     
     // OPTIMIZATION: Fetch limits in parallel with Stripe interval check
     // This reduces total request time by doing everything in parallel

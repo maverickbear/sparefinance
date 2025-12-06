@@ -5,6 +5,17 @@
  * 
  * CRITICAL: Added in-memory cache layer to prevent duplicate calls
  * even when Next.js cache doesn't work across different contexts
+ * 
+ * NOTE: This is the main entry point for fetching subscription data.
+ * All components, pages, and API routes should use getCachedSubscriptionData()
+ * or getDashboardSubscription() instead of calling SubscriptionsService directly.
+ * 
+ * This ensures:
+ * 1. Request-level deduplication (in-memory cache, 5s TTL)
+ * 2. Next.js cache per request ("use cache" directive, 60s stale, 180s revalidate, 600s expire)
+ * 3. User table cache (10 min TTL) checked by SubscriptionsService
+ * 
+ * See SUBSCRIPTION_CACHE_INVESTIGATION.md for full details.
  */
 
 import { cacheLife, cacheTag } from "next/cache";
@@ -29,6 +40,14 @@ const CACHE_TTL = 5000; // 5 seconds
  * 
  * CRITICAL: Added request-level deduplication to prevent duplicate calls
  * even when Next.js cache doesn't work across different execution contexts
+ * 
+ * Cache strategy:
+ * 1. Check in-memory requestCache first (deduplicates concurrent calls within 5 seconds)
+ * 2. If not in memory, Next.js "use cache" directive handles per-request caching
+ * 3. Cache key: `subscription-${userId}` with tag "subscriptions"
+ * 4. Cache TTL: stale=60s, revalidate=180s, expire=600s (Next.js cache)
+ * 5. If cache miss, calls SubscriptionsService.getUserSubscriptionData(userId)
+ *    which internally checks User table cache (10 minute TTL) before full query
  */
 async function getCachedSubscriptionDataInternal(userId: string) {
   "use cache";
@@ -60,7 +79,12 @@ async function getCachedSubscriptionDataInternal(userId: string) {
     }
   }
 
-  log.debug("Computing subscription data (cache miss)", { userId });
+  log.debug("Computing subscription data (cache miss)", {
+    userId,
+    cacheKey: `subscription-${userId}`,
+    reason: "no-cache-hit",
+    store: "nextjs-cache-components",
+  });
 
   // Create new promise and cache it
   const service = makeSubscriptionsService();

@@ -17,14 +17,13 @@ import { guardTransactionLimit, throwIfNotAllowed, getCurrentUserId } from "@/sr
 import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { encryptDescription, decryptDescription, normalizeDescription, getTransactionAmount } from "@/src/infrastructure/utils/transaction-encryption";
-import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
 import { AppError } from "../shared/app-error";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 
-// Helper function to get user subscription data
+// Helper function to get user subscription data (uses cached function)
 async function getUserSubscriptionData(userId: string) {
-  const service = makeSubscriptionsService();
-  return service.getUserSubscriptionData(userId);
+  return getCachedSubscriptionData(userId);
 }
 import { suggestCategory } from "@/src/application/shared/category-learning";
 import { TransactionRow } from "@/src/infrastructure/database/repositories/transactions.repository";

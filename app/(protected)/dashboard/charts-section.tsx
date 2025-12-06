@@ -4,10 +4,12 @@ import { useMemo } from "react";
 import { GoalsOverview } from "@/components/dashboard/goals-overview";
 import { CategoryExpensesChart } from "@/components/charts/category-expenses-chart";
 import { logger } from "@/src/infrastructure/utils/logger";
+import { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
+import { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 
 interface ChartsSectionProps {
-  selectedMonthTransactions: any[];
-  goals: any[];
+  selectedMonthTransactions: TransactionWithRelations[];
+  goals: GoalWithCalculations[];
 }
 
 export function ChartsSection({ 
@@ -18,7 +20,7 @@ export function ChartsSection({
   
   log.log("Goals received:", {
     goalsCount: goals?.length || 0,
-    goals: goals?.slice(0, 3).map((g: any) => ({
+    goals: goals?.slice(0, 3).map((g: GoalWithCalculations) => ({
       id: g.id,
       name: g.name,
       targetAmount: g.targetAmount,

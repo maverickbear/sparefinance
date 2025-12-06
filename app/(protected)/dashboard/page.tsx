@@ -14,7 +14,6 @@ import { UrlCleanup } from "@/components/common/url-cleanup";
 import { startServerPagePerformance } from "@/lib/utils/performance";
 import { startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
 import { cookies } from "next/headers";
-import { DashboardSkeleton } from "./dashboard-skeleton";
 
 // Lazy load the new Financial Overview page
 const FinancialOverviewPage = nextDynamic(() => import("./financial-overview-page").then(m => ({ default: m.FinancialOverviewPage })), { ssr: true });
@@ -207,7 +206,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
-        <Suspense fallback={<DashboardSkeleton />}>
+        <Suspense fallback={null}>
           <DashboardContent 
             selectedMonthDate={selectedMonthDate}
             startDate={startDate}

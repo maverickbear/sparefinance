@@ -16,33 +16,47 @@ import { getAccountsForDashboard } from "@/src/application/accounts/get-dashboar
 import { makeDebtsService } from "@/src/application/debts/debts.factory";
 import { makeProfileService } from "@/src/application/profile/profile.factory";
 import { makeOnboardingService } from "@/src/application/onboarding/onboarding.factory";
-import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
+import { getPlannedPaymentsForDashboard } from "@/src/application/planned-payments/get-dashboard-planned-payments";
 import { OnboardingStatusExtended, ExpectedIncomeRange } from "@/src/domain/onboarding/onboarding.types";
+import { TransactionWithRelations, UpcomingTransaction } from "@/src/domain/transactions/transactions.types";
+import { BudgetWithRelations } from "@/src/domain/budgets/budgets.types";
+import { GoalWithCalculations } from "@/src/domain/goals/goals.types";
+import { AccountWithBalance } from "@/src/domain/accounts/accounts.types";
+import { DebtWithCalculations } from "@/src/domain/debts/debts.types";
+import { BasePlannedPayment } from "@/src/domain/planned-payments/planned-payments.types";
+import { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 // CRITICAL DATA - needed for first render
 interface CriticalDashboardData {
-  selectedMonthTransactions: any[];
+  selectedMonthTransactions: TransactionWithRelations[];
   savings: number;
-  budgets: any[];
-  upcomingTransactions: any[];
-  financialHealth: any;
-  goals: any[];
+  budgets: BudgetWithRelations[];
+  upcomingTransactions: UpcomingTransaction[];
+  financialHealth: FinancialHealthData;
+  goals: GoalWithCalculations[];
   totalBalance: number;
-  accounts: any[];
-  plannedPayments: any[]; // Planned payments for the selected month
+  accounts: AccountWithBalance[];
+  plannedPayments: BasePlannedPayment[]; // Planned payments for the selected month
   onboardingStatus: OnboardingStatusExtended | null;
   expectedIncomeRange: string | null; // Expected income range for display
 }
 
+// Chart transaction format (aggregated monthly data)
+interface ChartTransactionData {
+  month: string;
+  income: number;
+  expenses: number;
+}
+
 // SECONDARY DATA - can load after first render (via Suspense)
 interface SecondaryDashboardData {
-  lastMonthTransactions: any[];
-  chartTransactions: any[];
+  lastMonthTransactions: TransactionWithRelations[];
+  chartTransactions: ChartTransactionData[];
   lastMonthTotalBalance: number;
-  liabilities: any[];
-  debts: any[];
-  recurringPayments: any[];
-  subscriptions: any[];
+  liabilities: AccountWithBalance[];
+  debts: DebtWithCalculations[];
+  recurringPayments: TransactionWithRelations[];
+  subscriptions: unknown[]; // Subscription type not found in domain
 }
 
 // Full dashboard data (for backward compatibility)
@@ -96,7 +110,7 @@ async function loadDashboardDataInternal(
     
     logger.debug("[Dashboard] AccountsService returned accounts:", {
       count: accounts.length,
-      accounts: accounts.map((acc: any) => ({
+      accounts: accounts.map((acc: AccountWithBalance) => ({
         id: acc.id,
         name: acc.name,
         type: acc.type,
@@ -122,7 +136,7 @@ async function loadDashboardDataInternal(
 
     // Collect all owner IDs from both AccountOwner and accounts
     const allOwnerIds = new Set<string>();
-    accounts.forEach((acc: any) => {
+    accounts.forEach((acc: AccountWithBalance) => {
       if (acc.userId) {
         allOwnerIds.add(acc.userId);
       }
@@ -158,7 +172,7 @@ async function loadDashboardDataInternal(
     });
 
     // Combine accounts with owner info (balances already calculated by getAccounts)
-    return accounts.map((account: any) => {
+    return accounts.map((account: AccountWithBalance) => {
       const ownerIds = accountOwnersMap.get(account.id) || (account.userId ? [account.userId] : []);
       const ownerNames = ownerIds.map(id => ownerNameMap.get(id) || 'Unknown').filter(Boolean);
       
@@ -207,7 +221,7 @@ async function loadDashboardDataInternal(
   // FIXED: Now uses onboardingService.getOnboardingStatus() which properly checks hasPlan
   // This ensures the status includes all 3 steps: personal data, income, and plan
   async function checkOnboardingStatusWithTokens(
-    accounts: any[],
+    accounts: AccountWithBalance[],
     accessToken?: string, 
     refreshToken?: string,
     user?: { id: string } | null
@@ -238,7 +252,7 @@ async function loadDashboardDataInternal(
       
       // Calculate total balance from accounts
       const totalBalance = accounts.length > 0
-        ? accounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0)
+        ? accounts.reduce((sum: number, acc: AccountWithBalance) => sum + (acc.balance || 0), 0)
         : undefined;
 
       logger.debug("Onboarding status check:", {
@@ -303,7 +317,7 @@ async function loadDashboardDataInternal(
     : (selectedMonthTransactionsResult?.transactions || []);
   
   const totalBalance = accounts.reduce(
-    (sum: number, acc: any) => {
+    (sum: number, acc: AccountWithBalance) => {
       let balance = acc.balance;
       if (balance === undefined || balance === null || isNaN(balance)) {
         balance = 0;
@@ -318,8 +332,8 @@ async function loadDashboardDataInternal(
   );
 
   const savings = accounts
-    .filter((acc: any) => acc.type === 'savings')
-    .reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
+    .filter((acc: AccountWithBalance) => acc.type === 'savings')
+    .reduce((sum: number, acc: AccountWithBalance) => sum + (acc.balance || 0), 0);
 
   // CRITICAL OPTIMIZATION: Extract planned payments from upcomingTransactions
   // getUpcomingTransactions already calls PlannedPaymentsService for next 15 days
@@ -332,13 +346,13 @@ async function loadDashboardDataInternal(
   
   // Extract planned payments from upcomingTransactions (already fetched by getUpcomingTransactions)
   const plannedPaymentsFromUpcoming = upcomingTransactions
-    .filter((ut: any) => {
+    .filter((ut: UpcomingTransaction) => {
       // Filter to only planned payments (not recurring transactions)
       // Planned payments from getUpcomingTransactions have specific structure
       const utDate = ut.date instanceof Date ? ut.date : new Date(ut.date);
       return utDate >= selectedMonth && utDate <= selectedMonthEnd && ut.originalDate;
     })
-    .map((ut: any) => ({
+    .map((ut: UpcomingTransaction) => ({
       id: ut.id,
       date: ut.date,
       type: ut.type,
@@ -354,12 +368,13 @@ async function loadDashboardDataInternal(
   
   // Only fetch additional planned payments if selected month extends beyond 15 days
   // AND the selected month end is actually in the future (not just historical data)
-  let additionalPlannedPayments: any[] = [];
+  // OPTIMIZED: Use cached function to prevent duplicate queries
+  let additionalPlannedPayments: BasePlannedPayment[] = [];
   if (selectedMonthEnd > endOfUpcoming && selectedMonthEnd > today) {
       try {
-        const plannedPaymentsService = makePlannedPaymentsService();
       // Only fetch for dates beyond the 15-day window to avoid overlap
-      const result = await plannedPaymentsService.getPlannedPayments({
+      // Use cached function to prevent duplicate queries across components
+      const result = await getPlannedPaymentsForDashboard({
         startDate: endOfUpcoming,
           endDate: selectedMonthEnd,
           type: "expense",
@@ -377,43 +392,37 @@ async function loadDashboardDataInternal(
   // Combine planned payments from upcomingTransactions with additional ones
   const allPlannedPayments = [...plannedPaymentsFromUpcoming, ...additionalPlannedPayments];
 
-  // OPTIMIZED: Fetch expected income range first, then use it for financial health
-  // This avoids duplicate calls and allows parallel processing
+  // OPTIMIZED: Fetch expected income range in parallel with other operations
+  // Calculate projected income immediately after to use in financial health
   let expectedIncomeRange: ExpectedIncomeRange = null;
   let projectedIncome: number | undefined;
   
-  const [expectedIncomeResult] = await Promise.all([
-    userId ? (async () => {
-      try {
-        const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
-        const onboardingService = makeOnboardingService();
-        return await onboardingService.getExpectedIncome(userId, accessToken, refreshToken);
-      } catch (error) {
-        logger.warn("Error getting expected income range:", error);
-        return null;
-      }
-    })() : Promise.resolve(null),
-  ]);
+  // Use existing onboardingService instead of creating new one
+  const expectedIncomeResult = userId ? await onboardingService.getExpectedIncome(userId, accessToken, refreshToken).catch((error) => {
+    logger.warn("Error getting expected income range:", error);
+    return null;
+  }) : null;
   
   expectedIncomeRange = expectedIncomeResult;
   if (expectedIncomeRange && userId) {
     try {
-      const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
-      const onboardingService = makeOnboardingService();
+      // Use existing onboardingService instead of creating new one
       projectedIncome = onboardingService.getMonthlyIncomeFromRange(expectedIncomeRange);
-  } catch (error) {
+    } catch (error) {
       logger.warn("Error calculating projected income:", error);
     }
   }
 
   // CRITICAL OPTIMIZATION: Only fetch essential data for first render
-  // Goals and Financial Health are critical and MUST use already-loaded accounts
+  // Goals, Financial Health, and Onboarding Status can all run in parallel
   // CRITICAL: Ensure accounts is always passed and non-empty to avoid duplicate calls
   if (!accounts || accounts.length === 0) {
     logger.warn("[Dashboard] No accounts loaded - this will cause duplicate getAccounts() calls");
   }
   
-  const [goals, financialHealth] = await Promise.all([
+  // OPTIMIZED: Run goals, financial health, and onboarding status in parallel
+  // All three operations are independent and can execute concurrently
+  const [goals, financialHealth, onboardingStatus] = await Promise.all([
     // CRITICAL: Always pass accounts if available (even if empty array)
     // GoalsService will only fetch if accounts is undefined/null AND goals need accounts
     goalsService.getGoals(accessToken, refreshToken, accounts || undefined).catch((error) => {
@@ -438,32 +447,30 @@ async function loadDashboardDataInternal(
         alerts: [],
         suggestions: [],
       };
-      }),
+    }),
+    // OPTIMIZED: Check onboarding status in parallel with other operations
+    checkOnboardingStatusWithTokens(accounts, accessToken, refreshToken).catch((error) => {
+      logger.error("Error checking onboarding status:", error);
+      return {
+        hasAccount: false,
+        hasCompleteProfile: false,
+        hasPersonalData: false,
+        hasExpectedIncome: false,
+        hasPlan: false,
+        completedCount: 0,
+        totalCount: 3,
+      };
+    }),
   ]);
 
   // CRITICAL: Don't load secondary data here - it will be loaded separately via Suspense
   // Secondary data is now handled by loadSecondaryDashboardData() function
-
-  // Secondary data extraction removed - now handled by loadSecondaryDashboardData()
-
-  // Calculate onboarding status using already-fetched accounts (avoid duplicate query)
-  const onboardingStatus = await checkOnboardingStatusWithTokens(accounts, accessToken, refreshToken).catch((error) => {
-    logger.error("Error checking onboarding status:", error);
-    return {
-      hasAccount: false,
-      hasCompleteProfile: false,
-      hasPersonalData: false,
-      hasExpectedIncome: false,
-      hasPlan: false,
-      completedCount: 0,
-      totalCount: 3,
-    };
-  });
+  // Onboarding status is now calculated in parallel above
   
   logger.debug("[Dashboard] Balance calculation:", {
     accountCount: accounts.length,
     totalBalance,
-    accountBalances: accounts.map((acc: any) => ({
+    accountBalances: accounts.map((acc: AccountWithBalance) => ({
       id: acc.id,
       name: acc.name,
       type: acc.type,
@@ -481,9 +488,10 @@ async function loadDashboardDataInternal(
   );
 
   // Remove duplicates based on id (already combined above)
+  // Note: allPlannedPayments contains both BasePlannedPayment and partial objects from upcomingTransactions
   const uniquePlannedPayments = Array.from(
-    new Map(allPlannedPayments.map((pp: any) => [pp.id, pp])).values()
-  );
+    new Map(allPlannedPayments.map((pp) => [pp.id, pp])).values()
+  ) as BasePlannedPayment[];
 
   // Return only CRITICAL data for first render
   // Secondary data will be loaded separately via Suspense
@@ -668,8 +676,8 @@ export async function loadDashboardData(
         refreshToken = session.refresh_token;
       }
     }
-  } catch (error: any) {
-    logger.warn('[Dashboard] Could not get session tokens:', error?.message);
+  } catch (error: unknown) {
+    logger.warn('[Dashboard] Could not get session tokens:', error instanceof Error ? error.message : String(error));
     // Continue without tokens - functions will try to get them themselves
   }
   

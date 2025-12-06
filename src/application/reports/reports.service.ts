@@ -399,45 +399,66 @@ async function getReportsDataCached(
     const currentMonthTransactions: Transaction[] = currentMonthTransactionsRaw.map(convertToTransaction);
     const historicalTransactions: Transaction[] = historicalTransactionsRaw.map(convertToTransaction);
 
-    // Fetch goals
-    const goals = await goalsService.getGoals(accessToken, refreshToken).catch((error) => {
-      logger.error("Error fetching goals:", error);
-      return [];
-    });
-
-    // Calculate financial health
-    let financialHealth: FinancialHealthData | null = null;
-    try {
-      financialHealth = await calculateFinancialHealth(
+    // OPTIMIZED: Fetch goals, financial health, and portfolio data in parallel
+    // All three operations are independent and can execute concurrently
+    const [
+      goals,
+      financialHealth,
+      portfolioData,
+    ] = await Promise.all([
+      // Fetch goals
+      goalsService.getGoals(accessToken, refreshToken, accounts).catch((error) => {
+        logger.error("Error fetching goals:", error);
+        return [];
+      }),
+      // Calculate financial health
+      calculateFinancialHealth(
         now,
         userId,
         accessToken,
         refreshToken,
         accounts
-      );
-    } catch (error) {
-      logger.error("Error calculating financial health:", error);
-    }
+      ).catch((error) => {
+        logger.error("Error calculating financial health:", error);
+        return null;
+      }),
+      // Load portfolio data if user has access
+      (async () => {
+        try {
+          const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
+          if (featureGuard.allowed) {
+            // OPTIMIZED: Fetch portfolio data in parallel
+            const [summary, holdings, historical] = await Promise.all([
+              portfolioService.getPortfolioSummary(userId).catch(() => null),
+              portfolioService.getPortfolioHoldings(accessToken, refreshToken).catch(() => []),
+              portfolioService.getPortfolioHistoricalData(365, userId).catch(() => []),
+            ]);
+            return {
+              portfolioSummary: summary,
+              portfolioHoldings: holdings,
+              portfolioHistorical: historical,
+            };
+          }
+          return {
+            portfolioSummary: null,
+            portfolioHoldings: [],
+            portfolioHistorical: [],
+          };
+        } catch (error) {
+          logger.error("Error loading portfolio data:", error);
+          return {
+            portfolioSummary: null,
+            portfolioHoldings: [],
+            portfolioHistorical: [],
+          };
+        }
+      })(),
+    ]);
 
-    // Load portfolio data if user has access
-    let portfolioSummary: PortfolioSummary | null = null;
-    let portfolioHoldings: Holding[] = [];
-    let portfolioHistorical: HistoricalDataPoint[] = [];
-
-    try {
-      const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
-      if (featureGuard.allowed) {
-        const summary = await portfolioService.getPortfolioSummary(userId).catch(() => null);
-        const holdings = await portfolioService.getPortfolioHoldings(accessToken, refreshToken).catch(() => []);
-        const historical = await portfolioService.getPortfolioHistoricalData(365, userId).catch(() => []);
-
-        portfolioSummary = summary;
-        portfolioHoldings = holdings;
-        portfolioHistorical = historical;
-      }
-    } catch (error) {
-      logger.error("Error loading portfolio data:", error);
-    }
+    // Extract portfolio data
+    const portfolioSummary = portfolioData.portfolioSummary;
+    const portfolioHoldings = portfolioData.portfolioHoldings;
+    const portfolioHistorical = portfolioData.portfolioHistorical;
 
     // Calculate Net Worth
     const netWorth = await calculateNetWorthStandalone(userId, accounts, debts, portfolioSummary, accessToken, refreshToken);

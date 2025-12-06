@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { makeGoalsService } from "@/src/application/goals/goals.factory";
+import { getIncomeBasisForGoals } from "@/src/application/goals/get-income-basis";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 
 /**
  * GET /api/v2/goals/income-basis
  * Calculate income basis from last 3 months of income transactions
  * or use expectedIncome if provided
+ * 
+ * OPTIMIZED: Uses cached function to prevent duplicate calculations
  */
 export async function GET(request: NextRequest) {
   try {
@@ -19,10 +22,15 @@ export async function GET(request: NextRequest) {
     const expectedIncomeParam = searchParams.get("expectedIncome");
     const expectedIncome = expectedIncomeParam ? parseFloat(expectedIncomeParam) : undefined;
 
-    const service = makeGoalsService();
-    const incomeBasis = await service.calculateIncomeBasis(expectedIncome);
+    // OPTIMIZED: Use cached function to prevent duplicate calculations
+    // This is especially important since income basis calculation queries 4 months of transactions
+    const incomeBasis = await getIncomeBasisForGoals(expectedIncome);
+
+    // Income basis changes when transactions change, use semi-static cache
+    const cacheHeaders = getCacheHeaders('semi-static');
 
     return NextResponse.json({ incomeBasis }, {
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error calculating income basis:", error);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
+import { getPlannedPaymentsForDashboard } from "@/src/application/planned-payments/get-dashboard-planned-payments";
 import { PlannedPaymentFormData, plannedPaymentSchema } from "@/src/domain/planned-payments/planned-payments.validations";
 import { PLANNED_HORIZON_DAYS } from "@/src/domain/planned-payments/planned-payments.types";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
@@ -70,8 +71,9 @@ export async function GET(request: NextRequest) {
       filters.status = filters.status || "scheduled";
     }
     
-    const service = makePlannedPaymentsService();
-    const result = await service.getPlannedPayments(filters);
+    // OPTIMIZED: Use cached function to prevent duplicate queries
+    // The cached function handles request-level deduplication and Next.js cache
+    const result = await getPlannedPaymentsForDashboard(filters);
     
     // Planned payments change frequently, use dynamic cache
     const cacheHeaders = getCacheHeaders('dynamic');

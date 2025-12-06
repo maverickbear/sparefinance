@@ -88,7 +88,7 @@ function WelcomeContent() {
           <div className="text-center space-y-2">
             <h1 className="text-4xl font-bold">Welcome! 🎉</h1>
             <p className="text-lg text-muted-foreground">
-              You're all set with the {planName} plan
+              You&apos;re all set with the {planName} plan
             </p>
           </div>
 
@@ -104,7 +104,7 @@ function WelcomeContent() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-sm font-medium mb-2">What's included:</p>
+                <p className="text-sm font-medium mb-2">What&apos;s included:</p>
                 <ul className="space-y-2">
                   <li className="flex items-center gap-2 text-sm">
                     <Check className="w-4 h-4 text-primary" />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { AppError } from "@/src/application/shared/app-error";
 
 export async function POST(request: NextRequest) {
@@ -13,8 +14,8 @@ export async function POST(request: NextRequest) {
     const subscriptionsService = makeSubscriptionsService();
     
     // Check if user is still in a household with active subscription
-    // If so, don't allow resuming
-    const subscriptionData = await subscriptionsService.getUserSubscriptionData(userId);
+    // If so, don't allow resuming (uses cached function)
+    const subscriptionData = await getCachedSubscriptionData(userId);
     
     if (subscriptionData.subscription && subscriptionData.subscription.householdId) {
       // User is using household subscription, check if household still has active subscription

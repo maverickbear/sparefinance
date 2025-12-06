@@ -8,6 +8,7 @@ import { BaseBillingData, BaseLimitCheckResult } from "../../domain/billing/bill
 import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { AppError } from "../shared/app-error";
+import { getCachedSubscriptionData } from "../subscriptions/get-dashboard-subscription";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -26,8 +27,8 @@ export class BillingService {
   async getBillingData(userId: string): Promise<BaseBillingData> {
     const subscriptionsService = makeSubscriptionsService();
 
-    // Get subscription data
-    const subscriptionData = await subscriptionsService.getUserSubscriptionData(userId);
+    // Get subscription data (uses cached function)
+    const subscriptionData = await getCachedSubscriptionData(userId);
 
     // Get limits in parallel
     const [transactionLimit, accountLimit] = await Promise.all([

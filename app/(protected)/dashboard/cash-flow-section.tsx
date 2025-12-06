@@ -9,10 +9,12 @@ import { endOfMonth } from "date-fns/endOfMonth";
 import { eachMonthOfInterval } from "date-fns/eachMonthOfInterval";
 import { subMonths } from "date-fns/subMonths";
 import { calculateTotalIncome, calculateTotalExpenses } from "@/lib/services/transaction-calculations";
+import { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
+import { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 interface CashFlowSectionProps {
-  chartTransactions: any[];
-  financialHealth: any;
+  chartTransactions: TransactionWithRelations[];
+  financialHealth: FinancialHealthData;
   selectedMonthDate: Date;
 }
 

@@ -239,5 +239,81 @@ export class PlannedPaymentsRepository {
       throw new Error(`Failed to delete planned payment: ${error.message}`);
     }
   }
+
+  /**
+   * Count planned payments by type (expense, income, transfer) in a single query
+   * This is more efficient than making 3 separate queries
+   */
+  async countByType(
+    userId: string,
+    filters?: {
+      startDate?: Date;
+      endDate?: Date;
+      status?: "scheduled" | "paid" | "skipped" | "cancelled";
+    },
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<{ expense: number; income: number; transfer: number }> {
+    const supabase = await createServerClient(accessToken, refreshToken);
+
+    // Build base query with filters (excluding type filter)
+    let query = supabase
+      .from("PlannedPayment")
+      .select("type", { count: "exact" })
+      .eq("userId", userId);
+
+    if (filters?.startDate) {
+      query = query.gte("date", formatDateOnly(filters.startDate));
+    }
+
+    if (filters?.endDate) {
+      query = query.lte("date", formatDateOnly(filters.endDate));
+    }
+
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+
+    // Fetch all matching rows (only type field, no pagination)
+    // We'll group by type in code since Supabase doesn't support GROUP BY in count queries
+    const { data, error } = await query;
+
+    if (error) {
+      logger.error("[PlannedPaymentsRepository] Error counting planned payments by type:", error);
+      throw new Error(`Failed to count planned payments: ${error.message}`);
+    }
+
+    // Initialize counts
+    const counts = {
+      expense: 0,
+      income: 0,
+      transfer: 0,
+    };
+
+    // Count by type
+    if (data) {
+      data.forEach((row) => {
+        if (row.type === "expense") {
+          counts.expense++;
+        } else if (row.type === "income") {
+          counts.income++;
+        } else if (row.type === "transfer") {
+          counts.transfer++;
+        }
+      });
+    }
+
+    logger.info("[PlannedPaymentsRepository] Count by type result:", {
+      userId,
+      filters: {
+        startDate: filters?.startDate?.toISOString(),
+        endDate: filters?.endDate?.toISOString(),
+        status: filters?.status,
+      },
+      counts,
+    });
+
+    return counts;
+  }
 }
 

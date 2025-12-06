@@ -335,6 +335,44 @@ export class PlannedPaymentsService {
   }
 
   /**
+   * Get counts by type (expense, income, transfer) in a single query
+   * This is more efficient than calling getPlannedPayments 3 times
+   */
+  async getCountsByType(
+    filters?: {
+      startDate?: Date;
+      endDate?: Date;
+      status?: "scheduled" | "paid" | "skipped" | "cancelled";
+    },
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<{ expense: number; income: number; transfer: number }> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      logger.warn("[PlannedPaymentsService] No userId found for getCountsByType");
+      return { expense: 0, income: 0, transfer: 0 };
+    }
+
+    logger.info("[PlannedPaymentsService] Getting counts by type:", {
+      userId,
+      filters: {
+        startDate: filters?.startDate?.toISOString(),
+        endDate: filters?.endDate?.toISOString(),
+        status: filters?.status,
+      },
+    });
+
+    const counts = await this.repository.countByType(userId, filters, accessToken, refreshToken);
+
+    logger.info("[PlannedPaymentsService] Counts by type result:", {
+      userId,
+      counts,
+    });
+
+    return counts;
+  }
+
+  /**
    * Helper to fetch relations for enrichment
    */
   private async fetchRelations(

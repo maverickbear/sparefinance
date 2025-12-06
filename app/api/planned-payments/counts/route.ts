@@ -29,39 +29,15 @@ export async function GET(request: NextRequest) {
     
     const service = makePlannedPaymentsService();
     
-    // Get counts for each type in parallel (using limit=1, page=1 to get only total)
-    const [expenseResult, incomeResult, transferResult] = await Promise.all([
-      service.getPlannedPayments({
-        startDate,
-        endDate,
-        status,
-        type: "expense",
-        limit: 1,
-        page: 1,
-      }),
-      service.getPlannedPayments({
-        startDate,
-        endDate,
-        status,
-        type: "income",
-        limit: 1,
-        page: 1,
-      }),
-      service.getPlannedPayments({
-        startDate,
-        endDate,
-        status,
-        type: "transfer",
-        limit: 1,
-        page: 1,
-      }),
-    ]);
-    
-    return NextResponse.json({
-      expense: expenseResult.total,
-      income: incomeResult.total,
-      transfer: transferResult.total,
+    // OPTIMIZED: Get all counts in a single query instead of 3 separate queries
+    // This reduces database load by ~66% and improves response time
+    const counts = await service.getCountsByType({
+      startDate,
+      endDate,
+      status,
     });
+    
+    return NextResponse.json(counts);
   } catch (error) {
     console.error("Error fetching planned payment counts:", error);
     

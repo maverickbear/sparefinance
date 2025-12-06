@@ -49,12 +49,13 @@ function getDateRange(period: ReportPeriod): { startDate: Date; endDate: Date } 
   }
 }
 
-async function ReportsContentWrapper({ period }: { period: ReportPeriod }) {
-  // CRITICAL OPTIMIZATION: Use cached getDashboardSubscription to avoid duplicate calls
-  // Using static import ensures React cache() works correctly
-  const subscriptionData = await getDashboardSubscription();
-  const { limits } = subscriptionData;
-  
+async function ReportsContentWrapper({ 
+  period, 
+  limits 
+}: { 
+  period: ReportPeriod;
+  limits: Awaited<ReturnType<typeof getDashboardSubscription>>['limits'];
+}) {
   const data = await loadReportsData(period);
   const now = new Date();
   const dateRange = getDateRange(period);
@@ -95,11 +96,11 @@ export default async function ReportsPage({ searchParams }: ReportsProps) {
   ) ? periodParam as ReportPeriod : "last-12-months";
   
   // Check feature access on server side
-  // CRITICAL: Use cached getDashboardSubscription to avoid duplicate calls
+  // CRITICAL: Use cached getDashboardSubscription only once - fetch here and pass to child components
   const { makeAdminService } = await import("@/src/application/admin/admin.factory");
   const adminService = makeAdminService();
   
-  // Use cached function instead of direct service call
+  // Fetch subscription data once (cached function ensures only 1 call per request)
   const subscriptionData = await getDashboardSubscription();
   
   // Now we can safely use Date.now() after accessing uncached data
@@ -221,7 +222,7 @@ export default async function ReportsPage({ searchParams }: ReportsProps) {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           }>
-            <ReportsContentWrapper period={period} />
+            <ReportsContentWrapper period={period} limits={limits} />
           </Suspense>
         </div>
       </SimpleTabs>

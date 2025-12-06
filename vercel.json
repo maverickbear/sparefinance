@@ -40,26 +40,6 @@
       "destination": "/api/health"
     }
   ],
-  "redirects": [
-    {
-      "source": "/admin.php",
-      "destination": "/",
-      "permanent": false,
-      "statusCode": 403
-    },
-    {
-      "source": "/about.php",
-      "destination": "/",
-      "permanent": false,
-      "statusCode": 403
-    },
-    {
-      "source": "/:path*.php",
-      "destination": "/",
-      "permanent": false,
-      "statusCode": 403
-    }
-  ],
   "crons": [
     {
       "path": "/api/import-jobs/process",

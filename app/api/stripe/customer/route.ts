@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { AppError } from "@/src/application/shared/app-error";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
@@ -30,9 +30,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get subscription data using service
-    const subscriptionsService = makeSubscriptionsService();
-    const subscriptionData = await subscriptionsService.getUserSubscriptionData(userId);
+    // Get subscription data (uses cached function)
+    const subscriptionData = await getCachedSubscriptionData(userId);
 
     return NextResponse.json({
       customerId: subscriptionData.subscription?.stripeCustomerId || null,

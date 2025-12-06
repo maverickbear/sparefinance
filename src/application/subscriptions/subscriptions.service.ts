@@ -242,6 +242,17 @@ export class SubscriptionsService {
 
   /**
    * Internal: Fetch user subscription data from database
+   * 
+   * NOTE: This function is the main entry point for fetching subscription data.
+   * It logs "Fetching subscription data (cache miss)" when the cache does not have data.
+   * 
+   * Cache strategy:
+   * 1. Try to read from User table cache (effectivePlanId, effectiveSubscriptionStatus, subscriptionUpdatedAt)
+   * 2. If cache is valid (within 10 minutes), return cached data
+   * 3. If not found (cache miss), log "Fetching subscription data (cache miss)",
+   *    fetch from Stripe/Supabase and return data (cache is written by repository layer)
+   * 
+   * This function is called by getUserSubscriptionData() which handles request-level deduplication.
    */
   private async fetchUserSubscriptionData(userId: string): Promise<BaseSubscriptionData> {
     // Validate userId
@@ -333,9 +344,13 @@ export class SubscriptionsService {
     const householdId = await this.repository.getActiveHouseholdId(userId);
     let subscription: BaseSubscription | null = null;
 
+    // NOTE: This log appears when User table cache is missing or expired (>10 minutes old)
+    // The cache is written by the repository layer when subscription data is updated
     logger.debug("[SubscriptionsService] Fetching subscription data (cache miss)", {
       userId,
       householdId: householdId || null,
+      reason: "no-cache-hit",
+      cacheKey: `user-subscription-cache-${userId}`,
     });
 
     if (householdId) {

@@ -19,6 +19,7 @@ import { AppError } from "../shared/app-error";
 import { GoalPlannedPaymentsService } from "../planned-payments/goal-planned-payments.service";
 // CRITICAL: Use static import to ensure React cache() works correctly
 import { getAccountsForDashboard } from "../accounts/get-dashboard-accounts";
+import { getIncomeBasisForGoals } from "./get-income-basis";
 
 export class GoalsService {
   private goalPlannedPaymentsService: GoalPlannedPaymentsService;
@@ -232,7 +233,8 @@ export class GoalsService {
     // OPTIMIZED: Use provided accounts if available, otherwise fetch only if needed
     const [incomeBasis, fetchedAccounts] = await Promise.all([
       // Calculate income basis
-      this.calculateIncomeBasis(undefined, accessToken, refreshToken),
+      // OPTIMIZED: Use cached function to prevent duplicate calculations
+      getIncomeBasisForGoals(undefined, accessToken, refreshToken),
       // Get accounts only if not provided and needed
       (!accounts || accounts.length === 0) && goalsWithAccount.length > 0
         ? getAccountsForDashboard(false)
@@ -685,7 +687,8 @@ export class GoalsService {
     }
 
     // Calculate monthly income (use predicted/expected income if available)
-    let monthlyIncome = await this.calculateIncomeBasis(undefined, accessToken, refreshToken);
+    // OPTIMIZED: Use cached function to prevent duplicate calculations
+    let monthlyIncome = await getIncomeBasisForGoals(undefined, accessToken, refreshToken);
     
     // Get location and calculate after-tax income if available
     // Note: supabase and user are already defined above, and householdId is already available
