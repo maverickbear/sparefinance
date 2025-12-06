@@ -18,6 +18,8 @@ import { verifyUserExists } from "@/lib/utils/verify-user-exists";
  * If user doesn't exist in User table, logs out and redirects to /auth/login
  * If user is authenticated, allows access (subscription check is handled in the page itself)
  */
+export const dynamic = 'force-dynamic';
+
 export default async function AuthRequiredLayout({
   children,
 }: {
