@@ -14,11 +14,21 @@ export async function GET() {
 
     return NextResponse.json(seoSettings);
   } catch (error: any) {
+    // Handle prerendering errors gracefully
+    if (error?.message?.includes('prerender') || 
+        error?.message?.includes('HANGING_PROMISE') ||
+        error?.message?.includes('fetch() rejects')) {
+      // Return default SEO settings during prerendering
+      return NextResponse.json({
+        title: "Spare Finance - Powerful Tools for Easy Money Management",
+        description: "Take control of your finances with Spare Finance.",
+        googleTagId: null,
+      });
+    }
+    
     console.error("Error fetching SEO settings:", error);
-    // Return defaults if error
-    const service = makeAdminService();
-    const defaults = await service.getPublicSeoSettings();
-    return NextResponse.json(defaults);
+    // Return empty object if error (client will handle defaults)
+    return NextResponse.json({ seoSettings: null });
   }
 }
 

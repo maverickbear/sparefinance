@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchSecurityBySymbol, searchSecuritiesByName } from "@/lib/api/market-prices";
+import { makeInvestmentsService } from "@/src/application/investments/investments.factory";
 import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 
@@ -23,19 +23,20 @@ export async function GET(request: Request) {
       );
     }
 
+    const service = makeInvestmentsService();
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get("symbol");
     const query = searchParams.get("query") || searchParams.get("q");
 
     // If query parameter is provided, search by name (returns list)
     if (query && query.trim() !== "") {
-      const results = await searchSecuritiesByName(query.trim());
+      const results = await service.searchSecuritiesByName(query.trim());
       return NextResponse.json({ results });
     }
 
     // If symbol parameter is provided, search by symbol (returns single result)
     if (symbol && symbol.trim() !== "") {
-      const securityInfo = await searchSecurityBySymbol(symbol.trim());
+      const securityInfo = await service.searchSecurityBySymbol(symbol.trim());
 
       if (!securityInfo) {
         return NextResponse.json(

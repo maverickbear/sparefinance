@@ -11,7 +11,10 @@ interface SubscriptionContextValue {
   limits: PlanFeatures;
   checking: boolean;
   refetch: () => Promise<void>;
-  invalidateCache: () => void;
+  // Helper methods for common checks
+  isActive: () => boolean;
+  isTrialing: () => boolean;
+  hasSubscription: () => boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue | undefined>(undefined);
@@ -26,18 +29,6 @@ interface SubscriptionProviderProps {
   initialData?: InitialData;
 }
 
-/**
- * Invalidate client-side subscription cache
- * Call this after subscription is created/updated to force fresh data fetch
- */
-export function invalidateClientSubscriptionCache(): void {
-  if (typeof window === 'undefined') return;
-  
-  // Trigger custom event that the provider will listen to
-  window.dispatchEvent(new CustomEvent('invalidate-subscription-cache'));
-  
-  logger.withPrefix("SUBSCRIPTION-CONTEXT").log("Client subscription cache invalidated");
-}
 
 export function SubscriptionProvider({ children, initialData }: SubscriptionProviderProps) {
   const log = logger.withPrefix("SUBSCRIPTION-CONTEXT");
@@ -121,16 +112,52 @@ export function SubscriptionProvider({ children, initialData }: SubscriptionProv
     }
   }, [fetchSubscription, log]);
 
-  // Listen for invalidation events
+
+  // Listen for onboarding completion event to refresh subscription
   useEffect(() => {
-    const handleInvalidate = () => {
-      log.log("Invalidation event received, refetching...");
+    const handleOnboardingCompleted = () => {
+      log.log("Onboarding completed event received, refreshing subscription...");
+      // Force immediate refetch when onboarding completes
       refetch();
     };
 
-    window.addEventListener('invalidate-subscription-cache', handleInvalidate);
+    window.addEventListener('onboarding-completed', handleOnboardingCompleted);
+
     return () => {
-      window.removeEventListener('invalidate-subscription-cache', handleInvalidate);
+      window.removeEventListener('onboarding-completed', handleOnboardingCompleted);
+    };
+  }, [refetch, log]);
+
+  // Check subscription status when app regains focus
+  // This handles cases where subscription changes outside the app (e.g., App Store cancellation)
+  useEffect(() => {
+    const handleFocus = () => {
+      const timeSinceLastFetch = Date.now() - lastFetchRef.current;
+      // Only refetch if it's been at least 1 minute since last fetch
+      // This prevents excessive refetches when user rapidly switches tabs
+      if (timeSinceLastFetch > 60000) {
+        log.log("App regained focus, checking subscription status...");
+        refetch();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const timeSinceLastFetch = Date.now() - lastFetchRef.current;
+        // Only refetch if it's been at least 1 minute since last fetch
+        if (timeSinceLastFetch > 60000) {
+          log.log("Page became visible, checking subscription status...");
+          refetch();
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [refetch, log]);
 
@@ -163,10 +190,18 @@ export function SubscriptionProvider({ children, initialData }: SubscriptionProv
     };
   }, [refetch, log]);
 
-  const invalidateCache = useCallback(() => {
-    invalidateClientSubscriptionCache();
-    // refetch will be triggered by the event listener
-  }, []);
+  // Helper methods for common subscription checks
+  const isActive = useCallback(() => {
+    return subscription?.status === "active";
+  }, [subscription]);
+
+  const isTrialing = useCallback(() => {
+    return subscription?.status === "trialing";
+  }, [subscription]);
+
+  const hasSubscription = useCallback(() => {
+    return subscription !== null;
+  }, [subscription]);
 
   return (
     <SubscriptionContext.Provider
@@ -176,7 +211,9 @@ export function SubscriptionProvider({ children, initialData }: SubscriptionProv
         limits,
         checking,
         refetch,
-        invalidateCache,
+        isActive,
+        isTrialing,
+        hasSubscription,
       }}
     >
       {children}
@@ -206,7 +243,9 @@ export function useSubscriptionSafe() {
       limits: getDefaultFeatures(),
       checking: false,
       refetch: async () => {},
-      invalidateCache: () => {},
+      isActive: () => false,
+      isTrialing: () => false,
+      hasSubscription: () => false,
     };
   }
   return context;

@@ -19,6 +19,13 @@ const selectTriggerVariants = cva(
   {
     variants: {
       size: {
+        tiny: cn(
+          componentSizes.select.tiny.height,
+          componentSizes.select.tiny.paddingX,
+          componentSizes.select.tiny.paddingY,
+          componentSizes.select.tiny.text,
+          componentSizes.select.tiny.rounded
+        ),
         small: cn(
           componentSizes.select.small.height,
           componentSizes.select.small.paddingX,

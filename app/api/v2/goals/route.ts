@@ -4,6 +4,8 @@ import { GoalFormData, goalSchema } from "@/src/domain/goals/goals.validations";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,11 +39,12 @@ export async function GET(request: NextRequest) {
     const service = makeGoalsService();
     const goals = await service.getGoals(accessToken, refreshToken);
     
+    // Goals change occasionally, use semi-static cache
+    const cacheHeaders = getCacheHeaders('semi-static');
+    
     return NextResponse.json(goals, { 
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-      },
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching goals:", error);
@@ -67,8 +70,17 @@ export async function POST(request: NextRequest) {
     // Validate with schema
     const validatedData = goalSchema.parse(body);
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeGoalsService();
     const goal = await service.createGoal(validatedData);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(goal, { status: 201 });
   } catch (error) {

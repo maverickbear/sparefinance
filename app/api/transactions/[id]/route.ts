@@ -1,3 +1,6 @@
+/**
+ * @deprecated Use /api/v2/transactions/[id] instead
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { TransactionFormData } from "@/src/domain/transactions/transactions.validations";

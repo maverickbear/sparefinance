@@ -3,6 +3,7 @@ import { makeCategoriesService } from "@/src/application/categories/categories.f
 import { CategoryFormData } from "@/src/domain/categories/categories.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { revalidateTag } from 'next/cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -28,6 +29,10 @@ export async function PATCH(
       groupId: groupId || macroId || undefined,
       macroId: macroId || undefined 
     });
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json(category, { status: 200 });
   } catch (error) {
@@ -65,6 +70,10 @@ export async function DELETE(
     
     const service = makeCategoriesService();
     await service.deleteCategory(id);
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

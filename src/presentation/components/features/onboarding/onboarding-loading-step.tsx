@@ -345,42 +345,13 @@ export function OnboardingLoadingStep({
       // This ensures the success page can properly detect the subscription
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Verify subscription is available before redirecting
-      let subscriptionFound = false;
-      let retries = 0;
-      const maxRetries = 5;
-      
-      while (!subscriptionFound && retries < maxRetries) {
-        try {
-          const subscriptionCheck = await fetch("/api/v2/billing/subscription");
-          if (subscriptionCheck.ok) {
-            const subscriptionData = await subscriptionCheck.json();
-            if (subscriptionData.subscription && 
-                (subscriptionData.subscription.status === "active" || 
-                 subscriptionData.subscription.status === "trialing")) {
-              console.log("[OnboardingLoadingStep] Subscription found, redirecting to success page");
-              subscriptionFound = true;
-              break;
-            } else {
-              console.log(`[OnboardingLoadingStep] Subscription not found yet (attempt ${retries + 1}/${maxRetries}), waiting...`);
-              retries++;
-              if (retries < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-              }
-            }
-          }
-        } catch (checkError) {
-          console.warn("[OnboardingLoadingStep] Error checking subscription:", checkError);
-          retries++;
-          if (retries < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
+      // Trigger subscription refresh event to update Context
+      // The Context will handle fetching the latest subscription status
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('onboarding-completed'));
       }
       
-      if (!subscriptionFound) {
-        console.warn("[OnboardingLoadingStep] Subscription not found after retries, but completing onboarding anyway");
-      }
+      console.log("[OnboardingLoadingStep] Onboarding processing complete, subscription will be refreshed via Context");
 
       // Mark as complete and call onComplete callback
       console.log("[OnboardingLoadingStep] Onboarding completed successfully");

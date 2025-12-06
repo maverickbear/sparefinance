@@ -14,6 +14,7 @@ import { useToast } from "@/components/toast-provider";
 import { ExpectedIncomeRange } from "@/src/domain/onboarding/onboarding.types";
 import { BudgetRuleType } from "@/src/domain/budgets/budget-rules.types";
 import { CustomOnboardingDialog } from "./custom-onboarding-dialog";
+import { useSubscriptionContext } from "@/contexts/subscription-context";
 
 interface MultiStepOnboardingDialogProps {
   open: boolean;
@@ -40,6 +41,7 @@ export function MultiStepOnboardingDialog({
 }: MultiStepOnboardingDialogProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const { subscription, plan, refetch } = useSubscriptionContext();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
   const step1FormRef = useRef<HTMLFormElement>(null);
@@ -97,10 +99,11 @@ export function MultiStepOnboardingDialog({
         }
       }
       
-      loadCurrentPlan();
       loadProfile();
+      // Refetch subscription to ensure we have latest data
+      refetch();
     }
-  }, [open]);
+  }, [open, refetch]);
 
   // Save to sessionStorage whenever data changes
   useEffect(() => {
@@ -160,21 +163,17 @@ export function MultiStepOnboardingDialog({
     }
   }
 
-  async function loadCurrentPlan() {
-    try {
-      const res = await fetch("/api/v2/billing/subscription");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.subscription && data.plan) {
-          setCurrentPlanId(data.plan.id);
-          setCurrentInterval(data.subscription.interval || null);
-          setStep3Completed(true);
-        }
-      }
-    } catch (error) {
-      console.error("Error loading current plan:", error);
+  // Load current plan from Context
+  useEffect(() => {
+    if (plan && subscription) {
+      setCurrentPlanId(plan.id);
+      setCurrentInterval(subscription.interval || null);
+      setStep3Completed(true);
+    } else {
+      // If no plan in Context, try to refetch
+      refetch();
     }
-  }
+  }, [plan, subscription, refetch]);
 
   const handleLocationChange = useCallback((location: { country: "US" | "CA"; stateOrProvince?: string | null | undefined }) => {
     setSelectedLocation((prev) => {
@@ -365,6 +364,14 @@ export function MultiStepOnboardingDialog({
       console.error("[ONBOARDING] Failed to load confetti:", error);
     }
     
+    // CRITICAL: Refresh subscription state before redirecting
+    // This ensures the subscription is immediately available after onboarding
+    if (typeof window !== 'undefined') {
+      // Dispatch custom event to trigger subscription refresh
+      window.dispatchEvent(new CustomEvent('onboarding-completed'));
+    }
+    // Use router.refresh() to force server-side revalidation
+    router.refresh();
     router.push("/dashboard");
     if (onComplete) {
       onComplete();
@@ -373,6 +380,11 @@ export function MultiStepOnboardingDialog({
 
   function handleGoToBilling() {
     onOpenChange(false);
+    // CRITICAL: Refresh subscription state before redirecting
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('onboarding-completed'));
+    }
+    router.refresh();
     router.push("/settings/billing");
     if (onComplete) {
       onComplete();

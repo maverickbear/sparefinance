@@ -13,21 +13,8 @@ import { createServerClient } from "@/src/infrastructure/database/supabase-serve
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { mapClassToSector, normalizeAssetType } from "@/lib/utils/portfolio-utils";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { HOLDINGS_CACHE_TTL } from "../../domain/investments/investments.constants";
 import { AppError } from "../shared/app-error";
 import { getCurrentUserId } from "../shared/feature-guard";
-
-// In-memory cache for holdings
-const holdingsCache = new Map<string, { data: BaseHolding[]; timestamp: number }>();
-
-function cleanHoldingsCache() {
-  const now = Date.now();
-  for (const [key, value] of holdingsCache.entries()) {
-    if (now - value.timestamp > HOLDINGS_CACHE_TTL) {
-      holdingsCache.delete(key);
-    }
-  }
-}
 
 export class InvestmentsService {
   constructor(
@@ -50,16 +37,6 @@ export class InvestmentsService {
       // In server components, this can happen during SSR - return empty array gracefully
       // Don't log as error since this is expected in some contexts
       return [];
-    }
-
-    // Check cache
-    const cacheKey = `holdings:${userId}:${accountId || 'all'}`;
-    if (useCache) {
-      cleanHoldingsCache();
-      const cached = holdingsCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < HOLDINGS_CACHE_TTL) {
-        return cached.data;
-      }
     }
 
     // Try positions first (faster and more accurate)
@@ -88,14 +65,11 @@ export class InvestmentsService {
         return InvestmentsMapper.positionToHolding(position, security || undefined, account || undefined);
       });
 
-      if (useCache) {
-        holdingsCache.set(cacheKey, { data: holdings, timestamp: Date.now() });
-      }
       return holdings;
     }
 
     // Fallback: calculate from transactions (slower but necessary if positions unavailable)
-    return await this.calculateHoldingsFromTransactions(accountId, accessToken, refreshToken, useCache);
+    return await this.calculateHoldingsFromTransactions(accountId, accessToken, refreshToken);
   }
 
   /**
@@ -105,22 +79,12 @@ export class InvestmentsService {
   private async calculateHoldingsFromTransactions(
     accountId?: string,
     accessToken?: string,
-    refreshToken?: string,
-    useCache: boolean = true
+    refreshToken?: string
   ): Promise<BaseHolding[]> {
     const userId = await getCurrentUserId();
     if (!userId) {
       // In server components, this can happen during SSR - return empty array gracefully
       return [];
-    }
-
-    const cacheKey = `holdings:${userId}:${accountId || 'all'}`;
-    if (useCache) {
-      cleanHoldingsCache();
-      const cached = holdingsCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < HOLDINGS_CACHE_TTL) {
-        return cached.data;
-      }
     }
 
     // Get transactions
@@ -241,29 +205,9 @@ export class InvestmentsService {
     }
 
     // Filter out zero quantity holdings
-    const holdings = Array.from(holdingKeyMap.values()).filter((h) => h.quantity > 0);
-
-    if (useCache) {
-      holdingsCache.set(cacheKey, { data: holdings, timestamp: Date.now() });
-    }
-
-    return holdings;
+    return Array.from(holdingKeyMap.values()).filter((h) => h.quantity > 0);
   }
 
-  /**
-   * Clear holdings cache
-   */
-  clearHoldingsCache(userId?: string): void {
-    if (userId) {
-      for (const key of holdingsCache.keys()) {
-        if (key.startsWith(`holdings:${userId}:`)) {
-          holdingsCache.delete(key);
-        }
-      }
-    } else {
-      holdingsCache.clear();
-    }
-  }
 
   /**
    * Get portfolio value
@@ -409,8 +353,6 @@ export class InvestmentsService {
       updatedAt: now,
     });
 
-    // Clear cache
-    this.clearHoldingsCache(userId);
 
     // Fetch relations
     const relations = await this.fetchTransactionRelations(transactionRow);
@@ -445,8 +387,6 @@ export class InvestmentsService {
 
     const updatedRow = await this.repository.updateTransaction(id, updateData);
 
-    // Clear cache
-    this.clearHoldingsCache(userId);
 
     // Fetch relations
     const relations = await this.fetchTransactionRelations(updatedRow);
@@ -465,8 +405,6 @@ export class InvestmentsService {
 
     await this.repository.deleteTransaction(id);
 
-    // Clear cache
-    this.clearHoldingsCache(userId);
   }
 
   /**
@@ -633,6 +571,544 @@ export class InvestmentsService {
     }
 
     return relations;
+  }
+
+  /**
+   * Market Prices Methods
+   */
+
+  /**
+   * Fetch real-time price from Yahoo Finance API
+   */
+  private async fetchYahooFinancePrice(symbol: string): Promise<number | null> {
+    try {
+      let normalizedSymbol = symbol.toUpperCase();
+      
+      const cryptoPattern = /^(BTC|ETH|BNB|ADA|SOL|XRP|DOT|DOGE|AVAX|MATIC|LINK|UNI|LTC|ALGO|ATOM|VET|FIL|TRX|EOS|XLM|AAVE|MKR|COMP|SUSHI|CRV|YFI|SNX|GRT|ENJ|MANA|SAND|AXS|CHZ|FLOW|NEAR|FTM|ONE|HBAR|ICP|THETA|ZIL|ZEC|DASH|XMR|BCH|BSV|ETC|ZEC)$/i;
+      if (cryptoPattern.test(normalizedSymbol) && !normalizedSymbol.includes('-')) {
+        normalizedSymbol = `${normalizedSymbol}-USD`;
+      }
+      
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${normalizedSymbol}?interval=1d&range=1d`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
+        next: { revalidate: 60 },
+      }).catch((error) => {
+        logger.error(`Network error fetching price for ${symbol}:`, error);
+        return null;
+      });
+
+      if (!response || !response.ok) {
+        logger.error(`Failed to fetch price for ${symbol}: ${response?.statusText || 'Network error'}`);
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data?.chart?.error || !data?.chart?.result?.[0]) {
+        return null;
+      }
+
+      const result = data.chart.result[0];
+      const meta = result.meta;
+      
+      if (!meta) {
+        return null;
+      }
+
+      return meta.regularMarketPrice || meta.currentPrice || meta.previousClose || null;
+    } catch (error) {
+      logger.error(`Error fetching price for ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get logo URL for a security symbol
+   */
+  private getSecurityLogoUrl(symbol: string, securityClass: "stock" | "etf" | "crypto" | "bond" | "reit"): string {
+    const normalizedSymbol = symbol.toUpperCase();
+    
+    if (securityClass === "crypto") {
+      return `https://cryptoicons.org/api/icon/${normalizedSymbol.toLowerCase()}/200`;
+    }
+    
+    return `https://assets.polygon.io/logos/${normalizedSymbol}/logo.png`;
+  }
+
+  /**
+   * Update prices for all securities in the database
+   */
+  async updateAllSecurityPrices(): Promise<{ updated: number; errors: string[] }> {
+    const supabase = await createServerClient();
+    const now = formatTimestamp(new Date());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTimestamp = formatTimestamp(today);
+
+    // Get all securities
+    const { data: securities, error: securitiesError } = await supabase
+      .from("Security")
+      .select("id, symbol");
+
+    if (securitiesError || !securities || securities.length === 0) {
+      return { updated: 0, errors: [securitiesError?.message || "No securities found"] };
+    }
+
+    // Fetch prices in parallel
+    const pricePromises = securities.map(async (security) => {
+      const price = await this.fetchYahooFinancePrice(security.symbol);
+      return { securityId: security.id, symbol: security.symbol, price };
+    });
+
+    const priceResults = await Promise.all(pricePromises);
+    const priceMap = new Map<string, number>();
+    const errors: string[] = [];
+
+    for (const result of priceResults) {
+      if (result.price === null || result.price === undefined) {
+        errors.push(`${result.symbol}: No price found`);
+        continue;
+      }
+      
+      if (result.price <= 0) {
+        errors.push(`${result.symbol}: Invalid price (${result.price})`);
+        continue;
+      }
+
+      priceMap.set(result.securityId, result.price);
+    }
+
+    // Update prices for each security
+    let updated = 0;
+    for (const security of securities) {
+      const price = priceMap.get(security.id);
+      
+      if (price === undefined || price === null) {
+        continue;
+      }
+
+      // Check if price already exists for today
+      const { data: existingPrice } = await supabase
+        .from("SecurityPrice")
+        .select("id, price")
+        .eq("securityId", security.id)
+        .eq("date", todayTimestamp)
+        .single();
+
+      if (existingPrice) {
+        const priceDifference = Math.abs(existingPrice.price - price);
+        const priceChangePercent = (priceDifference / existingPrice.price) * 100;
+        
+        if (priceChangePercent > 0.01) {
+          const { error: updateError } = await supabase
+            .from("SecurityPrice")
+            .update({ price })
+            .eq("id", existingPrice.id);
+
+          if (updateError) {
+            errors.push(`Failed to update price for ${security.symbol}: ${updateError.message}`);
+          } else {
+            updated++;
+          }
+        }
+      } else {
+        const id = crypto.randomUUID();
+        const { error: insertError } = await supabase
+          .from("SecurityPrice")
+          .insert({
+            id,
+            securityId: security.id,
+            date: todayTimestamp,
+            price,
+            createdAt: now,
+          });
+
+        if (insertError) {
+          errors.push(`Failed to create price for ${security.symbol}: ${insertError.message}`);
+        } else {
+          updated++;
+        }
+      }
+    }
+
+    return { updated, errors };
+  }
+
+  /**
+   * Search for security information by symbol using Yahoo Finance API
+   */
+  async searchSecurityBySymbol(symbol: string): Promise<{
+    symbol: string;
+    name: string;
+    class: "stock" | "etf" | "crypto" | "bond" | "reit";
+    price?: number;
+    currency?: string;
+    exchange?: string;
+    logo?: string;
+  } | null> {
+    try {
+      let normalizedSymbol = symbol.toUpperCase().trim();
+      
+      const cryptoPattern = /^(BTC|ETH|BNB|ADA|SOL|XRP|DOT|DOGE|AVAX|MATIC|LINK|UNI|LTC|ALGO|ATOM|VET|FIL|TRX|EOS|XLM|AAVE|MKR|COMP|SUSHI|CRV|YFI|SNX|GRT|ENJ|MANA|SAND|AXS|CHZ|FLOW|NEAR|FTM|ONE|HBAR|ICP|THETA|ZIL|ZEC|DASH|XMR|BCH|BSV|ETC|ZEC)$/i;
+      const isCrypto = cryptoPattern.test(normalizedSymbol) && !normalizedSymbol.includes('-');
+      if (isCrypto) {
+        normalizedSymbol = `${normalizedSymbol}-USD`;
+      }
+      
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${normalizedSymbol}?interval=1d&range=1d`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
+        next: { revalidate: 300 },
+      }).catch((error) => {
+        logger.error(`Network error fetching security info for ${symbol}:`, error);
+        return null;
+      });
+
+      if (!response || !response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data?.chart?.error || !data?.chart?.result?.[0]) {
+        return null;
+      }
+      
+      const result = data.chart.result[0];
+      const meta = result.meta;
+      
+      if (!meta) {
+        return null;
+      }
+
+      let securityClass: "stock" | "etf" | "crypto" | "bond" | "reit" = "stock";
+      
+      if (isCrypto) {
+        securityClass = "crypto";
+      } else {
+        const quoteType = meta.quoteType?.toLowerCase() || "";
+        const longName = meta.longName?.toLowerCase() || "";
+        const shortName = meta.shortName?.toLowerCase() || "";
+        
+        if (quoteType === "etf" || longName.includes("etf") || shortName.includes("etf")) {
+          securityClass = "etf";
+        } else if (quoteType === "bond" || longName.includes("bond") || shortName.includes("bond")) {
+          securityClass = "bond";
+        } else if (quoteType === "equity" && (longName.includes("reit") || shortName.includes("reit"))) {
+          securityClass = "reit";
+        }
+      }
+
+      const price = meta.regularMarketPrice || meta.currentPrice || meta.previousClose || undefined;
+      const finalSymbol = normalizedSymbol.includes('-USD') ? normalizedSymbol.split('-')[0] : normalizedSymbol;
+      
+      return {
+        symbol: finalSymbol,
+        name: meta.longName || meta.shortName || normalizedSymbol,
+        class: securityClass,
+        price,
+        currency: meta.currency || "USD",
+        exchange: meta.exchangeName || meta.fullExchangeName || undefined,
+        logo: this.getSecurityLogoUrl(finalSymbol, securityClass),
+      };
+    } catch (error) {
+      logger.error(`Error searching security for ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Search for securities by name or symbol using Yahoo Finance autocomplete API
+   */
+  async searchSecuritiesByName(query: string): Promise<Array<{
+    symbol: string;
+    name: string;
+    class: "stock" | "etf" | "crypto" | "bond" | "reit";
+    exchange?: string;
+    type?: string;
+    logo?: string;
+  }>> {
+    try {
+      if (!query || query.trim() === "") {
+        return [];
+      }
+
+      const searchQuery = query.trim();
+      const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(searchQuery)}&quotesCount=10&newsCount=0`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
+        next: { revalidate: 300 },
+      }).catch((error) => {
+        logger.error(`Network error searching securities for ${searchQuery}:`, error);
+        return null;
+      });
+
+      if (!response || !response.ok) {
+        return [];
+      }
+
+      const data = await response.json();
+      
+      if (!data?.quotes || !Array.isArray(data.quotes)) {
+        return [];
+      }
+
+      const results: Array<{
+        symbol: string;
+        name: string;
+        class: "stock" | "etf" | "crypto" | "bond" | "reit";
+        exchange?: string;
+        type?: string;
+        logo?: string;
+      }> = [];
+
+      for (const quote of data.quotes) {
+        if (!quote.symbol || !quote.shortname) {
+          continue;
+        }
+
+        let securityClass: "stock" | "etf" | "crypto" | "bond" | "reit" = "stock";
+        
+        const quoteType = quote.quoteType?.toLowerCase() || "";
+        const longName = quote.longname?.toLowerCase() || "";
+        const shortName = quote.shortname?.toLowerCase() || "";
+        const symbol = quote.symbol.toUpperCase();
+        
+        const cryptoPattern = /^(BTC|ETH|BNB|ADA|SOL|XRP|DOT|DOGE|AVAX|MATIC|LINK|UNI|LTC|ALGO|ATOM|VET|FIL|TRX|EOS|XLM|AAVE|MKR|COMP|SUSHI|CRV|YFI|SNX|GRT|ENJ|MANA|SAND|AXS|CHZ|FLOW|NEAR|FTM|ONE|HBAR|ICP|THETA|ZIL|ZEC|DASH|XMR|BCH|BSV|ETC|ZEC)-USD$/i;
+        if (cryptoPattern.test(symbol) || symbol.endsWith("-USD")) {
+          securityClass = "crypto";
+        } else if (quoteType === "etf" || longName.includes("etf") || shortName.includes("etf")) {
+          securityClass = "etf";
+        } else if (quoteType === "bond" || longName.includes("bond") || shortName.includes("bond")) {
+          securityClass = "bond";
+        } else if (quoteType === "equity" && (longName.includes("reit") || shortName.includes("reit"))) {
+          securityClass = "reit";
+        }
+
+        const normalizedSymbolForLogo = symbol.replace("-USD", "");
+        
+        results.push({
+          symbol: normalizedSymbolForLogo,
+          name: quote.longname || quote.shortname || quote.symbol,
+          class: securityClass,
+          exchange: quote.exchange || quote.exchangeDisp,
+          type: quote.quoteType,
+          logo: this.getSecurityLogoUrl(normalizedSymbolForLogo, securityClass),
+        });
+      }
+
+      return results;
+    } catch (error) {
+      logger.error(`Error searching securities for ${query}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Simple Investments Methods
+   */
+
+  /**
+   * Get simple investment entries
+   */
+  async getSimpleInvestmentEntries(accountId?: string): Promise<Array<{
+    id: string;
+    accountId: string;
+    date: string;
+    type: "contribution" | "dividend" | "interest" | "initial";
+    amount: number;
+    description?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>> {
+    const supabase = await createServerClient();
+
+    let query = supabase
+      .from("SimpleInvestmentEntry")
+      .select("*")
+      .order("date", { ascending: false });
+
+    if (accountId) {
+      query = query.eq("accountId", accountId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      logger.error("Error fetching simple investment entries:", error);
+      return [];
+    }
+
+    return (data || []) as Array<{
+      id: string;
+      accountId: string;
+      date: string;
+      type: "contribution" | "dividend" | "interest" | "initial";
+      amount: number;
+      description?: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  }
+
+  /**
+   * Create simple investment entry
+   */
+  async createSimpleInvestmentEntry(data: {
+    accountId: string;
+    date: Date;
+    type: "contribution" | "dividend" | "interest" | "initial";
+    amount: number;
+    description?: string;
+  }): Promise<{
+    id: string;
+    accountId: string;
+    date: string;
+    type: "contribution" | "dividend" | "interest" | "initial";
+    amount: number;
+    description?: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }> {
+    const supabase = await createServerClient();
+    const id = crypto.randomUUID();
+    const date = data.date instanceof Date ? data.date : new Date(data.date);
+    const entryDate = formatTimestamp(date);
+    const now = formatTimestamp(new Date());
+
+    const { data: entry, error } = await supabase
+      .from("SimpleInvestmentEntry")
+      .insert({
+        id,
+        accountId: data.accountId,
+        date: entryDate,
+        type: data.type,
+        amount: data.amount,
+        description: data.description || null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("Error creating simple investment entry:", error);
+      throw new AppError(
+        `Failed to create investment entry: ${error.message || JSON.stringify(error)}`,
+        500
+      );
+    }
+
+    return entry;
+  }
+
+  /**
+   * Get account investment value
+   */
+  async getAccountInvestmentValue(accountId: string): Promise<{
+    id: string;
+    accountId: string;
+    totalValue: number;
+    updatedAt: string;
+  } | null> {
+    const supabase = await createServerClient();
+
+    const { data, error } = await supabase
+      .from("AccountInvestmentValue")
+      .select("*")
+      .eq("accountId", accountId)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        return null;
+      }
+      logger.error("Error fetching account investment value:", error);
+      return null;
+    }
+
+    return data as {
+      id: string;
+      accountId: string;
+      totalValue: number;
+      updatedAt: string;
+    } | null;
+  }
+
+  /**
+   * Upsert account investment value
+   */
+  async upsertAccountInvestmentValue(data: {
+    accountId: string;
+    totalValue: number;
+  }): Promise<{
+    id: string;
+    accountId: string;
+    totalValue: number;
+    updatedAt: string;
+  }> {
+    const supabase = await createServerClient();
+    const now = formatTimestamp(new Date());
+
+    const existing = await this.getAccountInvestmentValue(data.accountId);
+
+    if (existing) {
+      const { data: updated, error } = await supabase
+        .from("AccountInvestmentValue")
+        .update({
+          totalValue: data.totalValue,
+          updatedAt: now,
+        })
+        .eq("accountId", data.accountId)
+        .select()
+        .single();
+
+      if (error) {
+        logger.error("Error updating account investment value:", error);
+        throw new AppError(
+          `Failed to update investment value: ${error.message || JSON.stringify(error)}`,
+          500
+        );
+      }
+
+      return updated;
+    } else {
+      const id = crypto.randomUUID();
+      const { data: created, error } = await supabase
+        .from("AccountInvestmentValue")
+        .insert({
+          id,
+          accountId: data.accountId,
+          totalValue: data.totalValue,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        logger.error("Error creating account investment value:", error);
+        throw new AppError(
+          `Failed to create investment value: ${error.message || JSON.stringify(error)}`,
+          500
+        );
+      }
+
+      return created;
+    }
   }
 }
 

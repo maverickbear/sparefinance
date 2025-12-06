@@ -41,7 +41,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { ReceiptScanner } from "@/components/receipt-scanner/receipt-scanner";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { useSubscriptionSafe } from "@/contexts/subscription-context";
-import type { PlaidTransactionMetadata } from "@/src/domain/plaid/plaid.types";
+// Plaid metadata type (kept for backward compatibility with existing data)
+type PlaidTransactionMetadata = Record<string, unknown>;
 import {
   Accordion,
   AccordionContent,
@@ -224,6 +225,12 @@ interface Subcategory {
 }
 
 export function TransactionForm({ open, onOpenChange, transaction, onSuccess, defaultType = "expense" }: TransactionFormProps) {
+  // Set date after component mounts to avoid SSR/prerendering issues
+  const [defaultDate, setDefaultDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setDefaultDate(new Date());
+  }, []);
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
@@ -272,13 +279,20 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      date: new Date(),
+      date: defaultDate || new Date('2024-01-01'), // Fallback date, will be updated when defaultDate is set
       type: "expense",
       amount: 0,
       recurring: false,
       recurringFrequency: undefined,
     },
   });
+
+  // Update form default value when date is available
+  useEffect(() => {
+    if (defaultDate && !transaction) {
+      form.setValue('date', defaultDate);
+    }
+  }, [defaultDate, transaction, form]);
 
   // Check for receipt data from bottom sheet
   useEffect(() => {
@@ -755,7 +769,6 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
             amount: data.amount,
             accountId: data.accountId,
             toAccountId: data.type === "transfer" ? (data.toAccountId || null) : null,
-            transferFromId: data.type === "transfer" ? (data.transferFromId || null) : null,
             categoryId: data.type === "transfer" ? null : (data.categoryId || null),
             subcategoryId: data.type === "transfer" ? null : (data.subcategoryId || null),
             description: data.description || null,
@@ -1105,7 +1118,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                     form.setValue("amount", numValue > 0 ? numValue : 0.01, { shouldValidate: true });
                   }}
                   placeholder="$ 0.00"
-                  className="h-12"
+                  size="small"
                   required
                 />
                 {form.formState.errors.amount && (
@@ -1126,7 +1139,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                   }}
                   required
                 >
-                  <SelectTrigger className="h-12">
+                  <SelectTrigger size="small">
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1156,7 +1169,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                   form.setValue("date", date || new Date());
                 }}
                 placeholder="Select date"
-                className="h-12"
+                size="small"
                 required
               />
             </div>
@@ -1185,7 +1198,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                         }
                       }}
                     >
-                      <SelectTrigger className="h-12">
+                      <SelectTrigger size="small">
                         <SelectValue placeholder="Select source account (optional)" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1224,7 +1237,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                       }}
                       required
                     >
-                      <SelectTrigger className="h-12">
+                      <SelectTrigger size="small">
                         <SelectValue placeholder="Select destination account" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1293,7 +1306,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                       value={selectedCategoryId && selectedCategoryId !== "__add_category__" ? selectedCategoryId : ""}
                       onValueChange={handleCategoryChange}
                     >
-                      <SelectTrigger className="h-12">
+                      <SelectTrigger size="small">
                         <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1428,7 +1441,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                       onValueChange={handleSubcategoryChange}
                       disabled={!selectedCategoryId || (subcategoriesMap.get(selectedCategoryId) || []).length === 0}
                     >
-                      <SelectTrigger className="h-12">
+                      <SelectTrigger size="small">
                         <SelectValue placeholder={
                           !selectedCategoryId 
                             ? "Select a category first" 
@@ -1493,13 +1506,13 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Description</label>
-                <Input className="h-12" {...form.register("description")} />
+                <Input size="small" {...form.register("description")} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">
                   Merchant <span className="text-gray-400 text-[12px]">(optional)</span>
                 </label>
-                <Input className="h-12" {...form.register("merchant")} placeholder="Store name" />
+                <Input size="small" {...form.register("merchant")} placeholder="Store name" />
               </div>
             </div>
 

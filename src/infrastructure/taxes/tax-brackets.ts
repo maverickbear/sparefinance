@@ -74,31 +74,44 @@ export const US_STATE_TAX_RATES_2024: Record<string, number> = {
   DC: 0.1075, // District of Columbia - 4% to 10.75%
 };
 
-// Canada Federal Tax Brackets 2024
-export const CANADA_FEDERAL_BRACKETS_2024: TaxBracket[] = [
-  { min: 0, max: 55867, rate: 0.15 },
-  { min: 55867, max: 111733, rate: 0.205 },
-  { min: 111733, max: 173205, rate: 0.26 },
-  { min: 173205, max: 246752, rate: 0.29 },
-  { min: 246752, max: null, rate: 0.33 },
+// Canada Federal Tax Brackets 2025
+// Source: https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years.html
+// Note: 14.5% reflects the reduction from 15% to 14% effective July 1, 2025, resulting in an average of 14.5% for the year
+export const CANADA_FEDERAL_BRACKETS_2025: TaxBracket[] = [
+  { min: 0, max: 57375, rate: 0.145 }, // 14.5% on taxable income up to $57,375
+  { min: 57375, max: 114750, rate: 0.205 }, // 20.5% on taxable income over $57,375 up to $114,750
+  { min: 114750, max: 177882, rate: 0.26 }, // 26% on taxable income over $114,750 up to $177,882
+  { min: 177882, max: 253414, rate: 0.29 }, // 29% on taxable income over $177,882 up to $253,414
+  { min: 253414, max: null, rate: 0.33 }, // 33% on taxable income over $253,414
 ];
 
-// Canadian Provincial/Territorial Tax Brackets 2024
-// Using effective rates for simplicity (some provinces have multiple brackets)
+// Canada Federal Tax Brackets 2024 (kept for backward compatibility)
+export const CANADA_FEDERAL_BRACKETS_2024: TaxBracket[] = [
+  { min: 0, max: 55867, rate: 0.15 }, // 15% on taxable income up to $55,867
+  { min: 55867, max: 111733, rate: 0.205 }, // 20.5% on taxable income over $55,867 up to $111,733
+  { min: 111733, max: 173205, rate: 0.26 }, // 26% on taxable income over $111,733 up to $173,205
+  { min: 173205, max: 246752, rate: 0.29 }, // 29% on taxable income over $173,205 up to $246,752
+  { min: 246752, max: null, rate: 0.33 }, // 33% on taxable income over $246,752
+];
+
+// Canadian Provincial/Territorial Tax Rates 2024
+// Source: https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years.html
+// Note: Using effective/average rates for middle-income earners as provinces have progressive brackets
+// These rates represent approximate effective rates for typical income levels
 export const CANADA_PROVINCIAL_TAX_RATES_2024: Record<string, number> = {
-  AB: 0.10, // Alberta - 10% flat
-  BC: 0.205, // British Columbia - 5.06% to 20.5%
-  MB: 0.17, // Manitoba - 10.8% to 17%
-  NB: 0.20, // New Brunswick - 9.4% to 20.3%
-  NL: 0.18, // Newfoundland and Labrador - 8.7% to 18.3%
-  NS: 0.21, // Nova Scotia - 8.79% to 21%
-  NT: 0.117, // Northwest Territories - 5.9% to 11.7%
-  NU: 0.11, // Nunavut - 4% to 11.5%
-  ON: 0.1316, // Ontario - 5.05% to 13.16%
-  PE: 0.18, // Prince Edward Island - 9.8% to 18%
-  QC: 0.2575, // Quebec - 14% to 25.75% (higher due to different system)
-  SK: 0.15, // Saskatchewan - 10.5% to 15%
-  YT: 0.15, // Yukon - 6.4% to 15%
+  AB: 0.10, // Alberta - 10% flat rate
+  BC: 0.1205, // British Columbia - 5.06% to 20.5% (effective ~12.05% for middle income)
+  MB: 0.1275, // Manitoba - 10.8% to 17% (effective ~12.75% for middle income)
+  NB: 0.1394, // New Brunswick - 9.4% to 20.3% (effective ~13.94% for middle income)
+  NL: 0.1287, // Newfoundland and Labrador - 8.7% to 18.3% (effective ~12.87% for middle income)
+  NS: 0.1479, // Nova Scotia - 8.79% to 21% (effective ~14.79% for middle income)
+  NT: 0.059, // Northwest Territories - 5.9% to 11.7% (effective ~5.9% for lower brackets, ~8.6% average)
+  NU: 0.04, // Nunavut - 4% to 11.5% (effective ~4% for lower brackets, ~7.75% average)
+  ON: 0.0933, // Ontario - 5.05% to 13.16% (effective ~9.33% for middle income)
+  PE: 0.098, // Prince Edward Island - 9.8% to 18% (effective ~9.8% for lower brackets, ~13.9% average)
+  QC: 0.14, // Quebec - 14% to 25.75% (effective ~14% for lower brackets, ~19.875% average) - Note: Quebec has different tax system
+  SK: 0.105, // Saskatchewan - 10.5% to 15% (effective ~10.5% for lower brackets, ~12.75% average)
+  YT: 0.064, // Yukon - 6.4% to 15% (effective ~6.4% for lower brackets, ~10.7% average)
 };
 
 /**
@@ -117,9 +130,10 @@ export function getUSStateTaxRate(state: string): number {
 
 /**
  * Get Canada federal tax brackets
+ * Returns 2025 brackets by default
  */
 export function getCanadaFederalBrackets(): TaxBracket[] {
-  return CANADA_FEDERAL_BRACKETS_2024;
+  return CANADA_FEDERAL_BRACKETS_2025;
 }
 
 /**

@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/card";
 import { SimpleFooter } from "@/components/common/simple-footer";
 import { Shield, ArrowLeft, Wallet } from "lucide-react";
-import { getPlans } from "@/lib/api/subscription";
+import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 
 export const metadata = {
   title: "Privacy Policy - Spare Finance",
@@ -16,7 +16,8 @@ export const metadata = {
 
 export default async function PrivacyPolicyPage() {
   // Fetch plans to get dynamic plan names
-  const plans = await getPlans();
+  const subscriptionsService = makeSubscriptionsService();
+  const plans = await subscriptionsService.getPlans();
   const essentialPlan = plans.find(p => p.id === 'essential');
   const proPlan = plans.find(p => p.id === 'pro');
   const essentialPlanName = essentialPlan?.name || 'ESSENTIAL';

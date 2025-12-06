@@ -1,9 +1,10 @@
 /**
  * Onboarding Factory
- * Dependency injection factory for OnboardingService
+ * Dependency injection factory for OnboardingService and OnboardingDecisionService
  */
 
 import { OnboardingService } from "./onboarding.service";
+import { OnboardingDecisionService } from "./onboarding-decision.service";
 import { HouseholdRepository } from "@/src/infrastructure/database/repositories/household.repository";
 import { BudgetGenerator } from "./budget-generator";
 import { CategoryHelper } from "./category-helper";
@@ -16,5 +17,12 @@ export function makeOnboardingService(): OnboardingService {
   const categoryHelper = new CategoryHelper();
   const budgetGenerator = new BudgetGenerator(categoryHelper);
   return new OnboardingService(householdRepository, budgetGenerator, categoryHelper);
+}
+
+/**
+ * Create an OnboardingDecisionService instance
+ */
+export function makeOnboardingDecisionService(): OnboardingDecisionService {
+  return new OnboardingDecisionService();
 }
 

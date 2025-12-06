@@ -1,9 +1,7 @@
 import { LandingHeader } from "@/components/landing/landing-header";
 import { Shield, Mail, AlertCircle } from "lucide-react";
-import { getCurrentUser } from "@/lib/api/auth";
+import { makeAuthService } from "@/src/application/auth/auth.factory";
 import Link from "next/link";
-
-export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: "Account Blocked - Spare Finance",
@@ -12,7 +10,8 @@ export const metadata = {
 
 export default async function AccountBlockedPage() {
   // Check authentication status on server to show correct buttons in header
-  const user = await getCurrentUser();
+  const authService = makeAuthService();
+  const user = await authService.getCurrentUser();
   const isAuthenticated = !!user;
 
   return (

@@ -16,13 +16,21 @@ const buttonVariants = cva(
         "destructive-light":
           "bg-destructive/10 dark:bg-destructive/20 text-destructive dark:text-sentiment-negative hover:bg-destructive/15 dark:hover:bg-destructive/30",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-background hover:bg-secondary hover:text-secondary-foreground hover:border-secondary",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-foreground underline-offset-4 hover:underline",
       },
       size: {
+        tiny: cn(
+          componentSizes.button.tiny.height,
+          componentSizes.button.tiny.paddingX,
+          componentSizes.button.tiny.paddingY,
+          componentSizes.button.tiny.text,
+          componentSizes.button.tiny.rounded,
+          "min-h-[44px] lg:min-h-0"
+        ),
         small: cn(
           componentSizes.button.small.height,
           componentSizes.button.small.paddingX,
@@ -48,10 +56,10 @@ const buttonVariants = cva(
           "min-h-[44px] lg:min-h-0"
         ),
         icon: cn(
-          componentSizes.button.icon.height,
-          componentSizes.button.icon.width,
-          componentSizes.button.icon.text,
-          componentSizes.button.icon.rounded,
+          componentSizes.button.icon.medium.height,
+          componentSizes.button.icon.medium.width,
+          componentSizes.button.icon.medium.text,
+          componentSizes.button.icon.medium.rounded,
           "min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0"
         ),
       },

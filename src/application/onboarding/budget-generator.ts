@@ -20,8 +20,9 @@ export class BudgetGenerator {
 
   /**
    * Generate initial budgets based on monthly income and optional budget rule
+   * IMPORTANT: Always uses income from onboarding to ensure calculations are based on user's declared income
    * If no rule is provided, defaults to 50/30/20 rule
-   * If location is provided, uses after-tax income for more accurate budgets
+   * If location is available, uses after-tax income for more accurate budgets
    */
   async generateInitialBudgets(
     userId: string,
@@ -39,35 +40,62 @@ export class BudgetGenerator {
     const currentMonth = new Date();
     const periodStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
 
+    // CRITICAL: Always fetch income from onboarding to ensure we use the user's declared income
+    // This guarantees budgets are calculated based on what the user entered during onboarding
+    let incomeFromOnboarding: number;
+    try {
+      const { makeOnboardingService } = await import("../onboarding/onboarding.factory");
+      const onboardingService = makeOnboardingService();
+      const { incomeRange, incomeAmount } = await onboardingService.getExpectedIncomeWithAmount(userId, accessToken, refreshToken);
+      
+      if (!incomeRange) {
+        logger.warn(`[BudgetGenerator] No income found in onboarding for user ${userId}, using provided monthlyIncome as fallback`);
+        incomeFromOnboarding = monthlyIncome;
+      } else {
+        // Calculate monthly income from onboarding (respects custom amount if provided)
+        incomeFromOnboarding = onboardingService.getMonthlyIncomeFromRange(incomeRange, incomeAmount);
+        if (incomeFromOnboarding === 0) {
+          logger.warn(`[BudgetGenerator] Invalid income from onboarding for user ${userId}, using provided monthlyIncome as fallback`);
+          incomeFromOnboarding = monthlyIncome;
+        } else {
+          logger.info(`[BudgetGenerator] Using income from onboarding: $${incomeFromOnboarding.toFixed(2)}/month (range: ${incomeRange}${incomeAmount ? `, custom: $${incomeAmount}/year` : ''})`);
+        }
+      }
+    } catch (error) {
+      logger.warn(`[BudgetGenerator] Error fetching income from onboarding, using provided monthlyIncome as fallback:`, error);
+      incomeFromOnboarding = monthlyIncome;
+    }
+
     // Use provided rule or default to 50/30/20
     const selectedRule: BudgetRuleProfile = ruleType 
       ? (getBudgetRuleById(ruleType) || BUDGET_RULE_PROFILES["50_30_20"])
       : BUDGET_RULE_PROFILES["50_30_20"];
 
-    logger.info(`[BudgetGenerator] Using budget rule: ${selectedRule.name} for user ${userId}`);
+    logger.info(`[BudgetGenerator] Using budget rule: ${selectedRule.name} for user ${userId} with income: $${incomeFromOnboarding.toFixed(2)}/month`);
 
     // Calculate after-tax income if location is available
-    let incomeToUse = monthlyIncome;
+    // Use income from onboarding (not the parameter) to ensure consistency
+    let incomeToUse = incomeFromOnboarding;
     if (country && stateOrProvince) {
       try {
         const { makeTaxesService } = await import("../taxes/taxes.factory");
         const taxesService = makeTaxesService();
-        const annualIncome = monthlyIncome * 12;
+        const annualIncome = incomeFromOnboarding * 12;
         const monthlyAfterTax = await taxesService.calculateMonthlyAfterTaxIncome(
           country,
           annualIncome,
           stateOrProvince
         );
         incomeToUse = monthlyAfterTax;
-        logger.info(`[BudgetGenerator] Using after-tax income: $${monthlyAfterTax.toFixed(2)}/month (from $${monthlyIncome.toFixed(2)}/month gross)`);
+        logger.info(`[BudgetGenerator] Using after-tax income: $${monthlyAfterTax.toFixed(2)}/month (from $${incomeFromOnboarding.toFixed(2)}/month gross from onboarding)`);
       } catch (error) {
-        logger.warn(`[BudgetGenerator] Failed to calculate after-tax income, using gross income:`, error);
-        // Continue with gross income if tax calculation fails
+        logger.warn(`[BudgetGenerator] Failed to calculate after-tax income, using gross income from onboarding:`, error);
+        // Continue with gross income from onboarding if tax calculation fails
       }
     }
 
     // Get all groups to map to rule categories
-    const groups = await categoriesService.getGroups(accessToken, refreshToken);
+    const groups = await categoriesService.getGroups();
     const groupMappings = budgetRulesService.mapGroupsToRuleCategories(groups);
 
     // Calculate budget amounts per group based on rule
@@ -77,8 +105,104 @@ export class BudgetGenerator {
       groupMappings
     );
 
-    // Create budgets for each group
+    // Get all categories to find specific categories to create budgets for
+    const allCategories = await categoriesService.getAllCategories();
+    
+    /**
+     * Restaurant budget profiles based on income after taxes
+     * These percentages represent healthy dining out budgets that don't compromise financial goals
+     */
+    type RestaurantBudgetProfile = "ideal" | "balanced" | "comfortable";
+    
+    const RESTAURANT_BUDGET_PROFILES: Record<RestaurantBudgetProfile, number> = {
+      ideal: 0.05,      // 5% - For prioritizing goals, debt control, maximizing savings
+      balanced: 0.075,  // 7.5% - Balance between social life and financial health (most common)
+      comfortable: 0.10, // 10% - For those who love dining out, busy routine, stable finances
+    };
+    
+    // Use "balanced" as default - provides good balance for most users
+    const restaurantProfile: RestaurantBudgetProfile = "balanced";
+    const restaurantPercentage = RESTAURANT_BUDGET_PROFILES[restaurantProfile];
+    
+    // Specific categories to create budgets for
+    // Budget is calculated as percentage of income after taxes (not group budget)
+    const specificCategoryConfigs: Array<{ 
+      categoryId: string; 
+      percentageOfIncome: number; 
+      name: string;
+      profile?: RestaurantBudgetProfile;
+    }> = [
+      { 
+        categoryId: "cat_1764909744605_kb1vi312v", // Restaurants
+        percentageOfIncome: restaurantPercentage, // 7.5% of income after taxes (balanced profile)
+        name: "Restaurants",
+        profile: restaurantProfile
+      },
+    ];
+    
+    // Create budgets for specific categories first
+    for (const config of specificCategoryConfigs) {
+      const category = allCategories.find(cat => cat.id === config.categoryId);
+      if (!category) {
+        logger.warn(`[BudgetGenerator] Category ${config.categoryId} not found, skipping`);
+        continue;
+      }
+      
+      // Calculate category budget as percentage of income after taxes
+      // This ensures a healthy allocation that doesn't compromise financial goals
+      const categoryBudgetAmount = Math.round(incomeToUse * config.percentageOfIncome * 100) / 100;
+      
+      if (categoryBudgetAmount <= 0) {
+        logger.warn(`[BudgetGenerator] Calculated budget amount for category ${config.categoryId} is zero or negative, skipping`);
+        continue;
+      }
+      
+      // Warn if percentage is above 10% (may compromise financial goals)
+      if (config.percentageOfIncome > 0.10) {
+        logger.warn(`[BudgetGenerator] Restaurant budget is ${(config.percentageOfIncome * 100).toFixed(1)}% of income - above 10% may compromise financial goals`);
+      }
+      
+      try {
+        // Create budget for the specific category
+        // Use the category's groupId for reference, but budget is based on income percentage
+        const budget = await budgetsService.createBudget({
+          period: periodStart,
+          categoryId: config.categoryId,
+          groupId: category.groupId, // Keep groupId for reference
+          amount: categoryBudgetAmount,
+        });
+
+        createdBudgets.push(budget);
+        const profileInfo = config.profile ? ` (${config.profile} profile)` : '';
+        logger.info(`[BudgetGenerator] Created budget for ${config.name}${profileInfo}: $${categoryBudgetAmount}/month (${(config.percentageOfIncome * 100).toFixed(1)}% of income after taxes: $${incomeToUse.toFixed(2)}/month)`);
+      } catch (error) {
+        // Budget might already exist, skip it silently
+        const isAppError = error && typeof error === 'object' && 'statusCode' in error;
+        const is409Error = isAppError && (error as any).statusCode === 409;
+        const isAlreadyExistsError = error instanceof Error && error.message.includes("already exists");
+        
+        if (is409Error || isAlreadyExistsError) {
+          logger.debug(`[BudgetGenerator] Budget already exists for category ${config.categoryId}, skipping`);
+        } else {
+          logger.warn(`[BudgetGenerator] Could not create budget for category ${config.categoryId}:`, error);
+        }
+      }
+    }
+    
+    // Create budgets for remaining groups (excluding groups that have specific category budgets)
+    const groupsWithSpecificCategories = new Set(
+      specificCategoryConfigs
+        .map(config => allCategories.find(cat => cat.id === config.categoryId)?.groupId)
+        .filter((id): id is string => id !== undefined)
+    );
+    
     for (const { groupId, amount, ruleCategory } of budgetAmounts) {
+      // Skip groups that have specific category budgets
+      if (groupsWithSpecificCategories.has(groupId)) {
+        logger.debug(`[BudgetGenerator] Skipping group ${groupId} - has specific category budgets`);
+        continue;
+      }
+      
       if (amount <= 0) {
         continue; // Skip zero or negative amounts
       }

@@ -5,6 +5,9 @@ import { PLANNED_HORIZON_DAYS } from "@/src/domain/planned-payments/planned-paym
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
+import { parseDateInput } from "@/src/infrastructure/utils/timestamp";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,10 +30,12 @@ export async function GET(request: NextRequest) {
     } = {};
     
     if (searchParams.get("startDate")) {
-      filters.startDate = new Date(searchParams.get("startDate")!);
+      filters.startDate = parseDateInput(searchParams.get("startDate")!);
+      filters.startDate.setHours(0, 0, 0, 0);
     }
     if (searchParams.get("endDate")) {
-      filters.endDate = new Date(searchParams.get("endDate")!);
+      filters.endDate = parseDateInput(searchParams.get("endDate")!);
+      filters.endDate.setHours(23, 59, 59, 999);
     }
     if (searchParams.get("status")) {
       filters.status = searchParams.get("status") as "scheduled" | "paid" | "skipped" | "cancelled";
@@ -68,9 +73,15 @@ export async function GET(request: NextRequest) {
     const service = makePlannedPaymentsService();
     const result = await service.getPlannedPayments(filters);
     
+    // Planned payments change frequently, use dynamic cache
+    const cacheHeaders = getCacheHeaders('dynamic');
+    
     return NextResponse.json({
       plannedPayments: result.plannedPayments,
       total: result.total,
+    }, {
+      status: 200,
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching planned payments:", error);
@@ -107,6 +118,9 @@ export async function POST(request: NextRequest) {
     
     const service = makePlannedPaymentsService();
     const plannedPayment = await service.createPlannedPayment(data);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
     
     return NextResponse.json(plannedPayment, { status: 201 });
   } catch (error) {

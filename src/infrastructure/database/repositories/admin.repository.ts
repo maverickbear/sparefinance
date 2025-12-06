@@ -873,10 +873,19 @@ export class AdminRepository {
 
     if (error && error.code !== "PGRST116") {
       // PGRST116 is "not found" - we'll return default if it doesn't exist
+      
+      // Check if this is a prerendering error - if so, return default silently
+      const errorMessage = error.message || "";
+      if (errorMessage.includes("prerender") || 
+          errorMessage.includes("HANGING_PROMISE") ||
+          errorMessage.includes("fetch() rejects")) {
+        // During prerendering, return default settings
+        return { maintenanceMode: false };
+      }
+      
       logger.error("[AdminRepository] Error fetching system settings:", error);
       
       // Check if the error is due to HTML response (misconfigured Supabase URL)
-      const errorMessage = error.message || "";
       if (errorMessage.includes("<html>") || 
           errorMessage.includes("500 Internal Server Error") ||
           errorMessage.includes("cloudflare")) {

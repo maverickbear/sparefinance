@@ -1,8 +1,6 @@
 import { LandingHeader } from "@/components/landing/landing-header";
 import { Wrench, Clock } from "lucide-react";
-import { getCurrentUser } from "@/lib/api/auth";
-
-export const dynamic = 'force-dynamic';
+import { makeAuthService } from "@/src/application/auth/auth.factory";
 
 export const metadata = {
   title: "Maintenance - Spare Finance",
@@ -11,7 +9,8 @@ export const metadata = {
 
 export default async function MaintenancePage() {
   // Check authentication status on server to show correct buttons in header
-  const user = await getCurrentUser();
+  const authService = makeAuthService();
+  const user = await authService.getCurrentUser();
   const isAuthenticated = !!user;
 
   return (

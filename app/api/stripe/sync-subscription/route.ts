@@ -340,7 +340,6 @@ export async function POST(request: NextRequest) {
     // Invalidate subscription cache to ensure UI reflects changes immediately
     const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
     const subscriptionsService = makeSubscriptionsService();
-    subscriptionsService.invalidateSubscriptionCache(authUser.id);
     console.log("[SYNC] Subscription cache invalidated for user:", authUser.id);
 
     return NextResponse.json({

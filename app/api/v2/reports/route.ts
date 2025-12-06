@@ -3,6 +3,7 @@ import { makeReportsService } from "@/src/application/reports/reports.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import type { ReportPeriod } from "@/src/domain/reports/reports.types";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 
 /**
  * Reports API endpoint
@@ -28,10 +29,12 @@ export async function GET(request: NextRequest) {
     
     const data = await service.getReportsData(userId, period, accessToken, refreshToken);
 
+    // Reports involve heavy computation, use computed cache
+    const cacheHeaders = getCacheHeaders('computed');
+
     return NextResponse.json(data, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-      },
+      status: 200,
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching reports:", error);

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 type PeriodOption = "1M" | "3M" | "6M" | "12M";
 
 interface CashFlowTimelineWidgetProps {
-  chartTransactions: any[];
+  chartTransactions: any[] | Array<{ month: string; income: number; expenses: number }>; // Can be full transactions or aggregated monthly data
   selectedMonthDate?: Date;
 }
 
@@ -80,8 +80,34 @@ export function CashFlowTimelineWidget({
     });
   }, [chartTransactions, today]);
 
+  // Check if chartTransactions is already aggregated (has month, income, expenses structure)
+  const isAggregated = useMemo(() => {
+    if (!chartTransactions || chartTransactions.length === 0) return false;
+    const first = chartTransactions[0];
+    return first && 'month' in first && 'income' in first && 'expenses' in first && !('date' in first);
+  }, [chartTransactions]);
+
   // Prepare data for the bar chart - by days for 1M, by months for other periods
   const chartData = useMemo(() => {
+    // If data is already aggregated, use it directly (for periods >= 3M)
+    if (isAggregated && selectedPeriod !== "1M") {
+      const aggregated = chartTransactions as Array<{ month: string; income: number; expenses: number }>;
+      const months = eachMonthOfInterval({ start: chartStart, end: chartEnd });
+      
+      // Map aggregated data to chart format
+      return months.map((month) => {
+        const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+        const monthData = aggregated.find((agg) => agg.month === monthKey);
+        
+        return {
+          month: format(month, "MMM"),
+          income: monthData?.income || 0,
+          expenses: monthData?.expenses || 0,
+        };
+      });
+    }
+
+    // For 1M period or when we have full transactions, do client-side aggregation
     if (selectedPeriod === "1M") {
       // For 1M period, group by days
       const days = eachDayOfInterval({ start: chartStart, end: chartEnd });
@@ -133,7 +159,7 @@ export function CashFlowTimelineWidget({
       };
     });
     }
-  }, [pastChartTransactions, chartStart, chartEnd, selectedPeriod]);
+  }, [pastChartTransactions, chartStart, chartEnd, selectedPeriod, isAggregated, chartTransactions]);
 
   // Period Selector Component
   const periodSelector = (

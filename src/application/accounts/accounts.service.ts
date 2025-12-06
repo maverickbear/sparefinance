@@ -4,7 +4,6 @@
  */
 
 import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
-import { PlaidRepository } from "@/src/infrastructure/database/repositories/plaid.repository";
 import { InvestmentsRepository } from "@/src/infrastructure/database/repositories/investments.repository";
 import { AccountsMapper } from "./accounts.mapper";
 import { AccountFormData } from "../../domain/accounts/accounts.validations";
@@ -16,19 +15,6 @@ import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { AppError } from "../shared/app-error";
 
-// Simple in-memory cache for request deduplication
-const requestCache = new Map<string, { promise: Promise<AccountWithBalance[]>; timestamp: number }>();
-const CACHE_TTL = 2000; // 2 seconds
-
-function cleanAccountsCache() {
-  const now = Date.now();
-  for (const [key, value] of requestCache.entries()) {
-    if (now - value.timestamp > CACHE_TTL) {
-      requestCache.delete(key);
-    }
-  }
-}
-
 export class AccountsService {
   constructor(
     private repository: AccountsRepository,
@@ -37,16 +23,14 @@ export class AccountsService {
 
   /**
    * Get all accounts for the current user with balances
+   * Note: This method does not use cache directives - use getAccountsForDashboard() for cached access
    */
   async getAccounts(
     accessToken?: string,
     refreshToken?: string,
     options?: { includeHoldings?: boolean }
   ): Promise<AccountWithBalance[]> {
-    const includeHoldings = options?.includeHoldings ?? true;
-
     // Get current user ID
-    const { getCurrentUserId } = await import("@/src/application/shared/feature-guard");
     const userId = await getCurrentUserId();
     if (!userId) {
       // In server components, this can happen during SSR - return empty array gracefully
@@ -54,32 +38,8 @@ export class AccountsService {
       return [];
     }
 
-    // Request deduplication
-    const cacheKey = `accounts:${userId}:${includeHoldings ? 'with-holdings' : 'no-holdings'}`;
-    const cached = requestCache.get(cacheKey);
-    const now = Date.now();
-
-    if (cached && (now - cached.timestamp) < CACHE_TTL) {
-      return await cached.promise;
-    }
-
-    // Clean up expired entries (1% chance)
-    if (Math.random() < 0.01) {
-      cleanAccountsCache();
-    }
-
-    // Create new request promise
-    const requestPromise = this.fetchAccountsInternal(userId, includeHoldings, accessToken, refreshToken);
-
-    // Store in cache
-    requestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
-
-    // Clean up after TTL expires
-    setTimeout(() => {
-      requestCache.delete(cacheKey);
-    }, CACHE_TTL);
-
-    return await requestPromise;
+    const includeHoldings = options?.includeHoldings ?? true;
+    return await this.fetchAccountsInternal(userId, includeHoldings, accessToken, refreshToken);
   }
 
   private async fetchAccountsInternal(
@@ -467,25 +427,7 @@ export class AccountsService {
     
     const account = AccountsMapper.toDomain(accountRow);
     
-    // Get institution name and logo from PlaidConnection if account has plaidItemId
-    let institutionName: string | null = null;
-    let institutionLogo: string | null = null;
-    
-    if (accountRow.plaidItemId) {
-      const plaidRepository = new PlaidRepository();
-      const institutionInfo = await plaidRepository.getInstitutionInfoByItemId(accountRow.plaidItemId);
-      
-      if (institutionInfo) {
-        institutionName = institutionInfo.institutionName;
-        institutionLogo = institutionInfo.institutionLogo;
-      }
-    }
-    
-    return {
-      ...account,
-      institutionName,
-      institutionLogo,
-    };
+    return account;
   }
 
   /**

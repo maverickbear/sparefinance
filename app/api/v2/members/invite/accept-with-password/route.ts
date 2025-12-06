@@ -7,7 +7,6 @@ import { z } from "zod";
 /**
  * POST /api/v2/members/invite/accept-with-password
  * Accept invitation and create account with password
- * Note: This route uses lib/api/members temporarily until logic is migrated to MembersService
  */
 export async function POST(request: NextRequest) {
   try {

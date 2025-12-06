@@ -4,6 +4,7 @@ import { TransactionFormData } from "@/src/domain/transactions/transactions.vali
 import { ZodError } from "zod";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(
   request: NextRequest,
@@ -71,6 +72,11 @@ export async function PATCH(
     const service = makeTransactionsService();
     const transaction = await service.updateTransaction(id, data);
     
+    // Invalidate cache
+    revalidateTag(`transactions-${userId}`, 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
+    
     return NextResponse.json(transaction, { status: 200 });
   } catch (error) {
     console.error("Error updating transaction:", error);
@@ -119,6 +125,11 @@ export async function DELETE(
     
     const service = makeTransactionsService();
     await service.deleteTransaction(id);
+    
+    // Invalidate cache
+    revalidateTag(`transactions-${userId}`, 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

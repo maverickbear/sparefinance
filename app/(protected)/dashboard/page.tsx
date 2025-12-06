@@ -4,19 +4,23 @@ import { loadDashboardData } from "./data-loader";
 import { PageHeader } from "@/components/common/page-header";
 import { DashboardHeaderActions } from "@/components/dashboard/dashboard-header-actions";
 import { makeProfileService } from "@/src/application/profile/profile.factory";
+import { makeOnboardingDecisionService } from "@/src/application/onboarding/onboarding.factory";
+import { makeOnboardingService } from "@/src/application/onboarding/onboarding.factory";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { DashboardRealtime } from "@/components/dashboard/dashboard-realtime";
 import { DashboardUpdateChecker } from "@/components/dashboard/dashboard-update-checker";
 import { TrialCelebration } from "@/components/dashboard/trial-celebration";
 import { UrlCleanup } from "@/components/common/url-cleanup";
 import { startServerPagePerformance } from "@/lib/utils/performance";
 import { startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
-
-// Force dynamic rendering since this page uses cookies for authentication
-export const dynamic = 'force-dynamic';
+import { cookies } from "next/headers";
+import { DashboardSkeleton } from "./dashboard-skeleton";
 
 // Lazy load the new Financial Overview page
 const FinancialOverviewPage = nextDynamic(() => import("./financial-overview-page").then(m => ({ default: m.FinancialOverviewPage })), { ssr: true });
-const OnboardingDialogWrapper = nextDynamic(() => import("@/src/presentation/components/features/onboarding/onboarding-dialog-wrapper").then(m => ({ default: m.OnboardingDialogWrapper })));
+// CRITICAL: Don't lazy load OnboardingDialogWrapper - it needs to render immediately
+// Import directly to ensure zero delay for new users
+import { OnboardingDialogWrapper } from "@/src/presentation/components/features/onboarding/onboarding-dialog-wrapper";
 
 type DateRange = "this-month" | "last-month" | "last-60-days" | "last-90-days";
 
@@ -76,41 +80,49 @@ async function DashboardContent({
   startDate: Date;
   endDate: Date;
 }) {
-  const data = await loadDashboardData(selectedMonthDate, startDate, endDate);
+  // CRITICAL: Load only critical data for first render
+  const criticalData = await loadDashboardData(selectedMonthDate, startDate, endDate);
+
+  // Load secondary data in parallel (non-blocking via Suspense)
+  // This will be handled by a separate component wrapped in Suspense
+  const { SecondaryDataLoader } = await import("./secondary-data-loader");
 
   return (
     <>
-      {/* Multi-Step Onboarding Dialog - Opens automatically if incomplete */}
-      <OnboardingDialogWrapper initialStatus={data.onboardingStatus || undefined} />
-
-      {/* Financial Overview Dashboard */}
-      <FinancialOverviewPage
-        selectedMonthTransactions={data.selectedMonthTransactions}
-        lastMonthTransactions={data.lastMonthTransactions}
-        savings={data.savings}
-        totalBalance={data.totalBalance}
-        lastMonthTotalBalance={data.lastMonthTotalBalance}
-        accounts={data.accounts}
-        budgets={data.budgets}
-        upcomingTransactions={data.upcomingTransactions}
-        financialHealth={data.financialHealth}
-        goals={data.goals}
-        chartTransactions={data.chartTransactions}
-        liabilities={data.liabilities}
-        debts={data.debts}
-        recurringPayments={data.recurringPayments}
-        subscriptions={data.subscriptions}
+    <FinancialOverviewPage
+        selectedMonthTransactions={criticalData.selectedMonthTransactions}
+        lastMonthTransactions={criticalData.lastMonthTransactions}
+        savings={criticalData.savings}
+        totalBalance={criticalData.totalBalance}
+        lastMonthTotalBalance={criticalData.lastMonthTotalBalance}
+        accounts={criticalData.accounts}
+        budgets={criticalData.budgets}
+        upcomingTransactions={criticalData.upcomingTransactions}
+        financialHealth={criticalData.financialHealth}
+        goals={criticalData.goals}
+        chartTransactions={criticalData.chartTransactions}
+        liabilities={criticalData.liabilities}
+        debts={criticalData.debts}
+        recurringPayments={criticalData.recurringPayments}
+        subscriptions={criticalData.subscriptions}
+        plannedPayments={criticalData.plannedPayments}
         selectedMonthDate={selectedMonthDate}
-        expectedIncomeRange={data.expectedIncomeRange}
+        expectedIncomeRange={criticalData.expectedIncomeRange}
       />
+      {/* Load secondary data via Suspense - won't block initial render */}
+      <SecondaryDataLoader
+      selectedMonthDate={selectedMonthDate}
+        startDate={startDate}
+        endDate={endDate}
+    />
     </>
   );
 }
 
+
 export default async function Dashboard({ searchParams }: DashboardProps) {
-  const perf = startServerPagePerformance("Dashboard");
-  
   // Get selected range from URL or default to "this-month"
+  // Access searchParams first (dynamic data) to unlock Date.now() usage
   const params = await Promise.resolve(searchParams);
   const rangeParam = params?.range as DateRange | undefined;
   const validRange: DateRange = rangeParam && ["this-month", "last-month", "last-60-days", "last-90-days"].includes(rangeParam)
@@ -120,15 +132,68 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Calculate date range based on selection
   const { startDate, endDate, selectedMonthDate } = calculateDateRange(validRange);
   
+  // Start performance tracking after accessing dynamic data
+  const perf = startServerPagePerformance("Dashboard");
+  
   // Get user profile to personalize the header
   const profileService = makeProfileService();
   const profile = await profileService.getProfile();
   const firstName = profile?.name?.split(' ')[0] || 'there';
   
+  // Get onboarding decision and status in parallel for optimal performance
+  let shouldShowOnboarding = false;
+  let onboardingStatus: {
+    hasPersonalData: boolean;
+    hasExpectedIncome: boolean;
+    hasPlan: boolean;
+    completedCount: number;
+    totalCount: number;
+  } | undefined = undefined;
+  
+  try {
+    const userId = await getCurrentUserId();
+    if (userId) {
+      // Use OnboardingDecisionService as single source of truth
+      const decisionService = makeOnboardingDecisionService();
+      const onboardingService = makeOnboardingService();
+      const cookieStore = await cookies();
+      const accessToken = cookieStore.get("sb-access-token")?.value;
+      const refreshToken = cookieStore.get("sb-refresh-token")?.value;
+      
+      // Load decision and status in parallel
+      const [shouldShow, status] = await Promise.all([
+        decisionService.shouldShowOnboardingDialog(userId),
+        onboardingService.getOnboardingStatus(
+          userId,
+          accessToken,
+          refreshToken,
+          { skipSubscriptionCheck: true } // Decision service already checked subscription
+        ),
+      ]);
+      
+      shouldShowOnboarding = shouldShow;
+      onboardingStatus = {
+        hasPersonalData: status.hasPersonalData,
+        hasExpectedIncome: status.hasExpectedIncome,
+        hasPlan: status.hasPlan,
+        completedCount: status.completedCount,
+        totalCount: status.totalCount,
+      };
+    }
+  } catch (error) {
+    // On error, default to showing onboarding (safer for user experience)
+    console.warn("[Dashboard] Error getting onboarding decision:", error);
+    shouldShowOnboarding = true;
+  }
+  
   perf.end();
 
   return (
     <div>
+      {/* CRITICAL: Render onboarding dialog FIRST, before any other content */}
+      {/* Pass decision and status from server - single source of truth */}
+      <OnboardingDialogWrapper shouldShow={shouldShowOnboarding} initialStatus={onboardingStatus} />
+      
       <Suspense fallback={null}>
         <UrlCleanup />
         <TrialCelebration />
@@ -142,7 +207,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
-        <Suspense fallback={null}>
+        <Suspense fallback={<DashboardSkeleton />}>
           <DashboardContent 
             selectedMonthDate={selectedMonthDate}
             startDate={startDate}

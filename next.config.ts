@@ -70,6 +70,28 @@ const nextConfig: NextConfig = {
   // Improve compatibility with React 19 and Next.js 16
   reactStrictMode: true,
   
+  // Enable Cache Components (Next.js 16)
+  cacheComponents: true,
+  
+  // Custom cache profiles
+  cacheLife: {
+    'static-data': {
+      stale: 3600,      // 1 hour - client can use cached data
+      revalidate: 1800, // 30 minutes - background revalidation
+      expire: 86400     // 24 hours - maximum cache lifetime
+    },
+    'financial': {
+      stale: 30,        // 30 seconds
+      revalidate: 60,   // 1 minute
+      expire: 300       // 5 minutes
+    },
+    'user-data': {
+      stale: 60,        // 1 minute
+      revalidate: 300,  // 5 minutes
+      expire: 3600      // 1 hour
+    }
+  },
+  
   // Turbopack configuration (Next.js 16 uses Turbopack by default)
   turbopack: {},
   

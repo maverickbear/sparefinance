@@ -4,6 +4,8 @@ import { BudgetFormData } from "@/src/domain/budgets/budgets.validations";
 import { AppError } from "@/src/application/shared/app-error";
 import { ZodError } from "zod";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,11 +35,12 @@ export async function GET(request: NextRequest) {
     const service = makeBudgetsService();
     const budgets = await service.getBudgets(period);
     
+    // Budgets change occasionally, use semi-static cache
+    const cacheHeaders = getCacheHeaders('semi-static');
+    
     return NextResponse.json(budgets, {
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=120',
-      },
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching budgets:", error);
@@ -73,6 +76,10 @@ export async function POST(request: NextRequest) {
     
     const service = makeBudgetsService();
     const budget = await service.createBudget(data);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(budget, { status: 201 });
   } catch (error) {

@@ -12,14 +12,14 @@ interface PausedSubscriptionBannerProps {
 
 export function PausedSubscriptionBanner({ isSidebarCollapsed = false }: PausedSubscriptionBannerProps) {
   const contextData = useSubscriptionSafe();
-  const [checking, setChecking] = useState(contextData.checking);
   const [isPaused, setIsPaused] = useState(false);
   const [pausedReason, setPausedReason] = useState<string | null>(null);
+  const [checkingPauseStatus, setCheckingPauseStatus] = useState(false);
 
   // Check if subscription is paused
   useEffect(() => {
     async function checkPauseStatus() {
-      setChecking(true);
+      setCheckingPauseStatus(true);
       try {
         const response = await fetch("/api/v2/subscriptions/pause-status");
         if (response.ok) {
@@ -30,7 +30,7 @@ export function PausedSubscriptionBanner({ isSidebarCollapsed = false }: PausedS
       } catch (error) {
         console.error("[PAUSED-BANNER] Error checking pause status:", error);
       } finally {
-        setChecking(false);
+        setCheckingPauseStatus(false);
       }
     }
 
@@ -40,8 +40,8 @@ export function PausedSubscriptionBanner({ isSidebarCollapsed = false }: PausedS
     }
   }, [contextData.subscription]);
 
-  // Don't render if subscription is still loading
-  if (checking) {
+  // Don't render if subscription is still loading or checking pause status
+  if (contextData.checking || checkingPauseStatus) {
     return null;
   }
 

@@ -37,7 +37,6 @@ export function DashboardHeaderActions() {
           variant="outline"
           size="small"
           onClick={handleConnectAccount}
-          className="text-xs"
         >
           <Building2 className="h-3 w-3 mr-1.5" />
           Connect Account
@@ -46,7 +45,6 @@ export function DashboardHeaderActions() {
           variant="outline"
           size="small"
           onClick={handleAddTransaction}
-          className="text-xs"
         >
           <Plus className="h-3 w-3 mr-1.5" />
           Add Transaction
@@ -55,7 +53,6 @@ export function DashboardHeaderActions() {
           variant="outline"
           size="small"
           onClick={handleCreateBudget}
-          className="text-xs"
         >
           <Target className="h-3 w-3 mr-1.5" />
           Create Budget

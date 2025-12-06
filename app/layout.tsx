@@ -6,12 +6,12 @@ import { LayoutWrapper } from "@/components/layout-wrapper";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
 import { StripeProvider } from "@/components/stripe-provider";
-import { PlaidLinkProvider } from "@/components/banking/plaid-link-context";
 import { ServiceWorkerRegister } from "./sw-register";
 import { BreakpointLogger } from "@/components/breakpoint-logger";
 import { CookieConsentBanner } from "@/components/cookie/CookieConsentBanner";
 import { SpeedInsightsWrapper } from "@/components/speed-insights-wrapper";
 import { GoogleTag } from "@/components/common/google-tag";
+import { AuthProvider } from "@/contexts/auth-context";
 // PlanLimitsProvider removed - SubscriptionProvider in protected layout handles this
 
 const inter = Inter({ 
@@ -72,7 +72,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://api.stripe.com" />
         <link rel="preconnect" href="https://js.stripe.com" />
-        <link rel="preconnect" href="https://cdn.plaid.com" />
       </head>
       <body className={`${inter.className} bg-background text-foreground`}>
         <GoogleTag />
@@ -83,16 +82,16 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <StripeProvider>
-          <PlaidLinkProvider>
           <ToastProvider>
-            <BreakpointLogger />
-            <LayoutWrapper>{children}</LayoutWrapper>
-            <KBarWrapper />
-            <ServiceWorkerRegister />
-            <CookieConsentBanner />
-            <SpeedInsightsWrapper />
+            <AuthProvider>
+              <BreakpointLogger />
+              <LayoutWrapper>{children}</LayoutWrapper>
+              <KBarWrapper />
+              <ServiceWorkerRegister />
+              <CookieConsentBanner />
+              <SpeedInsightsWrapper />
+            </AuthProvider>
           </ToastProvider>
-          </PlaidLinkProvider>
           </StripeProvider>
         </ThemeProvider>
       </body>

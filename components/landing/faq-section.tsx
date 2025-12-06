@@ -31,7 +31,7 @@ export function FAQSection() {
     },
     {
       question: "Do I need to connect my bank account?",
-      answer: "No, you can add transactions manually or import from CSV files. But connecting your bank account (via Plaid) makes it automatic—you'll see all your expenses without manual entry. This helps you track everything without the work. Bank integration is available on Essential and Pro plans.",
+      answer: "Yes, you can add transactions manually or import from CSV files. This helps you track everything and maintain full control over your financial data.",
     },
   ];
 

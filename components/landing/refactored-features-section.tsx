@@ -67,7 +67,7 @@ function CoreFeatureSplit({
           <div className="w-full lg:w-1/2 flex items-center">
             <div className="w-full">
               {badge && (
-                <Badge variant="outline" size="medium" className="mb-5 text-xs font-medium tracking-wide">
+                <Badge variant="outline" size="medium" className="mb-5 font-medium tracking-wide">
                   {badge}
                 </Badge>
               )}
@@ -121,7 +121,7 @@ function CoreFeatureHero({
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center mb-14">
           {badge && (
-            <Badge variant="outline" size="large" className="mb-5 text-xs font-medium tracking-wide">
+            <Badge variant="outline" size="large" className="mb-5 font-medium tracking-wide">
               {badge}
             </Badge>
           )}
@@ -291,7 +291,7 @@ export function RefactoredFeaturesSection() {
       <div className="pt-20 md:pt-28 pb-14 md:pb-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
-            <Badge variant="outline" size="large" className="mb-5 text-xs font-medium tracking-wide">
+            <Badge variant="outline" size="large" className="mb-5 font-medium tracking-wide">
               Everything You Need
             </Badge>
             <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold mb-5 tracking-tight leading-[1.1]">
@@ -359,17 +359,17 @@ export function RefactoredFeaturesSection() {
         badge="Essential"
       />
 
-      {/* Feature 4: Bank Sync - Hero Layout (Coming Soon with Plaid) */}
+      {/* Feature 4: Manual Entry - Hero Layout */}
       <CoreFeatureHero
-        title="Connect Your Banks in Seconds"
-        subtitle="Automatic Bank Sync"
-        description="Instead of manually entering every transaction, connect your bank accounts once and watch your finances update automatically. Your data stays synchronized 24/7, so you always know exactly where you stand—no spreadsheets, no manual work, no guesswork."
+        title="Track Your Finances Your Way"
+        subtitle="Manual Entry & CSV Import"
+        description="Add transactions manually or import from CSV files. You maintain full control over your financial data with easy-to-use tools that make tracking simple and secure."
         benefits={[
-          "Connect multiple banks and accounts in under 60 seconds",
-          "Transactions import automatically—no manual entry ever again",
-          "Secure connection via Plaid with 256-bit encryption and read-only access",
-          "Real-time balance updates across all your accounts",
-          "Works with 11,000+ financial institutions worldwide"
+          "Add transactions manually with our intuitive interface",
+          "Import transactions from CSV files",
+          "Full control over your financial data",
+          "Secure and private—your data stays with you",
+          "Works with any financial institution"
         ]}
         demoComponent={<BankAccountsDemo />}
         badge="Coming Soon"
@@ -487,7 +487,7 @@ export function RefactoredFeaturesSection() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
             <AssistiveFeatureCard
               title="Enterprise-Grade Security"
-              description="256-bit encryption for sensitive data, read-only bank access via Plaid, and encrypted data storage. Your financial information is protected with industry-standard security measures."
+              description="256-bit encryption for sensitive data and encrypted data storage. Your financial information is protected with industry-standard security measures."
               icon={<Shield className="w-4 h-4" />}
             />
             

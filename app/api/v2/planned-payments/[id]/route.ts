@@ -4,6 +4,7 @@ import { PlannedPaymentFormData, plannedPaymentSchema } from "@/src/domain/plann
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";
+import { revalidateTag } from 'next/cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -24,6 +25,9 @@ export async function PATCH(
     
     const service = makePlannedPaymentsService();
     const plannedPayment = await service.updatePlannedPayment(id, data);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
     
     return NextResponse.json(plannedPayment, { status: 200 });
   } catch (error) {
@@ -70,6 +74,9 @@ export async function DELETE(
     
     const service = makePlannedPaymentsService();
     await service.deletePlannedPayment(id);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

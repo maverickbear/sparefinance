@@ -1,15 +1,11 @@
 "use server";
 
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
-import { 
-  getUserSubscriptionData,
-  checkTransactionLimit,
-  checkAccountLimit,
-  type LimitCheckResult
-} from "@/lib/api/subscription";
+import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
+import type { BaseLimitCheckResult as LimitCheckResult } from "@/src/domain/subscriptions/subscriptions.types";
 
-// Re-export LimitCheckResult from unified API
-export type { LimitCheckResult } from "@/lib/api/subscription";
+// Re-export LimitCheckResult from domain
+export type { LimitCheckResult };
 
 export interface BillingLimitsResult {
   transactionLimit: LimitCheckResult;
@@ -31,10 +27,11 @@ export async function getBillingLimitsAction(): Promise<BillingLimitsResult | nu
       return null;
     }
 
-    // Use unified API - both checks use the same cached subscription data
+    // Use Application Service - both checks use the same cached subscription data
+    const subscriptionsService = makeSubscriptionsService();
     const [transactionLimit, accountLimit] = await Promise.all([
-      checkTransactionLimit(authUser.id),
-      checkAccountLimit(authUser.id),
+      subscriptionsService.checkTransactionLimit(authUser.id),
+      subscriptionsService.checkAccountLimit(authUser.id),
     ]);
 
     return {

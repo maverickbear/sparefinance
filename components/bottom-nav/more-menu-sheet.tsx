@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAuthSafe } from "@/contexts/auth-context";
+import { useSubscriptionSafe } from "@/contexts/subscription-context";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -135,51 +137,40 @@ export function MoreMenuSheet({
 }: MoreMenuSheetProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      async function fetchData() {
-        setLoading(true);
-        try {
-          // Fetch user profile
-          const userResponse = await fetch("/api/v2/user");
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-            setUserProfile({
-              name: userData.user?.name || null,
-              email: userData.user?.email || "",
-              avatarUrl: userData.user?.avatarUrl || null,
-            });
-          }
-
-          // Fetch plan info if has subscription
-          if (hasSubscription) {
-            const planResponse = await fetch("/api/v2/billing/subscription?includeStripe=false&includeLimits=false");
-            if (planResponse.ok) {
-              const planData = await planResponse.json();
-              setPlanInfo({
-                plan: planData.plan,
-                subscription: planData.subscription,
-                interval: planData.interval,
-              });
-            }
-          }
-        } catch (error) {
-          console.error("Error fetching data:", error);
-        } finally {
-          setLoading(false);
-        }
-      }
-      fetchData();
-    } else {
-      setPlanInfo(null);
-      setUserProfile(null);
-    }
-  }, [open, hasSubscription]);
+  
+  // Use Context instead of local state and fetch
+  const { user, checking: checkingAuth } = useAuthSafe();
+  const { subscription, plan, checking: checkingSubscription } = useSubscriptionSafe();
+  
+  // Derive data from Context
+  const loading = checkingAuth || checkingSubscription;
+  
+  // Build userProfile from Context
+  const userProfile: UserProfile | null = user ? {
+    name: user.name ?? null,
+    email: user.email,
+    avatarUrl: user.avatarUrl ?? null,
+  } : null;
+  
+  // Build planInfo from Context
+  // Note: interval is not in Subscription domain type, so we default to "month"
+  // If interval is needed, it can be fetched separately or added to SubscriptionContext
+  const planInfo: PlanInfo | null = plan && subscription ? {
+    plan: {
+      id: plan.id,
+      name: plan.name,
+      priceMonthly: plan.priceMonthly,
+      priceYearly: plan.priceYearly,
+    },
+    subscription: {
+      status: subscription.status,
+      trialEndDate: subscription.trialEndDate?.toString() ?? null,
+      currentPeriodEnd: subscription.currentPeriodEnd?.toString() ?? null,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    },
+    interval: "month" as const, // Default to month, can be enhanced later if needed
+  } : null;
 
   const isActive = (href: string) => {
     const basePath = href.split("?")[0];

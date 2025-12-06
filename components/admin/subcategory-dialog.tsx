@@ -255,6 +255,7 @@ export function SubcategoryDialog({
               id="name"
               {...form.register("name")}
               placeholder="e.g., BC Hydro"
+              size="small"
               required
             />
             {form.formState.errors.name && (
@@ -280,6 +281,7 @@ export function SubcategoryDialog({
                 },
               })}
               placeholder="https://example.com/logo.png"
+              size="small"
             />
             {form.formState.errors.logo && (
               <p className="text-sm text-destructive">
@@ -293,6 +295,7 @@ export function SubcategoryDialog({
                 <Input
                   value={availableCategories.find((c) => c.id === subcategory.categoryId)?.name || subcategory.categoryId}
                   disabled
+                  size="small"
                   className="bg-muted"
                 />
               </div>
@@ -310,7 +313,7 @@ export function SubcategoryDialog({
                   }}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger size="small">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -361,6 +364,7 @@ export function SubcategoryDialog({
                   value={subcategoryNamesText}
                   onChange={(e) => setSubcategoryNamesText(e.target.value)}
                   placeholder="e.g., BC Hydro, Fortis BC, Internet"
+                  size="small"
                   rows={4}
                   className="resize-none"
                 />
@@ -376,6 +380,7 @@ export function SubcategoryDialog({
             <Button
               type="button"
               variant="outline"
+              size="small"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
@@ -383,6 +388,7 @@ export function SubcategoryDialog({
             </Button>
             <Button 
               type="submit" 
+              size="small"
               disabled={
                 isSubmitting || 
                 (!subcategory && (!selectedCategoryId || parseCommaSeparated(subcategoryNamesText).length === 0))

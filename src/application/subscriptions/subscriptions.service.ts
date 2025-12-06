@@ -7,125 +7,25 @@
 import { SubscriptionsRepository } from "@/src/infrastructure/database/repositories/subscriptions.repository";
 import { SubscriptionsMapper } from "./subscriptions.mapper";
 import { BaseSubscription, BasePlan, BaseSubscriptionData, BaseLimitCheckResult, BasePlanFeatures } from "../../domain/subscriptions/subscriptions.types";
-import { SUBSCRIPTION_CACHE_TTL, PLANS_CACHE_TTL } from "../../domain/subscriptions/subscriptions.constants";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { getCurrentUserId } from "../shared/feature-guard";
 
-// In-memory caches
-const plansCache = new Map<string, BasePlan>();
-let plansCacheTimestamp = 0;
-
-const subscriptionCache = new Map<string, 
-  | { data: BaseSubscriptionData; timestamp: number; type: 'result' }
-  | { promise: Promise<BaseSubscriptionData>; timestamp: number; type: 'promise' }
->();
-
-const invalidationTimestamps = new Map<string, number>();
-const requestCache = new Map<string, Promise<BaseSubscriptionData>>();
+// In-memory cache for deduplicating concurrent requests
+// Maps userId -> Promise<BaseSubscriptionData>
+const pendingRequests = new Map<string, Promise<BaseSubscriptionData>>();
 
 export class SubscriptionsService {
   constructor(private repository: SubscriptionsRepository) {}
-
-  /**
-   * Invalidate subscription cache for a user
-   */
-  invalidateSubscriptionCache(userId: string): void {
-    subscriptionCache.delete(userId);
-    requestCache.delete(`subscription:${userId}`);
-    invalidationTimestamps.set(userId, Date.now());
-    logger.debug("[SubscriptionsService] Invalidated subscription cache for user:", userId);
-  }
-
-  /**
-   * Invalidate plans cache
-   */
-  invalidatePlansCache(): void {
-    plansCache.clear();
-    plansCacheTimestamp = 0;
-    logger.debug("[SubscriptionsService] Invalidated plans cache");
-  }
-
-  /**
-   * Invalidate subscription cache for all users with a specific plan
-   */
-  async invalidateSubscriptionsForPlan(planId: string): Promise<void> {
-    try {
-      // Get all active subscriptions with this plan
-      const supabase = await createServerClient();
-      const { data: subscriptions, error } = await supabase
-        .from("Subscription")
-        .select("userId, householdId")
-        .eq("planId", planId)
-        .in("status", ["active", "trialing"]);
-
-      if (error) {
-        logger.error("[SubscriptionsService] Error fetching subscriptions for plan:", error);
-        return;
-      }
-
-      if (!subscriptions || subscriptions.length === 0) {
-        logger.debug(`[SubscriptionsService] No active subscriptions found for plan: ${planId}`);
-        return;
-      }
-
-      // Collect all user IDs (from userId and household members)
-      const userIds = new Set<string>();
-
-      for (const sub of subscriptions) {
-        // Add direct userId if exists
-        if (sub.userId) {
-          userIds.add(sub.userId);
-        }
-
-        // If household subscription, invalidate all household members
-        if (sub.householdId) {
-          const { data: members } = await supabase
-            .from("HouseholdMember")
-            .select("userId")
-            .eq("householdId", sub.householdId)
-            .eq("status", "active");
-
-          if (members) {
-            members.forEach(m => {
-              if (m.userId) {
-                userIds.add(m.userId);
-              }
-            });
-          }
-        }
-      }
-
-      // Invalidate cache for all users
-      let invalidatedCount = 0;
-      for (const userId of userIds) {
-        this.invalidateSubscriptionCache(userId);
-        invalidatedCount++;
-      }
-
-      logger.debug(`[SubscriptionsService] Invalidated subscription cache for plan: ${planId}`, {
-        planId,
-        subscriptionCount: subscriptions.length,
-        userCount: userIds.size,
-        invalidatedCount,
-      });
-    } catch (error) {
-      logger.error("[SubscriptionsService] Error invalidating subscriptions for plan:", error);
-    }
-  }
 
   /**
    * Get all available plans
    */
   async getPlans(): Promise<BasePlan[]> {
     try {
-      const now = Date.now();
-      if (plansCache.size === 0 || (now - plansCacheTimestamp) > PLANS_CACHE_TTL) {
-        await this.refreshPlansCache();
-      }
-      
-      return Array.from(plansCache.values());
+      const plans = await this.repository.findAllPlans();
+      return plans.map(plan => SubscriptionsMapper.planToDomain(plan));
     } catch (error) {
       logger.error("[SubscriptionsService] Error fetching plans:", error);
       return [];
@@ -137,17 +37,11 @@ export class SubscriptionsService {
    */
   async getPlanById(planId: string): Promise<BasePlan | null> {
     try {
-      const cached = plansCache.get(planId);
-      if (cached) {
-        return cached;
+      const plan = await this.repository.findPlanById(planId);
+      if (!plan) {
+        return null;
       }
-
-      const now = Date.now();
-      if (plansCache.size === 0 || (now - plansCacheTimestamp) > PLANS_CACHE_TTL) {
-        await this.refreshPlansCache();
-      }
-
-      return plansCache.get(planId) || null;
+      return SubscriptionsMapper.planToDomain(plan);
     } catch (error) {
       logger.error("[SubscriptionsService] Error fetching plan by ID:", error);
       return null;
@@ -155,7 +49,8 @@ export class SubscriptionsService {
   }
 
   /**
-   * Get user subscription data (with caching)
+   * Get user subscription data
+   * Uses request deduplication to prevent multiple simultaneous calls for the same userId
    */
   async getUserSubscriptionData(userId: string): Promise<BaseSubscriptionData> {
     // Validate userId
@@ -168,67 +63,33 @@ export class SubscriptionsService {
       };
     }
 
+    // Check if there's already a pending request for this userId
+    const pendingRequest = pendingRequests.get(userId);
+    if (pendingRequest) {
+      // Don't log every reuse - reduces log noise (deduplication is working)
+      try {
+        return await pendingRequest;
+      } catch (error) {
+        // If the pending request failed, remove it and continue to make a new request
+        pendingRequests.delete(userId);
+        throw error;
+      }
+    }
+
+    // Create new request and cache the promise
+    const requestPromise = (async () => {
+      try {
+        return await this.fetchUserSubscriptionData(userId);
+      } finally {
+        // Remove from pending requests when done (success or failure)
+        pendingRequests.delete(userId);
+      }
+    })();
+
+    pendingRequests.set(userId, requestPromise);
+
     try {
-      const now = Date.now();
-      const invalidationTime = invalidationTimestamps.get(userId) || 0;
-      
-      // Check request-level cache first
-      const requestKey = `subscription:${userId}`;
-      const requestCached = requestCache.get(requestKey);
-      if (requestCached) {
-        return await requestCached;
-      }
-      
-      // Check persistent cache
-      const cached = subscriptionCache.get(userId);
-      if (cached && cached.type === 'result') {
-        const age = now - cached.timestamp;
-        const isInvalidated = invalidationTime > cached.timestamp;
-        
-        if (!isInvalidated && age < SUBSCRIPTION_CACHE_TTL) {
-          const resultPromise = Promise.resolve(cached.data);
-          requestCache.set(requestKey, resultPromise);
-          setTimeout(() => requestCache.delete(requestKey), 1000);
-          return cached.data;
-        }
-      }
-
-      // Check for in-flight promise
-      if (cached && cached.type === 'promise') {
-        const age = now - cached.timestamp;
-        if (age < 10000) {
-          requestCache.set(requestKey, cached.promise);
-          setTimeout(() => requestCache.delete(requestKey), 1000);
-          return await cached.promise;
-        }
-      }
-
-      // Fetch data
-      const fetchPromise = this.fetchUserSubscriptionData(userId)
-        .then((data) => {
-          subscriptionCache.set(userId, {
-            data,
-            timestamp: Date.now(),
-            type: 'result',
-          });
-          return data;
-        })
-        .catch((error) => {
-          subscriptionCache.delete(userId);
-          requestCache.delete(requestKey);
-          throw error;
-        });
-
-      subscriptionCache.set(userId, {
-        promise: fetchPromise,
-        timestamp: now,
-        type: 'promise',
-      });
-      
-      requestCache.set(requestKey, fetchPromise);
-      setTimeout(() => requestCache.delete(requestKey), 1000);
-
-      return await fetchPromise;
+      return await requestPromise;
     } catch (error) {
       logger.error("[SubscriptionsService] Error getting user subscription data:", error);
       return {
@@ -400,7 +261,8 @@ export class SubscriptionsService {
       const subscriptionUpdatedAtTime = new Date(userCache.subscriptionUpdatedAt).getTime();
       const now = Date.now();
       const cacheAge = now - subscriptionUpdatedAtTime;
-      const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
+      // Optimized: Increased cache age to 10 minutes to reduce database queries
+      const CACHE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
       
       const isValidTimestamp = !isNaN(subscriptionUpdatedAtTime) && subscriptionUpdatedAtTime > 0;
       const isFutureTimestamp = cacheAge < 0;
@@ -434,6 +296,14 @@ export class SubscriptionsService {
             }
           }
 
+          // Cache hit - return cached data
+          logger.debug("[SubscriptionsService] Using cached subscription data from User table", {
+            userId,
+            planId: userCache.effectivePlanId,
+            status: userCache.effectiveSubscriptionStatus,
+            cacheAge: Math.round(cacheAge / 1000) + 's',
+          });
+          
           return {
             subscription: fullSubscription || (userCache.effectiveSubscriptionId ? {
               id: userCache.effectiveSubscriptionId,
@@ -457,11 +327,11 @@ export class SubscriptionsService {
       }
     }
 
-    // Fallback: Full query
+    // Fallback: Full query (cache miss or invalid cache)
     const householdId = await this.repository.getActiveHouseholdId(userId);
     let subscription: BaseSubscription | null = null;
 
-    logger.debug("[SubscriptionsService] Fetching subscription data", {
+    logger.debug("[SubscriptionsService] Fetching subscription data (cache miss)", {
       userId,
       householdId: householdId || null,
     });
@@ -476,6 +346,7 @@ export class SubscriptionsService {
           planId: subscription.planId,
           status: subscription.status,
           householdId,
+          userId: subscriptionRow.userId,
         });
       } else {
         logger.debug("[SubscriptionsService] No subscription found by householdId, checking owner's subscription", {
@@ -541,7 +412,28 @@ export class SubscriptionsService {
             planId: subscription.planId,
             status: subscription.status,
             userId,
+            householdId: subscriptionRow.householdId,
           });
+          
+          // CRITICAL: If subscription has householdId but we couldn't find it via getActiveHouseholdId,
+          // try to find it directly using the householdId from the subscription
+          if (subscriptionRow.householdId && !householdId) {
+            logger.debug("[SubscriptionsService] Subscription has householdId but user's active household not found, trying direct lookup", {
+              subscriptionHouseholdId: subscriptionRow.householdId,
+              userId,
+            });
+            // Try to find subscription by the householdId from the subscription itself
+            const directSubscriptionRow = await this.repository.findByHouseholdId(subscriptionRow.householdId);
+            if (directSubscriptionRow) {
+              subscription = SubscriptionsMapper.subscriptionToDomain(directSubscriptionRow);
+              logger.debug("[SubscriptionsService] Found subscription via direct householdId lookup", {
+                subscriptionId: subscription.id,
+                planId: subscription.planId,
+                status: subscription.status,
+                householdId: subscriptionRow.householdId,
+              });
+            }
+          }
         }
       } else {
         logger.debug("[SubscriptionsService] No subscription found for user", { userId });
@@ -585,24 +477,6 @@ export class SubscriptionsService {
     };
   }
 
-  /**
-   * Refresh plans cache
-   */
-  private async refreshPlansCache(): Promise<void> {
-    try {
-      const plans = await this.repository.findAllPlans();
-      plansCache.clear();
-      
-      plans.forEach(plan => {
-        const mappedPlan = SubscriptionsMapper.planToDomain(plan);
-        plansCache.set(mappedPlan.id, mappedPlan);
-      });
-      
-      plansCacheTimestamp = Date.now();
-    } catch (error) {
-      logger.error("[SubscriptionsService] Error refreshing plans cache:", error);
-    }
-  }
 
   /**
    * Pause user's personal subscription (e.g., when joining household with subscription)
@@ -667,9 +541,6 @@ export class SubscriptionsService {
         logger.error("[SubscriptionsService] Error pausing Stripe subscription:", stripeError);
         return { paused: false, error: "Failed to pause subscription in Stripe" };
       }
-
-      // Invalidate cache
-      this.invalidateSubscriptionCache(userId);
 
       return { paused: true };
     } catch (error) {
@@ -740,9 +611,6 @@ export class SubscriptionsService {
         logger.error("[SubscriptionsService] Error resuming Stripe subscription:", stripeError);
         return { resumed: false, error: "Failed to resume subscription in Stripe" };
       }
-
-      // Invalidate cache
-      this.invalidateSubscriptionCache(userId);
 
       return { resumed: true };
     } catch (error) {
@@ -851,9 +719,6 @@ export class SubscriptionsService {
         status: "cancelled",
         updatedAt: new Date().toISOString(),
       });
-
-      // Invalidate cache
-      this.invalidateSubscriptionCache(userId);
 
       return { cancelled: true };
     } catch (error) {

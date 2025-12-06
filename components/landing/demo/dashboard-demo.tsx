@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
@@ -71,6 +71,12 @@ const navSections = [
 export function DashboardDemo() {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
+  // Set date after component mounts to avoid SSR/prerendering issues
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
 
   return (
     <>
@@ -233,7 +239,7 @@ export function DashboardDemo() {
               <Select value="current" disabled>
                 <SelectTrigger size="small" className="w-[180px]">
                   <SelectValue>
-                    {format(new Date(), "MMMM yyyy")}
+                    {currentDate ? format(currentDate, "MMMM yyyy") : "Loading..."}
                   </SelectValue>
                 </SelectTrigger>
               </Select>

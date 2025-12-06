@@ -89,9 +89,6 @@ export async function GET(request: Request) {
         accountLimit: limitsResult.accountLimit,
       },
       {
-        headers: {
-          'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
-        },
       }
     );
   } catch (error) {

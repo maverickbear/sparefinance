@@ -1,6 +1,6 @@
 "use server";
 
-import { getPlannedPayments, markPlannedPaymentAsPaid } from "@/lib/api/planned-payments";
+import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
 import { logger } from "@/src/infrastructure/utils/logger";
 
 /**
@@ -15,8 +15,10 @@ export async function processDuePlannedPayments(): Promise<{
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const service = makePlannedPaymentsService();
+
   // Get all scheduled planned payments with date <= today
-  const result = await getPlannedPayments({
+  const result = await service.getPlannedPayments({
     endDate: today,
     status: "scheduled",
   });
@@ -33,7 +35,7 @@ export async function processDuePlannedPayments(): Promise<{
   for (const payment of duePayments) {
     try {
       // Mark as paid (this creates the transaction)
-      await markPlannedPaymentAsPaid(payment.id);
+      await service.markAsPaid(payment.id);
       processed++;
       logger.info(`Processed planned payment ${payment.id} (date: ${payment.date})`);
     } catch (error) {
@@ -56,7 +58,8 @@ export async function processPlannedPayment(
   plannedPaymentId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await markPlannedPaymentAsPaid(plannedPaymentId);
+    const service = makePlannedPaymentsService();
+    await service.markAsPaid(plannedPaymentId);
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

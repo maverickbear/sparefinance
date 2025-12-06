@@ -4,6 +4,7 @@ import { ProfileFormData, profileSchema } from "@/src/domain/profile/profile.val
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,8 +48,17 @@ export async function PATCH(request: NextRequest) {
     // Validate with schema
     const validatedData = profileSchema.parse(body);
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeProfileService();
     const profile = await service.updateProfile(validatedData);
+    
+    // Invalidate cache
+    revalidateTag(`user-${userId}`, 'max');
+    revalidateTag('profile', 'max');
     
     return NextResponse.json(profile, { status: 200 });
   } catch (error) {

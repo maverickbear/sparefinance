@@ -16,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { logger } from "@/src/infrastructure/utils/logger";
+import { useAuthSafe } from "@/contexts/auth-context";
+import { useSubscriptionSafe } from "@/contexts/subscription-context";
 
 
 interface UserData {
@@ -71,140 +73,61 @@ interface MobileHeaderProps {
   hasSubscription?: boolean;
 }
 
+/**
+ * MobileHeader
+ * 
+ * Uses AuthContext and SubscriptionContext for user data (single source of truth)
+ * No longer makes direct API calls - all data comes from Context
+ */
 export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-
+  
+  // Use Context instead of local state and fetch
+  // Use Safe versions to handle cases where providers might not be available (public pages)
+  const { user, role, checking: checkingAuth } = useAuthSafe();
+  const { subscription, plan, checking: checkingSubscription } = useSubscriptionSafe();
+  
   const log = logger.withPrefix("MOBILE-HEADER");
+  
+  // Derive data from Context
+  const loading = checkingAuth || checkingSubscription;
+  const isSuperAdmin = role === "super_admin";
+  
+  // Build UserData from Context (for compatibility with existing code)
+  const userData: UserData | null = user ? {
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? undefined,
+      avatarUrl: user.avatarUrl ?? undefined,
+    },
+    plan: plan ? {
+      id: plan.id,
+      name: plan.name,
+    } : null,
+    subscription: subscription ? {
+      status: subscription.status,
+      trialEndDate: subscription.trialEndDate ?? null,
+      trialStartDate: subscription.trialStartDate ?? null,
+    } : null,
+  } : null;
 
-  // Fetch user data - always run hooks, but only fetch if hasSubscription
+  // Listen for profile updates to refresh AuthContext
+  const { refetch: refetchAuth } = useAuthSafe();
+  
   useEffect(() => {
-    if (!hasSubscription) {
-      setLoading(false);
-      setUserData(null);
-      return;
-    }
-
-    async function fetchUserData() {
-      const navUserDataCache = getNavUserDataCache();
-      
-      // Check cache first
-      const now = Date.now();
-      if (navUserDataCache.data && (now - navUserDataCache.timestamp) < navUserDataCache.TTL) {
-        // Use cached data
-        setUserData(navUserDataCache.data);
-        if (navUserDataCache.role && (now - navUserDataCache.roleTimestamp) < navUserDataCache.TTL) {
-          setIsSuperAdmin(navUserDataCache.role === "super_admin");
-        }
-        setLoading(false);
-        return;
-      }
-
-      // Reuse in-flight request if exists
-      if (navUserDataCache.promise) {
-        try {
-          setLoading(true);
-          const result = await navUserDataCache.promise;
-          setUserData(result);
-          if (navUserDataCache.role) {
-            setIsSuperAdmin(navUserDataCache.role === "super_admin");
-          }
-          setLoading(false);
-          return;
-        } catch (error) {
-          log.error("Cached promise failed:", error);
-        }
-      }
-      try {
-        setLoading(true);
-        
-        // Create fetch promise and cache it
-        const fetchPromise = (async () => {
-          // OPTIMIZATION: Use fast /api/v2/user/role endpoint instead of /api/v2/members
-          // We only need userRole, not all members
-          const [userResponse, roleResponse] = await Promise.all([
-            fetch("/api/v2/user"),
-            fetch("/api/v2/user/role"),
-          ]);
-          
-          if (!userResponse.ok || !roleResponse.ok) {
-            throw new Error("Failed to fetch user data");
-          }
-          
-          const [userData, roleData] = await Promise.all([
-            userResponse.json(),
-            roleResponse.json(),
-          ]);
-          
-          const result: UserData = {
-            user: userData.user,
-            plan: userData.plan,
-            subscription: userData.subscription,
-          };
-          
-          const role = roleData.userRole;
-          
-          // Update cache
-          navUserDataCache.data = result;
-          navUserDataCache.timestamp = Date.now();
-          navUserDataCache.role = role;
-          navUserDataCache.roleTimestamp = Date.now();
-          navUserDataCache.promise = null;
-          
-          return result;
-        })();
-
-        // Cache the promise
-        navUserDataCache.promise = fetchPromise;
-
-        const data = await fetchPromise;
-        setUserData(data);
-        setIsSuperAdmin(navUserDataCache.role === "super_admin");
-      } catch (error) {
-        log.error("Error fetching user data:", error);
-        setUserData(null);
-        setIsSuperAdmin(false);
-        navUserDataCache.promise = null;
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUserData();
-
-    // Listen for profile updates to update cache
     const handleProfileUpdate = (event: CustomEvent) => {
-      const navUserDataCache = getNavUserDataCache();
-      const updatedProfile = event.detail;
-      
-      // Update cache directly if we have cached data
-      if (navUserDataCache.data && navUserDataCache.data.user) {
-        navUserDataCache.data.user = {
-          ...navUserDataCache.data.user,
-          name: updatedProfile.name,
-          avatarUrl: updatedProfile.avatarUrl,
-        };
-        navUserDataCache.timestamp = Date.now();
-        // Update state immediately
-        setUserData({ ...navUserDataCache.data });
-      } else {
-        // If no cache, invalidate and reload
-        navUserDataCache.data = null;
-        navUserDataCache.timestamp = 0;
-        navUserDataCache.promise = null;
-        fetchUserData();
-      }
+      // Profile was updated - refresh auth context to get latest user data
+      refetchAuth();
     };
+    
     window.addEventListener("profile-saved", handleProfileUpdate as EventListener);
-
     return () => {
       window.removeEventListener("profile-saved", handleProfileUpdate as EventListener);
     };
-  }, [hasSubscription, log]);
+  }, [refetchAuth]);
 
   // Don't render MobileHeader if user doesn't have subscription
   if (!hasSubscription) {
@@ -233,13 +156,11 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
     }
   };
 
-  const user = userData?.user;
-
   // Get page title based on pathname
   const getPageTitle = () => {
     // Special case for dashboard - show personalized welcome
     if (pathname === "/dashboard" || pathname.startsWith("/dashboard")) {
-      const firstName = userData?.user?.name?.split(' ')[0] || 'there';
+      const firstName = user?.name?.split(' ')[0] || 'there';
       return `Welcome, ${firstName}`;
     }
 

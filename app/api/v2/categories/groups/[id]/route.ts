@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 /**
  * DELETE /api/v2/categories/groups/[id]
@@ -24,6 +25,10 @@ export async function DELETE(
     
     const service = makeCategoriesService();
     await service.deleteGroup(id);
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

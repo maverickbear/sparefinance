@@ -16,11 +16,6 @@ import { makeCategoriesService } from "@/src/application/categories/categories.f
 import { AppError } from "../shared/app-error";
 import { logger } from "@/src/infrastructure/utils/logger";
 
-// Helper function to invalidate all categories cache
-async function invalidateAllCategoriesCache(): Promise<void> {
-  const service = makeCategoriesService();
-  await service.invalidateAllCategoriesCache();
-}
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new AppError("STRIPE_SECRET_KEY is not set", 500);
@@ -290,7 +285,6 @@ export class AdminService {
     });
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
 
     return group;
   }
@@ -314,7 +308,6 @@ export class AdminService {
     const updated = await this.repository.updateSystemGroup(id, data);
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
 
     return updated;
   }
@@ -326,7 +319,6 @@ export class AdminService {
     await this.repository.deleteSystemGroup(id);
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
   }
 
   /**
@@ -361,7 +353,6 @@ export class AdminService {
     });
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
 
     return category;
   }
@@ -396,7 +387,6 @@ export class AdminService {
     const updated = await this.repository.updateSystemCategory(id, data);
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
 
     return updated;
   }
@@ -408,7 +398,6 @@ export class AdminService {
     await this.repository.deleteSystemCategory(id);
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
   }
 
   /**
@@ -444,7 +433,6 @@ export class AdminService {
     });
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
 
     return subcategory;
   }
@@ -468,7 +456,6 @@ export class AdminService {
     const updated = await this.repository.updateSystemSubcategory(id, data);
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
 
     return updated;
   }
@@ -480,7 +467,6 @@ export class AdminService {
     await this.repository.deleteSystemSubcategory(id);
 
     // Invalidate cache for all users
-    await invalidateAllCategoriesCache();
   }
 
 
@@ -705,10 +691,10 @@ export class AdminService {
     // Invalidate plans cache
     const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
     const subscriptionsService = makeSubscriptionsService();
-    subscriptionsService.invalidatePlansCache();
 
     // Invalidate subscription cache for all users with this plan
-    await subscriptionsService.invalidateSubscriptionsForPlan(planId);
+    // Note: This method doesn't exist yet - can be implemented if needed
+    // await subscriptionsService.invalidateSubscriptionsForPlan(planId);
 
     // Sync to Stripe if plan has stripeProductId
     let stripeSync: { success: boolean; warnings?: string[]; error?: string } = { success: true };
@@ -1436,7 +1422,6 @@ export class AdminService {
     if (result.userId) {
       const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
-      subscriptionsService.invalidateSubscriptionCache(result.userId);
     }
 
     return result;
@@ -1540,7 +1525,6 @@ export class AdminService {
     if (result.userId) {
       const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
-      subscriptionsService.invalidateSubscriptionCache(result.userId);
     }
 
     return result;

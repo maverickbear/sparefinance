@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  getSimpleInvestmentEntries,
-  createSimpleInvestmentEntry,
-} from "@/lib/api/simple-investments";
+import { makeInvestmentsService } from "@/src/application/investments/investments.factory";
 import { z } from "zod";
 import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
@@ -28,14 +25,12 @@ export async function GET(request: Request) {
       );
     }
 
+    const service = makeInvestmentsService();
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("accountId") || undefined;
 
-    const entries = await getSimpleInvestmentEntries(accountId);
+    const entries = await service.getSimpleInvestmentEntries(accountId);
     return NextResponse.json(entries, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
     });
   } catch (error) {
     console.error("Error fetching simple investment entries:", error);
@@ -74,9 +69,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const service = makeInvestmentsService();
     const body = await request.json();
     const validated = createSimpleInvestmentEntrySchema.parse(body);
-    const entry = await createSimpleInvestmentEntry({
+    const entry = await service.createSimpleInvestmentEntry({
       ...validated,
       date: validated.date instanceof Date ? validated.date : new Date(validated.date),
     });

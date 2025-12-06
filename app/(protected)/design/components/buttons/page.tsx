@@ -180,6 +180,10 @@ export default function ButtonsPage() {
             <CardContent className="space-y-6">
               <div className="space-y-3">
                 <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium w-20">Tiny:</span>
+                  <Button variant="default" size="tiny">Tiny Button</Button>
+                </div>
+                <div className="flex items-center gap-4">
                   <span className="text-sm font-medium w-20">Small:</span>
                   <Button variant="default" size="small">Small Button</Button>
                 </div>

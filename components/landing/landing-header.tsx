@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import type { BaseUser } from "@/src/domain/auth/auth.types";
 import { Logo } from "@/components/common/logo";
 import { LogOut } from "lucide-react";
 import {
@@ -14,9 +12,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuthSafe } from "@/contexts/auth-context";
 
 interface LandingHeaderProps {
-  isAuthenticated?: boolean;
+  isAuthenticated?: boolean; // Deprecated - kept for backward compatibility, not used
 }
 
 function getInitials(name: string | undefined | null): string {
@@ -28,75 +27,18 @@ function getInitials(name: string | undefined | null): string {
   return name[0].toUpperCase();
 }
 
-export function LandingHeader({ isAuthenticated: initialAuth }: LandingHeaderProps = {}) {
-  const [isAuthenticated, setIsAuthenticated] = useState(initialAuth ?? false);
-  const [user, setUser] = useState<BaseUser | null>(null);
+/**
+ * LandingHeader
+ * 
+ * Uses AuthContext for authentication state (single source of truth)
+ * No longer manages its own auth state or makes direct API calls
+ */
+export function LandingHeader({ isAuthenticated: _initialAuth }: LandingHeaderProps = {}) {
+  const { user, isAuthenticated } = useAuthSafe(); // Use Context instead of local state
   const router = useRouter();
-
-  useEffect(() => {
-    // Check authentication status and verify user exists in User table
-    async function checkAuth() {
-      try {
-        const response = await fetch("/api/v2/user");
-        if (!response.ok) {
-          setIsAuthenticated(false);
-          setUser(null);
-          return;
-        }
-        const { user: currentUser }: { user: BaseUser | null } = await response.json();
-        setIsAuthenticated(!!currentUser);
-        setUser(currentUser);
-      } catch (error) {
-        setIsAuthenticated(false);
-        setUser(null);
-      }
-    }
-    
-    // Always check auth on client side to ensure we have the latest state
-    // The initialAuth prop from server helps avoid flash, but client check ensures accuracy
-    checkAuth();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Handle SIGNED_OUT event immediately
-      if (event === "SIGNED_OUT" || !session?.user) {
-        setIsAuthenticated(false);
-        setUser(null);
-        return;
-      }
-      
-      if (session?.user) {
-        // Verify user exists in User table
-        try {
-          const response = await fetch("/api/v2/user", { cache: "no-store" });
-          if (response.ok) {
-            const { user: currentUser }: { user: BaseUser | null } = await response.json();
-            setIsAuthenticated(!!currentUser);
-            setUser(currentUser);
-          } else {
-            setIsAuthenticated(false);
-            setUser(null);
-          }
-        } catch (error) {
-          setIsAuthenticated(false);
-          setUser(null);
-        }
-      } else {
-        setIsAuthenticated(false);
-        setUser(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
 
   const handleLogout = async () => {
     try {
-      // Optimistically update UI immediately
-      setIsAuthenticated(false);
-      setUser(null);
       
       const response = await fetch("/api/v2/auth/sign-out", {
         method: "POST",

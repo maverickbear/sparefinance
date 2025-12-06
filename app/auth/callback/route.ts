@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
-import { getUserSubscriptionData } from "@/lib/api/subscription";
+import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { randomUUID } from "crypto";
 
@@ -370,7 +370,8 @@ export async function GET(request: NextRequest) {
 
     // Check if user has an active subscription
     try {
-      const subscriptionData = await getUserSubscriptionData(authUser.id);
+      const subscriptionsService = makeSubscriptionsService();
+      const subscriptionData = await subscriptionsService.getUserSubscriptionData(authUser.id);
       const subscription = subscriptionData.subscription;
       const hasActiveSubscription = 
         subscription !== null && 

@@ -18,39 +18,45 @@ async function preloadUserData() {
   try {
     const preloadPromises = [
       // Preload user data and role for Nav using API routes
-      Promise.all([
-        fetch("/api/v2/user"),
-        fetch("/api/v2/members"),
-      ]).then(async ([userResponse, membersResponse]) => {
-        if (!userResponse.ok || !membersResponse.ok) return null;
-        const [userData, membersData] = await Promise.all([
-          userResponse.json(),
-          membersResponse.json(),
-        ]);
-        const userDataFormatted = {
-          user: userData.user,
-          plan: userData.plan,
-          subscription: userData.subscription,
-        };
-        const role = membersData.userRole;
-        if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
-          (window as any).navUserDataCache.data = userDataFormatted;
-          (window as any).navUserDataCache.timestamp = Date.now();
-          (window as any).navUserDataCache.role = role;
-          (window as any).navUserDataCache.roleTimestamp = Date.now();
+      // Use cachedFetch to respect Cache-Control headers
+      (async () => {
+        const { cachedFetch } = await import("@/lib/utils/cached-fetch");
+        try {
+          const [userData, membersData] = await Promise.all([
+            cachedFetch("/api/v2/user"),
+            cachedFetch("/api/v2/members"),
+          ]);
+          const userDataFormatted = {
+            user: userData.user,
+            plan: userData.plan,
+            subscription: userData.subscription,
+          };
+          const role = membersData.userRole;
+          if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
+            (window as any).navUserDataCache.data = userDataFormatted;
+            (window as any).navUserDataCache.timestamp = Date.now();
+            (window as any).navUserDataCache.role = role;
+            (window as any).navUserDataCache.roleTimestamp = Date.now();
+          }
+          return userDataFormatted;
+        } catch {
+          return null;
         }
-        return userDataFormatted;
-      }).catch(() => null),
+      })(),
       // Preload profile data using API route
-      fetch("/api/v2/profile").then(async (r) => {
-        if (!r.ok) return null;
-        const profile = await r.json();
-        if (typeof window !== 'undefined' && (window as any).profileDataCache) {
-          (window as any).profileDataCache.data = profile;
-          (window as any).profileDataCache.timestamp = Date.now();
+      (async () => {
+        const { cachedFetch } = await import("@/lib/utils/cached-fetch");
+        try {
+          const profile = await cachedFetch("/api/v2/profile");
+          if (typeof window !== 'undefined' && (window as any).profileDataCache) {
+            (window as any).profileDataCache.data = profile;
+            (window as any).profileDataCache.timestamp = Date.now();
+          }
+          return profile;
+        } catch {
+          return null;
         }
-        return profile;
-      }).catch(() => null),
+      })(),
       fetch("/api/v2/billing/subscription", { cache: "no-store" }).then(async (r) => {
         if (!r.ok) return null;
         const subData = await r.json();
@@ -583,13 +589,6 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
             const completeData = await completeResponse.json();
             console.log("[OTP] Invitation completed successfully");
             
-            // Invalidate client-side subscription cache to ensure fresh data
-            try {
-              const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
-              invalidateClientSubscriptionCache();
-            } catch (error) {
-              console.warn("[OTP] Could not invalidate client cache:", error);
-            }
             
             // Wait longer to ensure server-side cache and subscription lookup are updated
             // The subscription lookup needs time to find the household subscription
@@ -598,43 +597,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
             
             // Verify subscription is available before redirecting
             // This ensures the household subscription is properly inherited
-            let subscriptionFound = false;
-            let retries = 0;
-            const maxRetries = 3;
-            
-            while (!subscriptionFound && retries < maxRetries) {
-              try {
-                const subscriptionCheck = await fetch("/api/v2/billing/subscription");
-                if (subscriptionCheck.ok) {
-                  const subscriptionData = await subscriptionCheck.json();
-                  if (subscriptionData.subscription && (subscriptionData.subscription.status === "active" || subscriptionData.subscription.status === "trialing")) {
-                    console.log("[OTP] Subscription found, redirecting to dashboard");
-                    subscriptionFound = true;
-                    break;
-                  } else {
-                    console.log(`[OTP] Subscription not found yet (attempt ${retries + 1}/${maxRetries}), waiting...`);
-                    retries++;
-                    if (retries < maxRetries) {
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                  }
-                }
-              } catch (checkError) {
-                console.warn("[OTP] Error checking subscription:", checkError);
-                retries++;
-                if (retries < maxRetries) {
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-              }
-            }
-            
-            if (!subscriptionFound) {
-              console.warn("[OTP] Subscription not found after retries, but redirecting anyway - protected layout will handle it");
-            }
-            
             // Redirect to dashboard after completing invitation
-            // Use window.location.href to force full page reload and fresh subscription check
-            // This ensures the protected layout checks subscription with fresh data
+            // Protected layout will check subscription status and handle onboarding if needed
+            // No need to check subscription here - Context will handle it
             window.location.href = "/dashboard";
             return;
           } else {

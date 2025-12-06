@@ -4,6 +4,7 @@ import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 /**
+ * @deprecated Use /api/v2/transactions/suggestions/generate instead
  * POST /api/transactions/generate-suggestions
  * Generate category suggestions for uncategorized transactions
  * Note: This is an auxiliary route for background processing.

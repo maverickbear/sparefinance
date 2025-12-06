@@ -1,3 +1,6 @@
+/**
+ * @deprecated Use /api/v2/transactions/[id]/suggestions/reject instead
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { AppError } from "@/src/application/shared/app-error";

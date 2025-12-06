@@ -10,9 +10,8 @@ import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { FixedTabsWrapper } from "@/components/common/fixed-tabs-wrapper";
 import { SimpleTabs, SimpleTabsList, SimpleTabsTrigger } from "@/components/ui/simple-tabs";
 import { BlockedFeature } from "@/components/common/blocked-feature";
-
-// Force dynamic rendering since this page uses cookies for authentication
-export const dynamic = 'force-dynamic';
+// CRITICAL: Use static import to ensure React cache() works correctly
+import { getDashboardSubscription } from "@/src/application/subscriptions/get-dashboard-subscription";
 
 function getDateRange(period: ReportPeriod): { startDate: Date; endDate: Date } {
   const now = new Date();
@@ -51,10 +50,9 @@ function getDateRange(period: ReportPeriod): { startDate: Date; endDate: Date } 
 }
 
 async function ReportsContentWrapper({ period }: { period: ReportPeriod }) {
-  // Get subscription data using Application Service
-  const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
-  const subscriptionsService = makeSubscriptionsService();
-  const subscriptionData = await subscriptionsService.getCurrentUserSubscriptionData();
+  // CRITICAL OPTIMIZATION: Use cached getDashboardSubscription to avoid duplicate calls
+  // Using static import ensures React cache() works correctly
+  const subscriptionData = await getDashboardSubscription();
   const { limits } = subscriptionData;
   
   const data = await loadReportsData(period);
@@ -89,9 +87,7 @@ interface ReportsProps {
 }
 
 export default async function ReportsPage({ searchParams }: ReportsProps) {
-  const perf = startServerPagePerformance("Reports");
-  
-  // Get period from URL or use default
+  // Get period from URL or use default (access uncached data first)
   const params = await Promise.resolve(searchParams);
   const periodParam = params?.period;
   const period: ReportPeriod = (periodParam && 
@@ -99,12 +95,15 @@ export default async function ReportsPage({ searchParams }: ReportsProps) {
   ) ? periodParam as ReportPeriod : "last-12-months";
   
   // Check feature access on server side
-  const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
+  // CRITICAL: Use cached getDashboardSubscription to avoid duplicate calls
   const { makeAdminService } = await import("@/src/application/admin/admin.factory");
-  const subscriptionsService = makeSubscriptionsService();
   const adminService = makeAdminService();
   
-  const subscriptionData = await subscriptionsService.getCurrentUserSubscriptionData();
+  // Use cached function instead of direct service call
+  const subscriptionData = await getDashboardSubscription();
+  
+  // Now we can safely use Date.now() after accessing uncached data
+  const perf = startServerPagePerformance("Reports");
   const { limits, plan } = subscriptionData;
   
   // Check feature access directly from limits (limits already contains the features)

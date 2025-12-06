@@ -1,34 +1,27 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { unstable_noStore as noStore } from "next/cache";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
-import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 import { makeAdminService } from "@/src/application/admin/admin.factory";
-import { makeMembersService } from "@/src/application/members/members.factory";
 import { verifyUserExists } from "@/lib/utils/verify-user-exists";
 import { SubscriptionGuard } from "@/components/subscription-guard";
 import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { logger } from "@/src/infrastructure/utils/logger";
 import type { Subscription, Plan } from "@/src/domain/subscriptions/subscriptions.validations";
+// CRITICAL: Use static import to ensure React cache() works correctly
+import { getDashboardSubscription } from "@/src/application/subscriptions/get-dashboard-subscription";
 
 /**
- * Protected Layout
- * 
- * This layout protects routes that require both authentication and subscription.
- * It verifies:
- * 1. User is authenticated
- * 2. User exists in User table
- * 3. User has an active subscription (at least "free" plan)
- * 
- * If user is not authenticated, redirects to /auth/login with redirect parameter
- * If user doesn't exist in User table, logs out and redirects to /auth/login
- * If user is authenticated but has no subscription, redirects to pricing page
+ * Auth Guard Component - Wrapped in Suspense to prevent blocking page render
+ * Handles all authentication and authorization checks
  */
-export default async function ProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+async function AuthGuard({ children }: { children: React.ReactNode }) {
   const log = logger.withPrefix("PROTECTED-LAYOUT");
+  
+  // Access headers() first to unlock cookie access in createServerClient()
+  await headers();
+  
   const supabase = await createServerClient();
   
   // Check authentication
@@ -116,11 +109,10 @@ export default async function ProtectedLayout({
   let plan: Plan | null = null;
   
   try {
-    // Get subscription data using SubscriptionsService (already has internal caching)
-    // Note: We don't invalidate cache here to avoid performance issues
-    // If subscription is not found, it may be a real issue or cache problem
-    const subscriptionsService = makeSubscriptionsService();
-    const subscriptionData = await subscriptionsService.getCurrentUserSubscriptionData();
+    // CRITICAL OPTIMIZATION: Use cached function to ensure only 1 call per request
+    // This replaces multiple SubscriptionsService calls throughout the app
+    // IMPORTANT: Using static import ensures React cache() works correctly
+    const subscriptionData = await getDashboardSubscription();
     subscription = subscriptionData.subscription;
     plan = subscriptionData.plan;
     
@@ -134,81 +126,12 @@ export default async function ProtectedLayout({
       planIdFromPlan: plan?.id,
     });
     
-    // If no subscription found, try to invalidate cache and check again
-    // This handles cases where cache might be stale
-    if (!subscription && userId) {
-      log.debug("No subscription found in first attempt, invalidating cache and retrying");
-      subscriptionsService.invalidateSubscriptionCache(userId);
-      const retryData = await subscriptionsService.getCurrentUserSubscriptionData();
-      subscription = retryData.subscription;
-      plan = retryData.plan;
-      
-      log.debug("Subscription check result after cache invalidation:", {
-        hasSubscription: !!subscription,
-        subscriptionId: subscription?.id,
-        planId: subscription?.planId,
-        status: subscription?.status,
-        userId: userId,
-        hasPlan: !!plan,
-        planIdFromPlan: plan?.id,
-      });
-    }
-    
-    // If no subscription found after retry, check if user is a household member
-    // Household members should inherit the owner's subscription, so we need to be extra careful
+    // Note: SubscriptionsService already handles household member subscription inheritance
+    // No need for manual retry - the service checks household membership internally
+    // If no subscription found, user needs to complete onboarding (handled by onboarding dialog)
     if (!subscription) {
-      log.debug("No subscription found after retry, checking if user is household member");
-      
-      // Check if user is a household member who should inherit subscription
-      try {
-        const membersService = makeMembersService();
-        const householdInfo = await membersService.getUserHouseholdInfo(userId);
-        
-        if (householdInfo?.isMember) {
-          // User is a household member - they should inherit owner's subscription
-          // Invalidate cache one more time and retry (in case cache was stale)
-          log.debug("User is household member, invalidating cache and retrying subscription check", {
-            userId,
-            ownerId: householdInfo.ownerId,
-          });
-          
-          subscriptionsService.invalidateSubscriptionCache(userId);
-          const finalRetryData = await subscriptionsService.getCurrentUserSubscriptionData();
-          subscription = finalRetryData.subscription;
-          plan = finalRetryData.plan;
-          
-          log.debug("Subscription check result after household member retry:", {
-            hasSubscription: !!subscription,
-            subscriptionId: subscription?.id,
-            planId: subscription?.planId,
-            status: subscription?.status,
-            userId: userId,
-          });
-          
-          // If still no subscription found for household member, don't open pricing dialog
-          // Let the onboarding dialog handle it (user needs to complete onboarding)
-          if (!subscription) {
-            log.debug("Household member has no subscription - onboarding will handle plan selection", {
-              userId,
-              ownerId: householdInfo.ownerId,
-            });
-            shouldOpenModal = false; // Don't open pricing dialog, let onboarding handle it
-          } else {
-            // Found subscription for household member - allow access
-            shouldOpenModal = false;
-          }
-        } else {
-          // User is not a household member and has no subscription
-          // Don't open pricing dialog - let onboarding handle it (user needs to complete onboarding)
-          log.debug("User is not a household member and has no subscription - onboarding will handle plan selection");
-          shouldOpenModal = false; // Don't open pricing dialog, let onboarding handle it
-        }
-      } catch (householdCheckError) {
-        // If error checking household membership, don't open pricing dialog
-        // Let onboarding handle it
-        log.error("Error checking household membership:", householdCheckError);
-        shouldOpenModal = false; // Don't open pricing dialog, let onboarding handle it
-      }
+      log.debug("No subscription found - onboarding will handle plan selection", { userId });
+      shouldOpenModal = false; // Don't open pricing dialog, let onboarding handle it
     } else {
       // Check if subscription status allows access
       const isActiveStatus = subscription.status === "active";
@@ -279,6 +202,37 @@ export default async function ProtectedLayout({
         subscriptionStatus={subscriptionStatus}
       />
     </SubscriptionProvider>
+  );
+}
+
+/**
+ * Protected Layout
+ * 
+ * This layout protects routes that require both authentication and subscription.
+ * It verifies:
+ * 1. User is authenticated
+ * 2. User exists in User table
+ * 3. User has an active subscription (at least "free" plan)
+ * 
+ * If user is not authenticated, redirects to /auth/login with redirect parameter
+ * If user doesn't exist in User table, logs out and redirects to /auth/login
+ * If user is authenticated but has no subscription, redirects to pricing page
+ * 
+ * Uses Suspense to prevent blocking page render while checking authentication
+ */
+export default function ProtectedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    }>
+      <AuthGuard>{children}</AuthGuard>
+    </Suspense>
   );
 }
 

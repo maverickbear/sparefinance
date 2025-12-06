@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { AccountForm } from "@/components/forms/account-form";
 import { Wallet, Building2, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { usePlaidLinkContext } from "@/components/banking/plaid-link-context";
 import { useSubscription } from "@/hooks/use-subscription";
 import { ImportProgress } from "@/components/accounts/import-progress";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
@@ -37,7 +36,6 @@ export function AddAccountSheet({
 }: AddAccountSheetProps) {
   const { toast } = useToast();
   const { limits, checking: limitsLoading } = useSubscription();
-  const { initialize, open: openPlaid, ready, isInitialized } = usePlaidLinkContext();
   const breakpoint = useBreakpoint();
   const isDesktop = breakpoint === "lg" || breakpoint === "xl" || breakpoint === "2xl";
   const [showManualForm, setShowManualForm] = useState(false);

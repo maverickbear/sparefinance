@@ -68,7 +68,7 @@ export class PortfolioService {
     const totalReturn = totalValue - totalCost;
     const totalReturnPercent = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
 
-    // Calculate day change (simplified - full logic in lib/api/portfolio.ts)
+    // Calculate day change
     let dayChange = 0;
     let dayChangePercent = 0;
     
@@ -194,8 +194,7 @@ export class PortfolioService {
   }
 
   /**
-   * Get portfolio historical data (simplified version)
-   * Full implementation is complex and kept in lib/api/portfolio.ts for now
+   * Get portfolio historical data
    */
   async getPortfolioHistoricalData(
     days: number = 365,

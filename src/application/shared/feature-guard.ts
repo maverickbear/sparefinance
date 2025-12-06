@@ -1,35 +1,91 @@
 "use server";
 
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
-import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { PlanErrorCode, createPlanError, type PlanError } from "@/lib/utils/plan-errors";
 import { BaseLimitCheckResult, BaseSubscriptionData } from "@/src/domain/subscriptions/subscriptions.types";
 
-// Helper functions to use SubscriptionsService
+// Helper functions to use cached subscription data (single fetch per request)
 async function getUserSubscriptionData(userId: string): Promise<BaseSubscriptionData> {
-  const service = makeSubscriptionsService();
-  return service.getUserSubscriptionData(userId);
+  return getCachedSubscriptionData(userId);
 }
 
 export async function checkTransactionLimit(userId: string, month: Date = new Date()): Promise<BaseLimitCheckResult> {
-  const service = makeSubscriptionsService();
-  return service.checkTransactionLimit(userId, month);
+  // Use cached limits to avoid re-fetching subscription data
+  const { limits } = await getUserSubscriptionData(userId);
+
+  // Unlimited transactions
+  if (limits.maxTransactions === -1) {
+    return {
+      allowed: true,
+      limit: -1,
+      current: 0,
+    };
+  }
+
+  const checkMonth = month || new Date();
+  const monthDate = new Date(checkMonth.getFullYear(), checkMonth.getMonth(), 1);
+
+  const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+  const subscriptionsRepository = new SubscriptionsRepository();
+  const current = await subscriptionsRepository.getUserMonthlyUsage(userId, monthDate);
+
+  return {
+    allowed: current < limits.maxTransactions,
+    limit: limits.maxTransactions,
+    current,
+    message: current < limits.maxTransactions
+      ? undefined
+      : `You've reached your monthly transaction limit (${limits.maxTransactions}).`,
+  };
 }
 
 export async function checkAccountLimit(userId: string): Promise<BaseLimitCheckResult> {
-  const service = makeSubscriptionsService();
-  return service.checkAccountLimit(userId);
+  const { limits } = await getUserSubscriptionData(userId);
+
+  if (limits.maxAccounts === -1) {
+    return {
+      allowed: true,
+      limit: -1,
+      current: 0,
+    };
+  }
+
+  const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+  const subscriptionsRepository = new SubscriptionsRepository();
+  const current = await subscriptionsRepository.getUserAccountCount(userId);
+
+  return {
+    allowed: current < limits.maxAccounts,
+    limit: limits.maxAccounts,
+    current,
+    message: current < limits.maxAccounts
+      ? undefined
+      : `You've reached your account limit (${limits.maxAccounts}).`,
+  };
 }
 
 async function checkFeatureAccess(userId: string, feature: keyof PlanFeatures): Promise<boolean> {
-  const service = makeSubscriptionsService();
-  return service.checkFeatureAccess(userId, feature);
+  const { limits } = await getUserSubscriptionData(userId);
+  return limits[feature] === true;
 }
 
 async function canUserWrite(userId: string): Promise<boolean> {
-  const service = makeSubscriptionsService();
-  return service.canUserWrite(userId);
+  const { subscription } = await getUserSubscriptionData(userId);
+
+  if (!subscription) return false;
+  if (subscription.status === "active") return true;
+
+  if (subscription.status === "trialing") {
+    if (subscription.trialEndDate) {
+      const trialEnd = new Date(subscription.trialEndDate);
+      return trialEnd > new Date();
+    }
+    return true;
+  }
+
+  return false;
 }
 
 /**

@@ -105,38 +105,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Generate initial budgets
+    // Step 3: Generate initial budgets ONLY if income and ruleType are provided
     try {
       const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
       const onboardingService = makeOnboardingService();
       
+      // Verify that income and ruleType are provided
+      if (!validated.step2?.incomeRange) {
+        console.log("[ONBOARDING-COMPLETE] No income range provided, skipping budget generation");
+      } else {
+        const ruleType = validated.step2.ruleType as BudgetRuleType | undefined;
+        
+        // Only generate budgets if ruleType is explicitly provided
+        if (!ruleType) {
+          console.log("[ONBOARDING-COMPLETE] No ruleType provided, skipping budget generation");
+        } else {
       const { getActiveHouseholdId } = await import("@/lib/utils/household");
       const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
       
       if (householdId) {
-        let finalRuleType = validated.step2.ruleType as BudgetRuleType | undefined;
-        
-        // If no ruleType provided, suggest one
-        if (!finalRuleType) {
-          const { makeBudgetRulesService } = await import("@/src/application/budgets/budget-rules.factory");
-          const budgetRulesService = makeBudgetRulesService();
-          const monthlyIncome = onboardingService.getMonthlyIncomeFromRange(
-            validated.step2.incomeRange,
-            validated.step2.incomeAmount
-          );
-          const suggestion = budgetRulesService.suggestRule(monthlyIncome);
-          finalRuleType = suggestion.rule.id;
-        }
-
         await onboardingService.generateInitialBudgets(
           userId,
           validated.step2.incomeRange,
           accessToken,
           refreshToken,
-          finalRuleType,
+              ruleType,
           validated.step2.incomeAmount
         );
         console.log("[ONBOARDING-COMPLETE] Initial budgets created successfully");
+          }
+        }
       }
     } catch (error) {
       // Log but don't fail - budgets can be created later
@@ -145,25 +143,30 @@ export async function POST(request: NextRequest) {
 
     // Step 4: Create subscription (or use existing if already created)
     try {
-      // Check if subscription already exists
-      const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
-      const supabase = await createServerClient();
+      // Check if subscription already exists using SubscriptionsService
+      const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
+      const subscriptionsService = makeSubscriptionsService();
       const subscriptionId = `${userId}-${validated.step3.planId}`;
       
-      const { data: existingSubscription } = await supabase
-        .from("Subscription")
-        .select("id, status, planId")
-        .eq("id", subscriptionId)
-        .maybeSingle();
+      // Use repository to check if subscription exists (via service)
+      const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+      const subscriptionsRepository = new SubscriptionsRepository();
+      const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
 
       if (existingSubscription) {
         // Subscription already exists, consider it success
         console.log("[ONBOARDING-COMPLETE] Subscription already exists:", existingSubscription.id);
+        
+        // Invalidate cache using tag groups (subscription may have been updated)
+        const { revalidateTag } = await import("next/cache");
+        revalidateTag('subscriptions', 'max');
+        revalidateTag('accounts', 'max');
       } else {
         // Create new subscription
-        const { createEmbeddedCheckoutSession } = await import("@/lib/api/stripe");
+        const { makeStripeService } = await import("@/src/application/stripe/stripe.factory");
+        const stripeService = makeStripeService();
         
-        const result = await createEmbeddedCheckoutSession(
+        const result = await stripeService.createEmbeddedCheckoutSession(
           userId,
           validated.step3.planId,
           validated.step3.interval
@@ -171,11 +174,7 @@ export async function POST(request: NextRequest) {
 
         if (!result.success || !result.subscriptionId) {
           // Check if subscription was created in the meantime (race condition)
-          const { data: checkAgain } = await supabase
-            .from("Subscription")
-            .select("id")
-            .eq("id", subscriptionId)
-            .maybeSingle();
+          const checkAgain = await subscriptionsRepository.findById(subscriptionId);
           
           if (checkAgain) {
             console.log("[ONBOARDING-COMPLETE] Subscription was created by another request:", checkAgain.id);
@@ -187,6 +186,11 @@ export async function POST(request: NextRequest) {
           }
         } else {
           console.log("[ONBOARDING-COMPLETE] Subscription created successfully:", result.subscriptionId);
+          
+          // Invalidate cache using tag groups
+          const { revalidateTag } = await import("next/cache");
+          revalidateTag('subscriptions', 'max');
+          revalidateTag('accounts', 'max');
         }
       }
     } catch (error) {
@@ -194,19 +198,19 @@ export async function POST(request: NextRequest) {
       
       // If error is about duplicate key, check if subscription exists now
       if (error instanceof Error && error.message.includes("duplicate key")) {
-        const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
-        const supabase = await createServerClient();
+        const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+        const subscriptionsRepository = new SubscriptionsRepository();
         const subscriptionId = `${userId}-${validated.step3.planId}`;
-        
-        const { data: existingSubscription } = await supabase
-          .from("Subscription")
-          .select("id")
-          .eq("id", subscriptionId)
-          .maybeSingle();
+        const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
         
         if (existingSubscription) {
           console.log("[ONBOARDING-COMPLETE] Subscription exists after duplicate error, continuing:", existingSubscription.id);
           // Continue - subscription exists, that's fine
+          
+          // Invalidate cache using tag groups
+          const { revalidateTag } = await import("next/cache");
+          revalidateTag('subscriptions', 'max');
+          revalidateTag('accounts', 'max');
         } else {
           throw new AppError(
             error.message || "Failed to create subscription",
@@ -225,7 +229,6 @@ export async function POST(request: NextRequest) {
     try {
       const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
-      subscriptionsService.invalidateSubscriptionCache(userId);
 
 
       console.log("[ONBOARDING-COMPLETE] Caches invalidated successfully");

@@ -4,6 +4,8 @@ import { DebtFormData, debtSchema } from "@/src/domain/debts/debts.validations";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +17,13 @@ export async function GET(request: NextRequest) {
     const service = makeDebtsService();
     const debts = await service.getDebts();
     
-    return NextResponse.json(debts, { status: 200 });
+    // Debts change occasionally, use semi-static cache
+    const cacheHeaders = getCacheHeaders('semi-static');
+    
+    return NextResponse.json(debts, { 
+      status: 200,
+      headers: cacheHeaders,
+    });
   } catch (error) {
     console.error("Error fetching debts:", error);
     
@@ -51,8 +59,17 @@ export async function POST(request: NextRequest) {
     // Validate with schema
     const validatedData = debtSchema.parse(data);
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeDebtsService();
     const debt = await service.createDebt(validatedData);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(debt, { status: 201 });
   } catch (error) {

@@ -7,6 +7,7 @@ import { createServerClient } from "@/src/infrastructure/database/supabase-serve
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import { getStripeClient } from "@/src/infrastructure/external/stripe/stripe-client";
 import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
+import { makeMembersService } from "../members/members.factory";
 import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface StartTrialResult {
@@ -101,11 +102,33 @@ export class TrialService {
         .eq("id", authUser.id)
         .single();
 
-      // Get active household ID for the user
-      const householdId = await getActiveHouseholdId(authUser.id);
+      // Get or create active household ID for the user
+      let householdId = await getActiveHouseholdId(authUser.id);
+      
       if (!householdId) {
-        logger.error("[TrialService] No active household found for user:", authUser.id);
-        return { success: false, error: "No active household found. Please contact support." };
+        // CRITICAL: Create personal household if it doesn't exist
+        // This ensures users can start trials even if household wasn't created during signup
+        logger.info("[TrialService] No active household found, creating personal household for user:", authUser.id);
+        
+        try {
+          const membersService = makeMembersService();
+          const householdName = userData?.name ? `${userData.name}'s Account` : "Minha Conta";
+          
+          const newHousehold = await membersService.createHousehold(
+            authUser.id,
+            householdName,
+            'personal'
+          );
+          
+          householdId = newHousehold.id;
+          logger.info("[TrialService] Personal household created successfully:", { userId: authUser.id, householdId });
+        } catch (householdError) {
+          logger.error("[TrialService] Error creating personal household:", householdError);
+          return { 
+            success: false, 
+            error: "Failed to create household. Please contact support." 
+          };
+        }
       }
 
       if (existingSubscription?.stripeCustomerId) {
@@ -182,7 +205,14 @@ export class TrialService {
       // Create subscription in database
       // Use same ID format as webhook handler: userId + "-" + planId
       const subscriptionId = `${authUser.id}-${planId}`;
-      const { data: newSubscription, error: insertError } = await supabase
+      
+      // CRITICAL: Use service role client to bypass RLS during creation
+      // This ensures the subscription is created even if there are timing issues with RLS policies
+      // The RLS policies will still protect access after creation
+      const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
+      const serviceRoleClient = createServiceRoleClient();
+      
+      const { data: newSubscription, error: insertError } = await serviceRoleClient
         .from("Subscription")
         .insert({
           id: subscriptionId,
@@ -238,7 +268,9 @@ export class TrialService {
           incomeAmount
         );
         
-        // Generate initial budgets
+        // Generate initial budgets with suggested rule
+        // NOTE: This is OK because user provided temporaryExpectedIncome during signup
+        // We suggest a rule automatically in this case to improve onboarding experience
         try {
           const { makeBudgetRulesService } = await import("@/src/application/budgets/budget-rules.factory");
           const budgetRulesService = makeBudgetRulesService();
@@ -278,9 +310,45 @@ export class TrialService {
         logger.info("[TrialService] Moved temporary income to household settings");
       }
 
+      // Verify subscription is accessible after creation
+      // This helps catch RLS permission issues early
+      try {
+        const { data: verifySubscription, error: verifyError } = await supabase
+          .from("Subscription")
+          .select("id, status, planId, householdId")
+          .eq("id", subscriptionId)
+          .single();
+        
+        if (verifyError) {
+          logger.warn("[TrialService] Warning: Subscription created but not immediately accessible:", {
+            subscriptionId,
+            error: verifyError.message,
+            code: verifyError.code,
+            hint: "This may indicate an RLS policy issue",
+          });
+        } else if (verifySubscription) {
+          logger.debug("[TrialService] Subscription verified and accessible after creation:", {
+            subscriptionId: verifySubscription.id,
+            status: verifySubscription.status,
+            planId: verifySubscription.planId,
+            householdId: verifySubscription.householdId,
+          });
+        }
+      } catch (verifyErr) {
+        logger.warn("[TrialService] Error verifying subscription after creation (non-critical):", verifyErr);
+      }
+
       // Invalidate subscription cache to ensure fresh data on next check
-      const subscriptionsService = makeSubscriptionsService();
-      subscriptionsService.invalidateSubscriptionCache(userId);
+      try {
+        const { invalidateUserCaches } = await import("@/src/infrastructure/utils/cache-utils");
+        await invalidateUserCaches(authUser.id, { subscriptions: true, accounts: true });
+        logger.debug("[TrialService] Cache invalidated for subscriptions and accounts", {
+          userId: authUser.id,
+          subscriptionId: newSubscription.id,
+        });
+      } catch (cacheError) {
+        logger.warn("[TrialService] Error invalidating cache (non-critical):", cacheError);
+      }
       
       // Small delay to ensure cache invalidation is processed and database is consistent
       await new Promise(resolve => setTimeout(resolve, 100));

@@ -4,9 +4,9 @@ import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
-import { makeAccountsService } from "@/src/application/accounts/accounts.factory";
+// CRITICAL: Use static import to ensure React cache() works correctly
+import { getAccountsForDashboard } from "@/src/application/accounts/get-dashboard-accounts";
 import { makeDebtsService } from "@/src/application/debts/debts.factory";
-import { makePlaidService } from "@/src/application/plaid/plaid.factory";
 import { makeBudgetRulesService } from "@/src/application/budgets/budget-rules.factory";
 import { makeBudgetsService } from "@/src/application/budgets/budgets.factory";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
@@ -339,11 +339,11 @@ async function calculateFinancialHealthInternal(
       const budgets = await budgetsService.getBudgets(selectedMonth, accessToken, refreshToken);
       
       // Get groups to map to rule categories
-      const groups = await categoriesService.getGroups(accessToken, refreshToken);
+      const groups = await categoriesService.getGroups();
       const groupMappings = budgetRulesService.mapGroupsToRuleCategories(groups);
       
       // Get categories to build category-to-group map
-      const allCategories = await categoriesService.getAllCategories(accessToken, refreshToken);
+      const allCategories = await categoriesService.getAllCategories();
       const categoriesMap = new Map<string, { groupId?: string | null }>();
       for (const category of allCategories) {
         categoriesMap.set(category.id, { groupId: category.groupId });
@@ -484,8 +484,6 @@ async function calculateFinancialHealthInternal(
       // Get total debts
       const debtsService = makeDebtsService();
       const debts = await debtsService.getDebts(accessToken, refreshToken);
-      const plaidService = makePlaidService();
-      const liabilities = await plaidService.getUserLiabilities(userId, accessToken, refreshToken);
 
       let totalDebts = 0;
 
@@ -497,21 +495,6 @@ async function calculateFinancialHealthInternal(
           return sum + Math.abs(Number(balance) || 0);
         }, 0);
       totalDebts += debtsTotal;
-
-      // Calculate from PlaidLiabilities
-      const liabilitiesTotal = liabilities.reduce((sum, liability) => {
-        const balance = (liability as any).balance ?? (liability as any).currentBalance ?? null;
-        if (balance == null) return sum;
-        const numValue = typeof balance === 'string' ? parseFloat(balance) : Number(balance);
-        if (!isNaN(numValue) && isFinite(numValue)) {
-          // For debts, we want the absolute value (a balance of -1000 means debt of 1000)
-          // But if it's already positive, use it as-is
-          const debtAmount = numValue < 0 ? Math.abs(numValue) : numValue;
-          return sum + debtAmount;
-        }
-        return sum;
-      }, 0);
-      totalDebts += liabilitiesTotal;
 
       // Calculate debt-to-income ratio (annual)
       const annualIncome = monthlyIncome * 12;
@@ -536,6 +519,10 @@ async function calculateFinancialHealthInternal(
   let emergencyFundMonths = 0;
   let emergencyFundGoal: any = null;
   const RECOMMENDED_MONTHS = 6; // Minimum recommended emergency fund months
+  
+  // CRITICAL OPTIMIZATION: Use provided accounts to avoid duplicate getAccounts() calls
+  // Only fetch accounts if absolutely necessary (not provided or empty)
+  let accountsToUse = accounts && accounts.length > 0 ? accounts : null;
   
   try {
     // First, try to get emergency fund goal from system
@@ -567,13 +554,11 @@ async function calculateFinancialHealthInternal(
             emergencyFundMonths = goalBalance / monthlyExpenses;
           }
         } else {
-          // Fallback to total balance calculation
-          let accountsToUse = accounts;
-          
-          // Only fetch if not provided (must include holdings for accurate investment balances)
-          if (!accountsToUse || accountsToUse.length === 0) {
-            const accountsService = makeAccountsService();
-            accountsToUse = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
+          // Fallback to total balance calculation - use provided accounts
+          if (!accountsToUse) {
+            // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+            const { getAccountsForDashboard } = await import("../accounts/get-dashboard-accounts");
+            accountsToUse = await getAccountsForDashboard(true);
           }
           
           const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
@@ -584,12 +569,10 @@ async function calculateFinancialHealthInternal(
           }
         }
       } else {
-        // No household, use total balance calculation
-        let accountsToUse = accounts;
-        
-        if (!accountsToUse || accountsToUse.length === 0) {
-          const accountsService = makeAccountsService();
-          accountsToUse = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
+        // No household, use total balance calculation - use provided accounts
+        if (!accountsToUse) {
+          // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+          accountsToUse = await getAccountsForDashboard(true);
         }
         
         const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
@@ -599,12 +582,10 @@ async function calculateFinancialHealthInternal(
         }
       }
     } else {
-      // No user, use total balance calculation
-      let accountsToUse = accounts;
-      
-      if (!accountsToUse || accountsToUse.length === 0) {
-        const accountsService = makeAccountsService();
-        accountsToUse = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
+      // No user, use total balance calculation - use provided accounts
+      if (!accountsToUse) {
+        // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+        accountsToUse = await getAccountsForDashboard(true);
       }
       
       const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
@@ -615,6 +596,11 @@ async function calculateFinancialHealthInternal(
     }
   } catch (error) {
     console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate emergency fund months:", error);
+    // Fallback: use provided accounts if available
+    if (accountsToUse && monthlyExpenses > 0) {
+      const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+      emergencyFundMonths = totalBalance / monthlyExpenses;
+    }
   }
   
   // Adjust score based on Emergency Fund status
@@ -1012,9 +998,9 @@ export async function recalculateFinancialHealthFromTransactions(
           let accountsToUse = accounts;
           
           if (!accountsToUse || accountsToUse.length === 0) {
-            const { makeAccountsService } = await import("@/src/application/accounts/accounts.factory");
-            const accountsService = makeAccountsService();
-            accountsToUse = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
+            // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+            const { getAccountsForDashboard } = await import("../accounts/get-dashboard-accounts");
+            accountsToUse = await getAccountsForDashboard(true);
           }
           
           const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
@@ -1028,9 +1014,8 @@ export async function recalculateFinancialHealthFromTransactions(
         let accountsToUse = accounts;
         
         if (!accountsToUse || accountsToUse.length === 0) {
-          const { makeAccountsService } = await import("@/src/application/accounts/accounts.factory");
-          const accountsService = makeAccountsService();
-          accountsToUse = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
+          // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+          accountsToUse = await getAccountsForDashboard(true);
         }
         
         const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
@@ -1044,9 +1029,8 @@ export async function recalculateFinancialHealthFromTransactions(
       let accountsToUse = accounts;
       
       if (!accountsToUse || accountsToUse.length === 0) {
-        const { makeAccountsService } = await import("@/src/application/accounts/accounts.factory");
-        const accountsService = makeAccountsService();
-        accountsToUse = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
+        // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+        accountsToUse = await getAccountsForDashboard(true);
       }
       
       const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);

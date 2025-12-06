@@ -1,10 +1,16 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
 
 export function MainFooter() {
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
   return (
     <footer className="bg-background border-t border-border">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -131,7 +137,7 @@ export function MainFooter() {
         {/* Bottom */}
         <div className="pt-8 border-t border-border">
           <p className="text-sm text-center text-muted-foreground">
-            © {new Date().getFullYear()} Copyright - Spare Finance. All rights reserved.
+            © {currentYear || 2024} Copyright - Spare Finance. All rights reserved.
           </p>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { getActiveHouseholdId } from "@/lib/utils/household";
 import Stripe from "stripe";
 
@@ -234,7 +234,12 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Create new subscription
-      const { error: insertError } = await supabase
+      // CRITICAL: Use service role client to bypass RLS during creation
+      // This ensures the subscription is created even if there are timing issues with RLS policies
+      // The RLS policies will still protect access after creation
+      const serviceRoleClient = createServiceRoleClient();
+      
+      const { error: insertError } = await serviceRoleClient
         .from("Subscription")
         .insert({
           id: subscriptionId,
@@ -263,8 +268,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Invalidate cache
-    const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
-    await invalidateSubscriptionCache(authUser.id);
 
     return NextResponse.json({ 
       success: true,

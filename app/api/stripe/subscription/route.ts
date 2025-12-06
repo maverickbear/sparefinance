@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { 
-  updateSubscriptionPlan, 
-  cancelSubscription, 
-  reactivateSubscription 
-} from "@/lib/api/stripe";
+import { makeStripeService } from "@/src/application/stripe/stripe.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { invalidateUserCaches } from "@/src/infrastructure/utils/cache-utils";
 
 export async function PUT(request: NextRequest) {
   try {
@@ -24,15 +21,20 @@ export async function PUT(request: NextRequest) {
       throw new AppError("planId is required", 400);
     }
 
-    const { success, error } = await updateSubscriptionPlan(
+    const stripeService = makeStripeService();
+    const result = await stripeService.updateSubscriptionPlan(
       userId,
       planId,
       interval
     );
+    const { success, error } = result;
 
     if (!success) {
       throw new AppError(error || "Failed to update subscription", 500);
     }
+
+    // Invalidate cache for this user
+    await invalidateUserCaches(userId, { subscriptions: true, accounts: true });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -66,22 +68,34 @@ export async function POST(request: NextRequest) {
     const { action, cancelImmediately = false } = body;
 
     if (action === "cancel") {
-      const { success, error } = await cancelSubscription(
+      const stripeService = makeStripeService();
+      const result = await stripeService.cancelSubscription(
         userId,
         cancelImmediately
       );
+      const { success, error } = result;
 
       if (!success) {
         throw new AppError(error || "Failed to cancel subscription", 500);
       }
 
+      // Invalidate cache using tag groups
+      revalidateTag('subscriptions', 'max');
+      revalidateTag('accounts', 'max');
+
       return NextResponse.json({ success: true });
     } else if (action === "reactivate") {
-      const { success, error } = await reactivateSubscription(userId);
+      const stripeService = makeStripeService();
+      const result = await stripeService.reactivateSubscription(userId);
+      const { success, error } = result;
 
       if (!success) {
         throw new AppError(error || "Failed to reactivate subscription", 500);
       }
+
+      // Invalidate cache using tag groups
+      revalidateTag('subscriptions', 'max');
+      revalidateTag('accounts', 'max');
 
       return NextResponse.json({ success: true });
     } else {

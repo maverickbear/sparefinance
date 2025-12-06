@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/components/common/money";
 import { format, differenceInDays, isToday, isTomorrow } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Calendar, Check, X, SkipForward, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, Check, X, SkipForward, ArrowRight, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import type { BasePlannedPayment as PlannedPayment } from "@/src/domain/planned-payments/planned-payments.types";
 import { PLANNED_HORIZON_DAYS } from "@/src/domain/planned-payments/planned-payments.types";
 import { Loader2 } from "lucide-react";
+import { TransactionForm } from "@/components/forms/transaction-form";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,7 @@ export function PlannedPaymentList() {
   const [activeTab, setActiveTab] = useState<"expense" | "income" | "transfer">("expense");
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,6 +77,7 @@ export function PlannedPaymentList() {
   }, [totalPayments, itemsPerPage]);
 
   // Sort payments by date (earliest first)
+  // Since API already filters by type, we can use payments directly
   const sortedPayments = useMemo(() => {
     return [...payments].sort((a, b) => {
       const dateA = a.date instanceof Date ? a.date : new Date(a.date);
@@ -84,34 +87,27 @@ export function PlannedPaymentList() {
   }, [payments]);
   
   // For mobile: use accumulated payments for infinite scroll
-  const mobilePayments = allPayments.length > 0 ? allPayments : payments;
+  const mobilePayments = useMemo(() => {
+    const paymentsToUse = allPayments.length > 0 ? allPayments : payments;
+    return [...paymentsToUse].sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+      const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [allPayments, payments]);
 
-  // Filter payments by type for each tab
+  // Since API already filters by type, use sortedPayments directly for each tab
   const expensePayments = useMemo(() => {
-    return sortedPayments.filter((p) => p.type === "expense");
+    return sortedPayments;
   }, [sortedPayments]);
 
   const incomePayments = useMemo(() => {
-    return sortedPayments.filter((p) => p.type === "income");
+    return sortedPayments;
   }, [sortedPayments]);
 
   const transferPayments = useMemo(() => {
-    return sortedPayments.filter((p) => p.type === "transfer");
+    return sortedPayments;
   }, [sortedPayments]);
-
-  // Load initial data and counts
-  useEffect(() => {
-    loadCounts();
-    loadPlannedPayments();
-  }, []);
-
-  // Reset to page 1 when tab changes
-  useEffect(() => {
-    setCurrentPage(1);
-    setAllPayments([]);
-    loadPlannedPayments();
-    // Note: We don't reload counts when tab changes because counts are totals for all types
-  }, [activeTab]);
 
   // Mobile detection state
   const [isMobile, setIsMobile] = useState(false);
@@ -126,6 +122,160 @@ export function PlannedPaymentList() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  const syncPlannedPayments = useCallback(async () => {
+    try {
+      // Sync planned payments from all sources (debts, goals, recurring)
+      const response = await fetch("/api/v2/planned-payments/sync", {
+        method: "POST",
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to sync planned payments");
+      }
+      
+      const data = await response.json();
+      console.log("[PlannedPaymentList] Sync completed:", data);
+    } catch (error) {
+      // Don't show error to user, just log it
+      // Sync is optional and shouldn't block the page from loading
+      console.error("Error syncing planned payments:", error);
+    }
+  }, []);
+
+  const loadCounts = useCallback(async () => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const horizonDate = new Date(today);
+      horizonDate.setDate(horizonDate.getDate() + PLANNED_HORIZON_DAYS);
+      
+      // Single optimized call to get all counts at once
+      const response = await fetch(
+        `/api/planned-payments/counts?startDate=${today.toISOString().split('T')[0]}&endDate=${horizonDate.toISOString().split('T')[0]}&status=scheduled`
+      );
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch counts");
+      }
+      
+      const data = await response.json();
+      setExpenseCount(data.expense || 0);
+      setIncomeCount(data.income || 0);
+      setTransferCount(data.transfer || 0);
+    } catch (error) {
+      console.error("Error loading counts:", error);
+    }
+  }, []);
+
+  const loadPlannedPayments = useCallback(async () => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    try {
+      setLoading(true);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const horizonDate = new Date(today);
+      horizonDate.setDate(horizonDate.getDate() + PLANNED_HORIZON_DAYS);
+      
+      const params = new URLSearchParams();
+      params.append("startDate", today.toISOString().split('T')[0]);
+      params.append("endDate", horizonDate.toISOString().split('T')[0]);
+      params.append("status", "scheduled");
+      params.append("type", activeTab);
+      
+      // Add pagination parameters
+      const limit = isMobile ? 10 : itemsPerPage;
+      params.append("page", currentPage.toString());
+      params.append("limit", limit.toString());
+      
+      // Use v2 API
+      const url = `/api/v2/planned-payments?${params.toString()}&_t=${Date.now()}`;
+      
+      const response = await fetch(url, {
+        cache: 'no-store',
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || "Failed to fetch planned payments");
+      }
+
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      const data = await response.json();
+      
+      const newPayments: PlannedPayment[] = data.plannedPayments || [];
+      const total = data.total || 0;
+      
+      setTotalPayments(total);
+      
+      // For mobile infinite scroll: accumulate payments
+      // For desktop: replace payments (normal pagination)
+      if (currentPage === 1) {
+        setPayments(newPayments);
+        setAllPayments(newPayments);
+      } else {
+        setPayments(newPayments);
+        setAllPayments(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const uniqueNew = newPayments.filter(p => !existingIds.has(p.id));
+          return [...prev, ...uniqueNew];
+        });
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      console.error("Error loading planned payments:", error);
+      toast({
+        title: "Error loading planned payments",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+    }
+  }, [activeTab, currentPage, itemsPerPage, isMobile, toast]);
+
+  // Sync planned payments on mount (only once per session)
+  useEffect(() => {
+    const hasSynced = sessionStorage.getItem("planned-payments-synced");
+    if (!hasSynced) {
+      syncPlannedPayments();
+      sessionStorage.setItem("planned-payments-synced", "true");
+    }
+  }, [syncPlannedPayments]);
+
+  // Load initial data and counts
+  useEffect(() => {
+    loadCounts();
+    loadPlannedPayments();
+  }, [loadCounts, loadPlannedPayments]);
+
+  // Reset to page 1 when tab changes
+  useEffect(() => {
+    setCurrentPage(1);
+    setAllPayments([]);
+    loadPlannedPayments();
+    // Note: We don't reload counts when tab changes because counts are totals for all types
+  }, [activeTab, loadPlannedPayments]);
 
   // Reset loadingMore when payments are loaded
   useEffect(() => {
@@ -147,7 +297,7 @@ export function PlannedPaymentList() {
     if (currentPage > 1) {
       loadPlannedPayments();
     }
-  }, [currentPage]);
+  }, [currentPage, loadPlannedPayments]);
 
   // Pull to refresh for mobile
   useEffect(() => {
@@ -207,123 +357,14 @@ export function PlannedPaymentList() {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [pullDistance, loading, isRefreshing]);
-
-  async function loadCounts() {
-    try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const horizonDate = new Date(today);
-      horizonDate.setDate(horizonDate.getDate() + PLANNED_HORIZON_DAYS);
-      
-      // Single optimized call to get all counts at once
-      const response = await fetch(
-        `/api/planned-payments/counts?startDate=${today.toISOString().split('T')[0]}&endDate=${horizonDate.toISOString().split('T')[0]}&status=scheduled`
-      );
-      
-      if (!response.ok) {
-        throw new Error("Failed to fetch counts");
-      }
-      
-      const data = await response.json();
-      setExpenseCount(data.expense || 0);
-      setIncomeCount(data.income || 0);
-      setTransferCount(data.transfer || 0);
-    } catch (error) {
-      console.error("Error loading counts:", error);
-    }
-  }
-
-  async function loadPlannedPayments() {
-    // Cancel any previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
-
-    try {
-      setLoading(true);
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const horizonDate = new Date(today);
-      horizonDate.setDate(horizonDate.getDate() + PLANNED_HORIZON_DAYS);
-      
-      const params = new URLSearchParams();
-      params.append("startDate", today.toISOString().split('T')[0]);
-      params.append("endDate", horizonDate.toISOString().split('T')[0]);
-      params.append("status", "scheduled");
-      params.append("type", activeTab);
-      
-      // Add pagination parameters
-      const limit = isMobile ? 10 : itemsPerPage;
-      params.append("page", currentPage.toString());
-      params.append("limit", limit.toString());
-      
-      const url = `/api/planned-payments?${params.toString()}&_t=${Date.now()}`;
-      
-      const response = await fetch(url, {
-        cache: 'no-store',
-        signal: abortController.signal,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to fetch planned payments");
-      }
-
-      if (abortController.signal.aborted) {
-        return;
-      }
-
-      const data = await response.json();
-      
-      const newPayments: PlannedPayment[] = data.plannedPayments || [];
-      const total = data.total || 0;
-      
-      setTotalPayments(total);
-      
-      // For mobile infinite scroll: accumulate payments
-      // For desktop: replace payments (normal pagination)
-      if (currentPage === 1) {
-        setPayments(newPayments);
-        setAllPayments(newPayments);
-      } else {
-        setPayments(newPayments);
-        setAllPayments(prev => {
-          const existingIds = new Set(prev.map(p => p.id));
-          const uniqueNew = newPayments.filter(p => !existingIds.has(p.id));
-          return [...prev, ...uniqueNew];
-        });
-      }
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return;
-      }
-      console.error("Error loading planned payments:", error);
-      toast({
-        title: "Error loading planned payments",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
-    } finally {
-      if (!abortController.signal.aborted) {
-        setLoading(false);
-      }
-      if (abortControllerRef.current === abortController) {
-        abortControllerRef.current = null;
-      }
-    }
-  }
+  }, [pullDistance, loading, isRefreshing, loadCounts, loadPlannedPayments]);
 
   const handleMarkAsPaid = async (payment: PlannedPayment) => {
     if (processingIds.has(payment.id)) return;
     
     setProcessingIds((prev) => new Set(prev).add(payment.id));
     try {
-      const response = await fetch(`/api/planned-payments/${payment.id}/mark-paid`, {
+      const response = await fetch(`/api/v2/planned-payments/${payment.id}/mark-paid`, {
         method: "POST",
       });
       
@@ -361,7 +402,7 @@ export function PlannedPaymentList() {
     
     setProcessingIds((prev) => new Set(prev).add(payment.id));
     try {
-      const response = await fetch(`/api/planned-payments/${payment.id}/skip`, {
+      const response = await fetch(`/api/v2/planned-payments/${payment.id}/skip`, {
         method: "POST",
       });
       
@@ -399,7 +440,7 @@ export function PlannedPaymentList() {
     
     setProcessingIds((prev) => new Set(prev).add(payment.id));
     try {
-      const response = await fetch(`/api/planned-payments/${payment.id}/cancel`, {
+      const response = await fetch(`/api/v2/planned-payments/${payment.id}/cancel`, {
         method: "POST",
       });
       
@@ -574,15 +615,13 @@ export function PlannedPaymentList() {
             <div className="text-center py-8 text-muted-foreground">
               Loading planned payments...
             </div>
-          ) : mobilePayments.filter(p => p.type === activeTab).length === 0 ? (
+          ) : mobilePayments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No {activeTab} payments found
             </div>
           ) : (
             <>
-              {mobilePayments
-                .filter(p => p.type === activeTab)
-                .map((payment, index) => {
+              {mobilePayments.map((payment, index) => {
                   const daysUntil = getDaysUntil(payment.date);
                   const amount = Math.abs(payment.amount || 0);
                   const dateLabel = formatDateLabel(payment.date);
@@ -1221,6 +1260,28 @@ export function PlannedPaymentList() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Transaction Form for creating planned payments */}
+      <TransactionForm
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        onSuccess={() => {
+          loadCounts();
+          loadPlannedPayments();
+        }}
+        defaultType={activeTab}
+      />
+
+      {/* Mobile Floating Action Button */}
+      <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
+        <Button
+          size="large"
+          className="h-14 w-14 rounded-full shadow-lg"
+          onClick={() => setIsFormOpen(true)}
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
       </div>
     </SimpleTabs>
   );

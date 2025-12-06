@@ -12,7 +12,7 @@ interface DatePickerProps {
   className?: string
   disabled?: boolean
   required?: boolean
-  size?: "small" | "medium" | "large"
+  size?: "tiny" | "small" | "medium" | "large"
 }
 
 export function DatePicker({

@@ -22,9 +22,6 @@ export async function GET(request: NextRequest) {
     const location = await onboardingService.getLocation(userId, accessToken, refreshToken);
 
     return NextResponse.json(location, {
-      headers: {
-        "Cache-Control": "no-cache",
-      },
     });
   } catch (error) {
     console.error("[ONBOARDING-LOCATION] Error getting location:", error);

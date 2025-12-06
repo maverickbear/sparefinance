@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { SummaryCards } from "@/app/(protected)/dashboard/summary-cards";
 import { FinancialHealthScoreWidget } from "@/app/(protected)/dashboard/widgets/financial-health-score-widget";
@@ -213,9 +213,15 @@ const mockSubscriptions = [
 ];
 
 export function DashboardDemoStatic() {
-  // Get current date for demo
-  const currentDate = new Date();
-  const selectedMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+  // Get current date for demo - use state to avoid SSR issues
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const [selectedMonthDate, setSelectedMonthDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const now = new Date();
+    setCurrentDate(now);
+    setSelectedMonthDate(new Date(now.getFullYear(), now.getMonth(), 1));
+  }, []);
 
   // Calculate values using the same logic as the real dashboard
   const totalBalance = 30500;
@@ -264,7 +270,13 @@ export function DashboardDemoStatic() {
   const totalDebts = 5000;
   const netWorth = totalAssets - totalDebts;
 
+  // Don't render until dates are available to avoid SSR issues
+  if (!currentDate || !selectedMonthDate) {
+    return null;
+  }
+
   // Mock subscription data for demo
+  // At this point, currentDate is guaranteed to be non-null
   const mockPlan = {
     id: "demo-plan",
     name: "pro" as const,
@@ -277,8 +289,8 @@ export function DashboardDemoStatic() {
     stripePriceIdMonthly: null,
     stripePriceIdYearly: null,
     stripeProductId: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: currentDate,
+    updatedAt: currentDate,
   };
 
   return (
@@ -296,8 +308,8 @@ export function DashboardDemoStatic() {
           currentPeriodEnd: null,
           trialEndDate: null,
           cancelAtPeriodEnd: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: currentDate,
+          updatedAt: currentDate,
         },
         plan: mockPlan,
       }}

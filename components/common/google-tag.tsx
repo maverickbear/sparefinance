@@ -1,26 +1,32 @@
+"use client";
+
 import Script from "next/script";
-import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
+import { useEffect, useState } from "react";
 
-async function getGoogleTagId(): Promise<string | null> {
-  try {
-    const supabase = createServiceRoleClient();
-    const { data: settings } = await supabase
-      .from("SystemSettings")
-      .select("seoSettings")
-      .eq("id", "default")
-      .single();
+export function GoogleTag() {
+  const [googleTagId, setGoogleTagId] = useState<string | null>(null);
 
-    if (settings?.seoSettings?.googleTagId) {
-      return settings.seoSettings.googleTagId;
+  useEffect(() => {
+    // Fetch Google Tag ID on client side to avoid prerendering issues
+    async function fetchGoogleTagId() {
+      try {
+        const response = await fetch("/api/seo-settings/public");
+        if (response.ok) {
+          const data = await response.json();
+          // The API returns seoSettings directly or nested
+          const seoSettings = data?.seoSettings || data;
+          if (seoSettings?.googleTagId) {
+            setGoogleTagId(seoSettings.googleTagId);
+          }
+        }
+      } catch (error) {
+        // Silently fail - Google Tag is not critical
+        console.error("Error fetching Google Tag ID:", error);
+      }
     }
-  } catch (error) {
-    console.error("Error fetching Google Tag ID:", error);
-  }
-  return null;
-}
 
-export async function GoogleTag() {
-  const googleTagId = await getGoogleTagId();
+    fetchGoogleTagId();
+  }, []);
 
   if (!googleTagId) {
     return null;

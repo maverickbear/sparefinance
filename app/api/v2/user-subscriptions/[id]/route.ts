@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { makeUserSubscriptionsService } from "@/src/application/user-subscriptions/user-subscriptions.factory";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from "next/cache";
 
 /**
  * GET /api/v2/user-subscriptions/[id]
@@ -30,9 +31,6 @@ export async function GET(
     }
 
     return NextResponse.json(subscription, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
     });
   } catch (error) {
     console.error("Error fetching subscription:", error);
@@ -70,6 +68,10 @@ export async function PUT(
     const service = makeUserSubscriptionsService();
     const subscription = await service.updateUserSubscription(userId, id, body);
     
+    // Invalidate cache using tag groups
+    revalidateTag('subscriptions', 'max');
+    revalidateTag('accounts', 'max');
+    
     return NextResponse.json(subscription, { status: 200 });
   } catch (error) {
     console.error("Error updating subscription:", error);
@@ -105,6 +107,10 @@ export async function DELETE(
     const { id } = await params;
     const service = makeUserSubscriptionsService();
     await service.deleteUserSubscription(userId, id);
+    
+    // Invalidate cache using tag groups
+    revalidateTag('subscriptions', 'max');
+    revalidateTag('accounts', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
@@ -147,9 +153,15 @@ export async function POST(
 
     if (action === "pause") {
       const subscription = await service.pauseUserSubscription(userId, id);
+      // Invalidate cache using tag groups
+      revalidateTag('subscriptions', 'max');
+      revalidateTag('accounts', 'max');
       return NextResponse.json(subscription, { status: 200 });
     } else if (action === "resume") {
       const subscription = await service.resumeUserSubscription(userId, id);
+      // Invalidate cache using tag groups
+      revalidateTag('subscriptions', 'max');
+      revalidateTag('accounts', 'max');
       return NextResponse.json(subscription, { status: 200 });
     } else {
       return NextResponse.json(

@@ -102,7 +102,8 @@ export function ForgotPasswordForm() {
               {...form.register("email")}
               placeholder="you@example.com"
               disabled={loading}
-              className="pl-10 h-11"
+              size="small"
+              className="pl-10"
               required
             />
           </div>
@@ -116,7 +117,8 @@ export function ForgotPasswordForm() {
 
         <Button 
           type="submit" 
-          className="w-full h-11 text-base font-medium" 
+          size="small"
+          className="w-full text-base font-medium" 
           disabled={loading}
         >
           {loading ? (

@@ -10,13 +10,114 @@ import { BaseProfile } from "../../domain/profile/profile.types";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
+// CRITICAL: Use cached function to ensure React cache() works correctly
+import { getDashboardSubscription } from "../subscriptions/get-dashboard-subscription";
 import { makeMembersService } from "../members/members.factory";
 import { makeAuthService } from "../auth/auth.factory";
 import { AppError } from "../shared/app-error";
 import { getCurrentUserId } from "../shared/feature-guard";
 import { validateImageFile, sanitizeFilename, getFileExtension } from "@/lib/utils/file-validation";
 import { SecurityLogger } from "@/src/infrastructure/utils/security-logging";
+import { cacheLife, cacheTag } from 'next/cache';
+import { cookies } from 'next/headers';
+
+// Cached helper function (must be standalone, not class method)
+async function getUserWithSubscriptionCached(
+  userId: string
+): Promise<{
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+  plan: {
+    id: string;
+    name: string;
+  } | null;
+  subscription: {
+    status: "active" | "trialing" | "cancelled" | "past_due";
+    trialEndDate: string | null;
+  } | null;
+  userRole: "admin" | "member" | "super_admin" | null;
+}> {
+  'use cache: private'
+  cacheTag(`user-${userId}`, 'profile')
+  cacheLife('user-data')
+  
+  // Can access cookies() directly with 'use cache: private'
+  const cookieStore = await cookies();
+  
+  // Create repository instance inside cached function (cannot pass instances as parameters)
+  const { ProfileRepository } = await import("@/src/infrastructure/database/repositories/profile.repository");
+  const repository = new ProfileRepository();
+  
+  // Get user data from repository
+  const userRow = await repository.findById(userId);
+  
+  if (!userRow) {
+    throw new AppError("User not found", 404);
+  }
+
+  // Get subscription and plan data
+  // CRITICAL: Use cached getDashboardSubscription to avoid duplicate calls
+  // This ensures React cache() works correctly within the same request
+  const subscriptionData = await getDashboardSubscription();
+  
+  // Get user role
+  const membersService = makeMembersService();
+  const userRole = await membersService.getUserRole(userId);
+  
+  // Validate and sanitize avatarUrl
+  let avatarUrl: string | null = null;
+  if (userRow.avatarUrl && typeof userRow.avatarUrl === "string") {
+    const trimmed = userRow.avatarUrl.trim();
+    // Filter out invalid values
+    if (trimmed !== "" && 
+        trimmed.toLowerCase() !== "na" && 
+        trimmed.toLowerCase() !== "null" &&
+        trimmed.toLowerCase() !== "undefined") {
+      // Check if it's a valid URL format
+      try {
+        new URL(trimmed);
+        avatarUrl = trimmed;
+      } catch {
+        // If not a full URL, check if it's a relative path or data URI
+        if (trimmed.startsWith("/") || trimmed.startsWith("data:")) {
+          avatarUrl = trimmed;
+        }
+      }
+    }
+  }
+
+  const user = {
+    id: userRow.id,
+    email: userRow.email,
+    name: userRow.name || null,
+    avatarUrl,
+  };
+
+  const plan = subscriptionData.plan ? {
+    id: subscriptionData.plan.id,
+    name: subscriptionData.plan.name,
+  } : null;
+
+  const subscription = subscriptionData.subscription ? {
+    status: subscriptionData.subscription.status as "active" | "trialing" | "cancelled" | "past_due",
+    trialEndDate: subscriptionData.subscription.trialEndDate 
+      ? (typeof subscriptionData.subscription.trialEndDate === 'string' 
+          ? subscriptionData.subscription.trialEndDate 
+          : subscriptionData.subscription.trialEndDate.toISOString())
+      : null,
+  } : null;
+
+  return {
+    user,
+    plan,
+    subscription,
+    userRole,
+  };
+}
 
 export class ProfileService {
   constructor(private repository: ProfileRepository) {}
@@ -124,70 +225,7 @@ export class ProfileService {
     } | null;
     userRole: "admin" | "member" | "super_admin" | null;
   }> {
-    // Get user data from repository
-    const userRow = await this.repository.findById(userId);
-    
-    if (!userRow) {
-      throw new AppError("User not found", 404);
-    }
-
-    // Get subscription and plan data
-    const subscriptionsService = makeSubscriptionsService();
-    const subscriptionData = await subscriptionsService.getUserSubscriptionData(userId);
-    
-    // Get user role
-    const membersService = makeMembersService();
-    const userRole = await membersService.getUserRole(userId);
-    
-    // Validate and sanitize avatarUrl
-    let avatarUrl: string | null = null;
-    if (userRow.avatarUrl && typeof userRow.avatarUrl === "string") {
-      const trimmed = userRow.avatarUrl.trim();
-      // Filter out invalid values
-      if (trimmed !== "" && 
-          trimmed.toLowerCase() !== "na" && 
-          trimmed.toLowerCase() !== "null" &&
-          trimmed.toLowerCase() !== "undefined") {
-        // Check if it's a valid URL format
-        try {
-          new URL(trimmed);
-          avatarUrl = trimmed;
-        } catch {
-          // If not a full URL, check if it's a relative path or data URI
-          if (trimmed.startsWith("/") || trimmed.startsWith("data:")) {
-            avatarUrl = trimmed;
-          }
-        }
-      }
-    }
-
-    const user = {
-      id: userRow.id,
-      email: userRow.email,
-      name: userRow.name || null,
-      avatarUrl,
-    };
-
-    const plan = subscriptionData.plan ? {
-      id: subscriptionData.plan.id,
-      name: subscriptionData.plan.name,
-    } : null;
-
-    const subscription = subscriptionData.subscription ? {
-      status: subscriptionData.subscription.status as "active" | "trialing" | "cancelled" | "past_due",
-      trialEndDate: subscriptionData.subscription.trialEndDate 
-        ? (typeof subscriptionData.subscription.trialEndDate === 'string' 
-            ? subscriptionData.subscription.trialEndDate 
-            : subscriptionData.subscription.trialEndDate.toISOString())
-        : null,
-    } : null;
-
-    return {
-      user,
-      plan,
-      subscription,
-      userRole,
-    };
+    return getUserWithSubscriptionCached(userId);
   }
 
   /**

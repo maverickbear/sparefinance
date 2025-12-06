@@ -7,9 +7,6 @@ import { PageHeader } from "@/components/common/page-header";
 import { Loader2 } from "lucide-react";
 import { recalculateFinancialHealthFromTransactions } from "@/src/application/shared/financial-health";
 
-// Force dynamic rendering since this page uses cookies for authentication
-export const dynamic = 'force-dynamic';
-
 async function InsightsContent() {
   const selectedMonthDate = startOfMonth(new Date());
   const startDate = startOfMonth(selectedMonthDate);

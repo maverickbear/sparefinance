@@ -29,9 +29,6 @@ export async function GET(request: Request) {
     const accounts = await service.getInvestmentAccounts();
     
     return NextResponse.json(accounts, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
     });
   } catch (error) {
     console.error("Error fetching investment accounts:", error);

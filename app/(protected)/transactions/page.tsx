@@ -1821,7 +1821,7 @@ export default function TransactionsPage() {
           </DropdownMenu>
           <Button 
             variant="outline"
-            size="small"
+            size="medium"
             onClick={() => setIsFiltersModalOpen(true)} 
             className="text-xs md:text-sm"
           >

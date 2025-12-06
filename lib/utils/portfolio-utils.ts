@@ -1,4 +1,4 @@
-import { Holding, Account } from "@/lib/api/portfolio";
+import type { BasePortfolioHolding as Holding, BasePortfolioAccount as Account } from "@/src/domain/portfolio/portfolio.types";
 
 // Calculate portfolio metrics
 export function calculatePortfolioMetrics(holdings: Holding[]) {

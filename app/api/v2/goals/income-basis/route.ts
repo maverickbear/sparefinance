@@ -23,9 +23,6 @@ export async function GET(request: NextRequest) {
     const incomeBasis = await service.calculateIncomeBasis(expectedIncome);
 
     return NextResponse.json({ incomeBasis }, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-      },
     });
   } catch (error) {
     console.error("Error calculating income basis:", error);

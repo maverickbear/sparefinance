@@ -5,6 +5,7 @@ import { getActiveHouseholdId } from "@/lib/utils/household";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { randomUUID } from "crypto";
 import Stripe from "stripe";
+import { revalidateTag } from "next/cache";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error("STRIPE_SECRET_KEY is not set");
@@ -264,6 +265,10 @@ export async function POST(request: NextRequest) {
         }
         
         console.log("[CREATE-ACCOUNT] Subscription updated successfully:", subscriptionId);
+        
+        // Invalidate cache using tag groups
+        revalidateTag('subscriptions', 'max');
+        revalidateTag('accounts', 'max');
       }
     } else {
       // No existing subscription, create new one using service role client
@@ -282,6 +287,10 @@ export async function POST(request: NextRequest) {
       }
       
       console.log("[CREATE-ACCOUNT] Subscription created successfully:", subscriptionId);
+      
+      // Invalidate cache using tag groups
+      revalidateTag('subscriptions', 'max');
+      revalidateTag('accounts', 'max');
       
       // Send welcome email when subscription is created
       if (authData.user.email) {
@@ -305,8 +314,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Invalidate cache
-    const { invalidateSubscriptionCache } = await import("@/lib/api/subscription");
-    await invalidateSubscriptionCache(authData.user.id);
 
     return NextResponse.json({ 
       success: true,

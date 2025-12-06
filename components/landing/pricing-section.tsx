@@ -1,42 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DynamicPricingTable } from "@/components/billing/dynamic-pricing-table";
 import { EmbeddedCheckout } from "@/components/billing/embedded-checkout";
 import { Plan } from "@/src/domain/subscriptions/subscriptions.validations";
 import { useToast } from "@/components/toast-provider";
+import { useAuthSafe } from "@/contexts/auth-context";
 
+/**
+ * PricingSection
+ * 
+ * Uses AuthContext for authentication state (single source of truth)
+ * Removed business logic - now purely presentation component
+ */
 export function PricingSection() {
   const router = useRouter();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuthSafe(); // Use Context instead of local state
   const [selectedPlan, setSelectedPlan] = useState<{ plan: Plan | null; interval: "month" | "year" } | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  // Don't load currentPlanId/currentInterval on landing page - not needed for unauthenticated users
-  // These will be loaded lazily only if user is authenticated and selects a plan
 
   async function handleSelectPlan(planId: string, interval: "month" | "year") {
-    // Lazy authentication check - only when user clicks a plan
-    if (isAuthenticated === null) {
-      try {
-        const response = await fetch("/api/v2/billing/subscription");
-        setIsAuthenticated(response.ok);
-        
-        // If authenticated, also get current plan info
-        if (response.ok) {
-          const plansResponse = await fetch("/api/billing/plans");
-          if (plansResponse.ok) {
-            const plansData = await plansResponse.json();
-            // Store for potential future use, but not needed for landing page display
-          }
-        }
-      } catch {
-        setIsAuthenticated(false);
-      }
-    }
-
-    // Check if user is authenticated
+    // Check if user is authenticated using Context
     if (!isAuthenticated) {
       // Redirect to signup with plan selected
       router.push(`/auth/signup?planId=${planId}&interval=${interval}`);

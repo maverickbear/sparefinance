@@ -31,9 +31,6 @@ export async function GET(request: NextRequest) {
     const holdings = await service.getHoldings(accountId);
     
     return NextResponse.json(holdings, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=60',
-      },
     });
   } catch (error) {
     console.error("Error fetching portfolio holdings:", error);

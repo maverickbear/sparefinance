@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateAllSecurityPrices } from "@/lib/api/market-prices";
+import { makeInvestmentsService } from "@/src/application/investments/investments.factory";
 import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 
@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await updateAllSecurityPrices();
+    const service = makeInvestmentsService();
+    const result = await service.updateAllSecurityPrices();
 
     return NextResponse.json({
       success: true,

@@ -1,3 +1,6 @@
+/**
+ * @deprecated Use /api/v2/categories/[id] instead
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";

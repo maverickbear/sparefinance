@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  getAccountInvestmentValue,
-  upsertAccountInvestmentValue,
-} from "@/lib/api/simple-investments";
+import { makeInvestmentsService } from "@/src/application/investments/investments.factory";
 import { z } from "zod";
 import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
@@ -31,8 +28,9 @@ export async function GET(
       );
     }
 
+    const service = makeInvestmentsService();
     const { id } = await params;
-    const value = await getAccountInvestmentValue(id);
+    const value = await service.getAccountInvestmentValue(id);
     return NextResponse.json(value);
   } catch (error) {
     console.error("Error fetching account investment value:", error);
@@ -74,10 +72,11 @@ export async function PUT(
       );
     }
 
+    const service = makeInvestmentsService();
     const { id } = await params;
     const body = await request.json();
     const validated = updateAccountInvestmentValueSchema.parse(body);
-    const value = await upsertAccountInvestmentValue({
+    const value = await service.upsertAccountInvestmentValue({
       accountId: id,
       totalValue: validated.totalValue,
     });

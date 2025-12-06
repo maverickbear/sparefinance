@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Palette, Type, Move, Image as ImageIcon, Layout, Component, MousePointer2 } from "lucide-react";
+import { Palette, Type, Move, Image as ImageIcon, Layout, Component, MousePointer2, FileText, List, Square } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 
 const designCategories = [
@@ -53,6 +53,27 @@ const designCategories = [
         description: "Button variants, sizes, and states",
         href: "/design/components/buttons",
         icon: MousePointer2,
+        disabled: false,
+      },
+      {
+        title: "Inputs",
+        description: "Input fields with different sizes and types",
+        href: "/design/components/inputs",
+        icon: Square,
+        disabled: false,
+      },
+      {
+        title: "Textareas",
+        description: "Textarea components with size variants",
+        href: "/design/components/textareas",
+        icon: FileText,
+        disabled: false,
+      },
+      {
+        title: "Selects",
+        description: "Select dropdowns with size variants",
+        href: "/design/components/selects",
+        icon: List,
         disabled: false,
       },
     ],

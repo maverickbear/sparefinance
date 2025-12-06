@@ -28,9 +28,6 @@ export async function GET(request: NextRequest) {
     const users = await service.getAllUsers();
 
     return NextResponse.json({ users }, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
-      },
     });
   } catch (error) {
     console.error("Error fetching users:", error);

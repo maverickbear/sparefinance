@@ -190,7 +190,7 @@ export function CategorySelectionModal({
           value={selectedMacroId || undefined}
           onValueChange={handleMacroChange}
         >
-          <SelectTrigger>
+          <SelectTrigger size="small">
             <SelectValue placeholder="Select group" />
           </SelectTrigger>
           <SelectContent>
@@ -209,7 +209,7 @@ export function CategorySelectionModal({
           value={selectedCategoryId || undefined}
           onValueChange={handleCategoryChange}
         >
-          <SelectTrigger>
+          <SelectTrigger size="small">
             <SelectValue placeholder={selectedMacroId ? "Select category" : "Select a group first"} />
           </SelectTrigger>
           <SelectContent>
@@ -234,7 +234,7 @@ export function CategorySelectionModal({
           value={selectedSubcategoryId || undefined}
           onValueChange={setSelectedSubcategoryId}
         >
-          <SelectTrigger>
+          <SelectTrigger size="small">
             <SelectValue placeholder={selectedCategoryId ? "Select subcategory (optional)" : "Select a category first"} />
           </SelectTrigger>
           <SelectContent>

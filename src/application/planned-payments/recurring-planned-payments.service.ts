@@ -1,0 +1,179 @@
+/**
+ * Service to generate Planned Payments from Recurring Transactions
+ * Automatically creates planned payments for recurring transactions
+ */
+
+import { makePlannedPaymentsService } from "./planned-payments.factory";
+import { PlannedPaymentFormData } from "../../domain/planned-payments/planned-payments.validations";
+import { PLANNED_HORIZON_DAYS } from "../../domain/planned-payments/planned-payments.types";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getTransactionAmount, decryptDescription } from "@/lib/utils/transaction-encryption";
+import { getCurrentUserId } from "../shared/feature-guard";
+
+export class RecurringPlannedPaymentsService {
+  /**
+   * Generate planned payments for all recurring transactions
+   * Creates scheduled payments for the next PLANNED_HORIZON_DAYS
+   */
+  async generatePlannedPaymentsForRecurringTransactions(
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<{ created: number; errors: number }> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return { created: 0, errors: 0 };
+    }
+
+    const supabase = await createServerClient(accessToken, refreshToken);
+
+    // Get all recurring transactions
+    const { data: recurringTransactions, error } = await supabase
+      .from("Transaction")
+      .select(`
+        *,
+        account:Account(*),
+        category:Category!Transaction_categoryId_fkey(*),
+        subcategory:Subcategory!Transaction_subcategoryId_fkey(id, name, logo)
+      `)
+      .eq("userId", userId)
+      .eq("isRecurring", true)
+      .order("date", { ascending: true });
+
+    if (error) {
+      logger.error(
+        "[RecurringPlannedPaymentsService] Error fetching recurring transactions:",
+        error
+      );
+      return { created: 0, errors: 0 };
+    }
+
+    if (!recurringTransactions || recurringTransactions.length === 0) {
+      return { created: 0, errors: 0 };
+    }
+
+    const plannedPaymentsService = makePlannedPaymentsService();
+
+    // Calculate date range
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const horizonDate = new Date(today);
+    horizonDate.setDate(horizonDate.getDate() + PLANNED_HORIZON_DAYS);
+    horizonDate.setHours(23, 59, 59, 999);
+
+    // Get existing planned payments
+    const existingPayments = await plannedPaymentsService.getPlannedPayments({
+      source: "recurring",
+      status: "scheduled",
+      startDate: today,
+      endDate: horizonDate,
+    });
+
+    const existingKeys = new Set(
+      existingPayments.plannedPayments.map((pp) => {
+        const date = pp.date instanceof Date ? pp.date : new Date(pp.date);
+        return `${pp.accountId}-${date.toISOString().split("T")[0]}-${pp.amount}`;
+      })
+    );
+
+    let created = 0;
+    let errors = 0;
+
+    // Generate planned payments for each recurring transaction
+    for (const tx of recurringTransactions) {
+      const originalDate = new Date(tx.date);
+      const originalDay = originalDate.getDate();
+      const amount = getTransactionAmount(tx.amount) ?? 0;
+
+      if (amount === 0) {
+        continue;
+      }
+
+      // Calculate next occurrence dates
+      let currentDate = new Date(today);
+      currentDate.setDate(originalDay);
+      currentDate.setHours(0, 0, 0, 0);
+
+      // If the day has passed this month, move to next month
+      if (currentDate < today) {
+        currentDate = new Date(currentDate);
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+
+      // Generate payments until horizon
+      while (currentDate <= horizonDate) {
+        const dateStr = currentDate.toISOString().split("T")[0];
+        const key = `${tx.accountId}-${dateStr}-${amount}`;
+
+        // Skip if already exists
+        if (existingKeys.has(key)) {
+          currentDate = new Date(currentDate);
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          continue;
+        }
+
+        try {
+          // Handle account (can be array or object)
+          let account = null;
+          if (tx.account) {
+            account = Array.isArray(tx.account) ? (tx.account.length > 0 ? tx.account[0] : null) : tx.account;
+          }
+
+          // Handle category
+          let category = null;
+          if (tx.category) {
+            category = Array.isArray(tx.category) ? (tx.category.length > 0 ? tx.category[0] : null) : tx.category;
+          }
+
+          // Handle subcategory
+          let subcategory = null;
+          if (tx.subcategory) {
+            subcategory = Array.isArray(tx.subcategory) ? (tx.subcategory.length > 0 ? tx.subcategory[0] : null) : tx.subcategory;
+          }
+
+          const description = decryptDescription(tx.description) || `Recurring: ${tx.description || "Transaction"}`;
+
+          const plannedPaymentData: PlannedPaymentFormData = {
+            date: currentDate,
+            type: tx.type,
+            amount: Math.abs(amount),
+            accountId: tx.accountId,
+            toAccountId: tx.toAccountId || null,
+            categoryId: category?.id || null,
+            subcategoryId: subcategory?.id || null,
+            description,
+            source: "recurring",
+          };
+
+          await plannedPaymentsService.createPlannedPayment(plannedPaymentData);
+          created++;
+          existingKeys.add(key); // Add to set to avoid duplicates in same batch
+        } catch (error) {
+          errors++;
+          logger.error(
+            `[RecurringPlannedPaymentsService] Error creating planned payment for transaction ${tx.id}:`,
+            error
+          );
+        }
+
+        // Move to next month
+        currentDate = new Date(currentDate);
+        currentDate.setMonth(currentDate.getMonth() + 1);
+
+        // Handle edge case: if day doesn't exist in next month (e.g., Jan 31 -> Feb)
+        if (currentDate.getDate() !== originalDay) {
+          // Set to last day of month
+          currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+          currentDate.setHours(0, 0, 0, 0);
+        }
+      }
+    }
+
+    logger.info(
+      `[RecurringPlannedPaymentsService] Created ${created} planned payments from recurring transactions, ${errors} errors`
+    );
+
+    return { created, errors };
+  }
+}
+

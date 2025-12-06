@@ -6,9 +6,6 @@
 import { NextResponse } from 'next/server';
 import { performHealthCheck } from '@/lib/services/monitoring';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 export async function GET() {
   try {
     const health = await performHealthCheck();

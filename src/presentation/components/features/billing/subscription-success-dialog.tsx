@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2 } from "lucide-react";
+import { useSubscriptionContext } from "@/contexts/subscription-context";
 
 interface SubscriptionSuccessDialogProps {
   open: boolean;
@@ -25,9 +26,9 @@ export function SubscriptionSuccessDialog({
   onSuccess,
 }: SubscriptionSuccessDialogProps) {
   const router = useRouter();
+  const { subscription, refetch, checking } = useSubscriptionContext();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<"active" | "trialing" | "cancelled" | "past_due" | null>(null);
   const [trialEndDate, setTrialEndDate] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,29 +58,8 @@ export function SubscriptionSuccessDialog({
       if (response.ok && data.success) {
         console.log("[SUCCESS-DIALOG] Subscription synced successfully:", data.subscription);
         
-        // Invalidate client-side cache to force fresh data fetch
-        try {
-          const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
-          invalidateClientSubscriptionCache();
-          console.log("[SUCCESS-DIALOG] Client cache invalidated");
-        } catch (error) {
-          console.error("[SUCCESS-DIALOG] Error invalidating cache:", error);
-        }
-        
-        // Fetch subscription status to determine copy
-        try {
-          const response = await fetch("/api/v2/user");
-          if (!response.ok) {
-            throw new Error("Failed to fetch user data");
-          }
-          const userData = await response.json();
-          if (userData.subscription) {
-            setSubscriptionStatus(userData.subscription.status);
-            setTrialEndDate(userData.subscription.trialEndDate || null);
-          }
-        } catch (error) {
-          console.error("[SUCCESS-DIALOG] Error fetching subscription status:", error);
-        }
+        // Refetch subscription from Context to get latest status
+        await refetch();
       } else {
         console.error("[SUCCESS-DIALOG] Failed to sync subscription:", data.error);
         
@@ -113,6 +93,16 @@ export function SubscriptionSuccessDialog({
       setLoading(false);
     }
   }
+
+  // Update trial end date from subscription when it changes
+  useEffect(() => {
+    if (subscription?.trialEndDate) {
+      setTrialEndDate(subscription.trialEndDate);
+    }
+  }, [subscription]);
+
+  const subscriptionStatus = subscription?.status as "active" | "trialing" | "cancelled" | "past_due" | null;
+  const isLoading = loading || checking || syncing;
 
   const handleGoToDashboard = async () => {
     // Close the dialog first
@@ -162,14 +152,6 @@ export function SubscriptionSuccessDialog({
       console.error("[SUCCESS-DIALOG] Failed to load confetti:", error);
     }
     
-    // Invalidate client-side cache before navigating
-    try {
-      const { invalidateClientSubscriptionCache } = await import("@/contexts/subscription-context");
-      invalidateClientSubscriptionCache();
-      console.log("[SUCCESS-DIALOG] Cache invalidated before navigating to dashboard");
-    } catch (error) {
-      console.error("[SUCCESS-DIALOG] Error invalidating cache:", error);
-    }
     
     if (onSuccess) {
       onSuccess();
@@ -195,14 +177,14 @@ export function SubscriptionSuccessDialog({
             </div>
           </div>
           <DialogTitle className="text-2xl mb-2">
-            {loading || syncing 
+            {isLoading 
               ? "Confirming your subscription..." 
               : subscriptionStatus === "trialing" 
                 ? "Trial Started Successfully!" 
                 : "Subscription Successful!"}
           </DialogTitle>
           <DialogDescription className="text-base">
-            {loading || syncing 
+            {isLoading 
               ? "Please wait while we confirm your subscription."
               : subscriptionStatus === "trialing" 
                 ? "Your 30-day trial has started. Start exploring all pro features!"
@@ -210,7 +192,7 @@ export function SubscriptionSuccessDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {!loading && !syncing && (
+        {!isLoading && (
           <Card className="border-0 shadow-none">
             <CardContent className="space-y-6 pt-0">
               <div className="bg-muted/50 rounded-lg p-4 space-y-2">

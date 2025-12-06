@@ -110,7 +110,7 @@ export function PortfolioPerformanceChart({
       className="overflow-hidden"
       headerActions={
         <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
-          <SelectTrigger size="small" className="w-fit h-7 text-xs px-2.5">
+          <SelectTrigger size="small" className="w-fit">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

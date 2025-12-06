@@ -28,6 +28,7 @@ import { supabase } from "@/lib/supabase";
 import { LimitWarning } from "@/components/billing/limit-warning";
 import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
+import { useAuthSafe } from "@/contexts/auth-context";
 
 interface Account {
   id: string;
@@ -88,12 +89,12 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
   // Check if limit is reached
   const isLimitReached = currentAccountLimit && currentAccountLimit.limit !== -1 && currentAccountLimit.current >= currentAccountLimit.limit;
 
-  // Load current user ID, households and user role when form opens
+  // Load current user ID and households when form opens
+  // Role comes from AuthContext (handled in separate useEffect)
   useEffect(() => {
     if (open) {
       loadCurrentUserId();
       loadHouseholds();
-      loadUserRole();
       // Use initial limit if provided, otherwise load it
       if (initialAccountLimit !== undefined) {
         setAccountLimit(initialAccountLimit);
@@ -120,25 +121,18 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
     }
   }
 
-  async function loadUserRole() {
-    try {
-      const response = await fetch("/api/v2/members");
-      if (!response.ok) {
-        throw new Error("Failed to fetch user role");
-      }
-      const { userRole } = await response.json();
-      if (userRole) {
-        setUserRole(userRole);
-      } else {
-        // Default to admin if no role found (user is owner)
-        setUserRole("admin");
-      }
-    } catch (error) {
-      console.error("Error loading user role:", error);
-      // Default to admin if error
+  // Use AuthContext for role instead of fetching
+  const { role } = useAuthSafe();
+  
+  // Update userRole state when role from Context changes
+  useEffect(() => {
+    if (role) {
+      setUserRole(role);
+    } else {
+      // Default to admin if no role found (user is owner)
       setUserRole("admin");
     }
-  }
+  }, [role]);
 
   async function loadHouseholds() {
     try {
@@ -384,7 +378,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Name</label>
-                <Input {...form.register("name")} required />
+                <Input {...form.register("name")} size="small" required />
               </div>
 
               <div className="space-y-1">
@@ -404,7 +398,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                   }}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -426,6 +420,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                       value={form.watch("creditLimit") || undefined}
                       onChange={(value) => form.setValue("creditLimit", value ?? undefined, { shouldValidate: true })}
                       placeholder="$ 0.00"
+                      size="small"
                       required
                     />
                     {form.formState.errors.creditLimit && (
@@ -447,6 +442,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                         form.setValue("dueDayOfMonth", value !== undefined && !isNaN(value) ? value : undefined, { shouldValidate: true });
                       }}
                       placeholder="e.g., 10"
+                      size="small"
                     />
                     {form.formState.errors.dueDayOfMonth && (
                       <p className="text-sm text-destructive">{form.formState.errors.dueDayOfMonth.message}</p>
@@ -462,6 +458,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                     value={form.watch("initialBalance") ?? undefined}
                     onChange={(value) => form.setValue("initialBalance", value !== undefined ? value : undefined, { shouldValidate: true })}
                     placeholder="$ 0.00"
+                    size="small"
                   />
                   {form.formState.errors.initialBalance && (
                     <p className="text-sm text-destructive">{form.formState.errors.initialBalance.message}</p>
@@ -520,11 +517,11 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
 
           <DialogFooter className="justify-between">
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              <Button type="button" variant="outline" size="small" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
               {(!account && isLimitReached) ? null : (
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" size="small" disabled={isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

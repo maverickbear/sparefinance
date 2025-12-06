@@ -16,9 +16,16 @@ import { calculateProgress } from "@/lib/utils/goals";
 import { startOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
 import { getTransactionAmount } from "@/lib/utils/transaction-encryption";
 import { AppError } from "../shared/app-error";
+import { GoalPlannedPaymentsService } from "../planned-payments/goal-planned-payments.service";
+// CRITICAL: Use static import to ensure React cache() works correctly
+import { getAccountsForDashboard } from "../accounts/get-dashboard-accounts";
 
 export class GoalsService {
-  constructor(private repository: GoalsRepository) {}
+  private goalPlannedPaymentsService: GoalPlannedPaymentsService;
+
+  constructor(private repository: GoalsRepository) {
+    this.goalPlannedPaymentsService = new GoalPlannedPaymentsService();
+  }
 
   /**
    * Calculate income basis from last 3 months of income transactions
@@ -143,10 +150,14 @@ export class GoalsService {
 
   /**
    * Get all goals with calculations
+   * @param accessToken - Optional access token
+   * @param refreshToken - Optional refresh token
+   * @param accounts - Optional accounts array to avoid duplicate getAccounts() call
    */
   async getGoals(
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    accounts?: any[] // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
   ): Promise<GoalWithCalculations[]> {
     const rows = await this.repository.findAll(accessToken, refreshToken);
 
@@ -218,21 +229,21 @@ export class GoalsService {
     // OPTIMIZATION: Fetch income basis and accounts in parallel
     const goalsWithAccount = rows.filter(g => g.accountId);
     
-    const [incomeBasis, accounts] = await Promise.all([
+    // OPTIMIZED: Use provided accounts if available, otherwise fetch only if needed
+    const [incomeBasis, fetchedAccounts] = await Promise.all([
       // Calculate income basis
       this.calculateIncomeBasis(undefined, accessToken, refreshToken),
-      // Get accounts only if needed
-      goalsWithAccount.length > 0
-        ? (async () => {
-            const { makeAccountsService } = await import("../accounts/accounts.factory");
-            const accountsService = makeAccountsService();
-            return await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: false });
-          })()
+      // Get accounts only if not provided and needed
+      (!accounts || accounts.length === 0) && goalsWithAccount.length > 0
+        ? getAccountsForDashboard(false)
         : Promise.resolve([]),
     ]);
+    
+    // Use provided accounts or fetched accounts
+    const accountsToUse = accounts && accounts.length > 0 ? accounts : fetchedAccounts;
 
     const accountsMap = new Map<string, any>();
-    accounts.forEach(acc => {
+    accountsToUse.forEach(acc => {
       accountsMap.set(acc.id, acc);
     });
 
@@ -371,8 +382,31 @@ export class GoalsService {
       updatedAt: now,
     });
 
+    const goal = GoalsMapper.toDomain(goalRow);
 
-    return GoalsMapper.toDomain(goalRow);
+    // Generate planned payments for the goal (async, don't wait)
+    if (!goal.isCompleted && !goal.isPaused && goal.accountId && goal.incomePercentage > 0) {
+      this.calculateIncomeBasis(goal.expectedIncome)
+        .then(async (incomeBasis) => {
+          if (incomeBasis > 0) {
+            const goalWithCalculations = await this.getGoalById(goal.id);
+            if (goalWithCalculations) {
+              return this.goalPlannedPaymentsService.generatePlannedPaymentsForGoal(
+                goalWithCalculations,
+                incomeBasis
+              );
+            }
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            `[GoalsService] Error generating planned payments for goal ${goal.id}:`,
+            error
+          );
+        });
+    }
+
+    return goal;
   }
 
   /**
@@ -455,8 +489,31 @@ export class GoalsService {
 
     const goalRow = await this.repository.update(id, updateData);
 
+    const goal = GoalsMapper.toDomain(goalRow);
 
-    return GoalsMapper.toDomain(goalRow);
+    // Sync planned payments for the goal (async, don't wait)
+    if (goal.accountId && (goal.incomePercentage > 0 || data.incomePercentage !== undefined)) {
+      this.calculateIncomeBasis(goal.expectedIncome)
+        .then(async (incomeBasis) => {
+          if (incomeBasis > 0) {
+            const goalWithCalculations = await this.getGoalById(id);
+            if (goalWithCalculations) {
+              return this.goalPlannedPaymentsService.syncPlannedPaymentsForGoal(
+                goalWithCalculations,
+                incomeBasis
+              );
+            }
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            `[GoalsService] Error syncing planned payments for goal ${id}:`,
+            error
+          );
+        });
+    }
+
+    return goal;
   }
 
   /**

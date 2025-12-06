@@ -4,6 +4,7 @@ import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import { userServiceSubscriptionFormSchema } from "@/src/domain/subscriptions/subscriptions.validations";
 import { ZodError } from "zod";
+import { revalidateTag } from "next/cache";
 
 /**
  * GET /api/v2/user-subscriptions
@@ -20,9 +21,6 @@ export async function GET(request: NextRequest) {
     const subscriptions = await service.getUserSubscriptions(userId);
 
     return NextResponse.json(subscriptions, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
     });
   } catch (error) {
     console.error("Error fetching user subscriptions:", error);
@@ -59,6 +57,10 @@ export async function POST(request: NextRequest) {
 
     const service = makeUserSubscriptionsService();
     const subscription = await service.createUserSubscription(userId, validatedData);
+
+    // Invalidate cache using tag groups
+    revalidateTag('subscriptions', 'max');
+    revalidateTag('accounts', 'max');
 
     return NextResponse.json(subscription, { status: 201 });
   } catch (error) {

@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/card";
 import { Save, User, Upload, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
+import { DatePicker } from "@/components/ui/date-picker";
+import { formatDateInput, parseDateInput } from "@/src/infrastructure/utils/timestamp";
 
 // Profile interfaces
 interface Profile {
@@ -60,6 +62,7 @@ export function ProfileModule() {
   const [loading, setLoading] = useState(!hasCachedData);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [userCountry, setUserCountry] = useState<"US" | "CA">("US");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
 
@@ -69,16 +72,35 @@ export function ProfileModule() {
       name: hasCachedData ? (profileDataCache.data?.name || "") : "",
       avatarUrl: hasCachedData ? (profileDataCache.data?.avatarUrl || "") : "",
       phoneNumber: hasCachedData ? (profileDataCache.data?.phoneNumber || "") : "",
+      dateOfBirth: hasCachedData ? (profileDataCache.data?.dateOfBirth || "") : "",
     },
   });
 
   useEffect(() => {
+    // Load user location for phone number country code
+    async function loadUserLocation() {
+      try {
+        const response = await fetch("/api/v2/onboarding/location");
+        if (response.ok) {
+          const location = await response.json();
+          if (location.country && (location.country === "US" || location.country === "CA")) {
+            setUserCountry(location.country);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading user location:", error);
+        // Keep default "US" if error
+      }
+    }
+    loadUserLocation();
+
     // If we have cached data, set form values immediately and skip loading
     if (hasCachedData && profileDataCache.data) {
       form.reset({
         name: profileDataCache.data.name || "",
         avatarUrl: profileDataCache.data.avatarUrl || "",
         phoneNumber: profileDataCache.data.phoneNumber || "",
+        dateOfBirth: profileDataCache.data.dateOfBirth || "",
       });
       // Still call loadProfile in background to refresh if needed, but don't show loading
       loadProfile();
@@ -100,6 +122,7 @@ export function ProfileModule() {
           name: cached.name || "",
           avatarUrl: cached.avatarUrl || "",
           phoneNumber: cached.phoneNumber || "",
+          dateOfBirth: cached.dateOfBirth || "",
         });
         // Only set loading to false if it was true (don't change if already false)
         setLoading(false);
@@ -122,6 +145,7 @@ export function ProfileModule() {
               name: result.name || "",
               avatarUrl: result.avatarUrl || "",
               phoneNumber: result.phoneNumber || "",
+              dateOfBirth: result.dateOfBirth || "",
             });
           }
           setLoading(false);
@@ -170,6 +194,7 @@ export function ProfileModule() {
           name: profileData.name || "",
           avatarUrl: profileData.avatarUrl || "",
           phoneNumber: profileData.phoneNumber || "",
+          dateOfBirth: profileData.dateOfBirth || "",
         });
       } else {
         const defaultProfile: Profile = {
@@ -184,6 +209,7 @@ export function ProfileModule() {
           name: "",
           avatarUrl: "",
           phoneNumber: "",
+          dateOfBirth: "",
         });
       }
     } catch (error) {
@@ -200,6 +226,7 @@ export function ProfileModule() {
         name: "",
         avatarUrl: "",
         phoneNumber: "",
+        dateOfBirth: "",
       });
       profileDataCache.promise = null;
     } finally {
@@ -382,9 +409,9 @@ export function ProfileModule() {
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-6">
-            <div className="flex flex-col items-center sm:items-start space-y-2">
-              <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted animate-pulse" />
+          <div className="flex flex-col gap-4 sm:gap-6">
+            <div className="flex flex-row items-start gap-4">
+              <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-muted animate-pulse flex-shrink-0" />
             </div>
             <div className="space-y-4">
               <div className="h-9 bg-muted rounded animate-pulse" />
@@ -408,10 +435,10 @@ export function ProfileModule() {
       </CardHeader>
       <CardContent className="pt-0">
         <form onSubmit={form.handleSubmit(onSubmit as (data: ProfileFormData) => Promise<void>)}>
-          <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 sm:gap-6">
-            {/* Avatar Section - Left Side */}
-            <div className="flex flex-col items-center sm:items-start space-y-2">
-              <div className="relative">
+          <div className="flex flex-col gap-4 sm:gap-6">
+            {/* Avatar Section */}
+            <div className="flex flex-row items-start gap-4">
+              <div className="relative flex-shrink-0">
                 {getAvatarUrl() ? (
                   <img
                     src={getAvatarUrl()!}
@@ -437,7 +464,7 @@ export function ProfileModule() {
                 </div>
               </div>
               
-              <div className="flex flex-col items-center sm:items-start space-y-1">
+              <div className="flex flex-col justify-center space-y-1 flex-1">
                 <input
                   type="file"
                   accept="image/*"
@@ -454,84 +481,112 @@ export function ProfileModule() {
                     fileInputRef.current?.click();
                   }}
                   disabled={uploading}
+                  className="w-fit"
                 >
                   <Upload className="mr-2 h-3 w-3" />
                   {uploading ? "Uploading..." : "Upload Avatar"}
                 </Button>
-                <p className="text-xs text-muted-foreground text-center sm:text-left">
+                <p className="text-xs text-muted-foreground">
                   JPG, PNG or GIF. Max size 5MB
                 </p>
               </div>
             </div>
 
-            {/* Form Fields Section - Right Side */}
+            {/* Form Fields Section */}
             <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="name">Name</Label>
-                  <Input {...form.register("name")} id="name" size="medium" />
-                  {form.formState.errors.name && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.name.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={profile?.email || ""}
-                    readOnly
-                    disabled
-                    size="medium"
-                    className="bg-muted"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Email cannot be changed
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Name</Label>
+                <Input {...form.register("name")} id="name" size="medium" />
+                {form.formState.errors.name && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.name.message}
                   </p>
-                </div>
+                )}
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="phoneNumber">Phone Number</Label>
-                  <Controller
-                    name="phoneNumber"
-                    control={form.control}
-                    render={({ field, fieldState }) => (
-                      <>
-                        <PhoneNumberInput
-                          id="phoneNumber"
-                          value={field.value || undefined}
-                          onChange={(value) => field.onChange(value ?? "")}
-                          onBlur={field.onBlur}
-                          name={field.name}
-                          placeholder="(XXX) XXX-XXXX"
-                          size="medium"
-                        />
-                        {fieldState.error && (
-                          <p className="text-xs text-destructive">
-                            {fieldState.error.message}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={profile?.email || ""}
+                  readOnly
+                  disabled
+                  size="medium"
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Email cannot be changed
+                </p>
+              </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                  <Input
-                    id="dateOfBirth"
-                    type="text"
-                    value={profile?.dateOfBirth || ""}
-                    readOnly
-                    disabled
-                    size="medium"
-                    className="bg-muted"
-                    placeholder="Not set"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Controller
+                  name="phoneNumber"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <>
+                      <PhoneNumberInput
+                        id="phoneNumber"
+                        value={field.value || undefined}
+                        onChange={(value) => field.onChange(value ?? "")}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        placeholder="(XXX) XXX-XXXX"
+                        size="medium"
+                        defaultCountry={userCountry}
+                      />
+                      {fieldState.error && (
+                        <p className="text-xs text-destructive">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Controller
+                  name="dateOfBirth"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <>
+                      <DatePicker
+                        date={(() => {
+                          const value = field.value;
+                          if (!value) return undefined;
+                          if ((value as any) instanceof Date) return (value as unknown) as Date;
+                          if (typeof value === "string") {
+                            try {
+                              return parseDateInput(value) as unknown as Date;
+                            } catch {
+                              const parsed = new Date(value);
+                              return isNaN(parsed.getTime()) ? undefined : (parsed as unknown as Date);
+                            }
+                          }
+                          return undefined;
+                        })()}
+                        onDateChange={(date) => {
+                          if (date) {
+                            field.onChange(formatDateInput(date));
+                          } else {
+                            field.onChange("");
+                          }
+                        }}
+                        placeholder="Select your date of birth"
+                        size="medium"
+                      />
+                      {fieldState.error && (
+                        <p className="text-xs text-destructive">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </>
+                  )}
+                />
               </div>
 
               <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">

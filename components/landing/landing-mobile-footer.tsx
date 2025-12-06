@@ -2,53 +2,20 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/lib/supabase";
-import type { BaseUser } from "@/src/domain/auth/auth.types";
-import { useState, useEffect } from "react";
+import { useAuthSafe } from "@/contexts/auth-context";
 
 interface LandingMobileFooterProps {
-  isAuthenticated?: boolean;
+  isAuthenticated?: boolean; // Deprecated - kept for backward compatibility, not used
 }
 
-export function LandingMobileFooter({ isAuthenticated: initialAuth }: LandingMobileFooterProps = {}) {
-  const [isAuthenticated, setIsAuthenticated] = useState(initialAuth ?? false);
-
-  useEffect(() => {
-    // Check authentication status and verify user exists in User table
-    async function checkAuth() {
-      try {
-        const response = await fetch("/api/v2/user");
-        if (!response.ok) {
-          setIsAuthenticated(false);
-          return;
-        }
-        const { user }: { user: BaseUser | null } = await response.json();
-        setIsAuthenticated(!!user);
-      } catch (error) {
-        setIsAuthenticated(false);
-      }
-    }
-    
-    // Always check auth on client side to ensure we have the latest state
-    // The initialAuth prop from server helps avoid flash, but client check ensures accuracy
-    checkAuth();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        // Verify user exists in User table
-        const response = await fetch("/api/v2/user");
-        const user = response.ok ? await response.json() : null;
-        setIsAuthenticated(!!user);
-      } else {
-        setIsAuthenticated(false);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+/**
+ * LandingMobileFooter
+ * 
+ * Uses AuthContext for authentication state (single source of truth)
+ * No longer manages its own auth state or makes direct API calls
+ */
+export function LandingMobileFooter({ isAuthenticated: _initialAuth }: LandingMobileFooterProps = {}) {
+  const { isAuthenticated } = useAuthSafe(); // Use Context instead of local state
 
   return (
     <footer className="fixed bottom-0 left-0 right-0 z-50 border-t bg-card md:hidden">

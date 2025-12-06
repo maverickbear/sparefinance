@@ -120,30 +120,36 @@ export async function POST(request: NextRequest) {
         const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
         const onboardingService = makeOnboardingService();
         
+        // Verify that income and ruleType are provided
+        if (!validated.data.step2.incomeRange) {
+          return NextResponse.json({
+            success: false,
+            step: "budgets",
+            message: "Income range is required to generate budgets",
+          }, { status: 400 });
+        }
+
+        const ruleType = validated.data.step2.ruleType as BudgetRuleType | undefined;
+        
+        // Only generate budgets if ruleType is explicitly provided
+        if (!ruleType) {
+          return NextResponse.json({
+            success: false,
+            step: "budgets",
+            message: "Budget rule type is required to generate budgets",
+          }, { status: 400 });
+        }
+
         const { getActiveHouseholdId } = await import("@/lib/utils/household");
         const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
         
         if (householdId) {
-          let finalRuleType = validated.data.step2.ruleType as BudgetRuleType | undefined;
-          
-          // If no ruleType provided, suggest one
-          if (!finalRuleType) {
-            const { makeBudgetRulesService } = await import("@/src/application/budgets/budget-rules.factory");
-            const budgetRulesService = makeBudgetRulesService();
-            const monthlyIncome = onboardingService.getMonthlyIncomeFromRange(
-              validated.data.step2.incomeRange,
-              validated.data.step2.incomeAmount
-            );
-            const suggestion = budgetRulesService.suggestRule(monthlyIncome);
-            finalRuleType = suggestion.rule.id;
-          }
-
           await onboardingService.generateInitialBudgets(
             userId,
             validated.data.step2.incomeRange,
             accessToken,
             refreshToken,
-            finalRuleType,
+            ruleType,
             validated.data.step2.incomeAmount
           );
           console.log("[ONBOARDING-STEP] Initial budgets created successfully");
@@ -161,16 +167,12 @@ export async function POST(request: NextRequest) {
           throw new AppError("Step 3 data is required for subscription step", 400);
         }
 
-        // Check if subscription already exists
-        const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
-        const supabase = await createServerClient();
+        // Check if subscription already exists using SubscriptionsRepository
+        const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+        const subscriptionsRepository = new SubscriptionsRepository();
         const subscriptionId = `${userId}-${validated.data.step3.planId}`;
         
-        const { data: existingSubscription } = await supabase
-          .from("Subscription")
-          .select("id, status, planId")
-          .eq("id", subscriptionId)
-          .maybeSingle();
+        const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
 
         if (existingSubscription) {
           // Subscription already exists, consider it success
@@ -185,11 +187,7 @@ export async function POST(request: NextRequest) {
 
           if (!result.success) {
             // Check if subscription was created in the meantime (race condition)
-            const { data: checkAgain } = await supabase
-              .from("Subscription")
-              .select("id")
-              .eq("id", subscriptionId)
-              .maybeSingle();
+            const checkAgain = await subscriptionsRepository.findById(subscriptionId);
             
             if (checkAgain) {
               console.log("[ONBOARDING-STEP] Subscription was created by another request:", checkAgain.id);
@@ -215,7 +213,6 @@ export async function POST(request: NextRequest) {
         // Invalidate caches
         const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
         const subscriptionsService = makeSubscriptionsService();
-        subscriptionsService.invalidateSubscriptionCache(userId);
 
 
         console.log("[ONBOARDING-STEP] Caches invalidated successfully");

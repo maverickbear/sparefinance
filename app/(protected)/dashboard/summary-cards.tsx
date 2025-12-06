@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
 import { startOfMonth, endOfMonth, format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { HouseholdMember } from "@/src/domain/members/members.types";
-import { Badge } from "@/components/ui/badge";
-import { formatExpectedIncomeRange, formatMonthlyIncomeFromRange } from "@/src/presentation/utils/format-expected-income";
+import { formatMonthlyIncomeFromRange } from "@/src/presentation/utils/format-expected-income";
 import { convertToMonthlyPayment } from "@/lib/utils/debts";
 
 interface SummaryCardsProps {
@@ -30,6 +29,7 @@ interface SummaryCardsProps {
   expectedIncomeRange?: string | null;
   recurringPayments?: any[];
   subscriptions?: any[];
+  plannedPayments?: any[];
   goals?: any[];
   debts?: any[];
 }
@@ -49,12 +49,14 @@ export function SummaryCards({
   expectedIncomeRange,
   recurringPayments = [],
   subscriptions = [],
+  plannedPayments = [],
   goals = [],
   debts = [],
 }: SummaryCardsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expectedMonthlyAfterTax, setExpectedMonthlyAfterTax] = useState<number | null>(null);
   
   // Get selected month from URL or use current month (same logic as MonthSelector)
   const monthParam = searchParams.get("month");
@@ -161,6 +163,137 @@ export function SummaryCards({
   // If financialHealth.isProjected is true, it means we're using projected values
   const isIncomeProjected = financialHealth?.isProjected && expectedIncomeRange;
   const isExpenseProjected = financialHealth?.isProjected;
+
+  // Calculate expected expense from planned payments for the selected month
+  const expectedExpense = plannedPayments
+    .filter((pp: any) => {
+      if (!pp.date || pp.type !== "expense") return false;
+      const ppDate = pp.date instanceof Date ? pp.date : new Date(pp.date);
+      ppDate.setHours(0, 0, 0, 0);
+      return ppDate >= monthStart && ppDate <= monthEnd;
+    })
+    .reduce((sum: number, pp: any) => {
+      const amount = Math.abs(pp.amount || 0);
+      return sum + amount;
+    }, 0);
+
+  // Calculate planned income payments for the selected month
+  const plannedIncomePayments = plannedPayments
+    .filter((pp: any) => {
+      if (!pp.date || pp.type !== "income") return false;
+      const ppDate = pp.date instanceof Date ? pp.date : new Date(pp.date);
+      ppDate.setHours(0, 0, 0, 0);
+      return ppDate >= monthStart && ppDate <= monthEnd;
+    })
+    .reduce((sum: number, pp: any) => {
+      const amount = Math.abs(pp.amount || 0);
+      return sum + amount;
+    }, 0);
+
+  // Calculate expected monthly income after tax
+  // Always calculate if expectedIncomeRange exists (not just when projected)
+  useEffect(() => {
+    async function calculateAfterTaxIncome() {
+      if (!expectedIncomeRange) {
+        setExpectedMonthlyAfterTax(null);
+        return;
+      }
+
+      try {
+        // Get location
+        const locationResponse = await fetch("/api/v2/onboarding/location");
+        if (!locationResponse.ok) {
+          // If no location, use gross income
+          setExpectedMonthlyAfterTax(null);
+          return;
+        }
+
+        const location = await locationResponse.json();
+        if (!location.country || !location.stateOrProvince) {
+          // If no location, use gross income
+          setExpectedMonthlyAfterTax(null);
+          return;
+        }
+
+        // Get monthly gross income from range
+        const monthlyGross = (() => {
+          const range = expectedIncomeRange as string;
+          const INCOME_RANGE_TO_MONTHLY: Record<string, number> = {
+            "0-50k": 25000 / 12,
+            "50k-100k": 75000 / 12,
+            "100k-150k": 125000 / 12,
+            "150k-250k": 200000 / 12,
+            "250k+": 300000 / 12,
+          };
+          return INCOME_RANGE_TO_MONTHLY[range] || 0;
+        })();
+
+        if (monthlyGross === 0) {
+          setExpectedMonthlyAfterTax(null);
+          return;
+        }
+
+        // Calculate annual income
+        const annualIncome = monthlyGross * 12;
+
+        // Calculate taxes
+        const taxResponse = await fetch("/api/v2/taxes/calculate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            country: location.country,
+            stateOrProvince: location.stateOrProvince,
+            annualIncome: annualIncome,
+          }),
+        });
+
+        if (!taxResponse.ok) {
+          // If tax calculation fails, use gross income
+          setExpectedMonthlyAfterTax(null);
+          return;
+        }
+
+        const taxResult = await taxResponse.json();
+        const monthlyAfterTax = taxResult.afterTaxIncome / 12;
+        setExpectedMonthlyAfterTax(monthlyAfterTax);
+      } catch (error) {
+        console.error("Error calculating after-tax income:", error);
+        // If error, use gross income (null means we'll show gross)
+        setExpectedMonthlyAfterTax(null);
+      }
+    }
+
+    calculateAfterTaxIncome();
+  }, [expectedIncomeRange]);
+
+  // Calculate total expected income (expected income + planned income payments)
+  // This shows what the user expects to receive in the month
+  const totalExpectedIncome = (() => {
+    if (!expectedIncomeRange) {
+      // If no expected income range, only use planned income payments
+      return plannedIncomePayments;
+    }
+    
+    // Use after-tax income if available, otherwise use gross from range
+    const baseExpectedIncome = expectedMonthlyAfterTax !== null 
+      ? expectedMonthlyAfterTax 
+      : (() => {
+          const range = expectedIncomeRange as string;
+          const INCOME_RANGE_TO_MONTHLY: Record<string, number> = {
+            "0-50k": 25000 / 12,
+            "50k-100k": 75000 / 12,
+            "100k-150k": 125000 / 12,
+            "150k-250k": 200000 / 12,
+            "250k+": 300000 / 12,
+          };
+          return INCOME_RANGE_TO_MONTHLY[range] || 0;
+        })();
+    
+    // Sum expected income + planned income payments
+    return baseExpectedIncome + plannedIncomePayments;
+  })();
 
   // Get selected member name or "All Households"
   const selectedMemberName = selectedMemberId 
@@ -297,11 +430,11 @@ export function SummaryCards({
               </Select>
             </div>
 
-            {/* Balance Amount Label - Use content.secondary for labels (accent-foreground provides contrast on green background) */}
+            {/* Balance Amount Label - Use content.secondary for labels */}
             <div className="text-accent-foreground/80 text-lg font-semibold mb-1">Balance Amount</div>
 
-            {/* Balance Amount - Use content.primary to emphasise primary content (accent-foreground provides contrast on green background) */}
-            <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-accent-foreground">
+            {/* Balance Amount - Use content.primary */}
+            <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-content-primary">
               <AnimatedNumber value={totalBalance} format="money" />
             </div>
 
@@ -318,8 +451,8 @@ export function SummaryCards({
             <div>
               {/* Label - Use content.secondary for labels */}
               <div className="text-accent-foreground/80 text-xs mb-1">Available to spend</div>
-              {/* Amount - Use content.primary to emphasise primary content */}
-              <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-accent-foreground">
+              {/* Amount - Use content.primary */}
+              <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-content-primary">
                 <AnimatedNumber value={availableToSpend} format="money" />
               </div>
               {/* Description - Use content.secondary for supportive text */}
@@ -339,7 +472,7 @@ export function SummaryCards({
         <Card className="cursor-pointer" onClick={() => {
             router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
           }}>
-            <CardContent className="p-4 md:p-5">
+            <CardContent className="p-4 md:p-5 flex flex-col h-full">
               <div className="flex flex-col items-start gap-2 mb-3">
                 <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
                   <ArrowUpRight className="h-4 w-4 text-foreground" />
@@ -352,24 +485,7 @@ export function SummaryCards({
                 <AnimatedNumber value={currentIncome} format="money" />
               </div>
 
-              {/* Projected Badge */}
-              {isIncomeProjected && expectedIncomeRange && (
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 h-4">
-                    Projected
-                  </Badge>
-                </div>
-              )}
-              {isIncomeProjected && expectedIncomeRange && (
-                <div className="text-[10px] text-muted-foreground mt-1 space-y-0.5">
-                  <div>Based on {formatExpectedIncomeRange(expectedIncomeRange)}</div>
-                  <div className="font-medium">
-                    {formatMonthlyIncomeFromRange(expectedIncomeRange)}/month
-                  </div>
-                </div>
-              )}
-
-              {/* Percentage Change Tag - Moved below projected info */}
+              {/* Percentage Change Tag */}
               <div className="text-sm font-medium mb-1">
                 <span className={cn(
                   incomeMomChange >= 0 
@@ -380,6 +496,35 @@ export function SummaryCards({
                 </span>
                 <span className="text-grey-300"> vs last month</span>
               </div>
+
+              {/* Footer - Expected Income (always show if available) */}
+              {expectedIncomeRange && (
+                <div className="mt-auto pt-2">
+                  <div className="text-sm text-muted-foreground">
+                    Expected {formatMoney(totalExpectedIncome)}
+                    {plannedIncomePayments > 0 && (
+                      <span className="text-xs text-muted-foreground/70 ml-1">
+                        ({formatMoney(plannedIncomePayments)} planned)
+                      </span>
+                    )}
+                  </div>
+                  {currentIncome > 0 && (
+                    <div className="text-xs text-muted-foreground/70 mt-1">
+                      Received {formatMoney(currentIncome)} 
+                      {totalExpectedIncome > 0 && (
+                        <span className={cn(
+                          "ml-1",
+                          currentIncome >= totalExpectedIncome 
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-orange-600 dark:text-orange-400"
+                        )}>
+                          ({((currentIncome / totalExpectedIncome) * 100).toFixed(0)}%)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -387,7 +532,7 @@ export function SummaryCards({
         <Card className="cursor-pointer" onClick={() => {
             router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
           }}>
-            <CardContent className="p-4 md:p-5">
+            <CardContent className="p-4 md:p-5 flex flex-col h-full">
               <div className="flex flex-col items-start gap-2 mb-3">
                 <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
                   <ArrowDownRight className="h-4 w-4 text-foreground" />
@@ -412,14 +557,12 @@ export function SummaryCards({
                 <span className="text-grey-300"> vs last month</span>
               </div>
 
-              {/* Projected Badge */}
-              {isExpenseProjected && (
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 h-4">
-                    Projected
-                  </Badge>
+              {/* Footer - Expected Expense */}
+              <div className="mt-auto pt-2">
+                <div className="text-sm text-muted-foreground">
+                  Expected {formatMoney(expectedExpense)}
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 

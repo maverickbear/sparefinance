@@ -400,7 +400,7 @@ export function BudgetForm({
                   <div className="space-y-1">
                     <label className="text-sm font-medium">Group</label>
                     <Select value={budget.macroId} disabled={true}>
-                      <SelectTrigger>
+                      <SelectTrigger size="small">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -446,7 +446,7 @@ export function BudgetForm({
                       value={form.watch("categoryId")}
                       disabled={true}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger size="small">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -503,7 +503,7 @@ export function BudgetForm({
                   value={selectedMacroId}
                   onValueChange={handleMacroChange}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue placeholder="Select a group" />
                   </SelectTrigger>
                   <SelectContent>
@@ -526,7 +526,7 @@ export function BudgetForm({
                       value={selectedCategoryId}
                       onValueChange={handleCategoryChange}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger size="small">
                         <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -563,7 +563,7 @@ export function BudgetForm({
                           return subcategories.length === 0;
                         })()}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger size="small">
                           <SelectValue placeholder="Select a subcategory" />
                         </SelectTrigger>
                         <SelectContent>
@@ -598,6 +598,7 @@ export function BudgetForm({
               value={form.watch("amount") || undefined}
               onChange={(value) => form.setValue("amount", value ?? 0, { shouldValidate: true })}
               placeholder="$ 0.00"
+              size="small"
             />
             {form.formState.errors.amount && (
               <p className="text-xs text-destructive">
@@ -609,10 +610,10 @@ export function BudgetForm({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            <Button type="button" variant="outline" size="small" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" size="small" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

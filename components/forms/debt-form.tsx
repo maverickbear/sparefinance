@@ -979,7 +979,7 @@ export function DebtForm({
                     }}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger size="small">
                       <SelectValue placeholder="Select Category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1023,7 +1023,7 @@ export function DebtForm({
                         }
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger size="small">
                         <SelectValue placeholder="Select Subcategory (optional)" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1046,6 +1046,7 @@ export function DebtForm({
                 </label>
                 <Input
                   {...form.register("name")}
+                  size="small"
                   required
                 />
                 {form.formState.errors.name && (
@@ -1065,6 +1066,7 @@ export function DebtForm({
                   value={form.watch("initialAmount") || undefined}
                   onChange={(value) => form.setValue("initialAmount", value ?? 0, { shouldValidate: true })}
                   placeholder="$ 0.00"
+                  size="small"
                   required
                 />
                 {form.formState.errors.initialAmount && (
@@ -1083,6 +1085,7 @@ export function DebtForm({
                     value={form.watch("downPayment") || undefined}
                     onChange={(value) => form.setValue("downPayment", value ?? 0, { shouldValidate: true })}
                     placeholder="$ 0.00"
+                    size="small"
                     required={fieldConfig.downPaymentRequired}
                   />
                   {form.formState.errors.downPayment && (
@@ -1101,6 +1104,7 @@ export function DebtForm({
                   value={form.watch("interestRate") || undefined}
                   onChange={(value) => form.setValue("interestRate", value ?? 0, { shouldValidate: true })}
                   placeholder="0.00 %"
+                  size="small"
                 />
                 {form.formState.errors.interestRate && (
                   <p className="text-xs text-destructive">
@@ -1130,7 +1134,7 @@ export function DebtForm({
                     }}
                     required={fieldConfig.totalMonthsRequired}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger size="small">
                       <SelectValue placeholder="Select months" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1171,7 +1175,7 @@ export function DebtForm({
                   disabled={fieldConfig.paymentFrequencyLocked}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1209,6 +1213,7 @@ export function DebtForm({
                     form.setValue("paymentAmount", value ?? 0, { shouldValidate: true });
                   }}
                   placeholder="$ 0.00"
+                  size="small"
                 />
                 {form.formState.errors.paymentAmount && (
                   <p className="text-xs text-destructive">
@@ -1248,7 +1253,7 @@ export function DebtForm({
                   onValueChange={(value) => form.setValue("accountId", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1276,6 +1281,7 @@ export function DebtForm({
                     form.setValue("startDate", date || new Date(), { shouldValidate: true });
                   }}
                   placeholder="Select start date"
+                  size="small"
                   required={!((loanType || "").toLowerCase().includes("credit") || (loanType || "").toLowerCase().includes("card"))}
                 />
                 {form.formState.errors.startDate && (
@@ -1295,6 +1301,7 @@ export function DebtForm({
                     form.setValue("firstPaymentDate", date || new Date(), { shouldValidate: true });
                   }}
                   placeholder="Select first payment date"
+                  size="small"
                   required
                 />
                 {form.formState.errors.firstPaymentDate && (
@@ -1322,6 +1329,7 @@ export function DebtForm({
                       }
                     })()}
                     disabled
+                    size="small"
                     className="bg-muted"
                   />
                 </div>
@@ -1340,6 +1348,7 @@ export function DebtForm({
                     form.setValue("principalPaid", value ?? 0, { shouldValidate: true });
                   }}
                   placeholder="$ 0.00"
+                  size="small"
                 />
                 {form.formState.errors.principalPaid && (
                   <p className="text-xs text-destructive">
@@ -1354,6 +1363,7 @@ export function DebtForm({
                   value={form.watch("interestPaid") || undefined}
                   onChange={(value) => form.setValue("interestPaid", value ?? 0, { shouldValidate: true })}
                   placeholder="$ 0.00"
+                  size="small"
                 />
                 {form.formState.errors.interestPaid && (
                   <p className="text-xs text-destructive">
@@ -1402,12 +1412,13 @@ export function DebtForm({
             <Button
               type="button"
               variant="outline"
+              size="small"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" size="small" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

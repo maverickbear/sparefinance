@@ -23,9 +23,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ userRole }, { 
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-      },
     });
   } catch (error) {
     console.error("Error fetching user role:", error);

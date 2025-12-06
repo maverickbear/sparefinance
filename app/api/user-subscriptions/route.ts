@@ -22,9 +22,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(subscriptions, {
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
     });
   } catch (error) {
     console.error("Error fetching user subscriptions:", error);

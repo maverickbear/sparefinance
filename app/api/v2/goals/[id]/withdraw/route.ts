@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeGoalsService } from "@/src/application/goals/goals.factory";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 /**
  * POST /api/v2/goals/[id]/withdraw
@@ -21,8 +23,17 @@ export async function POST(
       );
     }
 
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeGoalsService();
     const goal = await service.withdraw(id, amount);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(goal, { status: 200 });
   } catch (error) {

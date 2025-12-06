@@ -1,12 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
 import { Nav } from "@/components/nav";
 import { BottomNav } from "@/components/bottom-nav";
 import { MobileHeader } from "@/components/mobile-header";
 import { CancelledSubscriptionBanner } from "@/components/common/cancelled-subscription-banner";
 import { PausedSubscriptionBanner } from "@/src/presentation/components/features/subscriptions/paused-subscription-banner";
 import { useFixedElementsHeight } from "@/hooks/use-fixed-elements-height";
-import { useEffect, useState, memo, useMemo } from "react";
+import { useEffect, useState, memo, useMemo, useRef } from "react";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
 import { usePathname } from "next/navigation";
 import { logger } from "@/src/infrastructure/utils/logger";
@@ -82,6 +83,15 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   const { isApiRoute, isPublicPage, isSelectPlanPage, isWelcomePage, isDashboardRoute } = routeInfo;
   
   const log = logger.withPrefix("LAYOUT-WRAPPER");
+  
+  // Track previous render values to only log when they change
+  const prevRenderValuesRef = useRef<{
+    pathname: string | null;
+    checking: boolean;
+    hasSubscription: boolean;
+    isPublicPage: boolean;
+    isDashboardRoute: boolean;
+  } | null>(null);
 
   // Listen for sidebar toggle events
   useEffect(() => {
@@ -121,16 +131,32 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
     }
   }, [shouldUseFixedLayout]);
 
-  // Removed debug log to improve performance - only log in development if needed
-  if (process.env.NODE_ENV === 'development') {
-    log.debug("Render:", {
-      pathname,
-      checking,
-      hasSubscription,
-      isPublicPage,
-      isDashboardRoute,
-    });
-  }
+  // Debug log - only log when values actually change (not on every render)
+  // This reduces console noise from React Strict Mode double renders
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const currentValues = {
+        pathname,
+        checking,
+        hasSubscription,
+        isPublicPage,
+        isDashboardRoute,
+      };
+      
+      const prevValues = prevRenderValuesRef.current;
+      
+      // Only log if values have changed
+      if (!prevValues || 
+          prevValues.pathname !== currentValues.pathname ||
+          prevValues.checking !== currentValues.checking ||
+          prevValues.hasSubscription !== currentValues.hasSubscription ||
+          prevValues.isPublicPage !== currentValues.isPublicPage ||
+          prevValues.isDashboardRoute !== currentValues.isDashboardRoute) {
+        log.debug("Render (values changed):", currentValues);
+        prevRenderValuesRef.current = currentValues;
+      }
+    }
+  }, [pathname, checking, hasSubscription, isPublicPage, isDashboardRoute, log]);
 
   // Render API routes and public pages without nav
   if (isApiRoute || isPublicPage) {
@@ -144,7 +170,7 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   if (isSelectPlanPage || isWelcomePage) {
     return (
       <>
-        <Nav hasSubscription={false} />
+        <Nav />
         <BottomNav hasSubscription={false} />
         {children}
       </>
@@ -156,7 +182,7 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   if (!hasSubscription && !isDashboardRoute) {
     return (
       <>
-        <Nav hasSubscription={false} />
+        <Nav />
         <BottomNav hasSubscription={false} />
         {children}
       </>
@@ -166,20 +192,12 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   // Normal layout with nav for users with subscription or optimistically for dashboard routes
   const showNav = hasSubscription || isDashboardRoute;
   
-  // Debug: Log subscription status for banner visibility
-  if (process.env.NODE_ENV === 'development') {
-    log.debug("Banner visibility check:", {
-      showNav,
-      hasSubscription,
-      subscriptionStatus: subscription?.status,
-      isDashboardRoute,
-    });
-  }
-  
   return (
     <div className="fixed inset-0 overflow-hidden bg-background">
       {/* Sidebar - Fixed Left (full height, desktop only) */}
-      <Nav hasSubscription={showNav} />
+      <Suspense fallback={<div className="w-64 lg:w-16 border-r bg-card" />}>
+        <Nav />
+      </Suspense>
       
       {/* Main Content Area */}
       <div

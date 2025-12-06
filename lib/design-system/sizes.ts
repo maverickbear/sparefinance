@@ -8,6 +8,13 @@
 export const componentSizes = {
   // Button sizes
   button: {
+    tiny: {
+      height: "h-8",
+      paddingX: "px-2.5",
+      paddingY: "py-1.5",
+      text: "text-xs",
+      rounded: "rounded-lg",
+    },
     small: {
       height: "h-9",
       paddingX: "px-3",
@@ -24,73 +31,119 @@ export const componentSizes = {
     },
     large: {
       height: "h-11",
-      paddingX: "px-8",
+      paddingX: "px-4",
       paddingY: "py-2",
       text: "text-base",
       rounded: "rounded-lg",
     },
     icon: {
-      height: "h-10",
-      width: "w-10",
-      paddingX: "",
-      paddingY: "",
-      text: "text-sm",
-      rounded: "rounded-lg",
+      tiny: {
+        height: "h-8",
+        width: "w-8",
+        paddingX: "",
+        paddingY: "",
+        text: "text-xs",
+        rounded: "rounded-lg",
+      },
+      small: {
+        height: "h-9",
+        width: "w-9",
+        paddingX: "",
+        paddingY: "",
+        text: "text-sm",
+        rounded: "rounded-lg",
+      },
+      medium: {
+        height: "h-10",
+        width: "w-10",
+        paddingX: "",
+        paddingY: "",
+        text: "text-sm",
+        rounded: "rounded-lg",
+      },
+      large: {
+        height: "h-11",
+        width: "w-11",
+        paddingX: "",
+        paddingY: "",
+        text: "text-base",
+        rounded: "rounded-lg",
+      },
     },
   },
   
   // Input sizes
   input: {
+    tiny: {
+      height: "h-8",
+      paddingX: "px-2.5",
+      paddingY: "py-1.5",
+      text: "text-xs",
+      rounded: "rounded-lg",
+    },
     small: {
-      height: "h-10",
+      height: "h-9",
       paddingX: "px-3",
       paddingY: "py-2",
       text: "text-sm",
       rounded: "rounded-lg",
     },
     medium: {
-      height: "h-12",
+      height: "h-10",
       paddingX: "px-4",
-      paddingY: "py-3",
-      text: "text-base",
+      paddingY: "py-2",
+      text: "text-sm",
       rounded: "rounded-lg",
     },
     large: {
-      height: "h-14",
-      paddingX: "px-5",
-      paddingY: "py-4",
-      text: "text-lg",
+      height: "h-11",
+      paddingX: "px-3",
+      paddingY: "py-2",
+      text: "text-base",
       rounded: "rounded-lg",
     },
   },
   
   // Select sizes
   select: {
+    tiny: {
+      height: "h-8",
+      paddingX: "px-2.5",
+      paddingY: "py-1.5",
+      text: "text-xs",
+      rounded: "rounded-lg",
+    },
     small: {
-      height: "h-10",
+      height: "h-9",
       paddingX: "px-3",
       paddingY: "py-2",
       text: "text-sm",
       rounded: "rounded-lg",
     },
     medium: {
-      height: "h-12",
+      height: "h-10",
       paddingX: "px-4",
-      paddingY: "py-3",
-      text: "text-base",
+      paddingY: "py-2",
+      text: "text-sm",
       rounded: "rounded-lg",
     },
     large: {
-      height: "h-14",
-      paddingX: "px-5",
-      paddingY: "py-4",
-      text: "text-lg",
+      height: "h-11",
+      paddingX: "px-3",
+      paddingY: "py-2",
+      text: "text-base",
       rounded: "rounded-lg",
     },
   },
   
   // Badge sizes
   badge: {
+    tiny: {
+      paddingX: "px-1",
+      paddingY: "py-0.5",
+      text: "text-[9px]",
+      rounded: "rounded-full",
+    },
     small: {
       paddingX: "px-1.5",
       paddingY: "py-0.5",
@@ -113,6 +166,13 @@ export const componentSizes = {
   
   // Textarea sizes
   textarea: {
+    tiny: {
+      minHeight: "min-h-[60px]",
+      paddingX: "px-2.5",
+      paddingY: "py-1.5",
+      text: "text-xs",
+      rounded: "rounded-lg",
+    },
     small: {
       minHeight: "min-h-[80px]",
       paddingX: "px-3",
@@ -123,15 +183,15 @@ export const componentSizes = {
     medium: {
       minHeight: "min-h-[100px]",
       paddingX: "px-4",
-      paddingY: "py-3",
-      text: "text-base",
+      paddingY: "py-2",
+      text: "text-sm",
       rounded: "rounded-lg",
     },
     large: {
       minHeight: "min-h-[120px]",
-      paddingX: "px-5",
-      paddingY: "py-4",
-      text: "text-lg",
+      paddingX: "px-3",
+      paddingY: "py-2",
+      text: "text-base",
       rounded: "rounded-lg",
     },
   },
@@ -202,14 +262,14 @@ export const mobileSpacing = {
 /**
  * Default size for all components
  */
-export const DEFAULT_SIZE = "medium" as const;
+export const DEFAULT_SIZE = "small" as const;
 
 /**
  * Helper function to get size classes for a component
  */
 export function getSizeClasses(
   component: keyof typeof componentSizes,
-  size: "small" | "medium" | "large" | "icon" = DEFAULT_SIZE
+  size: "tiny" | "small" | "medium" | "large" | "icon" = DEFAULT_SIZE
 ): string {
   const componentSizesForComponent = componentSizes[component] as Record<string, Record<string, string>>;
   const sizeConfig = componentSizesForComponent[size];
@@ -225,6 +285,6 @@ export function getSizeClasses(
 /**
  * Type definitions for component sizes
  */
-export type ComponentSize = "small" | "medium" | "large";
+export type ComponentSize = "tiny" | "small" | "medium" | "large";
 export type ButtonSize = ComponentSize | "icon";
 

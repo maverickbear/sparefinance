@@ -24,9 +24,6 @@ export async function GET(request: NextRequest) {
     const rules = service.getAvailableRules();
 
     return NextResponse.json(rules, {
-      headers: {
-        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
-      },
     });
   } catch (error) {
     console.error("Error fetching budget rules:", error);
@@ -61,7 +58,7 @@ export async function POST(request: NextRequest) {
     // Get user's expected income to calculate budgets
     const { makeOnboardingService } = await import("@/src/application/onboarding/onboarding.factory");
     const onboardingService = makeOnboardingService();
-    const incomeRange = await onboardingService.getExpectedIncome(userId, accessToken, refreshToken);
+    const { incomeRange, incomeAmount } = await onboardingService.getExpectedIncomeWithAmount(userId, accessToken, refreshToken);
 
     if (!incomeRange) {
       return NextResponse.json(
@@ -70,15 +67,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const monthlyIncome = onboardingService.getMonthlyIncomeFromRange(incomeRange);
-
-    // Generate budgets using the selected rule
+    // Generate budgets using the selected rule and user's income from onboarding
     await onboardingService.generateInitialBudgets(
       userId,
       incomeRange,
       accessToken,
       refreshToken,
-      ruleType
+      ruleType,
+      incomeAmount
     );
 
     return NextResponse.json({ 

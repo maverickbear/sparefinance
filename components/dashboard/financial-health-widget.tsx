@@ -164,6 +164,7 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
 
           {/* View Details Button */}
           <Button
+            size="small"
             className="w-full"
             onClick={() => setIsModalOpen(true)}
           >

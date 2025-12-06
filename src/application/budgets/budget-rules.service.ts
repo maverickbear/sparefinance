@@ -18,9 +18,8 @@ import {
   mapGroupNameToRuleCategory
 } from "../../domain/budgets/budget-rules.constants";
 import { BaseGroup } from "../../domain/categories/categories.types";
-import { BaseBudget, BudgetWithRelations } from "../../domain/budgets/budgets.types";
+import { BudgetWithRelations } from "../../domain/budgets/budgets.types";
 import { BaseTransaction } from "../../domain/transactions/transactions.types";
-import { logger } from "@/src/infrastructure/utils/logger";
 
 export class BudgetRulesService {
   /**
@@ -208,7 +207,6 @@ export class BudgetRulesService {
       const ruleCategory = category as BudgetRuleCategory;
       const actualSpending = spendingByCategory.get(ruleCategory) || 0;
       const actualPercentage = (actualSpending / monthlyIncome) * 100;
-      const targetAmount = monthlyIncome * targetPercentage;
       const deviation = actualPercentage - (targetPercentage * 100);
 
       // Generate alerts if deviation is significant

@@ -4,6 +4,8 @@ import { TransactionFormData, transactionSchema } from "@/src/domain/transaction
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,6 +17,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     
     // Parse filters from query parameters
+    // Note: API uses 'recurring' but domain uses 'isRecurring'
     const filters: {
       startDate?: Date;
       endDate?: Date;
@@ -22,7 +25,7 @@ export async function GET(request: NextRequest) {
       accountId?: string;
       type?: 'income' | 'expense' | 'transfer';
       search?: string;
-      recurring?: boolean;
+      isRecurring?: boolean;
       page?: number;
       limit?: number;
     } = {};
@@ -45,8 +48,10 @@ export async function GET(request: NextRequest) {
     if (searchParams.get("search")) {
       filters.search = searchParams.get("search")!;
     }
-    if (searchParams.get("recurring")) {
-      filters.recurring = searchParams.get("recurring") === "true";
+    // Support both 'recurring' and 'isRecurring' query params for backward compatibility
+    const recurringParam = searchParams.get("recurring") || searchParams.get("isRecurring");
+    if (recurringParam) {
+      filters.isRecurring = recurringParam === "true";
     }
     
     // Parse pagination parameters
@@ -62,16 +67,9 @@ export async function GET(request: NextRequest) {
     const service = makeTransactionsService();
     const result = await service.getTransactions(filters);
     
-    // Use appropriate cache headers
-    // Use stale-while-revalidate for better back/forward cache compatibility
-    const hasSearch = !!filters.search;
-    const cacheHeaders = hasSearch
-      ? {
-          'Cache-Control': 'private, max-age=0, must-revalidate, stale-while-revalidate=30',
-        }
-      : {
-          'Cache-Control': 'private, max-age=60, must-revalidate, stale-while-revalidate=300',
-        };
+    // Transactions are highly dynamic, use dynamic cache
+    // If search is present, cache is less effective but still useful
+    const cacheHeaders = getCacheHeaders('dynamic');
     
     return NextResponse.json(result, { 
       status: 200,
@@ -108,8 +106,18 @@ export async function POST(request: NextRequest) {
     // Validate with schema
     const validatedData = transactionSchema.parse(data);
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeTransactionsService();
     const transaction = await service.createTransaction(validatedData);
+    
+    // Invalidate cache
+    revalidateTag(`transactions-${userId}`, 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {

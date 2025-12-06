@@ -1,9 +1,15 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/common/logo";
 
 export function LandingFooter() {
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
   return (
     <footer className="bg-muted/50 border-t border-border">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
@@ -80,7 +86,7 @@ export function LandingFooter() {
         {/* Bottom */}
         <div className="pt-8 border-t border-border">
           <p className="text-base text-center text-muted-foreground">
-            © {new Date().getFullYear()} Spare Finance. All rights reserved.
+            © {currentYear || 2024} Spare Finance. All rights reserved.
           </p>
         </div>
       </div>

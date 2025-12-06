@@ -10,6 +10,10 @@ const phoneNumberInputVariants = cva(
   {
     variants: {
       size: {
+        tiny: cn(
+          componentSizes.input.tiny.height,
+          componentSizes.input.tiny.rounded
+        ),
         small: cn(
           componentSizes.input.small.height,
           componentSizes.input.small.rounded
@@ -261,6 +265,12 @@ const PhoneNumberInput = React.forwardRef<HTMLInputElement, PhoneNumberInputProp
 
     const inputSizeClasses = React.useMemo(() => {
       switch (size) {
+        case "tiny":
+          return {
+            text: componentSizes.input.tiny.text,
+            paddingX: componentSizes.input.tiny.paddingX,
+            paddingY: componentSizes.input.tiny.paddingY,
+          };
         case "small":
           return {
             text: componentSizes.input.small.text,

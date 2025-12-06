@@ -58,7 +58,12 @@ export class AccountsRepository {
     // Verify user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      logger.error("[AccountsRepository] User not authenticated:", authError?.message);
+      // Log as debug in development, but don't treat as error
+      // This can happen in cached functions when tokens aren't available
+      const errorMessage = authError?.message || "Auth session missing!";
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug("[AccountsRepository] User not authenticated:", errorMessage);
+      }
       return [];
     }
     

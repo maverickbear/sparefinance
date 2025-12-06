@@ -15,6 +15,9 @@ export default function ComponentsLayout({
   // Determine active tab based on current path
   const getActiveTab = () => {
     if (pathname.includes("/buttons")) return "buttons";
+    if (pathname.includes("/inputs")) return "inputs";
+    if (pathname.includes("/textareas")) return "textareas";
+    if (pathname.includes("/selects")) return "selects";
     return "buttons";
   };
 
@@ -37,6 +40,9 @@ export default function ComponentsLayout({
           <div className="px-4 lg:px-8">
             <SimpleTabsList>
               <SimpleTabsTrigger value="buttons">Buttons</SimpleTabsTrigger>
+              <SimpleTabsTrigger value="inputs">Inputs</SimpleTabsTrigger>
+              <SimpleTabsTrigger value="textareas">Textareas</SimpleTabsTrigger>
+              <SimpleTabsTrigger value="selects">Selects</SimpleTabsTrigger>
             </SimpleTabsList>
           </div>
         </div>
@@ -54,6 +60,15 @@ export default function ComponentsLayout({
             <SimpleTabsList className="min-w-max px-4" style={{ scrollSnapAlign: 'start' }}>
               <SimpleTabsTrigger value="buttons" className="flex-shrink-0 whitespace-nowrap">
                 Buttons
+              </SimpleTabsTrigger>
+              <SimpleTabsTrigger value="inputs" className="flex-shrink-0 whitespace-nowrap">
+                Inputs
+              </SimpleTabsTrigger>
+              <SimpleTabsTrigger value="textareas" className="flex-shrink-0 whitespace-nowrap">
+                Textareas
+              </SimpleTabsTrigger>
+              <SimpleTabsTrigger value="selects" className="flex-shrink-0 whitespace-nowrap">
+                Selects
               </SimpleTabsTrigger>
             </SimpleTabsList>
           </div>

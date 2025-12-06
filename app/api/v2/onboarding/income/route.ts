@@ -27,9 +27,6 @@ export async function GET(request: NextRequest) {
         expectedIncomeAmount: incomeAmount ?? null,
       },
       {
-        headers: {
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-        },
       }
     );
   } catch (error) {
@@ -66,30 +63,21 @@ export async function POST(request: NextRequest) {
     // Save expected income (with optional custom amount)
     await service.saveExpectedIncome(userId, validated, accessToken, refreshToken, incomeAmount);
 
-    // Generate initial budgets if ruleType is provided, otherwise auto-suggest (only if household exists)
+    // Generate initial budgets ONLY if ruleType is explicitly provided
+    // Do NOT auto-suggest - user must choose a rule during onboarding
+    if (ruleType) {
     try {
       const { getActiveHouseholdId } = await import("@/lib/utils/household");
       const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
       
       if (householdId) {
-        let finalRuleType = ruleType;
-        
-        // If no ruleType provided, suggest one
-        if (!finalRuleType) {
-          const { makeBudgetRulesService } = await import("@/src/application/budgets/budget-rules.factory");
-          const budgetRulesService = makeBudgetRulesService();
-          const monthlyIncome = service.getMonthlyIncomeFromRange(validated, incomeAmount);
-          const suggestion = budgetRulesService.suggestRule(monthlyIncome);
-          finalRuleType = suggestion.rule.id;
-        }
-
-        // Generate budgets with the selected or suggested rule
+          // Only generate budgets if user explicitly provided a rule type
         await service.generateInitialBudgets(
           userId,
           validated,
           accessToken,
           refreshToken,
-          finalRuleType,
+            ruleType,
           incomeAmount
         );
       }
@@ -98,6 +86,8 @@ export async function POST(request: NextRequest) {
       // Log but don't fail the request if budget generation fails
       console.error("Error generating initial budgets:", error);
     }
+    }
+    // If no ruleType provided, do NOT create budgets automatically
 
     // Recalculate emergency fund goal based on new income (only if household exists)
     try {

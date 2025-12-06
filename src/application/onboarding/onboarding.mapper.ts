@@ -5,6 +5,7 @@
 
 import { HouseholdSettings } from "../../domain/household/household.types";
 import { ExpectedIncomeRange } from "../../domain/onboarding/onboarding.types";
+import { BudgetRuleType } from "../../domain/budgets/budget-rules.types";
 
 export class OnboardingMapper {
   /**
@@ -22,6 +23,7 @@ export class OnboardingMapper {
         : undefined,
       country: typeof settings.country === 'string' ? settings.country : undefined,
       stateOrProvince: typeof settings.stateOrProvince === 'string' ? settings.stateOrProvince : undefined,
+      budgetRule: (settings.budgetRule as BudgetRuleType) || undefined,
     };
   }
 
@@ -45,6 +47,10 @@ export class OnboardingMapper {
 
     if (settings.stateOrProvince !== undefined) {
       result.stateOrProvince = settings.stateOrProvince;
+    }
+
+    if (settings.budgetRule !== undefined) {
+      result.budgetRule = settings.budgetRule;
     }
 
     return result;

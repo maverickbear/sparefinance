@@ -258,6 +258,7 @@ export function GroupDialog({
               id="name"
               {...form.register("name")}
               placeholder="e.g., Entertainment"
+              size="small"
               required
             />
             {form.formState.errors.name && (
@@ -272,7 +273,7 @@ export function GroupDialog({
                   value={form.watch("type") || currentGroup.type || "expense"}
                   onValueChange={(value) => form.setValue("type", value as "income" | "expense")}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -291,7 +292,7 @@ export function GroupDialog({
                   value={selectedType}
                   onValueChange={(value) => setSelectedType(value as "income" | "expense")}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -307,6 +308,7 @@ export function GroupDialog({
                   value={groupNamesText}
                   onChange={(e) => setGroupNamesText(e.target.value)}
                   placeholder="e.g., Entertainment, Shopping, Travel"
+                  size="small"
                   rows={4}
                   className="resize-none"
                 />
@@ -322,6 +324,7 @@ export function GroupDialog({
             <Button
               type="button"
               variant="outline"
+              size="small"
               onClick={() => handleOpenChange(false)}
               disabled={isSubmitting}
             >
@@ -329,6 +332,7 @@ export function GroupDialog({
             </Button>
             <Button 
               type="submit" 
+              size="small"
               disabled={
                 isSubmitting || 
                 (!currentGroup && parseCommaSeparated(groupNamesText).length === 0)

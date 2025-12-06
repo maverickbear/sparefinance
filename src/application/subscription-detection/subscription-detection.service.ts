@@ -7,7 +7,8 @@ import { DetectedSubscription } from "../../domain/subscriptions/subscriptions.t
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { getTransactionAmount, decryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
-import type { PlaidTransactionMetadata } from "../../domain/plaid/plaid.types";
+// Plaid metadata type (kept for backward compatibility with existing data)
+type PlaidTransactionMetadata = Record<string, unknown>;
 import { AppError } from "../shared/app-error";
 
 /**

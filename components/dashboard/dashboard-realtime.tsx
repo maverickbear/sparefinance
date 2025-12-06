@@ -42,6 +42,7 @@ export function DashboardRealtime() {
     isOpen: false,
   });
   const lastRefreshTimeRef = useRef(0);
+  const mountTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     // Only set up subscriptions on dashboard page
@@ -69,9 +70,18 @@ export function DashboardRealtime() {
     // OPTIMIZED: Increased debounce to prevent excessive refreshes
     let refreshTimeout: NodeJS.Timeout | null = null;
     const MIN_REFRESH_INTERVAL = 5000; // Minimum 5 seconds between refreshes
+    const MIN_TIME_BEFORE_REFRESH = 10000; // Minimum 10 seconds after mount before allowing refresh
     
     const scheduleRefresh = async () => {
       const now = Date.now();
+      const timeSinceMount = now - mountTimeRef.current;
+      
+      // CRITICAL: Prevent refreshes during initial load period
+      // This prevents unnecessary refreshes right after page load
+      if (timeSinceMount < MIN_TIME_BEFORE_REFRESH) {
+        console.debug(`[DashboardRealtime-${instanceIdRef.current}] Skipping refresh - too soon after mount (${Math.round(timeSinceMount / 1000)}s)`);
+        return;
+      }
       
       // Prevent refreshes if we just refreshed recently
       if (now - lastRefreshTimeRef.current < MIN_REFRESH_INTERVAL) {

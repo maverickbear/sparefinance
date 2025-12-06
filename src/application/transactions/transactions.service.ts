@@ -7,8 +7,9 @@ import { TransactionsRepository } from "@/src/infrastructure/database/repositori
 import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
 import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
 import { TransactionsMapper } from "./transactions.mapper";
-import { TransactionFormData, TransactionUpdateData } from "../../domain/transactions/transactions.validations";
+import { TransactionFormData } from "../../domain/transactions/transactions.validations";
 import { BaseTransaction, TransactionWithRelations, TransactionFilters, TransactionQueryResult } from "../../domain/transactions/transactions.types";
+import type { AccountWithBalance } from "../../domain/accounts/accounts.types";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
@@ -43,8 +44,6 @@ export class TransactionsService {
     accessToken?: string,
     refreshToken?: string
   ): Promise<TransactionQueryResult> {
-    const supabase = await createServerClient(accessToken, refreshToken);
-
     // Get total count
     const total = await this.repository.count(filters, accessToken, refreshToken);
 
@@ -214,10 +213,12 @@ export class TransactionsService {
     const descriptionSearch = normalizeDescription(data.description);
 
     // Get category suggestion if no category provided
-    let categorySuggestion = null;
+    // Note: Suggestion is generated but not automatically applied during creation
+    // Users can apply suggestions later via the applySuggestion method
     if (!data.categoryId && data.description) {
       try {
-        categorySuggestion = await suggestCategory(userId, data.description, data.amount, data.type);
+        await suggestCategory(userId, data.description, data.amount, data.type);
+        // Suggestion result is not used here, but the call helps train the category learning system
       } catch (error) {
         logger.error('Error getting category suggestion:', error);
       }
@@ -475,7 +476,7 @@ export class TransactionsService {
         ...existingMetadata,
         merchantName: data.merchant?.trim() || null,
       };
-      updateData.plaidMetadata = updatedMetadata as any;
+      updateData.plaidMetadata = updatedMetadata as Record<string, unknown> | null;
     }
 
     const row = await this.repository.update(id, updateData);
@@ -514,14 +515,18 @@ export class TransactionsService {
   async getAccountBalance(accountId: string): Promise<number> {
     const supabase = await createServerClient();
 
-    // Get account initial balance
+    // Get account data (need name and type for AccountWithBalance type)
     const { data: account } = await supabase
       .from("Account")
-      .select("initialBalance")
+      .select("initialBalance, name, type")
       .eq("id", accountId)
       .single();
 
-    const initialBalance = (account?.initialBalance as number) ?? 0;
+    if (!account) {
+      throw new AppError("Account not found", 404);
+    }
+
+    const initialBalance = (account.initialBalance as number) ?? 0;
 
     // Get transactions up to today
     const now = new Date();
@@ -532,16 +537,45 @@ export class TransactionsService {
     const { decryptTransactionsBatch } = await import("@/lib/utils/transaction-encryption");
     const { calculateAccountBalances } = await import("@/lib/services/balance-calculator");
 
-    const decryptedTransactions = decryptTransactionsBatch(transactions as any);
-    const accountsWithInitialBalance = [{
+    // Decrypt transactions - decryptTransactionsBatch expects { amount: number; description?: string | null }[]
+    // The transactions from getTransactionsForBalance have { accountId, type, amount, date }
+    // We need to add description as optional to satisfy the type constraint
+    type TransactionForDecryption = {
+      accountId: string;
+      type: string;
+      amount: number;
+      date: string;
+      description?: string | null;
+    };
+    const transactionsWithDescription: TransactionForDecryption[] = transactions.map(tx => ({
+      ...tx,
+      description: null,
+    }));
+
+    const decryptedTransactions = decryptTransactionsBatch(transactionsWithDescription);
+
+    // Map to TransactionWithRelations format expected by calculateAccountBalances
+    const mappedTransactions: TransactionWithRelations[] = decryptedTransactions.map(tx => ({
+      id: '', // Not needed for balance calculation
+      date: tx.date,
+      type: tx.type as 'income' | 'expense' | 'transfer',
+      amount: tx.amount,
+      accountId: tx.accountId,
+      description: tx.description ?? null,
+    }));
+
+    // Create AccountWithBalance object with required properties
+    const accountWithBalance: AccountWithBalance = {
       id: accountId,
+      name: account.name || '',
+      type: (account.type as 'cash' | 'checking' | 'savings' | 'credit' | 'investment' | 'other') || 'other',
       initialBalance,
       balance: 0,
-    }];
+    };
 
     const balances = calculateAccountBalances(
-      accountsWithInitialBalance as any,
-      decryptedTransactions as any,
+      [accountWithBalance],
+      mappedTransactions,
       todayEnd
     );
 
@@ -627,7 +661,7 @@ export class TransactionsService {
             categoryId: tx.categoryId || null,
             subcategoryId: tx.subcategoryId || null,
             description: tx.description || null,
-            recurring: tx.isRecurring ?? tx.recurring ?? false,
+            recurring: tx.recurring ?? false,
             expenseType: tx.expenseType || null,
             rowIndex: tx.rowIndex,
             fileName: tx.fileName,
@@ -694,7 +728,7 @@ export class TransactionsService {
               categoryId: tx.categoryId || undefined,
               subcategoryId: tx.subcategoryId || undefined,
               description: tx.description || undefined,
-              recurring: tx.isRecurring ?? tx.recurring ?? false,
+              recurring: tx.recurring ?? false,
               expenseType: tx.expenseType || undefined,
             };
             
@@ -859,9 +893,9 @@ export class TransactionsService {
     type: 'income' | 'expense' | 'transfer';
     amount: number;
     description?: string;
-    account: any;
-    category: any;
-    subcategory: any;
+    account: { id: string; name: string; type?: string; balance?: number } | null;
+    category: { id: string; name: string; macroId?: string } | null;
+    subcategory: { id: string; name: string; logo?: string | null } | null;
     originalDate: Date;
     isDebtPayment: boolean;
   }>> {
@@ -895,9 +929,9 @@ export class TransactionsService {
         type: pp.type,
         amount: pp.amount,
         description: pp.description || undefined,
-        account: pp.account,
-        category: pp.category,
-        subcategory: pp.subcategory,
+        account: pp.account ? { id: pp.account.id, name: pp.account.name } : null,
+        category: pp.category ? { id: pp.category.id, name: pp.category.name } : null,
+        subcategory: pp.subcategory ? { id: pp.subcategory.id, name: pp.subcategory.name, logo: pp.subcategory.logo ?? null } : null,
         originalDate: ppDate,
         isDebtPayment: pp.source === "debt",
       };
@@ -988,6 +1022,20 @@ export class TransactionsService {
     upcoming.sort((a, b) => a.date.getTime() - b.date.getTime());
     
     return upcoming.slice(0, limit);
+  }
+
+  /**
+   * Get aggregated monthly transaction data for charts
+   * OPTIMIZED: Returns only monthly totals instead of all transactions
+   * This is much faster for chart rendering
+   */
+  async getMonthlyAggregates(
+    startDate: Date,
+    endDate: Date,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<Array<{ month: string; income: number; expenses: number }>> {
+    return await this.repository.findMonthlyAggregates(startDate, endDate, accessToken, refreshToken);
   }
 }
 

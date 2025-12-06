@@ -121,7 +121,7 @@ export function CategorySelect({
       <div>
         <label className="text-sm font-medium mb-2 block">Group</label>
         <Select value={selectedMacroId} onValueChange={handleMacroChange}>
-          <SelectTrigger>
+          <SelectTrigger size="small">
             <SelectValue placeholder="Select group" />
           </SelectTrigger>
           <SelectContent>
@@ -141,7 +141,7 @@ export function CategorySelect({
           onValueChange={handleCategoryChange}
           disabled={!selectedMacroId}
         >
-          <SelectTrigger>
+          <SelectTrigger size="small">
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
           <SelectContent>
@@ -162,7 +162,7 @@ export function CategorySelect({
             onValueChange={handleSubcategoryChange}
             disabled={!selectedCategoryId}
           >
-            <SelectTrigger>
+            <SelectTrigger size="small">
               <SelectValue placeholder="Select subcategory" />
             </SelectTrigger>
             <SelectContent>

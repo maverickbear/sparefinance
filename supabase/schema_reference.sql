@@ -1224,6 +1224,19 @@ COMMENT ON FUNCTION "public"."trigger_update_subscription_cache"() IS 'Updates s
 
 
 
+CREATE OR REPLACE FUNCTION "public"."update_federal_brackets_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_federal_brackets_updated_at"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -1250,6 +1263,19 @@ ALTER FUNCTION "public"."update_household_members_subscription_cache"("p_househo
 
 COMMENT ON FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") IS 'Updates subscription cache for all active members of a household when the household subscription changes. Uses HouseholdMember. Uses SET search_path for security.';
 
+
+
+CREATE OR REPLACE FUNCTION "public"."update_tax_rates_updated_at"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_tax_rates_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_updated_at_column"() RETURNS "trigger"
@@ -2963,6 +2989,43 @@ COMMENT ON TABLE "public"."error_codes" IS 'Standard error codes for database fu
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."federal_tax_brackets" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "country_code" "text" NOT NULL,
+    "tax_year" integer NOT NULL,
+    "bracket_order" integer NOT NULL,
+    "min_income" numeric(12,2) NOT NULL,
+    "max_income" numeric(12,2),
+    "tax_rate" numeric(6,4) NOT NULL,
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "federal_tax_brackets_country_code_check" CHECK (("country_code" = ANY (ARRAY['US'::"text", 'CA'::"text"]))),
+    CONSTRAINT "federal_tax_brackets_tax_rate_check" CHECK ((("tax_rate" >= (0)::numeric) AND ("tax_rate" <= (1)::numeric)))
+);
+
+
+ALTER TABLE "public"."federal_tax_brackets" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."tax_rates" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "country_code" "text" NOT NULL,
+    "state_or_province_code" "text" NOT NULL,
+    "tax_rate" numeric(6,4) NOT NULL,
+    "display_name" "text" NOT NULL,
+    "description" "text",
+    "is_active" boolean DEFAULT true NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "tax_rates_country_code_check" CHECK (("country_code" = ANY (ARRAY['US'::"text", 'CA'::"text"]))),
+    CONSTRAINT "tax_rates_tax_rate_check" CHECK ((("tax_rate" >= (0)::numeric) AND ("tax_rate" <= (1)::numeric)))
+);
+
+
+ALTER TABLE "public"."tax_rates" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."user_monthly_usage" (
     "user_id" "uuid" NOT NULL,
     "month_date" "date" NOT NULL,
@@ -3290,6 +3353,26 @@ ALTER TABLE ONLY "public"."category_learning"
 
 ALTER TABLE ONLY "public"."error_codes"
     ADD CONSTRAINT "error_codes_pkey" PRIMARY KEY ("code");
+
+
+
+ALTER TABLE ONLY "public"."federal_tax_brackets"
+    ADD CONSTRAINT "federal_tax_brackets_country_code_tax_year_bracket_order_key" UNIQUE ("country_code", "tax_year", "bracket_order");
+
+
+
+ALTER TABLE ONLY "public"."federal_tax_brackets"
+    ADD CONSTRAINT "federal_tax_brackets_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."tax_rates"
+    ADD CONSTRAINT "tax_rates_country_code_state_or_province_code_key" UNIQUE ("country_code", "state_or_province_code");
+
+
+
+ALTER TABLE ONLY "public"."tax_rates"
+    ADD CONSTRAINT "tax_rates_pkey" PRIMARY KEY ("id");
 
 
 
@@ -3878,6 +3961,14 @@ CREATE INDEX "idx_debt_user_updated" ON "public"."Debt" USING "btree" ("userId",
 
 
 
+CREATE INDEX "idx_federal_brackets_active" ON "public"."federal_tax_brackets" USING "btree" ("is_active") WHERE ("is_active" = true);
+
+
+
+CREATE INDEX "idx_federal_brackets_country_year" ON "public"."federal_tax_brackets" USING "btree" ("country_code", "tax_year");
+
+
+
 CREATE INDEX "idx_goal_deleted_at" ON "public"."Goal" USING "btree" ("deletedAt") WHERE ("deletedAt" IS NULL);
 
 
@@ -3966,6 +4057,14 @@ CREATE INDEX "idx_subscription_service_plan_service_id" ON "public"."Subscriptio
 
 
 
+CREATE INDEX "idx_tax_rates_active" ON "public"."tax_rates" USING "btree" ("is_active") WHERE ("is_active" = true);
+
+
+
+CREATE INDEX "idx_tax_rates_country_state" ON "public"."tax_rates" USING "btree" ("country_code", "state_or_province_code");
+
+
+
 CREATE INDEX "idx_transaction_account_date" ON "public"."Transaction" USING "btree" ("accountId", "date" DESC) WHERE ("deletedAt" IS NULL);
 
 
@@ -4050,11 +4149,19 @@ CREATE OR REPLACE TRIGGER "audit_user_changes" AFTER DELETE OR UPDATE ON "public
 
 
 
+CREATE OR REPLACE TRIGGER "federal_brackets_updated_at_trigger" BEFORE UPDATE ON "public"."federal_tax_brackets" FOR EACH ROW EXECUTE FUNCTION "public"."update_federal_brackets_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "prevent_emergency_fund_deletion_trigger" BEFORE DELETE ON "public"."Goal" FOR EACH ROW EXECUTE FUNCTION "public"."prevent_emergency_fund_deletion"();
 
 
 
 CREATE OR REPLACE TRIGGER "subscription_cache_update_trigger" AFTER INSERT OR UPDATE OF "userId", "planId", "status" ON "public"."Subscription" FOR EACH ROW EXECUTE FUNCTION "public"."trigger_update_subscription_cache"();
+
+
+
+CREATE OR REPLACE TRIGGER "tax_rates_updated_at_trigger" BEFORE UPDATE ON "public"."tax_rates" FOR EACH ROW EXECUTE FUNCTION "public"."update_tax_rates_updated_at"();
 
 
 
@@ -5475,6 +5582,64 @@ ALTER TABLE "public"."audit_log" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."category_learning" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "federal_brackets_delete_policy" ON "public"."federal_tax_brackets" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "federal_brackets_insert_policy" ON "public"."federal_tax_brackets" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "federal_brackets_select_policy" ON "public"."federal_tax_brackets" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "federal_brackets_update_policy" ON "public"."federal_tax_brackets" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+ALTER TABLE "public"."federal_tax_brackets" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."tax_rates" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "tax_rates_delete_policy" ON "public"."tax_rates" FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "tax_rates_insert_policy" ON "public"."tax_rates" FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "tax_rates_select_policy" ON "public"."tax_rates" FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
+CREATE POLICY "tax_rates_update_policy" ON "public"."tax_rates" FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."User"
+  WHERE (("User"."id" = "auth"."uid"()) AND ("User"."role" = 'super_admin'::"text")))));
+
+
+
 ALTER TABLE "public"."user_monthly_usage" ENABLE ROW LEVEL SECURITY;
 
 
@@ -5653,9 +5818,21 @@ GRANT ALL ON FUNCTION "public"."trigger_update_subscription_cache"() TO "service
 
 
 
+GRANT ALL ON FUNCTION "public"."update_federal_brackets_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_federal_brackets_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_federal_brackets_updated_at"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") TO "anon";
 GRANT ALL ON FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_household_members_subscription_cache"("p_household_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."update_tax_rates_updated_at"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_tax_rates_updated_at"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_tax_rates_updated_at"() TO "service_role";
 
 
 
@@ -5902,6 +6079,16 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."category_learning" TO "auth
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."error_codes" TO "authenticated";
 GRANT ALL ON TABLE "public"."error_codes" TO "service_role";
+
+
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."federal_tax_brackets" TO "authenticated";
+GRANT ALL ON TABLE "public"."federal_tax_brackets" TO "service_role";
+
+
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."tax_rates" TO "authenticated";
+GRANT ALL ON TABLE "public"."tax_rates" TO "service_role";
 
 
 

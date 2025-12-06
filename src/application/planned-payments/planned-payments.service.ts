@@ -31,9 +31,10 @@ export class PlannedPaymentsService {
       startDate?: Date;
       endDate?: Date;
       status?: "scheduled" | "paid" | "skipped" | "cancelled";
-      source?: "recurring" | "debt" | "manual" | "subscription";
+      source?: "recurring" | "debt" | "manual" | "subscription" | "goal";
       debtId?: string;
       subscriptionId?: string;
+      goalId?: string;
       accountId?: string;
       type?: "expense" | "income" | "transfer";
       limit?: number;
@@ -44,12 +45,32 @@ export class PlannedPaymentsService {
   ): Promise<{ plannedPayments: BasePlannedPayment[]; total: number }> {
     const userId = await getCurrentUserId();
     if (!userId) {
+      logger.warn("[PlannedPaymentsService] No userId found");
       return { plannedPayments: [], total: 0 };
     }
 
+    logger.info("[PlannedPaymentsService] Getting planned payments:", {
+      userId,
+      filters: {
+        startDate: filters?.startDate?.toISOString(),
+        endDate: filters?.endDate?.toISOString(),
+        status: filters?.status,
+        type: filters?.type,
+        source: filters?.source,
+        page: filters?.page,
+        limit: filters?.limit,
+      },
+    });
+
     const { data, count } = await this.repository.findAll(userId, filters, accessToken, refreshToken);
 
+    logger.info("[PlannedPaymentsService] Repository returned:", {
+      dataCount: data?.length || 0,
+      totalCount: count,
+    });
+
     if (!data || data.length === 0) {
+      logger.info("[PlannedPaymentsService] No planned payments found");
       return { plannedPayments: [], total: count || 0 };
     }
 
@@ -132,6 +153,7 @@ export class PlannedPaymentsService {
       linkedTransactionId: null,
       debtId: data.debtId || null,
       subscriptionId: data.subscriptionId || null,
+      goalId: data.goalId || null,
       userId,
       householdId,
     });

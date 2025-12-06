@@ -9,6 +9,14 @@ const inputVariants = cva(
   {
     variants: {
       size: {
+        tiny: cn(
+          componentSizes.input.tiny.height,
+          componentSizes.input.tiny.paddingX,
+          componentSizes.input.tiny.paddingY,
+          componentSizes.input.tiny.text,
+          componentSizes.input.tiny.rounded,
+          "file:text-xs"
+        ),
         small: cn(
           componentSizes.input.small.height,
           componentSizes.input.small.paddingX,

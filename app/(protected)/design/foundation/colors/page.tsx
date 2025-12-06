@@ -2,10 +2,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-// Tokens import removed - spareds directory no longer exists
-// TODO: Update this page to use alternative token source if needed
-const tokens: any = {};
-const defaultValuesTokens: any = {};
+import { colors, hexToRgb } from '@/lib/design-system/colors';
 
 type ColorEntry = {
   name: string;
@@ -18,127 +15,70 @@ type ColorEntry = {
 
 function extractColorsFromObject(
   obj: any,
-  defaultValues: any,
   prefix: string = '',
   tokenPath: string = ''
 ): ColorEntry[] {
-  const colors: ColorEntry[] = [];
+  const colorEntries: ColorEntry[] = [];
 
   if (!obj || typeof obj !== 'object') {
-    return colors;
+    return colorEntries;
   }
 
-  // Handle objects with 'properties' key (JSON Schema format)
-  const target = obj.properties || obj;
-
-  for (const [key, val] of Object.entries(target)) {
+  for (const [key, val] of Object.entries(obj)) {
     const fullName = prefix ? `${prefix}.${key}` : key;
     const fullTokenPath = tokenPath ? `${tokenPath}.${key}` : key;
 
-    if (val && typeof val === 'object' && 'value' in val) {
-      // This is a color entry
-      const colorValue = (val as any).value;
-      const resolvedValue = resolveTokenReference(colorValue, defaultValues);
+    if (typeof val === 'string' && val.startsWith('#')) {
+      // This is a color value
+      const rgbResult = hexToRgb(val);
+      const rgbValue = rgbResult ? `${rgbResult.r} / ${rgbResult.g} / ${rgbResult.b}` : null;
+      const hasAlpha = val.length === 9;
       
-      // Try to get RGB/RGBA from default values if not present
-      let rgb = (val as any).rgb;
-      let rgba = (val as any).rgba;
-      
-      if (!rgb && !rgba) {
-        // Try to find in default values
-        const defaultPath = fullTokenPath.split('.').slice(1); // Remove 'default-values' prefix
-        let current: any = defaultValues;
-        for (const pathKey of defaultPath) {
-          if (current && typeof current === 'object') {
-            if ('properties' in current && pathKey in current.properties) {
-              current = current.properties[pathKey];
-            } else if (pathKey in current) {
-              current = current[pathKey];
-            } else {
-              current = null;
-              break;
-            }
-          } else {
-            current = null;
-            break;
-          }
-        }
-        if (current && typeof current === 'object') {
-          rgb = current.rgb;
-          rgba = current.rgba;
-        }
-      }
-      
-      colors.push({
+      colorEntries.push({
         name: fullName,
-        value: resolvedValue,
-        description: (val as any).description,
+        value: val,
+        description: getColorDescription(fullName),
         tokenPath: fullTokenPath,
-        rgb,
-        rgba,
+        rgb: rgbValue || undefined,
+        rgba: hasAlpha && rgbValue ? `${rgbValue} / ${(parseInt(val.slice(7, 9), 16) / 255).toFixed(2)}` : undefined,
       });
     } else if (val && typeof val === 'object') {
       // Recursively extract from nested objects
-      colors.push(
-        ...extractColorsFromObject(val, defaultValues, fullName, fullTokenPath)
+      colorEntries.push(
+        ...extractColorsFromObject(val, fullName, fullTokenPath)
       );
     }
   }
 
-  return colors;
+  return colorEntries;
 }
 
-function resolveTokenReference(value: string, defaultValues: any): string {
-  // Handle references like {content.primary}
-  if (typeof value === 'string' && value.startsWith('{') && value.endsWith('}')) {
-    const path = value.slice(1, -1).split('.');
-    let current: any = defaultValues;
-
-    // Navigate through the path
-    for (const key of path) {
-      if (current && typeof current === 'object') {
-        // Check if it's a JSON Schema format with 'properties'
-        if ('properties' in current && key in current.properties) {
-          current = current.properties[key];
-        } else if (key in current) {
-          current = current[key];
-        } else {
-          return value; // Path not found, return original
-        }
-      } else {
-        return value; // Path not found, return original
-      }
-    }
-
-    // If we found a value, extract it
-    if (current && typeof current === 'object' && 'value' in current) {
-      return current.value;
-    }
-    if (typeof current === 'string') {
-      return current;
-    }
-    return value;
-  }
-  return value;
-}
-
-function hexToRgb(hex: string): string | null {
-  // Handle hex with alpha (8 digits)
-  if (hex.length === 9) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const a = (parseInt(hex.slice(7, 9), 16) / 255).toFixed(2);
-    return `${r} / ${g} / ${b} / ${a}`;
-  }
-  // Handle regular hex (6 digits)
-  if (hex.length === 7) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `${r} / ${g} / ${b}`;
-  }
-  return null;
+function getColorDescription(colorPath: string): string {
+  const descriptions: Record<string, string> = {
+    'content.primary': 'Use to emphasise primary content in relation to other elements nearby',
+    'content.secondary': 'Use for most body text, and in supportive elements that give context to content that\'s close to it',
+    'content.tertiary': 'Use in form inputs for placeholders, and for the label that says a field is \'Optional\'. Avoid using elsewhere',
+    'content.link': 'Use for links and for external link icons that appear in line with link text',
+    'interactive.primary': 'For neutral interactive elements or emphasising active items in a list',
+    'interactive.accent': 'For sparing use as an accent colour in interactive elements, such as primary button backgrounds',
+    'interactive.secondary': 'For de-emphasised interactivity, like borders on inputs and checkboxes, and clear buttons on search inputs. Do not use on text',
+    'interactive.control': 'For text and icons on a Bright Green Interactive Accent surface, ensuring visibility in dark mode, and also for surfaces if needed',
+    'interactive.contrast': 'For text and icons on a Forest Green Interactive Primary surface, ensuring visibility in dark mode',
+    'background.screen': 'The lowest level background used in most screens',
+    'background.elevated': 'Use for elevated surfaces that partially show the content behind it, like bottom sheets and sidebars',
+    'background.neutral': 'Use for delineating areas without using borders, like neutral alerts and avatars',
+    'background.overlay': 'Use for faintly darkening an area, for example on loading shimmers',
+    'border.neutral': 'Use in most separators, for example in the section header and tabs components',
+    'border.overlay': 'Use on the edges of images to differentiate them from the background, such as flags in avatars',
+    'base.contrast': 'Use for copy on negative buttons. Turns dark on dark mode to keep elements visible',
+    'base.light': 'Use in informational or interactive elements where white is needed, or where other colours would be too prominent in the hierarchy',
+    'base.dark': 'Use in informational or interactive elements where a dark colour is needed',
+    'sentiment.negative': 'Indicates negative sentiment, for example on error states or destructive actions. Can be used as text or as a background',
+    'sentiment.positive': 'Indicates positive sentiment, for example in positive alerts. Can be used as text or as a background',
+    'sentiment.warning': 'Indicates warning sentiment, for example on alerts. Should only be used as a background colour and is not accessible as text',
+  };
+  
+  return descriptions[colorPath] || '';
 }
 
 function ColorSwatch({ name, value, description, tokenPath, rgb, rgba }: ColorEntry) {
@@ -147,7 +87,19 @@ function ColorSwatch({ name, value, description, tokenPath, rgb, rgba }: ColorEn
   
   let bgColor = value;
   let displayValue = value;
-  let rgbValue = rgb || rgba || hexToRgb(value);
+  let rgbValue = rgb || rgba;
+  
+  // If no RGB value provided, calculate it from hex
+  if (!rgbValue && isHex) {
+    const rgbResult = hexToRgb(value);
+    if (rgbResult) {
+      rgbValue = `${rgbResult.r} / ${rgbResult.g} / ${rgbResult.b}`;
+      if (hasAlpha) {
+        const alpha = (parseInt(value.slice(7, 9), 16) / 255).toFixed(2);
+        rgbValue = `${rgbValue} / ${alpha}`;
+      }
+    }
+  }
 
   // Determine text color for contrast
   const getContrastColor = (hex: string): string => {
@@ -239,29 +191,16 @@ function ColorCategory({
 }
 
 export default function ColorsPage() {
-  // Extract colors from default values (Level 1)
-  const defaultColors = extractColorsFromObject(
-    defaultValuesTokens,
-    defaultValuesTokens,
-    '',
-    'default-values'
-  );
-
-  // Extract semantic colors (Level 2)
-  const semanticColors = extractColorsFromObject(
-    tokens.semantic,
-    defaultValuesTokens,
-    '',
-    'semantic'
-  );
+  // Extract colors from the colors object
+  const allColors = extractColorsFromObject(colors, '', 'colors');
 
   // Organize colors by category
-  const contentColors = defaultColors.filter((c) => c.name.startsWith('content'));
-  const interactiveColors = defaultColors.filter((c) => c.name.startsWith('interactive'));
-  const backgroundColors = defaultColors.filter((c) => c.name.startsWith('background'));
-  const borderColors = defaultColors.filter((c) => c.name.startsWith('border'));
-  const baseColors = defaultColors.filter((c) => c.name.startsWith('base'));
-  const sentimentColors = defaultColors.filter((c) => c.name.startsWith('sentiment'));
+  const contentColors = allColors.filter((c) => c.name.startsWith('content'));
+  const interactiveColors = allColors.filter((c) => c.name.startsWith('interactive'));
+  const backgroundColors = allColors.filter((c) => c.name.startsWith('background'));
+  const borderColors = allColors.filter((c) => c.name.startsWith('border'));
+  const baseColors = allColors.filter((c) => c.name.startsWith('base'));
+  const sentimentColors = allColors.filter((c) => c.name.startsWith('sentiment'));
 
   return (
     <div className="p-4 lg:p-8">

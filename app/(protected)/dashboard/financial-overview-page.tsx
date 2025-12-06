@@ -112,6 +112,7 @@ interface FinancialOverviewPageProps {
   debts: any[];
   recurringPayments: any[];
   subscriptions: any[];
+  plannedPayments: any[];
   selectedMonthDate: Date;
   expectedIncomeRange?: string | null;
 }
@@ -132,6 +133,7 @@ export function FinancialOverviewPage({
   debts: initialDebts,
   recurringPayments: initialRecurringPayments,
   subscriptions: initialSubscriptions,
+  plannedPayments: initialPlannedPayments,
   selectedMonthDate,
   expectedIncomeRange: initialExpectedIncomeRange,
 }: FinancialOverviewPageProps) {
@@ -161,6 +163,7 @@ export function FinancialOverviewPage({
   const [debts, setDebts] = useState(initialDebts);
   const [recurringPayments, setRecurringPayments] = useState(initialRecurringPayments);
   const [subscriptions, setSubscriptions] = useState(initialSubscriptions);
+  const [plannedPayments, setPlannedPayments] = useState(initialPlannedPayments);
   const [expectedIncomeRange, setExpectedIncomeRange] = useState(initialExpectedIncomeRange);
 
   // Update local state when props change (e.g., when range changes)
@@ -180,6 +183,7 @@ export function FinancialOverviewPage({
     setDebts(initialDebts);
     setRecurringPayments(initialRecurringPayments);
     setSubscriptions(initialSubscriptions);
+    setPlannedPayments(initialPlannedPayments);
     setExpectedIncomeRange(initialExpectedIncomeRange);
   }, [
     initialSelectedMonthTransactions,
@@ -197,6 +201,7 @@ export function FinancialOverviewPage({
     initialDebts,
     initialRecurringPayments,
     initialSubscriptions,
+    initialPlannedPayments,
     initialExpectedIncomeRange,
   ]);
 
@@ -394,6 +399,7 @@ export function FinancialOverviewPage({
       setDebts(data.debts || []);
       setRecurringPayments(data.recurringPayments || []);
       setSubscriptions(data.subscriptions || []);
+      setPlannedPayments(data.plannedPayments || []);
       setExpectedIncomeRange(data.expectedIncomeRange || null);
       
       setLastUpdated(new Date());
@@ -682,6 +688,7 @@ export function FinancialOverviewPage({
         expectedIncomeRange={expectedIncomeRange}
         recurringPayments={filteredRecurringPayments}
         subscriptions={filteredSubscriptions}
+        plannedPayments={plannedPayments}
         goals={filteredGoals}
         debts={filteredDebts}
       />

@@ -56,7 +56,7 @@ export class TransactionsRepository {
 
     let query = supabase
       .from("Transaction")
-      .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, isRecurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, plaidMetadata, expenseType, userId, householdId, receiptUrl")
+      .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, isRecurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, expenseType, userId, householdId, receiptUrl")
       .order("date", { ascending: false });
 
     // Apply filters
@@ -680,6 +680,98 @@ export class TransactionsRepository {
       suggestedCategoryId: null,
       suggestedSubcategoryId: null,
     });
+  }
+
+  /**
+   * Get aggregated monthly transaction data for charts
+   * Returns income and expenses grouped by month - much faster than loading all transactions
+   */
+  async findMonthlyAggregates(
+    startDate: Date,
+    endDate: Date,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<Array<{ month: string; income: number; expenses: number }>> {
+    const supabase = await createServerClient(accessToken, refreshToken);
+    const userId = await this.getCurrentUserId(accessToken, refreshToken);
+    
+    if (!userId) {
+      return [];
+    }
+
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    // Use query-based aggregation (fallback if RPC doesn't exist)
+    return await this.aggregateMonthlyDataWithQuery(supabase, userId, startDateStr, endDateStr);
+  }
+
+  /**
+   * Aggregate monthly data using Supabase query
+   * This loads transactions and aggregates them in memory (less efficient but works)
+   */
+  private async aggregateMonthlyDataWithQuery(
+    supabase: any,
+    userId: string,
+    startDateStr: string,
+    endDateStr: string
+  ): Promise<Array<{ month: string; income: number; expenses: number }>> {
+    // Load transactions for the date range (only date, amount, type - minimal data)
+    const { data: transactions, error } = await supabase
+      .from("Transaction")
+      .select("date, amount, type")
+      .eq("userId", userId)
+      .gte("date", startDateStr)
+      .lte("date", endDateStr)
+      .neq("type", "transfer") // Exclude transfers
+      .order("date", { ascending: true });
+
+    if (error) {
+      logger.error("[TransactionsRepository] Error loading transactions for aggregation:", error);
+      return [];
+    }
+
+    if (!transactions || transactions.length === 0) {
+      return [];
+    }
+
+    // Group by month and calculate totals
+    const monthlyMap = new Map<string, { income: number; expenses: number }>();
+
+    transactions.forEach((tx: any) => {
+      const date = new Date(tx.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (!monthlyMap.has(monthKey)) {
+        monthlyMap.set(monthKey, { income: 0, expenses: 0 });
+      }
+
+      const monthData = monthlyMap.get(monthKey)!;
+      const amount = Number(tx.amount || 0);
+
+      if (tx.type === 'income' && amount > 0) {
+        monthData.income += amount;
+      } else if (tx.type === 'expense' && amount < 0) {
+        monthData.expenses += Math.abs(amount); // Make positive
+      }
+    });
+
+    // Convert to array format
+    return Array.from(monthlyMap.entries()).map(([month, data]) => ({
+      month,
+      income: data.income,
+      expenses: data.expenses,
+    }));
+  }
+
+  private async getCurrentUserId(accessToken?: string, refreshToken?: string): Promise<string | null> {
+    try {
+      const { getCurrentUserId } = await import("@/src/application/shared/feature-guard");
+      return await getCurrentUserId();
+    } catch (error) {
+      logger.error("[TransactionsRepository] Error getting current user ID:", error);
+      return null;
+    }
   }
 }
 

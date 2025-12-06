@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
 import { SubcategoryFormData } from "@/src/domain/categories/categories.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -26,6 +27,10 @@ export async function PATCH(
       name, 
       logo: logo !== undefined ? logo : undefined 
     });
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json(subcategory, { status: 200 });
   } catch (error) {
@@ -55,6 +60,10 @@ export async function DELETE(
     
     const service = makeCategoriesService();
     await service.deleteSubcategory(id);
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

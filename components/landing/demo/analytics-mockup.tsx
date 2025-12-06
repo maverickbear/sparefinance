@@ -53,7 +53,7 @@ export function AnalyticsMockup() {
           </div>
         </div>
 
-        <Button variant="outline" size="small" className="w-full mt-4 text-xs">
+        <Button variant="outline" size="small" className="w-full mt-4">
           View all activity →
         </Button>
       </div>

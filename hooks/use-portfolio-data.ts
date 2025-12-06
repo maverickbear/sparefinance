@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import type { HistoricalDataPoint, PortfolioSummary } from "@/lib/api/portfolio";
+import type { BaseHistoricalDataPoint as HistoricalDataPoint, BasePortfolioSummary as PortfolioSummary } from "@/src/domain/portfolio/portfolio.types";
+import { useAuthSafe } from "@/contexts/auth-context";
 
 interface PortfolioData {
   summary: PortfolioSummary | null;
@@ -22,7 +23,7 @@ const portfolioDataCache = new Map<string, {
   promise?: Promise<PortfolioData>;
 }>();
 
-const CACHE_TTL = 5000; // 5 seconds cache
+const CACHE_TTL = 30 * 1000; // 30 seconds cache (increased from 5s for better performance)
 const REQUEST_DEDUP_WINDOW = 2000; // 2 seconds deduplication window
 
 function cleanCache() {
@@ -36,6 +37,7 @@ function cleanCache() {
 
 export function usePortfolioData(options: UsePortfolioDataOptions = {}) {
   const { days = 30, enabled = true } = options;
+  const { isAuthenticated } = useAuthSafe(); // Use Context instead of fetch
   const [data, setData] = useState<PortfolioData>({
     summary: null,
     holdings: [],
@@ -88,15 +90,8 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}) {
         setIsLoading(true);
         setError(null);
 
-        // Check if user is authenticated
-        const response = await fetch("/api/v2/user");
-        if (!response.ok) {
-          setIsLoading(false);
-          return;
-        }
-        
-        const { user } = await response.json();
-        if (!user) {
+        // Check if user is authenticated using Context
+        if (!isAuthenticated) {
           setIsLoading(false);
           return;
         }
@@ -212,7 +207,7 @@ export function usePortfolioData(options: UsePortfolioDataOptions = {}) {
         abortControllerRef.current.abort();
       }
     };
-  }, [days, enabled]);
+  }, [days, enabled, isAuthenticated]);
 
   return { data, isLoading, error };
 }

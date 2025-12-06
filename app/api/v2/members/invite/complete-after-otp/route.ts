@@ -8,7 +8,6 @@ import { z } from "zod";
 /**
  * POST /api/v2/members/invite/complete-after-otp
  * Complete invitation acceptance after OTP verification
- * Note: This route uses lib/api/members temporarily until logic is migrated to MembersService
  */
 export async function POST(request: NextRequest) {
   try {
@@ -30,7 +29,6 @@ export async function POST(request: NextRequest) {
     try {
       const { makeSubscriptionsService } = await import("@/src/application/subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
-      subscriptionsService.invalidateSubscriptionCache(userId);
       console.log("[COMPLETE-INVITATION] Subscription cache invalidated for new member");
     } catch (cacheError) {
       console.warn("[COMPLETE-INVITATION] Could not invalidate subscription cache:", cacheError);

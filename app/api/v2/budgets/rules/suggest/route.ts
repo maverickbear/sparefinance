@@ -54,9 +54,6 @@ export async function GET(request: NextRequest) {
     const suggestion = service.suggestRule(monthlyIncome, cityCost || undefined);
 
     return NextResponse.json(suggestion, {
-      headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
-      },
     });
   } catch (error) {
     console.error("Error suggesting budget rule:", error);

@@ -18,9 +18,6 @@ export async function GET(request: NextRequest) {
     const status = await service.getOnboardingStatus(userId);
 
     return NextResponse.json(status, {
-      headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-      },
     });
   } catch (error) {
     console.error("Error checking onboarding status:", error);

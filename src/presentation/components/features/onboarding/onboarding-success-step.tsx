@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2 } from "lucide-react";
+import { useSubscriptionContext } from "@/contexts/subscription-context";
 
 interface OnboardingSuccessStepProps {
   onGoToDashboard: () => void;
@@ -15,30 +16,26 @@ export function OnboardingSuccessStep({
   onGoToDashboard,
   onGoToBilling,
 }: OnboardingSuccessStepProps) {
+  const { subscription, checking, refetch } = useSubscriptionContext();
   const [loading, setLoading] = useState(true);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<"active" | "trialing" | "cancelled" | "past_due" | null>(null);
   const [trialEndDate, setTrialEndDate] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSubscriptionData();
-  }, []);
-
-  async function fetchSubscriptionData() {
-    try {
-      const response = await fetch("/api/v2/user");
-      if (response.ok) {
-        const userData = await response.json();
-        if (userData.subscription) {
-          setSubscriptionStatus(userData.subscription.status);
-          setTrialEndDate(userData.subscription.trialEndDate || null);
-        }
-      }
-    } catch (error) {
-      console.error("[OnboardingSuccessStep] Error fetching subscription data:", error);
-    } finally {
+    // Refetch subscription to ensure we have latest data
+    refetch().finally(() => {
       setLoading(false);
+    });
+  }, [refetch]);
+
+  useEffect(() => {
+    // Extract trial end date from subscription if available
+    if (subscription?.trialEndDate) {
+      setTrialEndDate(subscription.trialEndDate);
     }
-  }
+  }, [subscription]);
+
+  const subscriptionStatus = subscription?.status as "active" | "trialing" | "cancelled" | "past_due" | null;
+  const isLoading = loading || checking;
 
   return (
     <div className="flex flex-col items-center justify-center py-8 px-4">
@@ -49,7 +46,7 @@ export function OnboardingSuccessStep({
       </div>
 
       <h2 className="text-2xl font-semibold mb-2 text-center">
-        {loading
+        {isLoading
           ? "Confirming your subscription..."
           : subscriptionStatus === "trialing"
             ? "Trial Started Successfully!"
@@ -57,14 +54,14 @@ export function OnboardingSuccessStep({
       </h2>
 
       <p className="text-muted-foreground text-center mb-6">
-        {loading
+        {isLoading
           ? "Please wait while we confirm your subscription."
           : subscriptionStatus === "trialing"
             ? "Your 30-day trial has started. Start exploring all pro features!"
             : "Thank you for subscribing. Your account has been upgraded."}
       </p>
 
-      {!loading && (
+      {!isLoading && (
         <Card className="border-0 shadow-none w-full max-w-md">
           <CardContent className="space-y-6 pt-0">
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">

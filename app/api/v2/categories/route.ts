@@ -3,6 +3,8 @@ import { makeCategoriesService } from "@/src/application/categories/categories.f
 import { CategoryFormData } from "@/src/domain/categories/categories.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,50 +16,52 @@ export async function GET(request: NextRequest) {
 
     const service = makeCategoriesService();
 
+    const cacheHeaders = getCacheHeaders('static');
+
     // If "consolidated" parameter is present, return both groups and categories
     if (consolidated === "true" || consolidated === "") {
       const [groups, categories] = await Promise.all([
         service.getGroups(),
         service.getAllCategories(),
       ]);
-      return NextResponse.json({ groups, categories }, {
+      return NextResponse.json({ groups, categories }, { 
         status: 200,
-        headers: {
-          'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-        },
+        headers: cacheHeaders,
       });
     }
 
     // If "all" parameter is present, return all categories
     if (all === "true" || all === "") {
       const categories = await service.getAllCategories();
-      return NextResponse.json(categories, {
+      return NextResponse.json(categories, { 
         status: 200,
-        headers: {
-          'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-        },
+        headers: cacheHeaders,
       });
     }
 
     // If categoryId is provided, return subcategories
     if (categoryId) {
       const subcategories = await service.getSubcategoriesByCategory(categoryId);
-      return NextResponse.json(subcategories, { status: 200 });
+      return NextResponse.json(subcategories, { 
+        status: 200,
+        headers: cacheHeaders,
+      });
     }
 
     // If macroId is provided, return categories for that group
     if (macroId) {
       const categories = await service.getCategoriesByGroup(macroId);
-      return NextResponse.json(categories, { status: 200 });
+      return NextResponse.json(categories, { 
+        status: 200,
+        headers: cacheHeaders,
+      });
     }
 
     // Default: return groups
     const groups = await service.getGroups();
-    return NextResponse.json(groups, {
+    return NextResponse.json(groups, { 
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-      },
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching categories:", error);
@@ -106,6 +110,10 @@ export async function POST(request: NextRequest) {
       groupId: finalGroupId, 
       macroId: macroId || undefined 
     });
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json(category, { status: 201 });
   } catch (error) {

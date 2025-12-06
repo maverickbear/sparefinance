@@ -193,7 +193,8 @@ function ResetPasswordFormContent() {
               {...form.register("password")}
               placeholder="Enter your new password"
               disabled={loading}
-              className="pl-10 pr-10 h-11"
+              size="small"
+              className="pl-10 pr-10"
               required
             />
             <button
@@ -229,7 +230,8 @@ function ResetPasswordFormContent() {
               {...form.register("confirmPassword")}
               placeholder="Confirm your new password"
               disabled={loading}
-              className="pl-10 pr-10 h-11"
+              size="small"
+              className="pl-10 pr-10"
               required
             />
             <button
@@ -255,7 +257,8 @@ function ResetPasswordFormContent() {
 
         <Button 
           type="submit" 
-          className="w-full h-11 text-base font-medium" 
+          size="small"
+          className="w-full text-base font-medium" 
           disabled={loading}
         >
           {loading ? (

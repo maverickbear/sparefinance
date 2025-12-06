@@ -183,13 +183,14 @@ function AIChatContent() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask a question about your finances..."
+            size="small"
             className="min-h-[60px] max-h-[200px] resize-none"
             disabled={isLoading}
           />
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            size="medium"
+            size="small"
             className="h-[60px] px-4"
           >
             {isLoading ? (

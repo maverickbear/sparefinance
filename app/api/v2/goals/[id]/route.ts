@@ -4,6 +4,7 @@ import { GoalFormData } from "@/src/domain/goals/goals.validations";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(
   request: NextRequest,
@@ -53,8 +54,17 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeGoalsService();
     const goal = await service.updateGoal(id, body);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(goal, { status: 200 });
   } catch (error) {
@@ -91,8 +101,17 @@ export async function DELETE(
   try {
     const { id } = await params;
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeGoalsService();
     await service.deleteGoal(id);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

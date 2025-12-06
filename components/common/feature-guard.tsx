@@ -1,11 +1,12 @@
 "use client";
 
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
 import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BlockedFeature } from "./blocked-feature";
 import { PageHeader } from "./page-header";
+import { useAuthSafe } from "@/contexts/auth-context";
 
 interface FeatureGuardProps {
   feature: keyof PlanFeatures;
@@ -17,6 +18,12 @@ interface FeatureGuardProps {
   headerTitle?: string;
 }
 
+/**
+ * FeatureGuard
+ * 
+ * Uses AuthContext and SubscriptionContext for user data (single source of truth)
+ * No longer makes direct API calls - all data comes from Context
+ */
 export function FeatureGuard({
   feature,
   children,
@@ -27,61 +34,15 @@ export function FeatureGuard({
   headerTitle,
 }: FeatureGuardProps) {
   const { limits, checking: loading, plan } = useSubscription();
-  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
-  const [checkingSuperAdmin, setCheckingSuperAdmin] = useState(true);
+  const { role, checking: checkingAuth } = useAuthSafe(); // Use Context instead of fetch
+  
+  // Derive isSuperAdmin from Context role
+  const isSuperAdmin = role === "super_admin";
+  const checkingSuperAdmin = checkingAuth;
 
-  // OPTIMIZATION: Check super_admin in background using fast endpoint, don't block render
-  // Start with optimistic assumption that user is not super_admin
-  useEffect(() => {
-    let cancelled = false;
-    
-    async function checkSuperAdmin() {
-      try {
-        // OPTIMIZATION: Use fast endpoint that only returns userRole, not all members
-        const response = await fetch("/api/v2/user/role");
-        if (cancelled) return;
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch user role");
-        }
-        const { userRole } = await response.json();
-        if (cancelled) return;
-        
-        const isSuperAdmin = userRole === "super_admin";
-        setIsSuperAdmin(isSuperAdmin);
-        
-        // Cache the result
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('isSuperAdmin', String(isSuperAdmin));
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error("Error checking super_admin status:", error);
-        setIsSuperAdmin(false);
-      } finally {
-        if (!cancelled) {
-          setCheckingSuperAdmin(false);
-        }
-      }
-    }
-    
-    // Only check if we haven't cached it yet
-    const cachedSuperAdmin = sessionStorage.getItem('isSuperAdmin');
-    if (cachedSuperAdmin !== null) {
-      setIsSuperAdmin(cachedSuperAdmin === 'true');
-      setCheckingSuperAdmin(false);
-    } else {
-      checkSuperAdmin();
-    }
-    
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // OPTIMIZATION: Don't block render while checking super_admin
-  // Show content optimistically, super_admin check happens in background
-  if (loading) {
+  // OPTIMIZATION: Don't block render while checking
+  // Show content optimistically, checks happen in background
+  if (loading || checkingSuperAdmin) {
     return (
       <div className="space-y-4 md:space-y-6">
         <Skeleton className="h-32 w-full" />
@@ -90,12 +51,7 @@ export function FeatureGuard({
   }
 
   // super_admin has access to all features
-  // If we're still checking, assume not super_admin (will update if it is)
-  if (isSuperAdmin === true) {
-    // Cache the result
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('isSuperAdmin', 'true');
-    }
+  if (isSuperAdmin) {
     return <>{children}</>;
   }
 

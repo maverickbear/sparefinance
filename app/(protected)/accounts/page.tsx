@@ -8,7 +8,6 @@ import { AccountForm } from "@/components/forms/account-form";
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
-import { ConnectBankButton } from "@/components/banking/connect-bank-button";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
@@ -468,21 +467,16 @@ export default function AccountsPage() {
         >
         <div className="flex gap-2">
           {accounts.length > 0 && (
-            <ConnectBankButton
+            <AddAccountSheet
+              open={false}
+              onOpenChange={() => {}}
               onSuccess={() => {
-                loadAccounts(true); // Force refresh to bypass cache
-                toast({
-                  title: 'Bank account connected',
-                  description: 'Your bank account has been connected successfully.',
-                  variant: 'success',
-                });
+                loadAccounts(true);
               }}
-              variant="outline"
             />
           )}
           {accounts.length > 0 && canWrite && (
             <Button
-              size="medium"
               onClick={handleAddAccount}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -562,18 +556,8 @@ export default function AccountsPage() {
                           Connect your bank account or create a manual account to get started tracking your finances.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                      <ConnectBankButton
-                        onSuccess={() => {
-                          loadAccounts(true); // Force refresh to bypass cache
-                          toast({
-                            title: 'Bank account connected',
-                            description: 'Your bank account has been connected successfully.',
-                            variant: 'success',
-                          });
-                        }}
-                      />
                           {canWrite && (
-                            <Button onClick={handleAddAccount} size="large" variant="outline">
+                            <Button onClick={handleAddAccount} size="small" variant="outline">
                               <Plus className="mr-2 h-4 w-4" />
                               Add Account
                             </Button>
@@ -826,18 +810,8 @@ export default function AccountsPage() {
                       Connect your bank account or create a manual account to get started tracking your finances.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                      <ConnectBankButton
-                        onSuccess={() => {
-                          loadAccounts(true); // Force refresh to bypass cache
-                          toast({
-                            title: 'Bank account connected',
-                            description: 'Your bank account has been connected successfully.',
-                            variant: 'success',
-                          });
-                        }}
-                      />
                       {canWrite && (
-                        <Button onClick={handleAddAccount} size="large" variant="outline">
+                        <Button onClick={handleAddAccount} size="small" variant="outline">
                           <Plus className="mr-2 h-4 w-4" />
                           Add Account
                         </Button>

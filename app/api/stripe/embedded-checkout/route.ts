@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createEmbeddedCheckoutSession } from "@/lib/api/stripe";
+import { makeStripeService } from "@/src/application/stripe/stripe.factory";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 
 export async function POST(request: NextRequest) {
@@ -26,12 +26,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Create subscription (trial)
-    const { success, subscriptionId, error } = await createEmbeddedCheckoutSession(
+    const stripeService = makeStripeService();
+    const result = await stripeService.createEmbeddedCheckoutSession(
       authUser.id,
       planId,
       interval,
       promoCode
     );
+    const { success, subscriptionId, error } = result;
 
     if (error || !success || !subscriptionId) {
       return NextResponse.json(

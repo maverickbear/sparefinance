@@ -29,9 +29,6 @@ export async function GET(request: Request) {
     const securities = await service.getSecurities();
     
     return NextResponse.json(securities, {
-      headers: {
-        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
-      },
     });
   } catch (error) {
     console.error("Error fetching securities:", error);

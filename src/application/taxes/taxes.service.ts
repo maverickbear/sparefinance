@@ -28,7 +28,7 @@ export class TaxesService {
 
     // Perform calculation
     try {
-      const result = calculateTaxes(
+      const result = await calculateTaxes(
         validated.country,
         validated.annualIncome,
         validated.stateOrProvince || undefined

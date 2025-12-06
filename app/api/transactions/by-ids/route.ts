@@ -4,6 +4,7 @@ import { AppError } from "@/src/application/shared/app-error";
 
 /**
  * POST /api/transactions/by-ids
+ * @deprecated Use /api/v2/transactions/by-ids instead
  * Get transactions by their IDs
  * Note: This is an auxiliary route. Consider using TransactionsService.getTransactions() with filters instead.
  */

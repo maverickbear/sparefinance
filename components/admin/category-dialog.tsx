@@ -268,6 +268,7 @@ export function CategoryDialog({
                     id="name"
                     {...form.register("name")}
                     placeholder="e.g., Rent"
+                    size="small"
                     required
                   />
                   {form.formState.errors.name && (
@@ -284,7 +285,7 @@ export function CategoryDialog({
                     onValueChange={(value) => form.setValue("macroId", value)}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger size="small">
                       <SelectValue placeholder="Select a group" />
                     </SelectTrigger>
                     <SelectContent>
@@ -315,7 +316,7 @@ export function CategoryDialog({
                     }}
                     required
                   >
-                    <SelectTrigger>
+                    <SelectTrigger size="small">
                       <SelectValue placeholder="Select a group" />
                     </SelectTrigger>
                     <SelectContent>
@@ -340,6 +341,7 @@ export function CategoryDialog({
                     value={categoryNamesText}
                     onChange={(e) => setCategoryNamesText(e.target.value)}
                     placeholder="e.g., Rent, Utilities, Home Maintenance"
+                    size="small"
                     rows={4}
                     className="resize-none"
                   />
@@ -355,6 +357,7 @@ export function CategoryDialog({
             <Button
               type="button"
               variant="outline"
+              size="small"
               onClick={() => handleOpenChange(false)}
               disabled={isSubmitting}
             >
@@ -362,6 +365,7 @@ export function CategoryDialog({
             </Button>
             <Button 
               type="submit" 
+              size="small"
               disabled={
                 isSubmitting || 
                 (!currentCategory && (!selectedMacroId || parseCommaSeparated(categoryNamesText).length === 0))

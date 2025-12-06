@@ -19,7 +19,7 @@ export class CategoryHelper {
   ): Promise<BaseCategory | null> {
     try {
       const categoriesService = makeCategoriesService();
-      const allCategories = await categoriesService.getAllCategories(accessToken, refreshToken);
+      const allCategories = await categoriesService.getAllCategories();
 
       // Find category by name (case-insensitive)
       const category = allCategories.find(
@@ -55,8 +55,8 @@ export class CategoryHelper {
       // For onboarding, we prefer not to create categories
       // Try to find a similar category in the same group
       const categoriesService = makeCategoriesService();
-      const allCategories = await categoriesService.getAllCategories(accessToken, refreshToken);
-      const groups = await categoriesService.getGroups(accessToken, refreshToken);
+      const allCategories = await categoriesService.getAllCategories();
+      const groups = await categoriesService.getGroups();
       const group = groups.find((g) => g.name.toLowerCase().trim() === groupName.toLowerCase().trim());
 
       if (group) {

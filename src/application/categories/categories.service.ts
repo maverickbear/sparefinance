@@ -12,6 +12,7 @@ import { getCurrentTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
+import { cacheLife, cacheTag } from 'next/cache';
 
 // Helper function to check if user can write
 async function canUserWrite(userId: string): Promise<boolean> {
@@ -20,160 +21,121 @@ async function canUserWrite(userId: string): Promise<boolean> {
 }
 import { AppError } from "../shared/app-error";
 
-// In-memory cache for categories
-const categoriesCache = new Map<string, { data: any[]; timestamp: number; userId: string | null }>();
-const CATEGORIES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+// Cached helper functions (must be standalone, not class methods)
+// CRITICAL: Cannot pass repository as parameter in cached functions
+// Must create repository inside the function to avoid "temporary client reference" error
+async function getGroupsCached(): Promise<BaseGroup[]> {
+  'use cache: private'
+  cacheTag('categories', 'groups')
+  cacheLife('hours')
+  
+  // Can access cookies() directly with 'use cache: private'
+  // Repository will access cookies through createServerClient()
+  
+  // Create repository inside cached function to avoid temporary client reference error
+  const repository = new CategoriesRepository();
+  const rows = await repository.findAllGroups();
+  return rows.map(row => CategoriesMapper.groupToDomain(row));
+}
 
-// In-memory cache for groups
-const groupsCache = new Map<string, { data: any[]; timestamp: number; userId: string | null }>();
-const GROUPS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+async function getAllCategoriesCached(): Promise<CategoryWithRelations[]> {
+  'use cache: private'
+  cacheTag('categories')
+  cacheLife('hours')
+
+  // Can access cookies() directly with 'use cache: private'
+  // Repository will access cookies through createServerClient()
+
+  // Create repository inside cached function to avoid temporary client reference error
+  const repository = new CategoriesRepository();
+
+  // Fetch categories first
+  const categoryRows = await repository.findAllCategories();
+  const categoryIds = categoryRows.map(c => c.id);
+
+  // Fetch groups and subcategories in parallel (optimized: single query for all subcategories)
+  const [groupRows, allSubcategoriesRaw] = await Promise.all([
+    repository.findAllGroups(),
+    categoryIds.length > 0
+      ? repository.findSubcategoriesByCategoryIds(categoryIds)
+      : Promise.resolve([]),
+  ]);
+
+  // Create maps for efficient lookup
+  const groupsMap = new Map(groupRows.map(g => [g.id, g]));
+  const allSubcategories = allSubcategoriesRaw.map(s => ({ ...s, categoryId: s.categoryId }));
+
+  // Map to domain with relations
+  const categories: CategoryWithRelations[] = categoryRows.map(categoryRow => {
+    const group = groupsMap.get(categoryRow.groupId);
+    const subcategories = allSubcategories.filter(s => s.categoryId === categoryRow.id);
+
+    return {
+      ...CategoriesMapper.categoryToDomainWithRelations(categoryRow, group),
+      subcategories: subcategories.map(s => CategoriesMapper.subcategoryToDomain(s)),
+    };
+  });
+
+  return categories;
+}
+
+async function getSubcategoriesByCategoryCached(
+  categoryId: string
+): Promise<SubcategoryWithRelations[]> {
+  'use cache: private'
+  cacheTag('categories', `category-${categoryId}`)
+  cacheLife('hours')
+  
+  // Can access cookies() directly with 'use cache: private'
+  // Repository will access cookies through createServerClient()
+  
+  // Create repository inside cached function to avoid temporary client reference error
+  const repository = new CategoriesRepository();
+
+  // Verify category exists
+  const category = await repository.findCategoryById(categoryId);
+  if (!category) {
+    return [];
+  }
+
+  // Get subcategories
+  const subcategoryRows = await repository.findSubcategoriesByCategoryId(categoryId);
+
+  return subcategoryRows.map(row =>
+    CategoriesMapper.subcategoryToDomainWithRelations(row, category)
+  );
+}
 
 export class CategoriesService {
   constructor(private repository: CategoriesRepository) {}
 
   /**
-   * Invalidate categories cache for a user
-   */
-  async invalidateCategoriesCache(userId: string | null): Promise<void> {
-    categoriesCache.delete(userId || 'null');
-    groupsCache.delete(userId || 'null');
-    logger.withPrefix("CATEGORIES").log("Invalidated cache for user:", userId || 'null');
-  }
-
-  /**
-   * Invalidate categories cache for all users
-   */
-  async invalidateAllCategoriesCache(): Promise<void> {
-    categoriesCache.clear();
-    groupsCache.clear();
-    logger.withPrefix("CATEGORIES").log("Invalidated cache for all users");
-  }
-
-  /**
    * Get all groups
    */
-  async getGroups(
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<BaseGroup[]> {
-    const supabase = await createServerClient(accessToken, refreshToken);
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || null;
-    const cacheKey = userId || 'null';
-
-    // Check cache
-    const now = Date.now();
-    const cached = groupsCache.get(cacheKey);
-    if (cached && (now - cached.timestamp) < GROUPS_CACHE_TTL) {
-      return cached.data.map((row: any) => CategoriesMapper.groupToDomain(row));
-    }
-
-    const rows = await this.repository.findAllGroups(accessToken, refreshToken);
-
-    // Update cache
-    groupsCache.set(cacheKey, {
-      data: rows,
-      timestamp: now,
-      userId,
-    });
-
-    return rows.map(row => CategoriesMapper.groupToDomain(row));
+  async getGroups(): Promise<BaseGroup[]> {
+    return getGroupsCached();
   }
 
   /**
    * Get all categories with relations
    */
-  async getAllCategories(
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<CategoryWithRelations[]> {
-    const supabase = await createServerClient(accessToken, refreshToken);
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || null;
-    const cacheKey = userId || 'null';
-
-    // Check cache
-    const now = Date.now();
-    const cached = categoriesCache.get(cacheKey);
-    if (cached && (now - cached.timestamp) < CATEGORIES_CACHE_TTL) {
-      return cached.data;
-    }
-
-    // Fetch categories first
-    const categoryRows = await this.repository.findAllCategories(accessToken, refreshToken);
-    const categoryIds = categoryRows.map(c => c.id);
-
-    // Fetch groups and subcategories in parallel (optimized: single query for all subcategories)
-    const [groupRows, allSubcategoriesRaw] = await Promise.all([
-      this.repository.findAllGroups(accessToken, refreshToken),
-      categoryIds.length > 0
-        ? this.repository.findSubcategoriesByCategoryIds(categoryIds, accessToken, refreshToken)
-        : Promise.resolve([]),
-    ]);
-
-    // Create maps for efficient lookup
-    const groupsMap = new Map(groupRows.map(g => [g.id, g]));
-    const allSubcategories = allSubcategoriesRaw.map(s => ({ ...s, categoryId: s.categoryId }));
-
-    // Map to domain with relations
-    const categories: CategoryWithRelations[] = categoryRows.map(categoryRow => {
-      const group = groupsMap.get(categoryRow.groupId);
-      const subcategories = allSubcategories.filter(s => s.categoryId === categoryRow.id);
-
-      return {
-        ...CategoriesMapper.categoryToDomainWithRelations(categoryRow, group),
-        subcategories: subcategories.map(s => CategoriesMapper.subcategoryToDomain(s)),
-      };
-    });
-
-    // Update cache
-    categoriesCache.set(cacheKey, {
-      data: categories,
-      timestamp: now,
-      userId,
-    });
-
-    return categories;
+  async getAllCategories(): Promise<CategoryWithRelations[]> {
+    return getAllCategoriesCached();
   }
 
   /**
    * Get categories by group
    */
-  async getCategoriesByGroup(
-    groupId: string,
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<CategoryWithRelations[]> {
-    const allCategories = await this.getAllCategories(accessToken, refreshToken);
+  async getCategoriesByGroup(groupId: string): Promise<CategoryWithRelations[]> {
+    const allCategories = await this.getAllCategories();
     return allCategories.filter(cat => cat.groupId === groupId);
   }
 
   /**
    * Get subcategories by category
    */
-  async getSubcategoriesByCategory(
-    categoryId: string,
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<SubcategoryWithRelations[]> {
-    const supabase = await createServerClient(accessToken, refreshToken);
-
-    // Verify category exists
-    const category = await this.repository.findCategoryById(categoryId, accessToken, refreshToken);
-    if (!category) {
-      return [];
-    }
-
-    // Get subcategories
-    const subcategoryRows = await this.repository.findSubcategoriesByCategoryId(
-      categoryId,
-      accessToken,
-      refreshToken
-    );
-
-    return subcategoryRows.map(row =>
-      CategoriesMapper.subcategoryToDomainWithRelations(row, category)
-    );
+  async getSubcategoriesByCategory(categoryId: string): Promise<SubcategoryWithRelations[]> {
+    return getSubcategoriesByCategoryCached(categoryId);
   }
 
   /**
@@ -215,8 +177,6 @@ export class CategoriesService {
       updatedAt: now,
     });
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
 
     return CategoriesMapper.categoryToDomainWithRelations(categoryRow, group);
   }
@@ -263,8 +223,6 @@ export class CategoriesService {
     // Fetch group for relations
     const group = await this.repository.findGroupById(categoryRow.groupId);
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
 
     return CategoriesMapper.categoryToDomainWithRelations(categoryRow, group || null);
   }
@@ -290,8 +248,6 @@ export class CategoriesService {
 
     await this.repository.deleteCategory(id);
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
   }
 
   /**
@@ -333,8 +289,6 @@ export class CategoriesService {
       updatedAt: now,
     });
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
 
     return CategoriesMapper.subcategoryToDomainWithRelations(subcategoryRow, category);
   }
@@ -377,8 +331,6 @@ export class CategoriesService {
 
     const subcategoryRow = await this.repository.updateSubcategory(id, updateData);
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
 
     return CategoriesMapper.subcategoryToDomainWithRelations(subcategoryRow, category);
   }
@@ -410,8 +362,6 @@ export class CategoriesService {
 
     await this.repository.deleteSubcategory(id);
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
   }
 
   /**
@@ -452,8 +402,6 @@ export class CategoriesService {
       updatedAt: now,
     });
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
 
     return CategoriesMapper.groupToDomain(groupRow);
   }
@@ -479,8 +427,6 @@ export class CategoriesService {
 
     await this.repository.deleteGroup(id);
 
-    // Invalidate cache
-    await this.invalidateCategoriesCache(userId);
   }
 }
 

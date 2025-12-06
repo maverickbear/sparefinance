@@ -14,9 +14,6 @@ export async function GET() {
     return NextResponse.json(
       { plans },
       {
-        headers: {
-          'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=3600',
-        },
       }
     );
   } catch (error) {

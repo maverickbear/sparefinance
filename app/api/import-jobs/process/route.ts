@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient, createServiceRoleClient } from '@/src/infrastructure/database/supabase-server';
 import { getCurrentUserId } from '@/src/application/shared/feature-guard';
-import { makePlaidService } from '@/src/application/plaid/plaid.factory';
 import { formatTimestamp } from '@/src/infrastructure/utils/timestamp';
 import { makeTransactionsService } from '@/src/application/transactions/transactions.factory';
 import { TransactionFormData, transactionSchema } from '@/src/domain/transactions/transactions.validations';
@@ -81,10 +80,7 @@ async function processImportJobs(req: NextRequest) {
           })
           .eq('id', job.id);
 
-        if (job.type === 'plaid_sync') {
-          const result = await processPlaidSyncJob(supabase, job);
-          results.push({ jobId: job.id, ...result });
-        } else if (job.type === 'csv_import') {
+        if (job.type === 'csv_import') {
           const result = await processCsvImportJob(supabase, job);
           results.push({ jobId: job.id, ...result });
         } else {
@@ -169,51 +165,6 @@ export async function POST(req: NextRequest) {
   return processImportJobs(req);
 }
 
-async function processPlaidSyncJob(supabase: any, job: any) {
-  const { accountId, metadata } = job;
-  const { plaidAccountId, itemId } = metadata;
-
-  if (!plaidAccountId || !itemId) {
-    throw new Error('Missing plaidAccountId or itemId in job metadata');
-  }
-
-  // Get access token from PlaidConnection (never stored in job metadata for security)
-  const { data: connection, error: connectionError } = await supabase
-    .from('PlaidConnection')
-    .select('accessToken')
-    .eq('itemId', itemId)
-    .single();
-
-  if (connectionError || !connection?.accessToken) {
-    throw new Error('Access token not found for Plaid connection');
-  }
-
-  // Process sync with batched function using PlaidService
-  const plaidService = makePlaidService();
-  const result = await plaidService.syncAccountTransactionsBatched(
-    accountId,
-    plaidAccountId,
-    connection.accessToken,
-    job.id
-  );
-
-  // Update job as completed
-  await supabase
-    .from('ImportJob')
-    .update({
-      status: 'completed',
-      progress: 100,
-      processedItems: result.totalProcessed,
-      syncedItems: result.synced,
-      skippedItems: result.skipped,
-      errorItems: result.errors,
-      completedAt: formatTimestamp(new Date()),
-      updatedAt: formatTimestamp(new Date()),
-    })
-    .eq('id', job.id);
-
-  return result;
-}
 
 async function processCsvImportJob(supabase: any, job: any) {
   const { metadata, userId } = job;

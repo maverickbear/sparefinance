@@ -9,6 +9,13 @@ const textareaVariants = cva(
   {
     variants: {
       size: {
+        tiny: cn(
+          componentSizes.textarea.tiny.minHeight,
+          componentSizes.textarea.tiny.paddingX,
+          componentSizes.textarea.tiny.paddingY,
+          componentSizes.textarea.tiny.text,
+          componentSizes.textarea.tiny.rounded
+        ),
         small: cn(
           componentSizes.textarea.small.minHeight,
           componentSizes.textarea.small.paddingX,

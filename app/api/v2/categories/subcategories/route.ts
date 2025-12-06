@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
 import { SubcategoryFormData } from "@/src/domain/categories/categories.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,10 @@ export async function POST(request: NextRequest) {
       categoryId, 
       logo: logo || null 
     });
+    
+    // Invalidate cache
+    revalidateTag('categories', 'max');
+    revalidateTag('groups', 'max');
     
     return NextResponse.json(subcategory, { status: 201 });
   } catch (error) {

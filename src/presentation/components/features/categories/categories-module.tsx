@@ -76,18 +76,14 @@ export function CategoriesModule() {
   async function loadData(forceRefresh = false) {
     try {
       // OPTIMIZED: Single API call to get both groups and categories using v2 API route
-      // Add cache-busting parameter if forceRefresh is true
-      const url = forceRefresh 
-        ? `/api/v2/categories?consolidated=true&_t=${Date.now()}`
-        : "/api/v2/categories?consolidated=true";
-      
-      const response = await fetch(url, {
-        cache: forceRefresh ? 'no-store' : 'default',
+      // Use cachedFetch to respect Cache-Control headers from server
+      const { cachedFetch } = await import("@/lib/utils/cached-fetch");
+      const { groups, categories: allCategories } = await cachedFetch<{
+        groups: any[];
+        categories: any[];
+      }>("/api/v2/categories?consolidated=true", {
+        forceRefresh,
       });
-      if (!response.ok) {
-        throw new Error("Failed to fetch categories data");
-      }
-      const { groups, categories: allCategories } = await response.json();
       
       setCategories(allCategories || []);
       setMacros(groups || []);

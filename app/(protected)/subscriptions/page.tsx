@@ -430,7 +430,7 @@ export default function SubscriptionsPage() {
     setViewingSubscriptionIndex(index);
 
     try {
-      const response = await fetch("/api/transactions/by-ids", {
+      const response = await fetch("/api/v2/transactions/by-ids", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: detected.transactionIds }),

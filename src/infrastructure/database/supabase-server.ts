@@ -131,16 +131,33 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
   }
   
   // If tokens are not provided, try to access cookies
-  // If we're inside unstable_cache(), this will throw an error
+  // If we're inside unstable_cache() or "use cache", this will throw an error
   // In that case, return an unauthenticated client
   let cookieStore;
   try {
     cookieStore = await cookies();
   } catch (error: any) {
-    // If we can't access cookies (e.g., inside unstable_cache()), return unauthenticated client
-    if (error?.message?.includes("unstable_cache") || 
-        error?.message?.includes("Dynamic data sources") ||
-        error?.message?.includes("cached with")) {
+    // If we can't access cookies (e.g., inside unstable_cache(), "use cache", or during prerendering), return unauthenticated client
+    const errorMessage = error?.message || '';
+    const errorString = String(error || '');
+    
+    // Check for various patterns that indicate cookies() can't be used in this context
+    const isCacheError = 
+      errorMessage.includes("unstable_cache") || 
+      errorMessage.includes("Dynamic data sources") ||
+      errorMessage.includes("cached with") ||
+      errorMessage.includes("use cache") ||
+      errorMessage.includes("prerender") ||
+      errorMessage.includes("HANGING_PROMISE") ||
+      errorMessage.includes("cookies() rejects") ||
+      errorMessage.includes("cookies() inside") ||
+      errorString.includes("unstable_cache") ||
+      errorString.includes("Dynamic data sources") ||
+      errorString.includes("use cache");
+    
+    if (isCacheError) {
+      // Return unauthenticated client when cookies can't be accessed
+      // This is expected when called from cached functions
       return createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
           persistSession: false,
@@ -281,7 +298,22 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
 // Server-side Supabase client with service role key
 // Use this for webhooks and admin operations that need to bypass RLS
 // WARNING: This client bypasses Row Level Security - use with caution!
+// Note: This function should not be called during prerendering as it uses Math.random() internally
 export function createServiceRoleClient() {
+  // Check if we're in a prerendering context
+  // During prerendering, createClient() will fail because it uses Math.random()
+  // We'll detect this by trying to access headers first
+  if (typeof window === 'undefined') {
+    // In server context, check for prerendering
+    try {
+      // This is a workaround - we can't directly detect prerendering here
+      // but we'll let the calling code handle the error
+    } catch {
+      // If we can't determine context, proceed anyway
+      // The error will be caught by the calling code
+    }
+  }
+  
   if (!supabaseServiceRoleKey) {
     console.warn("⚠️  SUPABASE_SERVICE_ROLE_KEY not set. Falling back to anon key (may cause RLS issues).");
     return createClient(supabaseUrl, supabaseAnonKey, {

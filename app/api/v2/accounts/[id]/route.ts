@@ -3,6 +3,7 @@ import { makeAccountsService } from "@/src/application/accounts/accounts.factory
 import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(
   request: NextRequest,
@@ -45,8 +46,17 @@ export async function PATCH(
     const { id } = await params;
     const data: Partial<AccountFormData> = await request.json();
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeAccountsService();
     const account = await service.updateAccount(id, data);
+    
+    // Invalidate cache using tag groups (invalidates all account variants)
+    revalidateTag('accounts', 'max');
+    revalidateTag('subscriptions', 'max');
     
     return NextResponse.json(account, { status: 200 });
   } catch (error) {
@@ -75,8 +85,17 @@ export async function DELETE(
     const body = await request.json().catch(() => ({}));
     const transferToAccountId = body.transferToAccountId;
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeAccountsService();
     await service.deleteAccount(id, transferToAccountId);
+    
+    // Invalidate cache using tag groups (invalidates all account variants)
+    revalidateTag('accounts', 'max');
+    revalidateTag('subscriptions', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

@@ -477,3 +477,198 @@ try {
 - Reuse existing design system components (Button, Input, Card, etc.) whenever possible.
 - If you detect repetition, refactor into a shared component inside the components library.
 
+## Subscription Flow & State Management Best Practices (CRITICAL)
+
+### Server-Side Logic is Crucial
+- ✅ **ALWAYS** handle sensitive business logic (subscription status, payment processing) on the server
+- ✅ **ALWAYS** use Application Services for subscription decisions
+- ❌ **NEVER** determine subscription status or access levels purely in client components
+- ❌ **NEVER** make business decisions based on subscription status in React components
+- ✅ Payment processing (Stripe) MUST be done via API routes only
+
+### Centralized State Management
+- ✅ **ALWAYS** use `SubscriptionContext` for subscription state across the application
+- ✅ **ALWAYS** use `useSubscriptionContext()` or `useSubscriptionSafe()` hooks
+- ✅ **ALWAYS** use selectors from `hooks/use-subscription-selectors.ts` to prevent unnecessary re-renders
+- ❌ **NEVER** fetch subscription data directly with `fetch("/api/v2/billing/subscription")` in components
+- ❌ **NEVER** duplicate subscription state in component local state
+- ✅ Use `SubscriptionProvider` with `initialData` from server for SSR
+
+**Correct Pattern:**
+```typescript
+// ✅ CORRECT
+import { useSubscriptionContext } from "@/contexts/subscription-context";
+import { useHasActiveSubscription } from "@/hooks/use-subscription-selectors";
+
+function MyComponent() {
+  const { subscription, plan, limits } = useSubscriptionContext();
+  const hasActive = useHasActiveSubscription(); // Selector prevents re-renders
+  // Use subscription data from Context
+}
+```
+
+**Wrong Pattern:**
+```typescript
+// ❌ WRONG
+function MyComponent() {
+  const [subscription, setSubscription] = useState(null);
+  useEffect(() => {
+    fetch("/api/v2/billing/subscription").then(...); // Direct fetch - WRONG!
+  }, []);
+}
+```
+
+### Lift State Up
+- ✅ **ALWAYS** manage subscription state in `SubscriptionProvider` (closest common parent)
+- ✅ **ALWAYS** pass subscription data down via props or Context
+- ❌ **NEVER** use sessionStorage/localStorage as workaround for state management
+- ❌ **NEVER** duplicate subscription state in multiple components
+- ✅ For multi-step flows, manage state in closest common parent component
+
+### Keep Subscription Status Updated
+- ✅ **ALWAYS** implement app focus/startup checks in `SubscriptionProvider`
+- ✅ **ALWAYS** listen for subscription changes (webhooks, onboarding completion, etc.)
+- ✅ **ALWAYS** use polling (5 minutes) for background updates
+- ✅ **ALWAYS** refresh subscription on app focus if > 1 minute since last fetch
+- ✅ **ALWAYS** refresh subscription on visibility change
+- ❌ **NEVER** assume subscription status is static
+
+**Required Implementation:**
+```typescript
+// ✅ REQUIRED in SubscriptionProvider
+useEffect(() => {
+  const handleFocus = () => {
+    const timeSinceLastFetch = Date.now() - lastFetchRef.current;
+    if (timeSinceLastFetch > 60000) {
+      refetch();
+    }
+  };
+  window.addEventListener('focus', handleFocus);
+  return () => window.removeEventListener('focus', handleFocus);
+}, [refetch]);
+```
+
+### Separate Concerns
+- ✅ **ALWAYS** use selectors to subscribe only to specific data needed
+- ✅ **ALWAYS** keep business logic in Application Services
+- ✅ **ALWAYS** keep presentation logic in hooks (Presentation Layer)
+- ✅ **ALWAYS** keep components pure (render only, no business logic)
+- ❌ **NEVER** put business logic in components
+- ❌ **NEVER** put business logic in Context (Context is just state + simple setters)
+
+**Component Structure:**
+```
+Components (Presentation)
+  ↓ uses
+Hooks (Presentation Logic)
+  ↓ calls
+API Routes (HTTP Layer)
+  ↓ uses
+Application Services (Business Logic)
+  ↓ uses
+Repositories (Data Access)
+```
+
+**Example:**
+```typescript
+// ✅ CORRECT - Component is pure
+function OnboardingDialog({ shouldShow }: { shouldShow: boolean }) {
+  return shouldShow ? <Dialog /> : null;
+}
+
+// ✅ CORRECT - Hook handles presentation logic
+function useOnboardingDialog() {
+  const { data } = useSWR("/api/v2/onboarding/should-show");
+  return { shouldShow: data?.shouldShow };
+}
+
+// ✅ CORRECT - API route is thin
+export async function GET() {
+  const service = makeOnboardingDecisionService();
+  return NextResponse.json({ shouldShow: await service.shouldShowOnboardingDialog(userId) });
+}
+
+// ✅ CORRECT - Service has business logic
+class OnboardingDecisionService {
+  async shouldShowOnboardingDialog(userId: string): Promise<boolean> {
+    // All business logic here
+  }
+}
+```
+
+### Subscription Selectors (MANDATORY)
+- ✅ **ALWAYS** use selectors from `hooks/use-subscription-selectors.ts` instead of direct Context access
+- ✅ **ALWAYS** use `useHasActiveSubscription()` instead of checking `subscription?.status === "active"`
+- ✅ **ALWAYS** use `useCanAccessFeature(feature)` instead of checking limits directly
+- ❌ **NEVER** access `subscription.status` directly in components
+- ❌ **NEVER** check `limits[feature]` directly in components
+
+**Correct:**
+```typescript
+// ✅ CORRECT
+const canCreateCategory = useCanAccessFeature("canCreateCategory");
+const isActive = useHasActiveSubscription();
+```
+
+**Wrong:**
+```typescript
+// ❌ WRONG
+const { subscription, limits } = useSubscriptionContext();
+const canCreateCategory = subscription?.status === "active" && limits.canCreateCategory;
+```
+
+### Decision Services Pattern
+- ✅ **ALWAYS** create Decision Services for complex business decisions
+- ✅ **ALWAYS** use Decision Services via API routes (never directly in components)
+- ✅ **ALWAYS** return simple types (boolean, string) from Decision Services
+- ❌ **NEVER** put decision logic in components or hooks
+- ❌ **NEVER** duplicate decision logic across multiple places
+
+**Pattern:**
+```typescript
+// Application Layer
+class FeatureDecisionService {
+  async shouldShowFeature(userId: string): Promise<boolean> {
+    // All decision logic here
+  }
+}
+
+// API Route
+export async function GET() {
+  const service = makeFeatureDecisionService();
+  return NextResponse.json({ shouldShow: await service.shouldShowFeature(userId) });
+}
+
+// Component
+function FeatureComponent() {
+  const { data } = useSWR("/api/v2/feature/should-show");
+  return data?.shouldShow ? <Feature /> : null;
+}
+```
+
+### Workarounds (FORBIDDEN)
+- ❌ **NEVER** use sessionStorage/localStorage for state management
+- ❌ **NEVER** use global variables for request deduplication
+- ❌ **NEVER** use arbitrary timeouts as workarounds
+- ❌ **NEVER** use Promise.race() with timeouts to avoid slow operations
+- ✅ **ALWAYS** fix the root cause (optimize slow operations)
+- ✅ **ALWAYS** use proper state management (Context, props, server state)
+
+### Authentication State Management
+- ✅ **ALWAYS** use centralized AuthContext (when created) for authentication state
+- ✅ **ALWAYS** check authentication on server when possible
+- ❌ **NEVER** duplicate authentication checks across multiple components
+- ❌ **NEVER** use fetch("/api/v2/user") directly in multiple components
+- ✅ Use `useAuthContext()` hook (when available) instead of direct fetches
+
+## Quick Checklist for Subscription/Auth Components
+
+- [ ] Uses `SubscriptionContext` or `AuthContext` (not direct fetch)
+- [ ] Uses selectors (not direct Context access for checks)
+- [ ] No business logic in component
+- [ ] No sessionStorage/localStorage workarounds
+- [ ] No arbitrary timeouts
+- [ ] No duplicate state management
+- [ ] Proper error handling
+- [ ] Proper loading states
+

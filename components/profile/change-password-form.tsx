@@ -12,9 +12,6 @@ import { useToast } from "@/components/toast-provider";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 
 export function ChangePasswordForm() {
@@ -84,16 +81,7 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <Card className="h-fit">
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <Lock className="h-4 w-4" />
-          <CardTitle className="text-base sm:text-lg">Change Password</CardTitle>
-        </div>
-        <CardDescription className="text-xs sm:text-sm">
-          Update your password to keep your account secure
-        </CardDescription>
-      </CardHeader>
+    <Card className="h-fit border-0">
       <CardContent className="pt-0">
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <div className="space-y-1.5">

@@ -7,10 +7,13 @@
 import { TaxBracket, TaxCalculationResult } from "@/src/domain/taxes/taxes.types";
 import {
   getUSFederalBrackets,
-  getUSStateTaxRate,
   getCanadaFederalBrackets,
-  getCanadaProvincialTaxRate,
 } from "./tax-brackets";
+import {
+  getUSStateTaxRate,
+  getCanadaProvincialTaxRate,
+} from "./tax-rates-cache";
+import { FederalBracketsRepository } from "@/src/infrastructure/database/repositories/federal-brackets.repository";
 
 /**
  * Calculate tax using progressive brackets
@@ -44,16 +47,31 @@ function calculateProgressiveTax(income: number, brackets: TaxBracket[]): number
 /**
  * Calculate US taxes (federal + state)
  */
-export function calculateUSTaxes(
+export async function calculateUSTaxes(
   annualIncome: number,
   state?: string | null
-): TaxCalculationResult {
+): Promise<TaxCalculationResult> {
+  // Get federal brackets (try database first, fallback to hardcoded)
+  let federalBrackets = getUSFederalBrackets();
+  try {
+    const repository = new FederalBracketsRepository();
+    const dbBrackets = await repository.findByCountryAndYear("US", 2024);
+    if (dbBrackets.length > 0) {
+      federalBrackets = dbBrackets.map((b) => ({
+        min: b.minIncome,
+        max: b.maxIncome,
+        rate: b.taxRate,
+      }));
+    }
+  } catch (error) {
+    // Fallback to hardcoded brackets
+  }
+
   // Calculate federal tax
-  const federalBrackets = getUSFederalBrackets();
   const federalTax = calculateProgressiveTax(annualIncome, federalBrackets);
 
   // Calculate state tax (flat rate for simplicity)
-  const stateRate = state ? getUSStateTaxRate(state) : 0;
+  const stateRate = state ? await getUSStateTaxRate(state) : 0;
   const stateTax = stateRate > 0 ? Math.round(annualIncome * stateRate * 100) / 100 : 0;
 
   // Calculate total tax
@@ -77,16 +95,35 @@ export function calculateUSTaxes(
 /**
  * Calculate Canada taxes (federal + provincial)
  */
-export function calculateCanadaTaxes(
+export async function calculateCanadaTaxes(
   annualIncome: number,
   province?: string | null
-): TaxCalculationResult {
+): Promise<TaxCalculationResult> {
+  // Get federal brackets (try database first, fallback to hardcoded)
+  let federalBrackets = getCanadaFederalBrackets();
+  try {
+    const repository = new FederalBracketsRepository();
+    // Try 2025 first, then 2024
+    let dbBrackets = await repository.findByCountryAndYear("CA", 2025);
+    if (dbBrackets.length === 0) {
+      dbBrackets = await repository.findByCountryAndYear("CA", 2024);
+    }
+    if (dbBrackets.length > 0) {
+      federalBrackets = dbBrackets.map((b) => ({
+        min: b.minIncome,
+        max: b.maxIncome,
+        rate: b.taxRate,
+      }));
+    }
+  } catch (error) {
+    // Fallback to hardcoded brackets
+  }
+
   // Calculate federal tax
-  const federalBrackets = getCanadaFederalBrackets();
   const federalTax = calculateProgressiveTax(annualIncome, federalBrackets);
 
   // Calculate provincial tax (flat rate for simplicity)
-  const provincialRate = province ? getCanadaProvincialTaxRate(province) : 0;
+  const provincialRate = province ? await getCanadaProvincialTaxRate(province) : 0;
   const provincialTax = provincialRate > 0 ? Math.round(annualIncome * provincialRate * 100) / 100 : 0;
 
   // Calculate total tax
@@ -110,15 +147,15 @@ export function calculateCanadaTaxes(
 /**
  * Calculate taxes based on country
  */
-export function calculateTaxes(
+export async function calculateTaxes(
   country: string,
   annualIncome: number,
   stateOrProvince?: string | null
-): TaxCalculationResult {
+): Promise<TaxCalculationResult> {
   if (country === "US") {
-    return calculateUSTaxes(annualIncome, stateOrProvince || undefined);
+    return await calculateUSTaxes(annualIncome, stateOrProvince || undefined);
   } else if (country === "CA") {
-    return calculateCanadaTaxes(annualIncome, stateOrProvince || undefined);
+    return await calculateCanadaTaxes(annualIncome, stateOrProvince || undefined);
   } else {
     // Unknown country - return zero taxes
     return {

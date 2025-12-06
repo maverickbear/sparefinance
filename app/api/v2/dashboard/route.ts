@@ -3,6 +3,7 @@ import { loadDashboardData } from "@/app/(protected)/dashboard/data-loader";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import { startOfMonth, endOfMonth, subMonths, subDays } from "date-fns";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 
 type DateRange = "this-month" | "last-month" | "last-60-days" | "last-90-days";
 
@@ -73,10 +74,12 @@ export async function GET(request: NextRequest) {
     // Load dashboard data
     const data = await loadDashboardData(selectedMonthDate, startDate, endDate);
 
+    // Dashboard is aggregated data that changes frequently, use dynamic cache
+    const cacheHeaders = getCacheHeaders('dynamic');
+
     return NextResponse.json(data, {
-      headers: {
-        'Cache-Control': 'no-store', // Don't cache dashboard data
-      },
+      status: 200,
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching dashboard data:", error);

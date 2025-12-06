@@ -24,6 +24,7 @@ import { useState, useEffect } from "react";
 import { Plus, Edit, X, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import type { Category, Macro } from "@/src/domain/categories/categories.types";
+import { useAuthSafe } from "@/contexts/auth-context";
 
 interface Subcategory {
   id: string;
@@ -94,24 +95,17 @@ export function CategoryDialog({
         },
   });
 
-  // Load current user
+  // Use AuthContext for user data instead of fetching
+  const { user } = useAuthSafe();
+  
+  // Update currentUserId when user from Context changes
   useEffect(() => {
-    async function loadCurrentUser() {
-      try {
-        const response = await fetch("/api/v2/user");
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentUserId(data.user?.id || null);
-        }
-      } catch (error) {
-        console.error("Error loading current user:", error);
-      }
+    if (user?.id) {
+      setCurrentUserId(user.id);
+    } else {
+      setCurrentUserId(null);
     }
-    
-    if (open) {
-      loadCurrentUser();
-    }
-  }, [open]);
+  }, [user]);
 
   // Reset form and subcategories when dialog opens/closes or category changes
   useEffect(() => {
@@ -519,7 +513,7 @@ export function CategoryDialog({
                   onValueChange={(value) => form.setValue("macroId", value)}
                   disabled={!!category && isSystemCategory}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger size="small">
                     <SelectValue placeholder="Select group" />
                   </SelectTrigger>
                   <SelectContent>
@@ -548,6 +542,7 @@ export function CategoryDialog({
                 <Input
                   {...form.register("name")}
                   placeholder="Enter category name"
+                  size="small"
                   disabled={!!category && isSystemCategory}
                 />
                 {form.formState.errors.name && (
@@ -566,6 +561,7 @@ export function CategoryDialog({
               <Input
                 value={category?.name || ""}
                 disabled
+                size="small"
                 className="bg-muted"
               />
               <p className="text-xs text-muted-foreground">
@@ -597,6 +593,7 @@ export function CategoryDialog({
                             cancelEditingSubcategory();
                           }
                         }}
+                        size="small"
                         className="h-7 w-24 text-xs"
                         autoFocus
                       />

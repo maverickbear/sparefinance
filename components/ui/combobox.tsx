@@ -28,7 +28,7 @@ export interface ComboboxProps {
   emptyMessage?: string;
   noResultsMessage?: string;
   allowCustomValue?: boolean;
-  size?: "small" | "medium" | "large";
+  size?: "tiny" | "small" | "medium" | "large";
   className?: string;
   disabled?: boolean;
   showClearButton?: boolean;
@@ -39,6 +39,12 @@ export interface ComboboxProps {
 }
 
 const sizeClasses = {
+  tiny: {
+    button: "px-2.5 py-1.5 text-xs",
+    input: "px-2.5 py-1.5 text-xs",
+    item: "px-2.5 py-1.5 text-xs",
+    icon: "w-3.5 h-3.5",
+  },
   small: {
     button: "px-3 py-1.5 text-sm",
     input: "px-3 py-1.5 text-sm",
@@ -303,13 +309,14 @@ export function Combobox({
             "hover:border-ring active:border-ring focus:outline-none",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             // Padding left: icon position (left-3 = 12px) + icon width + gap (8px)
+            // tiny: icon w-3.5 (14px) = 12 + 14 + 8 = 34px (pl-[34px])
             // small/medium: icon w-4 (16px) = 12 + 16 + 8 = 36px (pl-9)
             // large: icon w-5 (20px) = 12 + 20 + 8 = 40px (pl-10)
-            size === "small" || size === "medium" ? "pl-9" : "pl-10",
-            // Padding right: space for clear button and chevron (right-3 = 12px + icon + gap)
-            size === "small" || size === "medium" ? "pr-10" : "pr-12",
+            size === "tiny" ? "pl-[34px]" : size === "small" || size === "medium" ? "pl-9" : "pl-10",
+            // Padding right: space for clear button and chevron
+            size === "tiny" ? "pr-[34px]" : size === "small" || size === "medium" ? "pr-10" : "pr-12",
             // Use only vertical padding and text size from sizeConfig
-            size === "small" ? "py-1.5 text-sm" : size === "medium" ? "py-2.5 text-sm" : "py-3 text-base"
+            size === "tiny" ? "py-1.5 text-xs" : size === "small" ? "py-1.5 text-sm" : size === "medium" ? "py-2.5 text-sm" : "py-3 text-base"
           )}
         />
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2 flex-shrink-0">

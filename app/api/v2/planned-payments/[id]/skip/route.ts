@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 export async function POST(
   request: NextRequest,
@@ -19,6 +20,9 @@ export async function POST(
     
     const service = makePlannedPaymentsService();
     const plannedPayment = await service.skipPlannedPayment(id);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
     
     return NextResponse.json(plannedPayment, { status: 200 });
   } catch (error) {

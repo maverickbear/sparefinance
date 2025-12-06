@@ -9,7 +9,7 @@ export interface DollarAmountInputProps
   value?: number | string;
   onChange?: (value: number | undefined) => void;
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
-  size?: "small" | "medium" | "large";
+  size?: "tiny" | "small" | "medium" | "large";
 }
 
 /**

@@ -12,6 +12,7 @@ import { MemberForm } from "@/components/members/member-form";
 import type { HouseholdMember } from "@/src/domain/members/members.types";
 import { useSubscription } from "@/hooks/use-subscription";
 import { EmptyState } from "@/components/common/empty-state";
+import { useAuthSafe } from "@/contexts/auth-context";
 import {
   Table,
   TableBody,
@@ -42,9 +43,11 @@ export function HouseholdModule() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<HouseholdMember | undefined>(undefined);
   const [loading, setLoading] = useState(true);
-  const [currentUserRole, setCurrentUserRole] = useState<"admin" | "member" | "super_admin" | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { limits, checking: limitsLoading } = useSubscription();
+  
+  // Use AuthContext for role instead of fetching
+  const { role: currentUserRole } = useAuthSafe();
 
   useEffect(() => {
     if (!limitsLoading) {
@@ -52,7 +55,7 @@ export function HouseholdModule() {
     }
   }, [limitsLoading]);
 
-  // OPTIMIZED: Single API call to get both members and user role using v2 API route
+  // OPTIMIZED: Fetch only members data, role comes from Context
   async function loadData() {
     try {
       setLoading(true);
@@ -60,11 +63,8 @@ export function HouseholdModule() {
       if (!response.ok) {
         throw new Error("Failed to fetch members data");
       }
-      const { members: data, userRole: role } = await response.json();
+      const { members: data } = await response.json();
       setMembers(data || []);
-      if (role) {
-        setCurrentUserRole(role);
-      }
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {

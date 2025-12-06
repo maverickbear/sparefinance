@@ -17,9 +17,6 @@ export async function GET(request: NextRequest) {
     // If no active jobs, return empty array
     if (activeJobs.length === 0) {
       return NextResponse.json({ jobs: [], accounts: [] }, {
-        headers: {
-          'Cache-Control': 'private, max-age=5, stale-while-revalidate=10',
-        },
       });
     }
 
@@ -45,9 +42,6 @@ export async function GET(request: NextRequest) {
       jobs: activeJobs,
       accounts: Array.from(accountsMap.values()),
     }, {
-      headers: {
-        'Cache-Control': 'private, max-age=5, stale-while-revalidate=10',
-      },
     });
   } catch (error) {
     console.error("Error fetching active import jobs:", error);

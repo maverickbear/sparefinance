@@ -23,39 +23,45 @@ async function preloadUserData() {
   try {
     const preloadPromises = [
       // Preload user data and role for Nav using API routes
-      Promise.all([
-        fetch("/api/v2/user"),
-        fetch("/api/v2/members"),
-      ]).then(async ([userResponse, membersResponse]) => {
-        if (!userResponse.ok || !membersResponse.ok) return null;
-        const [userData, membersData] = await Promise.all([
-          userResponse.json(),
-          membersResponse.json(),
-        ]);
-        const userDataFormatted = {
-          user: userData.user,
-          plan: userData.plan,
-          subscription: userData.subscription,
-        };
-        const role = membersData.userRole;
-        if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
-          (window as any).navUserDataCache.data = userDataFormatted;
-          (window as any).navUserDataCache.timestamp = Date.now();
-          (window as any).navUserDataCache.role = role;
-          (window as any).navUserDataCache.roleTimestamp = Date.now();
+      // Use cachedFetch to respect Cache-Control headers
+      (async () => {
+        const { cachedFetch } = await import("@/lib/utils/cached-fetch");
+        try {
+          const [userData, membersData] = await Promise.all([
+            cachedFetch("/api/v2/user"),
+            cachedFetch("/api/v2/members"),
+          ]);
+          const userDataFormatted = {
+            user: userData.user,
+            plan: userData.plan,
+            subscription: userData.subscription,
+          };
+          const role = membersData.userRole;
+          if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
+            (window as any).navUserDataCache.data = userDataFormatted;
+            (window as any).navUserDataCache.timestamp = Date.now();
+            (window as any).navUserDataCache.role = role;
+            (window as any).navUserDataCache.roleTimestamp = Date.now();
+          }
+          return userDataFormatted;
+        } catch {
+          return null;
         }
-        return userDataFormatted;
-      }).catch(() => null),
+      })(),
       // Preload profile data using API route
-      fetch("/api/v2/profile").then(async (r) => {
-        if (!r.ok) return null;
-        const profile = await r.json();
-        if (typeof window !== 'undefined' && (window as any).profileDataCache) {
-          (window as any).profileDataCache.data = profile;
-          (window as any).profileDataCache.timestamp = Date.now();
+      (async () => {
+        const { cachedFetch } = await import("@/lib/utils/cached-fetch");
+        try {
+          const profile = await cachedFetch("/api/v2/profile");
+          if (typeof window !== 'undefined' && (window as any).profileDataCache) {
+            (window as any).profileDataCache.data = profile;
+            (window as any).profileDataCache.timestamp = Date.now();
+          }
+          return profile;
+        } catch {
+          return null;
         }
-        return profile;
-      }).catch(() => null),
+      })(),
       // Preload subscription/billing data (without limits - loaded later when needed)
       // Optimized: Stripe API call is now opt-in (includeStripe=true) for faster loading
       fetch("/api/v2/billing/subscription", { cache: "no-store" }).then(async (r) => {
@@ -351,7 +357,8 @@ function LoginFormContent() {
               {...form.register("email")}
               placeholder="you@example.com"
               disabled={loading}
-              className="pl-10 h-11"
+              size="small"
+              className="pl-10"
               required
             />
           </div>
@@ -382,7 +389,8 @@ function LoginFormContent() {
               type={showPassword ? "text" : "password"}
               {...form.register("password")}
               disabled={loading}
-              className="pl-10 pr-10 h-11"
+              size="small"
+              className="pl-10 pr-10"
               required
             />
             <button
@@ -408,7 +416,8 @@ function LoginFormContent() {
 
         <Button 
           type="submit" 
-          className="w-full h-11 text-base font-medium" 
+          size="small"
+          className="w-full text-base font-medium" 
           disabled={loading}
         >
           {loading ? (

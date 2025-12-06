@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeBudgetsService } from "@/src/application/budgets/budgets.factory";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -9,8 +11,17 @@ export async function PATCH(
     const { id } = await params;
     const data: { amount: number } = await request.json();
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeBudgetsService();
     const budget = await service.updateBudget(id, data);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(budget, { status: 200 });
   } catch (error) {
@@ -29,8 +40,17 @@ export async function DELETE(
   try {
     const { id } = await params;
     
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    
     const service = makeBudgetsService();
     await service.deleteBudget(id);
+    
+    // Invalidate cache
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

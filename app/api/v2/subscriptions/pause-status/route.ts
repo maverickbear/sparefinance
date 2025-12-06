@@ -13,9 +13,6 @@ export async function GET(request: NextRequest) {
     const pauseStatus = await subscriptionsService.isSubscriptionPaused(userId);
 
     return NextResponse.json(pauseStatus, {
-      headers: {
-        'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
-      },
     });
   } catch (error) {
     console.error("Error checking subscription pause status:", error);

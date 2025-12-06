@@ -22,9 +22,6 @@ export async function POST(request: NextRequest) {
     const result = await taxesService.calculateTaxes(validated);
 
     return NextResponse.json(result, {
-      headers: {
-        "Cache-Control": "no-cache",
-      },
     });
   } catch (error) {
     console.error("[TAXES-CALCULATE] Error calculating taxes:", error);

@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/card";
 import { SimpleFooter } from "@/components/common/simple-footer";
 import { FileText, ArrowLeft, Wallet } from "lucide-react";
-import { getPlans } from "@/lib/api/subscription";
+import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 
 export const metadata = {
   title: "Terms of Service - Spare Finance",
@@ -16,7 +16,8 @@ export const metadata = {
 
 export default async function TermsOfServicePage() {
   // Fetch plans to get dynamic plan names
-  const plans = await getPlans();
+  const subscriptionsService = makeSubscriptionsService();
+  const plans = await subscriptionsService.getPlans();
   const essentialPlan = plans.find(p => p.id === 'essential');
   const proPlan = plans.find(p => p.id === 'pro');
   const essentialPlanName = essentialPlan?.name || 'ESSENTIAL';
@@ -139,7 +140,6 @@ export default async function TermsOfServicePage() {
                   The Service includes various features, some of which may be subject to plan limitations:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li><strong>Bank Integration (Plaid):</strong> Available on {essentialPlanName} and {proPlanName} plans. By connecting your bank accounts, you authorize us to access your account information, transactions, and balances through Plaid. You understand that we do not store your bank credentials and that Plaid handles all authentication securely. Bank data is synced automatically and you can disconnect at any time.</li>
                   <li><strong>Household Members:</strong> Available on the {proPlanName} plan. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions. The account owner can view and manage all household members' data.</li>
                   <li><strong>AI-Powered Features:</strong> The Service uses OpenAI-powered artificial intelligence to provide category suggestions, financial insights, and automated categorization based on your historical data. These are suggestions only, and you are responsible for verifying and approving all AI-generated content. We do not guarantee the accuracy of AI suggestions.</li>
                   <li><strong>CSV Import/Export:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may import and export your financial data in CSV format. You are responsible for the accuracy of imported data and for maintaining backups of exported data. Imported data may require manual verification and categorization.</li>
@@ -184,7 +184,7 @@ export default async function TermsOfServicePage() {
                   Spare Finance offers the following subscription plans:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li><strong>{essentialPlanName} Plan:</strong> ${essentialPlan?.priceMonthly.toFixed(2) || '7.99'}/month or ${essentialPlan?.priceYearly.toFixed(2) || '79.90'}/year - Includes 500 transactions per month, 10 accounts, investments, advanced reports, CSV import/export, bank integration via Plaid, and AI-powered categorization</li>
+                  <li><strong>{essentialPlanName} Plan:</strong> ${essentialPlan?.priceMonthly.toFixed(2) || '7.99'}/month or ${essentialPlan?.priceYearly.toFixed(2) || '79.90'}/year - Includes 500 transactions per month, 10 accounts, investments, advanced reports, CSV import/export, and AI-powered categorization</li>
                   <li><strong>{proPlanName} Plan:</strong> ${proPlan?.priceMonthly.toFixed(2) || '14.99'}/month or ${proPlan?.priceYearly.toFixed(2) || '149.90'}/year - Includes unlimited transactions and accounts, plus all {essentialPlanName} plan features</li>
                 </ul>
               </div>
@@ -299,12 +299,6 @@ export default async function TermsOfServicePage() {
                 or tax advice. You should consult with qualified professionals for such advice.
               </p>
               <p className="text-sm text-muted-foreground">
-                <strong>Bank Integration Disclaimer:</strong> Bank account connections are provided through 
-                Plaid, a third-party service. We are not responsible for the availability, accuracy, or 
-                security of Plaid's services. Bank data is provided "as is" and we do not guarantee the 
-                accuracy or completeness of imported bank transactions or account information.
-              </p>
-              <p className="text-sm text-muted-foreground">
                 <strong>AI Categorization Disclaimer:</strong> Category suggestions provided by our 
                 AI-powered system (powered by OpenAI) are based on patterns in your historical data and are suggestions only. 
                 You are responsible for reviewing and approving all categorizations. We do not guarantee 
@@ -369,7 +363,7 @@ export default async function TermsOfServicePage() {
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                   <li>Your right to use the Service will immediately cease</li>
                   <li>Your account and all data will be permanently deleted immediately</li>
-                  <li>All connected services (Plaid) will be disconnected</li>
+                  <li>All connected services will be disconnected</li>
                   <li>Your subscription will be cancelled and no further charges will occur</li>
                   <li>You may export your data before termination</li>
                 </ul>

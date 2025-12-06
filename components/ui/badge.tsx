@@ -18,6 +18,12 @@ const badgeVariants = cva(
         outline: "text-foreground",
       },
       size: {
+        tiny: cn(
+          componentSizes.badge.tiny.paddingX,
+          componentSizes.badge.tiny.paddingY,
+          componentSizes.badge.tiny.text,
+          componentSizes.badge.tiny.rounded
+        ),
         small: cn(
           componentSizes.badge.small.paddingX,
           componentSizes.badge.small.paddingY,

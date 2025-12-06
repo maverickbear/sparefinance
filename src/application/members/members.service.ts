@@ -528,7 +528,6 @@ export class MembersService {
     try {
       const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
-      subscriptionsService.invalidateSubscriptionCache(userId);
       logger.debug("[MembersService] Invalidated subscription cache for new household member", { userId, householdId: invitation.householdId });
       
       // Check if member has personal subscription and household has subscription
@@ -1024,7 +1023,6 @@ export class MembersService {
         try {
           const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
           const subscriptionsService = makeSubscriptionsService();
-          subscriptionsService.invalidateSubscriptionCache(userId);
         } catch (invalidateError) {
           logger.warn("[MembersService] Could not invalidate subscription cache:", invalidateError);
         }
@@ -1037,7 +1035,6 @@ export class MembersService {
       try {
         const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
         const subscriptionsService = makeSubscriptionsService();
-        subscriptionsService.invalidateSubscriptionCache(userId);
       } catch (invalidateError) {
         logger.warn("[MembersService] Could not invalidate subscription cache:", invalidateError);
       }

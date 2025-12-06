@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { makeProfileService } from "@/src/application/profile/profile.factory";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 
 /**
  * GET /api/v2/user
@@ -22,11 +23,12 @@ export async function GET(request: NextRequest) {
     const service = makeProfileService();
     const data = await service.getUserWithSubscription(userId);
 
+    // User data changes infrequently, use semi-static cache
+    const cacheHeaders = getCacheHeaders('semi-static');
+
     return NextResponse.json(data, {
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching user data:", error);

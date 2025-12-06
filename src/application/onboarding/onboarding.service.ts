@@ -13,9 +13,10 @@ import { logger } from "@/src/infrastructure/utils/logger";
 import { BudgetGenerator } from "./budget-generator";
 import { CategoryHelper } from "./category-helper";
 import { FinancialHealthData } from "../shared/financial-health";
-import { makeAccountsService } from "../accounts/accounts.factory";
+// CRITICAL: Use static import to ensure React cache() works correctly
+import { getAccountsForDashboard } from "../accounts/get-dashboard-accounts";
 import { makeProfileService } from "../profile/profile.factory";
-import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
+import { getDashboardSubscription } from "../subscriptions/get-dashboard-subscription";
 import { AppError } from "../shared/app-error";
 
 // Income range to monthly income conversion (using midpoint of range)
@@ -36,50 +37,86 @@ export class OnboardingService {
 
   /**
    * Get complete onboarding status including accounts, profile, and income
+   * OPTIMIZED: Can skip subscription check for faster response
    */
   async getOnboardingStatus(
     userId: string,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    options?: { skipSubscriptionCheck?: boolean }
   ): Promise<OnboardingStatusExtended> {
     try {
-      // Check accounts
-      const accountsService = makeAccountsService();
-      const accounts = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: false });
-      const hasAccount = accounts.length > 0;
-      const totalBalance = hasAccount
-        ? accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0)
-        : undefined;
+      // OPTIMIZATION: Run checks in parallel for faster response
+      const [accountsResult, profileResult, incomeResult] = await Promise.all([
+        // Check accounts
+        (async () => {
+          try {
+            // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
+            // Using static import ensures React cache() works correctly
+            const accounts = await getAccountsForDashboard(false);
+            const hasAccount = accounts.length > 0;
+            const totalBalance = hasAccount
+              ? accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0)
+              : undefined;
+            return { hasAccount, totalBalance, accounts };
+          } catch (error) {
+            logger.warn("[OnboardingService] Error checking accounts:", error);
+            return { hasAccount: false, totalBalance: undefined, accounts: [] };
+          }
+        })(),
+        // Check profile
+        (async () => {
+          try {
+            const profileService = makeProfileService();
+            const profile = await profileService.getProfile(accessToken, refreshToken);
+            const hasCompleteProfile = profile !== null && profile.name !== null && profile.name.trim() !== "";
+            const hasPersonalData = profile !== null && 
+              profile.phoneNumber !== null && 
+              profile.phoneNumber !== undefined && 
+              profile.phoneNumber.trim() !== "" &&
+              profile.dateOfBirth !== null && 
+              profile.dateOfBirth !== undefined && 
+              profile.dateOfBirth.trim() !== "";
+            return { hasCompleteProfile, hasPersonalData, profile };
+          } catch (error) {
+            logger.warn("[OnboardingService] Error checking profile:", error);
+            return { hasCompleteProfile: false, hasPersonalData: false, profile: null };
+          }
+        })(),
+        // Check income onboarding status
+        this.checkIncomeOnboardingStatus(userId, accessToken, refreshToken).catch(() => false),
+      ]);
 
-      // Check profile
-      const profileService = makeProfileService();
-      const profile = await profileService.getProfile(accessToken, refreshToken);
-      const hasCompleteProfile = profile !== null && profile.name !== null && profile.name.trim() !== "";
-      
-      // Check personal data (phone and dateOfBirth) - required for onboarding
-      const hasPersonalData = profile !== null && 
-        profile.phoneNumber !== null && 
-        profile.phoneNumber !== undefined && 
-        profile.phoneNumber.trim() !== "" &&
-        profile.dateOfBirth !== null && 
-        profile.dateOfBirth !== undefined && 
-        profile.dateOfBirth.trim() !== "";
+      const { hasAccount, totalBalance } = accountsResult;
+      const { hasCompleteProfile, hasPersonalData } = profileResult;
+      const hasExpectedIncome = incomeResult;
 
-      // Check income onboarding status
-      const hasExpectedIncome = await this.checkIncomeOnboardingStatus(userId, accessToken, refreshToken);
-
-      // Check if user has selected a plan (has active subscription or trial)
-      // Note: cancelled subscriptions don't count as "hasPlan" for onboarding purposes
-      // Users with cancelled subscriptions should see pricing dialog, not onboarding
-      const subscriptionsService = makeSubscriptionsService();
-      // Invalidate cache before checking to ensure we get the latest subscription status
-      // This is critical when subscription was just created to avoid stale cache
-      subscriptionsService.invalidateSubscriptionCache(userId);
-      const subscriptionData = await subscriptionsService.getUserSubscriptionData(userId);
-      const hasPlan = subscriptionData.plan !== null && 
-                     subscriptionData.subscription !== null &&
-                     (subscriptionData.subscription.status === "active" || 
-                      subscriptionData.subscription.status === "trialing");
+      // OPTIMIZATION: Skip subscription check if requested (for faster dialog opening)
+      let hasPlan = false;
+      if (!options?.skipSubscriptionCheck) {
+        try {
+          // CRITICAL OPTIMIZATION: Use pre-loaded subscription data if provided
+          // Otherwise use cached getDashboardSubscription to avoid duplicate calls
+          let subscriptionData;
+          
+          if (options?.subscriptionData) {
+            // Use pre-loaded subscription data (from layout/context)
+            subscriptionData = options.subscriptionData;
+          } else {
+            // Use cached function (ensures only 1 SubscriptionsService call per request)
+            subscriptionData = await getDashboardSubscription();
+          }
+          
+          hasPlan = subscriptionData?.plan !== null && 
+                   subscriptionData?.subscription !== null &&
+                   (subscriptionData.subscription.status === "active" || 
+                    subscriptionData.subscription.status === "trialing");
+        } catch (error) {
+          // If subscription check fails, assume no plan (will show onboarding)
+          logger.warn("[OnboardingService] Subscription check failed, assuming no plan:", error);
+          hasPlan = false;
+        }
+      }
 
       // Calculate counts - new onboarding: personal data, income, plan (3 steps)
       const completedCount = [hasPersonalData, hasExpectedIncome, hasPlan].filter(Boolean).length;
@@ -341,6 +378,67 @@ export class OnboardingService {
       incomeRange: profile?.temporaryExpectedIncome ?? null,
       incomeAmount: profile?.temporaryExpectedIncomeAmount ?? null,
     };
+  }
+
+  /**
+   * Save budget rule to household settings
+   */
+  async saveBudgetRule(
+    userId: string,
+    ruleType: import("../../domain/budgets/budget-rules.types").BudgetRuleType,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<void> {
+    const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
+    
+    if (!householdId) {
+      throw new AppError("Household must exist to save budget rule", 400);
+    }
+
+    // Get current settings
+    const currentSettings = await this.householdRepository.getSettings(
+      householdId,
+      accessToken,
+      refreshToken
+    );
+
+    // Update settings
+    const updatedSettings = OnboardingMapper.settingsToDatabase({
+      ...currentSettings,
+      budgetRule: ruleType,
+    });
+
+    await this.householdRepository.updateSettings(
+      householdId,
+      updatedSettings,
+      accessToken,
+      refreshToken
+    );
+
+    logger.info(`[OnboardingService] Saved budget rule for user ${userId}: ${ruleType}`);
+  }
+
+  /**
+   * Get budget rule from household settings
+   */
+  async getBudgetRule(
+    userId: string,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<import("../../domain/budgets/budget-rules.types").BudgetRuleType | null> {
+    const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
+    
+    if (!householdId) {
+      return null;
+    }
+
+    const settings = await this.householdRepository.getSettings(
+      householdId,
+      accessToken,
+      refreshToken
+    );
+
+    return settings?.budgetRule ?? null;
   }
 
   /**

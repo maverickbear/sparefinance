@@ -67,7 +67,7 @@ export function DeleteAccountWithTransferDialog({
               value={transferToAccountId}
               onValueChange={onTransferToAccountIdChange}
             >
-              <SelectTrigger>
+              <SelectTrigger size="small">
                 <SelectValue placeholder="Select destination account" />
               </SelectTrigger>
               <SelectContent>
@@ -87,11 +87,12 @@ export function DeleteAccountWithTransferDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" size="small" onClick={onCancel}>
             Cancel
           </Button>
           <Button
             variant="destructive"
+            size="small"
             onClick={() => {
               // Close dialog first, then call onConfirm
               onOpenChange(false);

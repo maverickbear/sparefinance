@@ -346,7 +346,7 @@ export function IncomeOnboardingForm({
   const statesOrProvinces = selectedCountry === "US" ? US_STATES : selectedCountry === "CA" ? CANADIAN_PROVINCES : [];
 
   const incomeRangeDisplay = (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="space-y-6">
       {/* Location Section */}
       <div className="space-y-4">
         <div className="space-y-2">

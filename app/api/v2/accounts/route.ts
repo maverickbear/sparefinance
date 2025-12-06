@@ -4,6 +4,8 @@ import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
 import { ZodError } from "zod";
 import { getCurrentUserId, guardAccountLimit, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
+import { revalidateTag } from 'next/cache';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,11 +20,12 @@ export async function GET(request: NextRequest) {
     const service = makeAccountsService();
     const accounts = await service.getAccounts(undefined, undefined, { includeHoldings });
     
-    return NextResponse.json(accounts, {
+    // Account list changes occasionally, use semi-static cache
+    const cacheHeaders = getCacheHeaders('semi-static');
+    
+    return NextResponse.json(accounts, { 
       status: 200,
-      headers: {
-        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=300',
-      },
+      headers: cacheHeaders,
     });
   } catch (error) {
     console.error("Error fetching accounts:", error);
@@ -56,6 +59,10 @@ export async function POST(request: NextRequest) {
     
     const service = makeAccountsService();
     const account = await service.createAccount(data);
+    
+    // Invalidate cache using tag groups (invalidates all account variants)
+    revalidateTag('accounts', 'max');
+    revalidateTag('subscriptions', 'max');
     
     return NextResponse.json(account, { status: 201 });
   } catch (error) {

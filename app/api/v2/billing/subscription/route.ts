@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
-import { createServerClient } from "@/src/infrastructure/database/supabase-server";
-import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { makeStripeService } from "@/src/application/stripe/stripe.factory";
+import { checkAccountLimit, checkTransactionLimit, getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { AppError } from "@/src/application/shared/app-error";
-import Stripe from "stripe";
-
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is not set");
-}
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-10-29.clover",
-  typescript: true,
-});
 
 /**
  * GET /api/v2/billing/subscription
@@ -30,8 +20,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const service = makeSubscriptionsService();
-    const subscriptionData = await service.getCurrentUserSubscriptionData();
+    const subscriptionData = await getCachedSubscriptionData(userId);
     
     // OPTIMIZATION: Fetch limits in parallel with Stripe interval check
     // This reduces total request time by doing everything in parallel
@@ -48,28 +37,21 @@ export async function GET(request: NextRequest) {
           return null;
         }
         try {
-          const stripeSubscription = await stripe.subscriptions.retrieve(
-            subscriptionData.subscription.stripeSubscriptionId
+          const stripeService = makeStripeService();
+          return await stripeService.getSubscriptionInterval(
+            subscriptionData.subscription.stripeSubscriptionId,
+            subscriptionData.plan
           );
-          const priceId = stripeSubscription.items.data[0]?.price.id;
-          
-          if (priceId && subscriptionData.plan) {
-            if (subscriptionData.plan.stripePriceIdMonthly === priceId) {
-              return "month";
-            } else if (subscriptionData.plan.stripePriceIdYearly === priceId) {
-              return "year";
-            }
-          }
         } catch (error) {
           console.error("Error fetching Stripe subscription interval:", error);
+          return null;
         }
-        return null;
       })(),
       // Fetch transaction and account limits (only if requested)
       includeLimits
         ? Promise.all([
-            service.checkTransactionLimit(userId),
-            service.checkAccountLimit(userId),
+            checkTransactionLimit(userId),
+            checkAccountLimit(userId),
           ]).then(([transactionLimit, accountLimit]) => ({
             transactionLimit,
             accountLimit,
@@ -89,9 +71,6 @@ export async function GET(request: NextRequest) {
         accountLimit: limitsResult.accountLimit,
       },
       {
-        headers: {
-          'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
-        },
       }
     );
   } catch (error) {

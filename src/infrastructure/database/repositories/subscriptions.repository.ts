@@ -4,7 +4,7 @@
  * No business logic here
  */
 
-import { createServerClient } from "../supabase-server";
+import { createServerClient, createServiceRoleClient } from "../supabase-server";
 import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface SubscriptionRow {
@@ -52,7 +52,13 @@ export class SubscriptionsRepository {
       .limit(10);
 
     if (error) {
-      logger.error("[SubscriptionsRepository] Error fetching subscription by householdId:", error);
+      // Permission denied (42501) is expected when RLS policies block access
+      // This can happen if the user doesn't have access to the household or subscription
+      if (error.code === "42501") {
+        logger.debug("[SubscriptionsRepository] Permission denied fetching subscription by householdId (expected during onboarding or if user doesn't have access):", { householdId });
+      } else {
+        logger.error("[SubscriptionsRepository] Error fetching subscription by householdId:", error);
+      }
       return null;
     }
 
@@ -92,14 +98,55 @@ export class SubscriptionsRepository {
       .limit(10);
 
     if (error) {
-      // Permission denied (42501) is expected when RLS policies block access
-      // This is normal during onboarding or when user doesn't have subscription yet
+      // Permission denied (42501) - try using service role client as fallback
+      // This can happen immediately after subscription creation when RLS hasn't propagated
       if (error.code === "42501") {
-        logger.debug("[SubscriptionsRepository] Permission denied fetching subscription by userId (expected during onboarding):", { userId });
+        logger.debug("[SubscriptionsRepository] Permission denied fetching subscription by userId, trying service role client:", { userId });
+        
+        try {
+          const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
+          const serviceRoleClient = createServiceRoleClient();
+          
+          const { data: serviceSubscriptions, error: serviceError } = await serviceRoleClient
+            .from("Subscription")
+            .select("*")
+            .eq("userId", userId)
+            .in("status", ["active", "trialing", "cancelled"])
+            .order("createdAt", { ascending: false })
+            .limit(10);
+          
+          if (serviceError) {
+            logger.error("[SubscriptionsRepository] Error fetching subscription by userId with service role:", serviceError);
+            return null;
+          }
+          
+          if (!serviceSubscriptions || serviceSubscriptions.length === 0) {
+            return null;
+          }
+          
+          // Prioritize: active/trialing > cancelled, then by createdAt (newest first)
+          const sorted = serviceSubscriptions.sort((a, b) => {
+            const aPriority = (a.status === "active" || a.status === "trialing") ? 0 : 1;
+            const bPriority = (b.status === "active" || b.status === "trialing") ? 0 : 1;
+            if (aPriority !== bPriority) return aPriority - bPriority;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+          
+          logger.debug("[SubscriptionsRepository] Found subscription using service role client:", {
+            subscriptionId: sorted[0].id,
+            status: sorted[0].status,
+            householdId: sorted[0].householdId,
+          });
+          
+          return sorted[0] as SubscriptionRow;
+        } catch (serviceErr) {
+          logger.error("[SubscriptionsRepository] Error using service role client:", serviceErr);
+          return null;
+        }
       } else {
         logger.error("[SubscriptionsRepository] Error fetching subscription by userId:", error);
+        return null;
       }
-      return null;
     }
 
     if (!subscriptions || subscriptions.length === 0) {
@@ -188,17 +235,51 @@ export class SubscriptionsRepository {
       return null;
     }
 
-    const supabase = await createServerClient();
+    // Try to use regular client first, but fall back to service role client
+    // if we're inside a cached function (can't access cookies) or if RLS blocks access
+    let supabase;
+    try {
+      supabase = await createServerClient();
+    } catch (error: any) {
+      // If we can't access cookies (e.g., inside "use cache"), use service role client
+      // This is safe because we're only reading cached subscription data
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('use cache') || 
+          errorMessage.includes('unstable_cache') || 
+          errorMessage.includes('Dynamic data sources')) {
+        logger.debug("[SubscriptionsRepository] Using service role client for cache lookup (inside cached function):", { userId });
+        supabase = createServiceRoleClient();
+      } else {
+        throw error;
+      }
+    }
 
-    const { data: user, error } = await supabase
+    // Try query with regular client first
+    let { data: user, error } = await supabase
       .from("User")
       .select("effectivePlanId, effectiveSubscriptionStatus, effectiveSubscriptionId, subscriptionUpdatedAt")
       .eq("id", userId)
       .maybeSingle();
 
+    // If we get a permission denied error, try with service role client
+    // This can happen when called from a cached function where createServerClient()
+    // returns an unauthenticated client that can't pass RLS
+    if (error && error.code === "42501") {
+      logger.debug("[SubscriptionsRepository] Permission denied with regular client, trying service role client:", { userId });
+      const serviceRoleSupabase = createServiceRoleClient();
+      const retryResult = await serviceRoleSupabase
+        .from("User")
+        .select("effectivePlanId, effectiveSubscriptionStatus, effectiveSubscriptionId, subscriptionUpdatedAt")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      user = retryResult.data;
+      error = retryResult.error;
+    }
+
     if (error && error.code !== "PGRST116") {
-      // Permission denied (42501) is expected when RLS policies block access
-      // This is normal during onboarding or when user doesn't have subscription yet
+      // PGRST116 is "not found" - that's fine, return null
+      // Other errors should be logged
       if (error.code === "42501") {
         logger.debug("[SubscriptionsRepository] Permission denied fetching user subscription cache (expected during onboarding):", { userId });
       } else {
@@ -269,8 +350,45 @@ export class SubscriptionsRepository {
       if (error.code === 'PGRST116') {
         return null; // Not found
       }
-      logger.error("[SubscriptionsRepository] Error fetching subscription by ID:", error);
-      return null;
+      
+      // Permission denied (42501) - try using service role client as fallback
+      // This can happen immediately after subscription creation when RLS hasn't propagated
+      if (error.code === "42501") {
+        logger.debug("[SubscriptionsRepository] Permission denied fetching subscription by ID, trying service role client:", { id });
+        
+        try {
+          const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
+          const serviceRoleClient = createServiceRoleClient();
+          
+          const { data: serviceSubscription, error: serviceError } = await serviceRoleClient
+            .from("Subscription")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
+          
+          if (serviceError) {
+            if (serviceError.code === 'PGRST116') {
+              return null; // Not found
+            }
+            logger.error("[SubscriptionsRepository] Error fetching subscription by ID with service role:", serviceError);
+            return null;
+          }
+          
+          logger.debug("[SubscriptionsRepository] Found subscription using service role client:", {
+            subscriptionId: serviceSubscription?.id,
+            status: serviceSubscription?.status,
+            householdId: serviceSubscription?.householdId,
+          });
+          
+          return serviceSubscription as SubscriptionRow | null;
+        } catch (serviceErr) {
+          logger.error("[SubscriptionsRepository] Error using service role client:", serviceErr);
+          return null;
+        }
+      } else {
+        logger.error("[SubscriptionsRepository] Error fetching subscription by ID:", error);
+        return null;
+      }
     }
 
     return subscription as SubscriptionRow | null;

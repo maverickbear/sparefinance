@@ -18,9 +18,14 @@ import {
   type DebtForCalculation,
 } from "@/lib/utils/debts";
 import { AppError } from "../shared/app-error";
+import { DebtPlannedPaymentsService } from "../planned-payments/debt-planned-payments.service";
 
 export class DebtsService {
-  constructor(private repository: DebtsRepository) {}
+  private debtPlannedPaymentsService: DebtPlannedPaymentsService;
+
+  constructor(private repository: DebtsRepository) {
+    this.debtPlannedPaymentsService = new DebtPlannedPaymentsService();
+  }
 
   /**
    * Get all debts with calculations
@@ -221,8 +226,25 @@ export class DebtsService {
       updatedAt: now,
     });
 
+    const debt = DebtsMapper.toDomain(debtRow);
 
-    return DebtsMapper.toDomain(debtRow);
+    // Generate planned payments for the debt (async, don't wait)
+    if (!isPaidOff && !data.isPaused && debtRow.accountId) {
+      this.debtPlannedPaymentsService
+        .generatePlannedPaymentsForDebt({
+          ...debt,
+          isPaidOff,
+          isPaused: data.isPaused ?? false,
+        } as DebtWithCalculations)
+        .catch((error) => {
+          logger.error(
+            `[DebtsService] Error generating planned payments for debt ${debt.id}:`,
+            error
+          );
+        });
+    }
+
+    return debt;
   }
 
   /**
@@ -294,8 +316,22 @@ export class DebtsService {
 
     const debtRow = await this.repository.update(id, updateData);
 
+    const debt = DebtsMapper.toDomain(debtRow);
 
-    return DebtsMapper.toDomain(debtRow);
+    // Sync planned payments for the debt (async, don't wait)
+    const debtWithCalculations = await this.getDebtById(id);
+    if (debtWithCalculations) {
+      this.debtPlannedPaymentsService
+        .syncPlannedPaymentsForDebt(debtWithCalculations)
+        .catch((error) => {
+          logger.error(
+            `[DebtsService] Error syncing planned payments for debt ${id}:`,
+            error
+          );
+        });
+    }
+
+    return debt;
   }
 
   /**

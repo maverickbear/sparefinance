@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 import Stripe from "stripe";
 
@@ -40,7 +41,7 @@ export async function GET() {
       console.log("[API/BILLING/PLANS] User authenticated:", userId);
       // User is authenticated, get their subscription data using SubscriptionsService
       console.log("[API/BILLING/PLANS] Getting current user subscription data");
-      const { subscription, plan } = await subscriptionsService.getUserSubscriptionData(userId);
+      const { subscription, plan } = await getCachedSubscriptionData(userId);
       console.log("[API/BILLING/PLANS] Subscription:", subscription);
       // getCurrentUserSubscriptionData returns null subscription if user has no subscription
       // User must select a plan on /select-plan page

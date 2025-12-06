@@ -3,6 +3,7 @@ import { makeTransactionsService } from "@/src/application/transactions/transact
 import { AppError } from "@/src/application/shared/app-error";
 
 /**
+ * @deprecated Use /api/v2/transactions/[id]/suggestions/apply instead
  * POST /api/transactions/[id]/apply-suggestion
  * Apply suggested category to a transaction
  * This endpoint moves the suggested category to the actual category

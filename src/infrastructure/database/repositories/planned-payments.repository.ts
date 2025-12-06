@@ -18,11 +18,12 @@ export interface PlannedPaymentRow {
   categoryId: string | null;
   subcategoryId: string | null;
   description: string | null; // Encrypted
-  source: "recurring" | "debt" | "manual" | "subscription";
+  source: "recurring" | "debt" | "manual" | "subscription" | "goal";
   status: "scheduled" | "paid" | "skipped" | "cancelled";
   linkedTransactionId: string | null;
   debtId: string | null;
   subscriptionId: string | null;
+  goalId: string | null;
   userId: string;
   householdId: string;
   createdAt: string;
@@ -39,9 +40,10 @@ export class PlannedPaymentsRepository {
       startDate?: Date;
       endDate?: Date;
       status?: "scheduled" | "paid" | "skipped" | "cancelled";
-      source?: "recurring" | "debt" | "manual" | "subscription";
+      source?: "recurring" | "debt" | "manual" | "subscription" | "goal";
       debtId?: string;
       subscriptionId?: string;
+      goalId?: string;
       accountId?: string;
       type?: "expense" | "income" | "transfer";
       limit?: number;
@@ -82,6 +84,9 @@ export class PlannedPaymentsRepository {
       query = query.eq("subscriptionId", filters.subscriptionId);
     }
 
+    // Note: goalId column does not exist in PlannedPayment table
+    // If goalId filter is provided, it will be ignored
+
     if (filters?.accountId) {
       query = query.eq("accountId", filters.accountId);
     }
@@ -107,6 +112,28 @@ export class PlannedPaymentsRepository {
       logger.error("[PlannedPaymentsRepository] Error fetching planned payments:", error);
       throw new Error(`Failed to fetch planned payments: ${error.message}`);
     }
+
+    logger.info("[PlannedPaymentsRepository] Query result:", {
+      userId,
+      filters: {
+        startDate: filters?.startDate?.toISOString(),
+        endDate: filters?.endDate?.toISOString(),
+        status: filters?.status,
+        type: filters?.type,
+        source: filters?.source,
+        page: filters?.page,
+        limit: filters?.limit,
+      },
+      dataCount: data?.length || 0,
+      totalCount: count,
+      firstItem: data?.[0] ? {
+        id: data[0].id,
+        date: data[0].date,
+        type: data[0].type,
+        status: data[0].status,
+        source: data[0].source,
+      } : null,
+    });
 
     return {
       data: (data || []) as PlannedPaymentRow[],
