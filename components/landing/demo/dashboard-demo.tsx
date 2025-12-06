@@ -53,7 +53,7 @@ const navSections = [
       { href: "/transactions", label: "Transactions", icon: Receipt },
       { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
       { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
-      { href: "/categories", label: "Categories", icon: FolderTree },
+      { href: "/settings/categories", label: "Categories", icon: FolderTree },
       { href: "/members", label: "Household", icon: Users },
     ],
   },

@@ -71,9 +71,9 @@ const navCategories: NavCategory[] = [
   {
     title: "Account & Settings",
     items: [
-      { href: "/profile", label: "Profile", icon: User },
+      { href: "/settings/profile", label: "Profile", icon: User },
       { href: "/settings", label: "My Account", icon: User },
-      { href: "/billing", label: "Billing", icon: DollarSign },
+      { href: "/settings/billing", label: "Billing", icon: DollarSign },
       { href: "/help-support", label: "Help & Support", icon: HelpCircle },
       { href: "/feedback", label: "Feedback", icon: MessageSquare },
     ],
@@ -239,7 +239,7 @@ export function MoreMenuSheet({
               className="flex-shrink-0"
               onClick={() => {
                 onOpenChange(false);
-                router.push("/profile");
+                router.push("/settings/profile");
               }}
             >
               <Edit className="h-4 w-4" />
@@ -302,7 +302,7 @@ export function MoreMenuSheet({
                   className="text-white hover:bg-white/20 flex-shrink-0"
                   onClick={() => {
                     onOpenChange(false);
-                    router.push("/profile");
+                    router.push("/settings/profile");
                   }}
                 >
                   <ArrowRight className="h-5 w-5" />

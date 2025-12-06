@@ -18,8 +18,8 @@ const NO_CACHE_ROUTES = [
   '/planning',
   '/investments',
   '/banking',
-  '/billing',
-  '/profile',
+  '/settings/billing',
+  '/settings/profile',
   '/members',
   '/api/',
 ];

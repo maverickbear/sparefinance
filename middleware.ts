@@ -162,8 +162,76 @@ function getRateLimitConfig(pathname: string): RateLimitConfig | null {
   return null;
 }
 
+/**
+ * Patterns that indicate malicious/scanner requests
+ * These should be blocked immediately without processing
+ */
+const MALICIOUS_PATTERNS = [
+  /\.php$/i,                    // PHP files (we don't use PHP)
+  /\.asp$/i,                     // ASP files
+  /\.aspx$/i,                    // ASPX files
+  /\.jsp$/i,                     // JSP files
+  /\.cgi$/i,                     // CGI scripts
+  /\.pl$/i,                      // Perl scripts
+  /\/admin\.php/i,               // Common admin panel attempts
+  /\/wp-admin/i,                  // WordPress admin
+  /\/wp-login/i,                  // WordPress login
+  /\/phpmyadmin/i,                // phpMyAdmin
+  /\/\.env$/i,                    // Environment files
+  /\/\.git/i,                     // Git directories
+  /\/\.svn/i,                     // SVN directories
+  /\/\.well-known\/pki-validation/i, // SSL validation abuse
+  /\/xmlrpc\.php/i,               // WordPress XML-RPC
+  /\/shell\.php/i,                // Common backdoor names
+  /\/cmd\.php/i,                  // Common backdoor names
+  /\/eval\.php/i,                 // Common backdoor names
+];
+
+/**
+ * Check if a path matches malicious patterns
+ */
+function isMaliciousRequest(pathname: string): boolean {
+  return MALICIOUS_PATTERNS.some(pattern => pattern.test(pathname));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Block malicious requests immediately (before any other processing)
+  if (isMaliciousRequest(pathname)) {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || 
+               request.headers.get("x-real-ip") || 
+               "unknown";
+    const userAgent = request.headers.get("user-agent") || "unknown";
+    
+    // Log security event
+    SecurityLogger.suspiciousActivity(
+      `Blocked malicious request: ${pathname}`,
+      { 
+        ip, 
+        userAgent,
+        details: {
+          pathname,
+          type: "malicious_pattern"
+        }
+      }
+    );
+
+    // Return 403 Forbidden immediately
+    return NextResponse.json(
+      { 
+        error: "Forbidden",
+        message: "Access denied"
+      },
+      { 
+        status: 403,
+        headers: {
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "DENY",
+        }
+      }
+    );
+  }
 
   // Check maintenance mode for all routes except:
   // - API routes (handled separately)

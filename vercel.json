@@ -18,6 +18,18 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), camera=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains; preload"
         }
       ]
     }
@@ -26,6 +38,26 @@
     {
       "source": "/api/health",
       "destination": "/api/health"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/admin.php",
+      "destination": "/",
+      "permanent": false,
+      "statusCode": 403
+    },
+    {
+      "source": "/about.php",
+      "destination": "/",
+      "permanent": false,
+      "statusCode": 403
+    },
+    {
+      "source": "/:path*.php",
+      "destination": "/",
+      "permanent": false,
+      "statusCode": 403
     }
   ],
   "crons": [

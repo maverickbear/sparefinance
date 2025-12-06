@@ -171,5 +171,17 @@ export const SecurityLogger = {
   ) => {
     logSecurityEvent(SecurityEventType.AUTHORIZATION_FAILURE, message, options);
   },
+
+  suspiciousActivity: (
+    message: string,
+    options?: {
+      userId?: string;
+      ip?: string;
+      userAgent?: string;
+      details?: Record<string, unknown>;
+    }
+  ) => {
+    logSecurityEvent(SecurityEventType.SUSPICIOUS_ACTIVITY, message, options);
+  },
 };
 

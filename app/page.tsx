@@ -155,6 +155,12 @@ async function AuthCheck() {
       redirect("/dashboard");
     }
   } catch (error: any) {
+    // NEXT_REDIRECT is expected - Next.js uses exceptions for redirects
+    if (error?.digest?.startsWith('NEXT_REDIRECT')) {
+      // Re-throw redirect exceptions - they should propagate
+      throw error;
+    }
+    
     // Silently handle prerendering errors - these are expected during build
     const errorMessage = error?.message || '';
     if (errorMessage.includes('prerender') || 

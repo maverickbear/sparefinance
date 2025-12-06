@@ -362,7 +362,7 @@ export function SavingsDistributionWidget({
                   Create a goal to start saving intelligently!
                 </p>
                 <Button
-                  onClick={() => router.push("/goals")}
+                  onClick={() => router.push("/planning/goals")}
                   variant="outline"
                   className="w-full"
                 >
@@ -412,7 +412,7 @@ export function SavingsDistributionWidget({
                 </div>
               ) : (
                 <Button
-                  onClick={() => router.push("/goals")}
+                  onClick={() => router.push("/planning/goals")}
                   variant="outline"
                   className="w-full"
                 >

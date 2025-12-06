@@ -47,7 +47,7 @@ const navSections = [
     title: "Money Management",
     items: [
       { href: "/transactions", label: "Transactions", icon: Receipt },
-      { href: "/categories", label: "Categories", icon: FolderTree },
+      { href: "/settings/categories", label: "Categories", icon: FolderTree },
       { href: "/accounts", label: "Accounts", icon: Wallet },
       { href: "/members", label: "Households", icon: Users },
     ],

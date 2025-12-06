@@ -36,7 +36,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Target className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4">No goals yet</p>
-            <Link href="/budgets?tab=goals">
+            <Link href="/planning/budgets?tab=goals">
               <Button variant="outline" size="small">Create Your First Goal</Button>
             </Link>
           </div>
@@ -84,7 +84,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
             <CardTitle className="text-lg font-semibold">Goals Overview</CardTitle>
             <CardDescription>Track your financial progress</CardDescription>
           </div>
-          <Link href="/budgets?tab=goals">
+          <Link href="/planning/budgets?tab=goals">
             <Button variant="ghost" size="small">
               View All
             </Button>
@@ -127,7 +127,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
               {topGoals.map((goal) => (
                 <Link
                   key={goal.id}
-                  href="/budgets?tab=goals"
+                  href="/planning/budgets?tab=goals"
                   className="block group"
                 >
                   <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
