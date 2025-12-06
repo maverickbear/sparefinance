@@ -59,7 +59,6 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
       return {
         isApiRoute: false,
         isPublicPage: false,
-        isSelectPlanPage: false,
         isWelcomePage: false,
         isDashboardRoute: false,
       };
@@ -68,7 +67,6 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
     const isApiRoute = pathname.startsWith("/api");
     const isAuthPage = pathname.startsWith("/auth");
     const isAcceptPage = pathname.startsWith("/members/accept");
-    const isSelectPlanPage = pathname === "/select-plan";
     const isWelcomePage = pathname === "/welcome";
     const isLandingPage = pathname === "/";
     const isPrivacyPolicyPage = pathname === "/privacy-policy";
@@ -77,18 +75,17 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
     const isSubscriptionSuccessPage = pathname === "/subscription/success";
     const isMaintenancePage = pathname === "/maintenance";
     const isPublicPage = isAuthPage || isAcceptPage || isLandingPage || isPrivacyPolicyPage || isTermsOfServicePage || isFAQPage || isSubscriptionSuccessPage || isMaintenancePage;
-    const isDashboardRoute = !isPublicPage && !isApiRoute && !isSelectPlanPage && !isWelcomePage;
+    const isDashboardRoute = !isPublicPage && !isApiRoute && !isWelcomePage;
     
     return {
       isApiRoute,
       isPublicPage,
-      isSelectPlanPage,
       isWelcomePage,
       isDashboardRoute,
     };
   }, [pathname]);
   
-  const { isApiRoute, isPublicPage, isSelectPlanPage, isWelcomePage, isDashboardRoute } = routeInfo;
+  const { isApiRoute, isPublicPage, isWelcomePage, isDashboardRoute } = routeInfo;
   
   const log = logger.withPrefix("LAYOUT-WRAPPER");
   
@@ -121,8 +118,8 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   }, []);
 
   // Add class to body/html to prevent scroll - must be called before any conditional returns
-  // Only apply to protected pages (not public pages, API routes, select-plan, or welcome)
-  const shouldUseFixedLayout = !isApiRoute && !isPublicPage && !isSelectPlanPage && !isWelcomePage && (hasSubscription || isDashboardRoute);
+  // Only apply to protected pages (not public pages, API routes, or welcome)
+  const shouldUseFixedLayout = !isApiRoute && !isPublicPage && !isWelcomePage && (hasSubscription || isDashboardRoute);
   
   useEffect(() => {
     if (shouldUseFixedLayout) {
@@ -180,8 +177,8 @@ export const LayoutWrapper = memo(function LayoutWrapper({ children }: { childre
   // Removed loading state that blocks navigation - allow instant navigation
   // Subscription check happens in background and doesn't block navigation
 
-  // If on select-plan or welcome page, show full screen without nav
-  if (isSelectPlanPage || isWelcomePage) {
+  // If on welcome page, show full screen without nav
+  if (isWelcomePage) {
     return (
       <>
         <Nav />

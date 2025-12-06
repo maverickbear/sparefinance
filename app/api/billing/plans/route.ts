@@ -44,7 +44,7 @@ export async function GET() {
       const { subscription, plan } = await getCachedSubscriptionData(userId);
       console.log("[API/BILLING/PLANS] Subscription:", subscription);
       // getCurrentUserSubscriptionData returns null subscription if user has no subscription
-      // User must select a plan on /select-plan page
+      // User will be prompted to select a plan via onboarding dialog or pricing modal
       if (subscription && plan) {
         currentPlanId = subscription.planId;
         console.log("[API/BILLING/PLANS] Current plan ID:", currentPlanId);

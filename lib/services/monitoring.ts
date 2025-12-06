@@ -184,12 +184,17 @@ export async function performHealthCheck(): Promise<HealthCheckResult> {
 
   // Check database
   try {
-    const { createServerClient } = await import('@/lib/supabase-server');
+    const { createServerClient } = await import('@/src/infrastructure/database/supabase-server');
     const supabase = await createServerClient();
     const { error } = await supabase.from('User').select('id').limit(1);
     checks.database = !error;
+    if (error) {
+      console.error('[HealthCheck] Database check failed:', error);
+    }
   } catch (error) {
-    logger.error('[HealthCheck] Database check failed:', error);
+    // Log error but don't throw - return safe fallback
+    console.error('[HealthCheck] Database check failed:', error);
+    checks.database = false;
   }
 
   // Determine overall status

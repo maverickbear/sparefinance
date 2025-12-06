@@ -4,9 +4,11 @@
  */
 
 import { NextResponse } from 'next/server';
+import { unstable_noStore as noStore } from 'next/cache';
 import { performHealthCheck } from '@/lib/services/monitoring';
 
 export async function GET() {
+  noStore();
   try {
     const health = await performHealthCheck();
     
@@ -15,9 +17,12 @@ export async function GET() {
     
     return NextResponse.json(health, { status: statusCode });
   } catch (error) {
+    // Return safe fallback without throwing - prevents build errors
+    console.error('[HealthCheck] Error performing health check:', error);
     return NextResponse.json(
       {
         status: 'unhealthy',
+        ok: false,
         error: 'Health check failed',
         timestamp: new Date().toISOString(),
       },

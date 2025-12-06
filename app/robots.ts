@@ -40,7 +40,6 @@ export default function robots(): MetadataRoute.Robots {
           "/account-deleted",
           "/maintenance",
           "/welcome",
-          "/select-plan",
         ],
       },
       {
@@ -71,7 +70,6 @@ export default function robots(): MetadataRoute.Robots {
           "/account-deleted",
           "/maintenance",
           "/welcome",
-          "/select-plan",
         ],
         crawlDelay: 0,
       },
@@ -103,7 +101,6 @@ export default function robots(): MetadataRoute.Robots {
           "/account-deleted",
           "/maintenance",
           "/welcome",
-          "/select-plan",
         ],
         crawlDelay: 1,
       },

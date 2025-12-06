@@ -379,16 +379,16 @@ export async function GET(request: NextRequest) {
          subscription?.status === "trialing");
 
       if (!hasActiveSubscription) {
-        // No active subscription - redirect to select-plan (which redirects to dashboard with modal)
-        return NextResponse.redirect(new URL("/select-plan", requestUrl.origin));
+        // No active subscription - redirect to dashboard (onboarding dialog will handle plan selection)
+        return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
       }
 
       // User has active subscription - redirect to dashboard
       return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
     } catch (subscriptionError) {
       console.error("[OAUTH-CALLBACK] Error checking subscription:", subscriptionError);
-      // If we can't check subscription, redirect to select-plan to be safe
-      return NextResponse.redirect(new URL("/select-plan", requestUrl.origin));
+      // If we can't check subscription, redirect to dashboard to be safe
+      return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
     }
   } catch (error) {
     console.error("[OAUTH-CALLBACK] Unexpected error:", error);

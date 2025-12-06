@@ -168,33 +168,39 @@ export class SubscriptionsRepository {
    * Find all plans
    */
   async findAllPlans(): Promise<PlanRow[]> {
-    const supabase = await createServerClient();
+    try {
+      const supabase = await createServerClient();
 
-    const { data: plans, error } = await supabase
-      .from("Plan")
-      .select("*")
-      .order("priceMonthly", { ascending: true });
+      const { data: plans, error } = await supabase
+        .from("Plan")
+        .select("*")
+        .order("priceMonthly", { ascending: true });
 
-    if (error) {
-      // Check if the error is due to HTML response (misconfigured Supabase URL)
-      const errorMessage = error.message || "";
-      if (errorMessage.includes("<html>") || 
-          errorMessage.includes("500 Internal Server Error") ||
-          errorMessage.includes("cloudflare") ||
-          errorMessage.includes("Unexpected token '<'")) {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "not set";
-        logger.error("[SubscriptionsRepository] Supabase URL appears misconfigured:", {
-          error: error.message,
-          supabaseUrl: supabaseUrl.substring(0, 50) + "...",
-          suggestion: "NEXT_PUBLIC_SUPABASE_URL should point to your Supabase project (should end with .supabase.co), not your app domain",
-        });
-      } else {
-        logger.error("[SubscriptionsRepository] Error fetching plans:", error);
+      if (error) {
+        // Check if the error is due to HTML response (misconfigured Supabase URL)
+        const errorMessage = error.message || "";
+        if (errorMessage.includes("<html>") || 
+            errorMessage.includes("500 Internal Server Error") ||
+            errorMessage.includes("cloudflare") ||
+            errorMessage.includes("Unexpected token '<'")) {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "not set";
+          console.error("[SubscriptionsRepository] Supabase URL appears misconfigured:", {
+            error: error.message,
+            supabaseUrl: supabaseUrl.substring(0, 50) + "...",
+            suggestion: "NEXT_PUBLIC_SUPABASE_URL should point to your Supabase project (should end with .supabase.co), not your app domain",
+          });
+        } else {
+          console.error("[SubscriptionsRepository] Error fetching plans:", error);
+        }
+        return [];
       }
+
+      return (plans || []) as PlanRow[];
+    } catch (error) {
+      // Catch any unexpected errors during build/prerender
+      console.error("[SubscriptionsRepository] Error fetching plans:", error);
       return [];
     }
-
-    return (plans || []) as PlanRow[];
   }
 
   /**
