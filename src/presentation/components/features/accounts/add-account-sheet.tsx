@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,10 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AccountForm } from "@/components/forms/account-form";
-import { Wallet, Building2, Loader2 } from "lucide-react";
+import { Wallet } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { useSubscription } from "@/hooks/use-subscription";
-import { ImportProgress } from "@/components/accounts/import-progress";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 
 interface AddAccountSheetProps {
@@ -35,13 +33,9 @@ export function AddAccountSheet({
   canWrite = true,
 }: AddAccountSheetProps) {
   const { toast } = useToast();
-  const { limits, checking: limitsLoading } = useSubscription();
   const breakpoint = useBreakpoint();
   const isDesktop = breakpoint === "lg" || breakpoint === "xl" || breakpoint === "2xl";
   const [showManualForm, setShowManualForm] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [linkToken, setLinkToken] = useState<string | null>(null);
-  const [importJobIds, setImportJobIds] = useState<string[]>([]);
 
   const handleManualAccountSuccess = () => {
     setShowManualForm(false);
@@ -55,164 +49,6 @@ export function AddAccountSheet({
       variant: "success",
     });
   };
-
-  const onSuccessCallback = useCallback(
-    async (publicToken: string, metadata: any) => {
-      try {
-        setIsConnecting(true);
-
-        const response = await fetch('/api/plaid/exchange-public-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            publicToken,
-            metadata,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to connect account');
-        }
-
-        setIsConnecting(false);
-
-        // Check if there are import jobs (large imports)
-        if (data.importJobs && data.importJobs.length > 0) {
-          setImportJobIds(data.importJobs);
-          toast({
-            title: 'Bank account connected',
-            description: 'Your account is connected. Importing transactions in the background...',
-            variant: 'success',
-          });
-          // Don't close the sheet yet - show progress
-        } else {
-          // Small import completed immediately
-          onOpenChange(false);
-          // Dispatch custom event to notify other components (e.g., OnboardingWidget)
-          window.dispatchEvent(new CustomEvent("account-created"));
-          onSuccess?.();
-          toast({
-            title: 'Bank account connected',
-            description: 'Your bank account has been connected successfully.',
-            variant: 'success',
-          });
-        }
-      } catch (error: any) {
-        setIsConnecting(false);
-        toast({
-          title: 'Error',
-          description: error.message || 'Failed to connect account',
-          variant: 'destructive',
-        });
-      }
-    },
-    [toast, onOpenChange, onSuccess]
-  );
-
-  const onErrorCallback = useCallback(
-    (error: any, metadata: any) => {
-      setIsConnecting(false);
-      const errorCode = error?.error_code;
-      const errorType = error?.error_type;
-
-      if (errorCode === 'INTERNAL_SERVER_ERROR' || errorType === 'API_ERROR') {
-        toast({
-          title: 'Connection Error',
-          description: 'An unexpected error occurred. Please try again in a few moments.',
-          variant: 'destructive',
-        });
-      } else if (errorCode === 'INSTITUTION_NOT_RESPONDING' || errorCode === 'INSTITUTION_DOWN') {
-        toast({
-          title: 'Bank Temporarily Unavailable',
-          description: 'Your bank is currently not responding. Please try again later.',
-          variant: 'destructive',
-        });
-      } else if (errorCode === 'ITEM_LOGIN_REQUIRED') {
-        toast({
-          title: 'Login Required',
-          description: 'Please reconnect your account. Your credentials may have expired.',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Connection Error',
-          description: error?.display_message || error?.error_message || 'An error occurred while connecting.',
-          variant: 'destructive',
-        });
-      }
-    },
-    [toast]
-  );
-
-  const handlePlaidExit = useCallback((err: any, metadata: any) => {
-    setIsConnecting(false);
-    setLinkToken(null);
-  }, []);
-
-  const handleConnectBank = useCallback(async () => {
-    try {
-      setIsConnecting(true);
-
-      const response = await fetch('/api/plaid/create-link-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          accountType: 'bank',
-          country: 'CA',
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 403 && data.planError) {
-          toast({
-            title: 'Upgrade Required',
-            description: 'Bank integration is only available for paid plans.',
-            variant: 'destructive',
-          });
-          setIsConnecting(false);
-          return;
-        }
-        throw new Error(data.error || 'Failed to create link token');
-      }
-
-      setLinkToken(data.link_token);
-      
-      initialize({
-        token: data.link_token,
-        onSuccess: onSuccessCallback,
-        onExit: (err, metadata) => {
-          if (err) {
-            onErrorCallback(err, metadata);
-          }
-          handlePlaidExit(err, metadata);
-        },
-      });
-    } catch (error: any) {
-      console.error('Error creating link token:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to connect account',
-        variant: 'destructive',
-      });
-      setIsConnecting(false);
-    }
-  }, [initialize, onSuccessCallback, handlePlaidExit, toast]);
-
-  // Open Plaid Link when token is ready
-  useEffect(() => {
-    if (linkToken && ready && openPlaid && isInitialized) {
-      const timeout = setTimeout(() => {
-        if (openPlaid) {
-          openPlaid();
-        }
-      }, 100);
-      return () => clearTimeout(timeout);
-    }
-  }, [linkToken, ready, openPlaid, isInitialized]);
 
   if (showManualForm) {
     return (
@@ -230,55 +66,22 @@ export function AddAccountSheet({
   }
 
   const content = (
-    <>
-      {importJobIds.length > 0 && (
-        <ImportProgress
-          jobIds={importJobIds}
-          onComplete={() => {
-            setImportJobIds([]);
-            onOpenChange(false);
-            onSuccess?.();
-          }}
-        />
-      )}
-
-      <Button
-        variant="outline"
-        className="w-full h-auto p-4 flex items-center gap-3"
-        onClick={() => setShowManualForm(true)}
-        disabled={!canWrite}
-      >
-        <div className="p-2 rounded-lg bg-muted">
-          <Wallet className="h-5 w-5" />
+    <Button
+      variant="outline"
+      className="w-full h-auto p-4 flex items-center gap-3"
+      onClick={() => setShowManualForm(true)}
+      disabled={!canWrite}
+    >
+      <div className="p-2 rounded-lg bg-muted">
+        <Wallet className="h-5 w-5" />
+      </div>
+      <div className="flex-1 text-left">
+        <div className="font-semibold">Add Bank Account</div>
+        <div className="text-sm text-muted-foreground">
+          Manually add an account
         </div>
-        <div className="flex-1 text-left">
-          <div className="font-semibold">Add Bank Account</div>
-          <div className="text-sm text-muted-foreground">
-            Manually add an account
-          </div>
-        </div>
-      </Button>
-
-      <Button
-        variant="outline"
-        className="w-full h-auto p-4 flex items-center gap-3"
-        onClick={handleConnectBank}
-        disabled={isConnecting || limitsLoading || !limits.hasBankIntegration}
-      >
-        <div className="p-2 rounded-lg bg-muted">
-          <Building2 className="h-5 w-5" />
-        </div>
-        <div className="flex-1 text-left">
-          <div className="font-semibold">Connect Bank Account</div>
-          <div className="text-sm text-muted-foreground">
-            Securely connect via Plaid
-          </div>
-        </div>
-        {isConnecting && (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        )}
-      </Button>
-    </>
+      </div>
+    </Button>
   );
 
   // Desktop: Use Dialog

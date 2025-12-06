@@ -14,6 +14,7 @@ import { logger } from "@/src/infrastructure/utils/logger";
 import { getDashboardSubscription } from "../subscriptions/get-dashboard-subscription";
 import { makeMembersService } from "../members/members.factory";
 import { makeAuthService } from "../auth/auth.factory";
+import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
 import { AppError } from "../shared/app-error";
 import { getCurrentUserId } from "../shared/feature-guard";
 import { validateImageFile, sanitizeFilename, getFileExtension } from "@/lib/utils/file-validation";

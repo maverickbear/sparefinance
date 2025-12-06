@@ -116,7 +116,7 @@ interface PlanInfo {
     priceYearly: number;
   } | null;
   subscription: {
-    status: "active" | "trialing" | "cancelled" | "past_due";
+    status: "active" | "trialing" | "cancelled" | "past_due" | "unpaid";
     trialEndDate?: string | null;
     currentPeriodEnd?: string | null;
     cancelAtPeriodEnd?: boolean;

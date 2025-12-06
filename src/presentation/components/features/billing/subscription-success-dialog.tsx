@@ -97,7 +97,8 @@ export function SubscriptionSuccessDialog({
   // Update trial end date from subscription when it changes
   useEffect(() => {
     if (subscription?.trialEndDate) {
-      setTrialEndDate(subscription.trialEndDate);
+      const trialEnd = typeof subscription.trialEndDate === 'string' ? subscription.trialEndDate : subscription.trialEndDate.toISOString();
+      setTrialEndDate(trialEnd);
     }
   }, [subscription]);
 

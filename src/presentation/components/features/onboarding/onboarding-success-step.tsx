@@ -30,7 +30,8 @@ export function OnboardingSuccessStep({
   useEffect(() => {
     // Extract trial end date from subscription if available
     if (subscription?.trialEndDate) {
-      setTrialEndDate(subscription.trialEndDate);
+      const trialEnd = typeof subscription.trialEndDate === 'string' ? subscription.trialEndDate : subscription.trialEndDate.toISOString();
+      setTrialEndDate(trialEnd);
     }
   }, [subscription]);
 

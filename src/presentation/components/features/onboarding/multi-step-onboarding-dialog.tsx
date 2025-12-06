@@ -167,7 +167,7 @@ export function MultiStepOnboardingDialog({
   useEffect(() => {
     if (plan && subscription) {
       setCurrentPlanId(plan.id);
-      setCurrentInterval(subscription.interval || null);
+      setCurrentInterval((subscription as any).interval || null);
       setStep3Completed(true);
     } else {
       // If no plan in Context, try to refetch

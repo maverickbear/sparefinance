@@ -43,7 +43,7 @@ export class OnboardingService {
     userId: string,
     accessToken?: string,
     refreshToken?: string,
-    options?: { skipSubscriptionCheck?: boolean }
+    options?: { skipSubscriptionCheck?: boolean; subscriptionData?: Awaited<ReturnType<typeof getDashboardSubscription>> }
   ): Promise<OnboardingStatusExtended> {
     try {
       // OPTIMIZATION: Run checks in parallel for faster response
@@ -56,7 +56,7 @@ export class OnboardingService {
             const accounts = await getAccountsForDashboard(false);
             const hasAccount = accounts.length > 0;
             const totalBalance = hasAccount
-              ? accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0)
+              ? accounts.reduce((sum: number, acc: { balance?: number }) => sum + (acc.balance || 0), 0)
               : undefined;
             return { hasAccount, totalBalance, accounts };
           } catch (error) {

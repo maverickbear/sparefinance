@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Button } from "@/components/ui/button";
-import { Plus, CreditCard, Edit, Trash2, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { Plus, CreditCard, Edit, Trash2, Loader2 } from "lucide-react";
 import { AccountForm } from "@/components/forms/account-form";
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
@@ -12,7 +12,6 @@ import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
 import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
 import { DeleteAccountWithTransferDialog } from "@/components/accounts/delete-account-with-transfer-dialog";
-import { ReconnectAccountDialog } from "@/components/accounts/reconnect-account-dialog";
 import { AccountCard } from "@/components/banking/account-card";
 import { AddAccountSheet } from "@/components/accounts/add-account-sheet";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
@@ -69,8 +68,6 @@ export default function AccountsPage() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [accountLimit, setAccountLimit] = useState<{ current: number; limit: number } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
   const [transferToAccountId, setTransferToAccountId] = useState<string>("");
@@ -78,9 +75,6 @@ export default function AccountsPage() {
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [isAddAccountSheetOpen, setIsAddAccountSheetOpen] = useState(false);
-  const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
-  const [accountToReconnect, setAccountToReconnect] = useState<Account | null>(null);
-  const [reconnecting, setReconnecting] = useState(false);
 
   // Update ref when perf changes (but don't trigger re-renders)
   useEffect(() => {
@@ -280,141 +274,6 @@ export default function AccountsPage() {
     performDelete(accountIdToDelete, transferToId);
   }
 
-  async function handleSync(accountId: string) {
-    try {
-      setSyncingId(accountId);
-      const response = await fetch('/api/plaid/sync-transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        // If response is not JSON, use status text
-        throw new Error(`Failed to sync transactions: ${response.statusText || 'Unknown error'}`);
-      }
-
-      if (!response.ok) {
-        // Extract error message from response
-        const errorMessage = data?.error || data?.message || `Failed to sync transactions (${response.status})`;
-        
-        // Handle specific Plaid errors - show reconnect dialog
-        if (data?.plaidErrorCode === 'ITEM_LOGIN_REQUIRED') {
-          const account = accounts.find(a => a.id === accountId);
-          if (account) {
-            setAccountToReconnect(account);
-            setReconnectDialogOpen(true);
-            setSyncingId(null); // Clear syncing state
-            return; // Don't show error toast, dialog will handle it
-          }
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      toast({
-        title: 'Transactions synced',
-        description: `Synced ${data.synced} new transactions. ${data.skipped} were skipped.`,
-        variant: 'success',
-      });
-
-      await loadAccounts(true); // Force refresh to bypass cache
-    } catch (error: any) {
-      console.error('Error syncing transactions:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to sync transactions',
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncingId(null);
-    }
-  }
-
-  async function handleDisconnect(accountId: string) {
-    if (!confirm('Are you sure you want to disconnect this bank account?')) {
-      return;
-    }
-
-    try {
-      setDisconnectingId(accountId);
-      const response = await fetch('/api/plaid/disconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to disconnect account');
-      }
-
-      toast({
-        title: 'Account disconnected',
-        description: 'The bank account has been disconnected successfully.',
-        variant: 'success',
-      });
-
-      await loadAccounts(true); // Force refresh to bypass cache
-    } catch (error: any) {
-      console.error('Error disconnecting account:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to disconnect account',
-        variant: 'destructive',
-      });
-    } finally {
-      setDisconnectingId(null);
-    }
-  }
-
-  async function handleReconnect() {
-    if (!accountToReconnect) return;
-
-    try {
-      setReconnecting(true);
-      
-      // First, disconnect the account
-      const disconnectResponse = await fetch('/api/plaid/disconnect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: accountToReconnect.id }),
-      });
-
-      const disconnectData = await disconnectResponse.json();
-
-      if (!disconnectResponse.ok) {
-        throw new Error(disconnectData.error || 'Failed to disconnect account');
-      }
-
-      // Close the dialog
-      setReconnectDialogOpen(false);
-      setAccountToReconnect(null);
-
-      // Reload accounts to reflect the disconnection
-      await loadAccounts(true); // Force refresh to bypass cache
-
-      // Show success message and guide user to reconnect
-      toast({
-        title: 'Account disconnected',
-        description: 'Please use the "Connect Account" button to reconnect your bank account.',
-        variant: 'success',
-      });
-    } catch (error: any) {
-      console.error('Error reconnecting account:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to reconnect account',
-        variant: 'destructive',
-      });
-    } finally {
-      setReconnecting(false);
-    }
-  }
 
   // Get unique account types and owners for filters
   const uniqueTypes = useMemo(() => {
@@ -716,38 +575,6 @@ export default function AccountsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {account.isConnected && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleSync(account.id)}
-                                  disabled={syncingId === account.id}
-                                  title="Sync transactions"
-                                >
-                                  {syncingId === account.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
-                                  onClick={() => handleDisconnect(account.id)}
-                                  disabled={disconnectingId === account.id}
-                                  title="Disconnect account"
-                                >
-                                  {disconnectingId === account.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Unlink className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </>
-                            )}
                             {canWrite && (
                               <Button
                                 variant="ghost"
@@ -852,11 +679,7 @@ export default function AccountsPage() {
                         }
                       }}
                       onDelete={handleDelete}
-                      onSync={handleSync}
-                      onDisconnect={handleDisconnect}
                       deletingId={deletingId}
-                      syncingId={syncingId}
-                      disconnectingId={disconnectingId}
                       canDelete={canWrite}
                       canEdit={canWrite}
                     />
@@ -906,19 +729,6 @@ export default function AccountsPage() {
         }}
       />
 
-      <ReconnectAccountDialog
-        open={reconnectDialogOpen}
-        onOpenChange={(open) => {
-          setReconnectDialogOpen(open);
-          if (!open) {
-            setAccountToReconnect(null);
-          }
-        }}
-        onReconnect={handleReconnect}
-        accountName={accountToReconnect?.name}
-        institutionName={accountToReconnect?.institutionName || undefined}
-        loading={reconnecting}
-      />
 
       {ConfirmDialog}
 

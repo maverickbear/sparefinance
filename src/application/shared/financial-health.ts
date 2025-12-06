@@ -561,7 +561,7 @@ async function calculateFinancialHealthInternal(
             accountsToUse = await getAccountsForDashboard(true);
           }
           
-          const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+          const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
           
           // Emergency fund months = total balance / monthly expenses
           if (monthlyExpenses > 0) {
@@ -575,7 +575,7 @@ async function calculateFinancialHealthInternal(
           accountsToUse = await getAccountsForDashboard(true);
         }
         
-        const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+        const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
         
         if (monthlyExpenses > 0) {
           emergencyFundMonths = totalBalance / monthlyExpenses;
@@ -588,7 +588,7 @@ async function calculateFinancialHealthInternal(
         accountsToUse = await getAccountsForDashboard(true);
       }
       
-      const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+      const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
       
       if (monthlyExpenses > 0) {
         emergencyFundMonths = totalBalance / monthlyExpenses;
@@ -1003,7 +1003,7 @@ export async function recalculateFinancialHealthFromTransactions(
             accountsToUse = await getAccountsForDashboard(true);
           }
           
-          const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+          const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
           
           if (monthlyExpenses > 0) {
             emergencyFundMonths = totalBalance / monthlyExpenses;
@@ -1018,7 +1018,7 @@ export async function recalculateFinancialHealthFromTransactions(
           accountsToUse = await getAccountsForDashboard(true);
         }
         
-        const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+        const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
         
         if (monthlyExpenses > 0) {
           emergencyFundMonths = totalBalance / monthlyExpenses;
@@ -1033,7 +1033,7 @@ export async function recalculateFinancialHealthFromTransactions(
         accountsToUse = await getAccountsForDashboard(true);
       }
       
-      const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+      const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
       
       if (monthlyExpenses > 0) {
         emergencyFundMonths = totalBalance / monthlyExpenses;

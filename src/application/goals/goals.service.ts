@@ -242,8 +242,8 @@ export class GoalsService {
     // Use provided accounts or fetched accounts
     const accountsToUse = accounts && accounts.length > 0 ? accounts : fetchedAccounts;
 
-    const accountsMap = new Map<string, any>();
-    accountsToUse.forEach(acc => {
+    const accountsMap = new Map<string, { id: string; balance?: number }>();
+    accountsToUse.forEach((acc: { id: string; balance?: number }) => {
       accountsMap.set(acc.id, acc);
     });
 

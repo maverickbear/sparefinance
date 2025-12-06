@@ -93,10 +93,10 @@ export function UserMenuClient({ isCollapsed }: UserMenuClientProps) {
       {/* Trial Widget - Show if user is in trial */}
       {!loading && isTrialing && !isCollapsed && subscription && (
         <TrialWidget
-          daysRemaining={calculateTrialDaysRemaining(subscription.trialEndDate ?? null)}
-          progress={calculateTrialProgress(subscription.trialStartDate ?? null, subscription.trialEndDate ?? null)}
-          trialStartDate={subscription.trialStartDate ?? null}
-          trialEndDate={subscription.trialEndDate ?? null}
+          daysRemaining={calculateTrialDaysRemaining(subscription.trialEndDate ? (typeof subscription.trialEndDate === 'string' ? subscription.trialEndDate : subscription.trialEndDate.toISOString()) : null)}
+          progress={calculateTrialProgress((subscription as any).trialStartDate ? (typeof (subscription as any).trialStartDate === 'string' ? (subscription as any).trialStartDate : (subscription as any).trialStartDate.toISOString()) : null, subscription.trialEndDate ? (typeof subscription.trialEndDate === 'string' ? subscription.trialEndDate : subscription.trialEndDate.toISOString()) : null)}
+          trialStartDate={(subscription as any).trialStartDate ? (typeof (subscription as any).trialStartDate === 'string' ? (subscription as any).trialStartDate : (subscription as any).trialStartDate.toISOString()) : null}
+          trialEndDate={subscription.trialEndDate ? (typeof subscription.trialEndDate === 'string' ? subscription.trialEndDate : subscription.trialEndDate.toISOString()) : null}
           planName={plan?.name ?? null}
         />
       )}

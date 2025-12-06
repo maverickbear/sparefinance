@@ -35,6 +35,7 @@ export class PlannedPaymentsMapper {
       linkedTransactionId: row.linkedTransactionId,
       debtId: row.debtId,
       subscriptionId: row.subscriptionId,
+      goalId: row.goalId,
       userId: row.userId,
       householdId: row.householdId,
       createdAt: new Date(row.createdAt),
@@ -64,6 +65,7 @@ export class PlannedPaymentsMapper {
       linkedTransactionId: domain.linkedTransactionId ?? null,
       debtId: domain.debtId ?? null,
       subscriptionId: domain.subscriptionId ?? null,
+      goalId: domain.goalId ?? null,
       userId: domain.userId,
       householdId: domain.householdId,
     };

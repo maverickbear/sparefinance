@@ -108,7 +108,7 @@ async function loadDashboardDataInternal(
     // Still need to fetch AccountOwner relationships and owner names
     const supabase = await createServerClient(accessToken, refreshToken);
     
-    const accountIds = accounts.map(acc => acc.id);
+    const accountIds = accounts.map((acc: { id: string }) => acc.id);
     if (accountIds.length === 0) {
       logger.warn("[Dashboard] No accounts found - returning empty array");
       return [];
@@ -379,7 +379,7 @@ async function loadDashboardDataInternal(
 
   // OPTIMIZED: Fetch expected income range first, then use it for financial health
   // This avoids duplicate calls and allows parallel processing
-  let expectedIncomeRange: string | null = null;
+  let expectedIncomeRange: ExpectedIncomeRange = null;
   let projectedIncome: number | undefined;
   
   const [expectedIncomeResult] = await Promise.all([

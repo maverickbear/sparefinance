@@ -48,6 +48,8 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
   const checkingRef = useRef(false);
   const lastFetchRef = useRef<number>(initialData ? Date.now() : 0);
   const roleCacheRef = useRef<{ role: typeof role; timestamp: number } | null>(null);
+  const initializedRef = useRef(false);
+  const authStateChangeSetupRef = useRef(false);
 
   const fetchUser = useCallback(async (): Promise<{ user: BaseUser | null; isAuthenticated: boolean; role: typeof role }> => {
     try {
@@ -117,8 +119,33 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
     }
   }, [fetchUser, log]);
 
-  // Listen to Supabase auth state changes
+  // Initial fetch if no initialData provided (only once on mount)
   useEffect(() => {
+    if (initializedRef.current) return;
+    
+    // If we have initialData, mark as initialized and skip fetch
+    if (initialData) {
+      initializedRef.current = true;
+      // Still fetch role if not provided in initialData
+      if (!role) {
+        refetch().catch(() => {
+          // Silently fail - role is optional
+        });
+      }
+      return;
+    }
+
+    // If no initialData, fetch user data once on mount
+    initializedRef.current = true;
+    log.log("No initialData provided, fetching user data on mount");
+    refetch();
+  }, []); // Only run once on mount
+
+  // Listen to Supabase auth state changes (only setup once)
+  useEffect(() => {
+    if (authStateChangeSetupRef.current) return;
+    authStateChangeSetupRef.current = true;
+
     import("@/lib/supabase").then(({ supabase }) => {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { id: string } } | null) => {
         log.log("Auth state changed:", event);
@@ -126,17 +153,20 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
         if (event === "SIGNED_OUT" || !session?.user) {
           setUser(null);
           setIsAuthenticated(false);
+          setRole(null);
           return;
         }
         
-        if (session?.user) {
-          // Refetch user data to ensure we have latest from database
-          await refetch();
+        if (session?.user && event !== "INITIAL_SESSION") {
+          // Only refetch on actual state changes, not initial session
+          // This prevents duplicate calls on mount
+          refetch();
         }
       });
 
       return () => {
         subscription.unsubscribe();
+        authStateChangeSetupRef.current = false;
       };
     });
   }, [refetch, log]);

@@ -32,7 +32,7 @@ interface UserData {
     name: string;
   } | null;
   subscription?: {
-    status: "active" | "trialing" | "cancelled" | "past_due";
+    status: "active" | "trialing" | "cancelled" | "past_due" | "unpaid";
     trialEndDate?: string | null;
     trialStartDate?: string | null;
   } | null;
@@ -109,8 +109,8 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
     } : null,
     subscription: subscription ? {
       status: subscription.status,
-      trialEndDate: subscription.trialEndDate ?? null,
-      trialStartDate: subscription.trialStartDate ?? null,
+      trialEndDate: subscription.trialEndDate ? (typeof subscription.trialEndDate === 'string' ? subscription.trialEndDate : subscription.trialEndDate.toISOString()) : null,
+      trialStartDate: (subscription as any).trialStartDate ? (typeof (subscription as any).trialStartDate === 'string' ? (subscription as any).trialStartDate : (subscription as any).trialStartDate.toISOString()) : null,
     } : null,
   } : null;
 
