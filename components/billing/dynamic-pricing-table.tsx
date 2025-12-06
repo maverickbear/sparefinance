@@ -170,7 +170,7 @@ export function DynamicPricingTable({
                         <span className="text-4xl font-bold text-foreground">${monthlyPrice.toFixed(2)}</span>
                         <span className="text-muted-foreground text-lg">/month</span>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1 line-through">
+                      <p className="text-sm text-muted-foreground mt-1">
                         ${price.toFixed(2)}/year
                       </p>
                     </>
