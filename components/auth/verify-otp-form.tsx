@@ -381,17 +381,65 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
 
       // Handle Google OAuth login flow
       if (isGoogleOAuth) {
+        // If verifyOtp returned a session, set it explicitly to ensure cookies are updated
+        if (data.session) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          });
+          
+          if (setSessionError) {
+            console.warn("Error setting session after OTP verification:", setSessionError);
+          }
+        }
+
         // Wait a moment to ensure session is fully established
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // Refresh session to ensure cookies are set correctly
-        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+        // Verify session is established before proceeding
+        let currentUser = null;
+        let userError = null;
+        let attempts = 0;
+        const maxAttempts = 5;
+
+        while (attempts < maxAttempts && (!currentUser || userError)) {
+          const result = await supabase.auth.getUser();
+          currentUser = result.data.user;
+          userError = result.error;
+
+          if (userError || !currentUser) {
+            attempts++;
+            if (attempts < maxAttempts) {
+              // Wait progressively longer between attempts
+              await new Promise(resolve => setTimeout(resolve, 500 * attempts));
+            }
+          } else {
+            break;
+          }
+        }
         
-        if (refreshError) {
-          console.warn("Error refreshing session after OTP verification:", refreshError);
+        if (userError || !currentUser) {
+          console.error("Session verification failed after", maxAttempts, "attempts:", userError);
+          setError("Failed to establish session. Please try again.");
+          setLoading(false);
+          return;
         }
 
-        // Sync session with server
+        // Now that we have a verified user, try to refresh session if we have one
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession) {
+          try {
+            const { error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+              console.warn("Error refreshing session after OTP verification:", refreshError);
+              // Continue anyway if we have a valid user
+            }
+          } catch (refreshErr) {
+            console.warn("Exception refreshing session:", refreshErr);
+          }
+        }
+
+        // Sync session with server now that we have a verified session
         try {
           const syncResponse = await fetch("/api/auth/sync-session", {
             method: "POST",
@@ -406,33 +454,6 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
           }
         } catch (syncError) {
           console.warn("Error syncing session with server:", syncError);
-        }
-
-        // Verify session is established
-        let currentUser = null;
-        let userError = null;
-        let attempts = 0;
-        const maxAttempts = 3;
-
-        while (attempts < maxAttempts && (!currentUser || userError)) {
-          const result = await supabase.auth.getUser();
-          currentUser = result.data.user;
-          userError = result.error;
-
-          if (userError || !currentUser) {
-            attempts++;
-            if (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-          } else {
-            break;
-          }
-        }
-        
-        if (userError || !currentUser) {
-          console.error("Session verification failed after", maxAttempts, "attempts:", userError);
-          setError("Failed to establish session. Please try again.");
-          return;
         }
 
         // Create or update user profile and household if OAuth data is available
