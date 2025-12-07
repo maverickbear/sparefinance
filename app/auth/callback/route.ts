@@ -33,6 +33,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    console.log("[OAUTH-CALLBACK] Processing OAuth callback", {
+      hasCode: !!code,
+      hasError: !!error,
+    });
+
     // Create server client with proper cookie handling for PKCE
     // The code verifier should be in cookies if using @supabase/ssr correctly
     // The createServerClient function reads cookies automatically via @supabase/ssr
@@ -89,33 +94,99 @@ export async function GET(request: NextRequest) {
     const userEmail = authUser.email;
 
     if (!userEmail) {
-      console.error("[OAUTH-CALLBACK] No email in OAuth response");
+      console.error("[OAUTH-CALLBACK] No email in OAuth response", {
+        userId: authUser.id,
+        hasMetadata: !!authUser.user_metadata,
+      });
+      // Sign out the temporary session before redirecting
+      await supabase.auth.signOut();
+      
       const redirectUrl = new URL("/auth/login", requestUrl.origin);
       redirectUrl.searchParams.set("error", "no_email");
+      redirectUrl.searchParams.set("error_description", "No email address found in Google account. Please use a different authentication method.");
       return NextResponse.redirect(redirectUrl);
+    }
+
+    console.log(`[OAUTH-CALLBACK] OAuth user authenticated`, {
+      userId: authUser.id,
+      email: userEmail,
+      emailConfirmed: !!authUser.email_confirmed_at,
+    });
+
+    // Check if this is a signup or signin by verifying if user exists in User table
+    const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
+    const serviceRoleClient = createServiceRoleClient();
+    
+    const { data: existingUser, error: userCheckError } = await serviceRoleClient
+      .from("User")
+      .select("id")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    
+    const isSignup = !existingUser || userCheckError;
+    
+    console.log(`[OAUTH-CALLBACK] Detected ${isSignup ? 'SIGNUP' : 'SIGNIN'} for user ${authUser.id}`);
+
+    // For signup, check for pending invitation (same validation as form signup)
+    if (isSignup) {
+      const { AuthRepository } = await import("@/src/infrastructure/database/repositories/auth.repository");
+      const authRepository = new AuthRepository();
+      
+      const pendingInvitation = await authRepository.findPendingInvitation(userEmail);
+      if (pendingInvitation) {
+        console.warn(`[OAUTH-CALLBACK] User ${userEmail} has pending invitation - blocking signup`, {
+          invitationId: pendingInvitation.id,
+          householdId: pendingInvitation.householdId,
+        });
+        // Sign out the temporary session before redirecting
+        await supabase.auth.signOut();
+        
+        const redirectUrl = new URL("/auth/login", requestUrl.origin);
+        redirectUrl.searchParams.set("error", "pending_invitation");
+        redirectUrl.searchParams.set("error_description", "This email has a pending household invitation. Please accept the invitation from your email or use the invitation link to create your account.");
+        return NextResponse.redirect(redirectUrl);
+      }
+      console.log(`[OAUTH-CALLBACK] No pending invitation found for ${userEmail} - proceeding with signup`);
     }
 
     // Sign out to prevent session creation before OTP verification
     await supabase.auth.signOut();
 
-    // Send OTP for login
-    // Note: For OAuth flows, we use service role client which may bypass CAPTCHA requirements
-    // since this is a server-side operation and we can't get a client-side CAPTCHA token
-    const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
-    const serviceRoleClient = createServiceRoleClient();
-
-    console.log("[OAUTH-CALLBACK] Sending OTP for Google login");
-    // Use service role client for OAuth OTP to potentially bypass CAPTCHA requirements
-    // If this fails with CAPTCHA error, we'll need to handle it differently
-    const { error: otpError } = await serviceRoleClient.auth.signInWithOtp({
+    // Send OTP - Use the same logic as the signup form
+    // For OAuth flows, the user already exists in auth.users, so we use signInWithOtp
+    // This is the same approach used in the login flow and works reliably
+    console.log(`[OAUTH-CALLBACK] Sending OTP for Google ${isSignup ? 'signup' : 'login'}`);
+    
+    // Use anon client for OTP sending (same as login form)
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+    
+    // Use signInWithOtp for both signup and signin (same as login form)
+    // The user already exists in auth.users from OAuth, so shouldCreateUser: false
+    const { error: otpError } = await anonClient.auth.signInWithOtp({
       email: userEmail,
       options: {
-        shouldCreateUser: false,
+        shouldCreateUser: false, // User already exists from OAuth
       },
     });
 
     if (otpError) {
-      console.error("[OAUTH-CALLBACK] Error sending OTP:", otpError);
+      console.error("[OAUTH-CALLBACK] Error sending OTP:", {
+        error: otpError.message,
+        code: otpError.status,
+        email: userEmail,
+        isSignup,
+      });
+      
+      // Sign out the temporary session before redirecting
+      await supabase.auth.signOut();
       
       // If CAPTCHA error, try with anon client (though it will likely fail without token)
       // This is a fallback - ideally service role should bypass CAPTCHA
@@ -130,9 +201,19 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(redirectUrl);
       }
       
+      // Check for rate limiting errors
+      const isRateLimitError = otpError.message?.toLowerCase().includes("rate limit") || 
+                               otpError.message?.toLowerCase().includes("too many requests");
+      if (isRateLimitError) {
+        const redirectUrl = new URL("/auth/login", requestUrl.origin);
+        redirectUrl.searchParams.set("error", "rate_limit");
+        redirectUrl.searchParams.set("error_description", "Too many verification requests. Please wait a few minutes and try again.");
+        return NextResponse.redirect(redirectUrl);
+      }
+      
       const redirectUrl = new URL("/auth/login", requestUrl.origin);
       redirectUrl.searchParams.set("error", "otp_failed");
-      redirectUrl.searchParams.set("error_description", otpError.message || "Failed to send verification code");
+      redirectUrl.searchParams.set("error_description", otpError.message || "Failed to send verification code. Please try again.");
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -143,11 +224,17 @@ export async function GET(request: NextRequest) {
       userId: authUser.id,
     };
 
+    console.log(`[OAUTH-CALLBACK] OTP sent successfully to ${userEmail}. Redirecting to OTP verification.`);
+
     // Redirect to OTP verification page with OAuth data
     // Using unified verify-otp route that detects Google OAuth via oauth_data param
     const otpUrl = new URL("/auth/verify-otp", requestUrl.origin);
     otpUrl.searchParams.set("email", userEmail);
     otpUrl.searchParams.set("oauth_data", encodeURIComponent(JSON.stringify(oauthData)));
+    // Pass isSignup flag so the component knows which OTP type to use
+    if (isSignup) {
+      otpUrl.searchParams.set("is_signup", "true");
+    }
     
     return NextResponse.redirect(otpUrl);
   } catch (error) {

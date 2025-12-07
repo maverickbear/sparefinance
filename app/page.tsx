@@ -15,7 +15,10 @@ const BenefitsSection = nextDynamic(() => import("@/components/landing/benefits-
 // const LandingTestimonialsSection = nextDynamic(() => import("@/components/landing/landing-testimonials-section").then(m => ({ default: m.LandingTestimonialsSection })), { ssr: true });
 const PricingSection = nextDynamic(() => import("@/components/landing/pricing-section").then(m => ({ default: m.PricingSection })), { ssr: true });
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.sparefinance.com';
+// Get base URL from environment variable, ensuring it's just the URL value
+const envUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.sparefinance.com';
+// Clean up the URL in case it includes the variable name (e.g., "NEXT_PUBLIC_APP_URL=http://localhost:3000")
+const baseUrl = envUrl.includes('=') ? envUrl.split('=')[1] : envUrl;
 
 // Default SEO settings (used as fallback)
 const defaultSEOSettings = {

@@ -112,6 +112,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
   const oauthDataStr = searchParams.get("oauth_data") || "";
   let oauthData: { name: string | null; avatarUrl: string | null; userId: string } | null = null;
   const isGoogleOAuth = !!oauthDataStr;
+  const isOAuthSignup = searchParams.get("is_signup") === "true";
   
   try {
     if (oauthDataStr) {
@@ -244,11 +245,26 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       // This prevents showing transient errors during multiple verification attempts
 
       // Verify OTP with Supabase
-      // For Google OAuth login, try multiple types. For signup, use "signup" type.
+      // For Google OAuth, use signup type if isOAuthSignup, otherwise try login types
+      // For regular signup, use "signup" type
       let data: any = null;
       let verifyError: any = null;
 
-      if (isGoogleOAuth) {
+      if (isGoogleOAuth && isOAuthSignup) {
+        // Google OAuth signup - use "signup" type
+        const signupResult = await supabase.auth.verifyOtp({
+          email,
+          token: otpCode,
+          type: "signup",
+        });
+
+        if (signupResult.error) {
+          verifyError = signupResult.error;
+        } else {
+          data = signupResult.data;
+        }
+      } else if (isGoogleOAuth && !isOAuthSignup) {
+        // Google OAuth signin - try multiple types
         // Try "email" type first, then "magiclink", then "recovery" as fallbacks
         // Don't show errors until all attempts fail
         const emailResult = await supabase.auth.verifyOtp({
@@ -289,7 +305,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
           data = emailResult.data;
         }
       } else {
-        // Signup flow - use "signup" type
+        // Regular signup flow - use "signup" type
         const signupResult = await supabase.auth.verifyOtp({
           email,
           token: otpCode,
@@ -457,6 +473,7 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         }
 
         // Create or update user profile and household if OAuth data is available
+        // This ensures the profile is created consistently, even if it wasn't created during OAuth callback
         if (oauthData && oauthData.userId === currentUser.id) {
           try {
             const createResponse = await fetch("/api/auth/create-user-profile", {
@@ -472,10 +489,24 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
               }),
             });
 
+            if (!createResponse.ok) {
+              const errorData = await createResponse.json().catch(() => ({}));
+              console.error("[OTP-VERIFY] Error creating user profile:", {
+                status: createResponse.status,
+                error: errorData.error || "Unknown error",
+                userId: oauthData.userId,
+              });
+              // Don't block the flow - profile might already exist or will be created later
+            } else {
+              console.log("[OTP-VERIFY] User profile created/verified successfully for OAuth user");
+            }
+
             // Note: createUserProfile now automatically creates household
             // No need to call create-household-member separately
           } catch (profileError) {
-            console.error("Error creating user profile:", profileError);
+            console.error("[OTP-VERIFY] Unexpected error creating user profile:", profileError);
+            // Don't block the flow - continue with login even if profile creation fails
+            // The profile might already exist or can be created later
           }
         }
 
@@ -698,7 +729,10 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
       setSuccessMessage(null);
 
       // Use different API route for Google OAuth login vs signup
-      const apiEndpoint = isGoogleOAuth ? "/api/auth/resend-login-otp" : "/api/auth/send-otp";
+      // For OAuth signup, use send-otp (signup type), for OAuth login use resend-login-otp
+      const apiEndpoint = isGoogleOAuth && !isOAuthSignup 
+        ? "/api/auth/resend-login-otp" 
+        : "/api/auth/send-otp";
       const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: {

@@ -67,9 +67,14 @@ export function MultiStepOnboardingDialog({
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>(undefined);
   const [selectedInterval, setSelectedInterval] = useState<"month" | "year" | null>(null);
 
+  // Track if we've already restored data to prevent multiple restorations
+  const hasRestoredRef = useRef(false);
+  
   // Reset state when dialog opens and restore from sessionStorage
   useEffect(() => {
-    if (open) {
+    if (open && !hasRestoredRef.current) {
+      hasRestoredRef.current = true;
+      
       // Try to restore from sessionStorage
       const savedData = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (savedData) {
@@ -85,14 +90,23 @@ export function MultiStepOnboardingDialog({
             setSelectedLocation(parsed.step2.location || null);
             setSelectedRule(parsed.step2.ruleType);
             setStep2Completed(!!parsed.step2?.incomeRange && !!parsed.step2?.ruleType);
-            if (parsed.step2.incomeRange) {
+            // Only restore to "rule" substep if user had already selected a rule
+            // (meaning they had clicked Continue on the income step)
+            if (parsed.step2.ruleType) {
               setStep2SubStep("rule");
+            } else {
+              // Keep user on income step so they can review and click Continue
+              setStep2SubStep("income");
             }
           }
           if (parsed.step3) {
             setSelectedPlanId(parsed.step3.planId);
             setSelectedInterval(parsed.step3.interval);
             setStep3Completed(!!parsed.step3?.planId && !!parsed.step3?.interval);
+          }
+          // Restore currentStep if it was saved
+          if (parsed.currentStep && typeof parsed.currentStep === 'number' && parsed.currentStep >= 1 && parsed.currentStep <= 5) {
+            setCurrentStep(parsed.currentStep as Step);
           }
         } catch (error) {
           console.error("Error restoring onboarding data:", error);
@@ -102,10 +116,14 @@ export function MultiStepOnboardingDialog({
       loadProfile();
       // Refetch subscription to ensure we have latest data
       refetch();
+    } else if (!open) {
+      // Reset the flag when dialog closes so we can restore again when it opens
+      hasRestoredRef.current = false;
     }
   }, [open, refetch]);
 
-  // Save to sessionStorage whenever data changes
+  // Save to sessionStorage whenever data changes (with debouncing to prevent loops)
+  const previousDataRef = useRef<string | null>(null);
   useEffect(() => {
     if (open && (step1Data || selectedIncome || selectedPlanId)) {
       const dataToSave = {
@@ -117,10 +135,17 @@ export function MultiStepOnboardingDialog({
           ruleType: selectedRule 
         } : null,
         step3: selectedPlanId ? { planId: selectedPlanId, interval: selectedInterval } : null,
+        currentStep: currentStep, // Save current step to restore navigation state
       };
-      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(dataToSave));
+      const dataString = JSON.stringify(dataToSave);
+      
+      // Only save if data actually changed to prevent infinite loops
+      if (previousDataRef.current !== dataString) {
+        previousDataRef.current = dataString;
+        sessionStorage.setItem(SESSION_STORAGE_KEY, dataString);
+      }
     }
-  }, [open, step1Data, selectedIncome, selectedCustomIncome, selectedLocation, selectedRule, selectedPlanId, selectedInterval]);
+  }, [open, step1Data, selectedIncome, selectedCustomIncome, selectedLocation, selectedRule, selectedPlanId, selectedInterval, currentStep]);
 
   // Get recommended rule when income is selected
   useEffect(() => {
@@ -199,6 +224,7 @@ export function MultiStepOnboardingDialog({
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
       ...parsed,
       step1: data,
+      currentStep: 2, // Save current step
     }));
   }
 
@@ -233,6 +259,18 @@ export function MultiStepOnboardingDialog({
       return;
     }
 
+    // Validate location (country and state/province are required)
+    if (!selectedLocation || !selectedLocation.country || !selectedLocation.stateOrProvince) {
+      toast({
+        title: "Please complete your location",
+        description: "Select your country and state/province to continue.",
+        variant: "destructive",
+      });
+      // Go back to income substep so user can complete location
+      setStep2SubStep("income");
+      return;
+    }
+
     // Just store the data, don't save to backend yet
     setStep2Completed(true);
     setCurrentStep(3); // Advance to Plan Selection (step 3)
@@ -247,6 +285,7 @@ export function MultiStepOnboardingDialog({
         location: selectedLocation,
         ruleType: selectedRule 
       },
+      currentStep: 3, // Save current step
     }));
   }
 
@@ -260,6 +299,7 @@ export function MultiStepOnboardingDialog({
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
       ...parsed,
       step3: { planId, interval },
+      currentStep: 4, // Save current step
     }));
     // Automatically advance to loading step when plan is selected
     setCurrentStep(4);

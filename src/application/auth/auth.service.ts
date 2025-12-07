@@ -59,17 +59,34 @@ export class AuthService {
       }
 
       // Create user profile
-      let userData: any;
-      try {
-        userData = await this.repository.createUser({
-          id: authData.user.id,
-          email: authData.user.email!,
-          name: data.name || null,
-          role: "admin", // Owners who sign up directly are admins
-        });
-      } catch (error) {
-        logger.error("Error creating user profile:", error);
-        // User is created in auth but not in User table - this is OK, will be created on first login
+      // First check if user already exists (might have been created in a previous attempt)
+      let userData: any = await this.repository.findById(authData.user.id);
+      
+      if (!userData) {
+        // User doesn't exist yet, try to create it
+        // Note: If email confirmation is required, the user might not be immediately available
+        // in auth.users, causing a foreign key constraint error. This is OK - the user will be
+        // created after OTP verification in the verify-otp flow.
+        try {
+          userData = await this.repository.createUser({
+            id: authData.user.id,
+            email: authData.user.email!,
+            name: data.name || null,
+            role: "admin", // Owners who sign up directly are admins
+          });
+          logger.info(`[AuthService] User profile created for ${authData.user.id}`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+          // Check if it's a foreign key constraint error (user not in auth.users yet)
+          if (errorMessage.includes("not available in auth.users") || errorMessage.includes("23503")) {
+            logger.info("[AuthService] User profile will be created after email confirmation");
+          } else {
+            logger.error("Error creating user profile:", error);
+          }
+          // User is created in auth but not in User table - this is OK, will be created after OTP verification
+        }
+      } else {
+        logger.info(`[AuthService] User profile already exists for ${authData.user.id}`);
       }
 
       // Create personal household automatically for new user

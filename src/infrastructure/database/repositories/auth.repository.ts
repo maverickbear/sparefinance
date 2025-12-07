@@ -72,6 +72,15 @@ export class AuthRepository {
 
     if (error) {
       logger.error("[AuthRepository] Error creating user:", error);
+      
+      // If it's a foreign key constraint error, the user might not exist in auth.users yet
+      // This can happen if email confirmation is required or there's a timing issue
+      // Don't throw - let the caller handle it gracefully
+      if (error.code === '23503') {
+        logger.warn("[AuthRepository] User not found in auth.users yet - will be created after email confirmation");
+        throw new Error(`User not available in auth.users yet. This is normal if email confirmation is required.`);
+      }
+      
       throw new Error(`Failed to create user: ${error.message}`);
     }
 

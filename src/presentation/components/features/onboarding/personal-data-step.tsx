@@ -62,6 +62,8 @@ export function PersonalDataStep({ onComplete, initialData, formRef, onValidatio
 
   // Watch form values and validate
   const name = form.watch("name");
+  const initializedRef = useRef(false);
+  const previousInitialDataRef = useRef<string | null>(null);
   
   useEffect(() => {
     // Only name is required now
@@ -70,19 +72,26 @@ export function PersonalDataStep({ onComplete, initialData, formRef, onValidatio
   }, [name, onValidationChange]);
 
   useEffect(() => {
-    if (initialData) {
-      form.reset({
-        name: initialData.name || "",
-        email: initialData.email || "",
-        avatarUrl: initialData.avatarUrl || "",
-        phoneNumber: initialData.phoneNumber || "",
-        dateOfBirth: initialData.dateOfBirth || "",
-      });
-      setProfile(initialData);
-    } else {
-      loadProfile();
+    // Only initialize once on mount
+    if (!initializedRef.current) {
+      if (initialData) {
+        form.reset({
+          name: initialData.name || "",
+          email: initialData.email || "",
+          avatarUrl: initialData.avatarUrl || "",
+          phoneNumber: initialData.phoneNumber || "",
+          dateOfBirth: initialData.dateOfBirth || "",
+        });
+        setProfile(initialData);
+        initializedRef.current = true;
+      } else {
+        // Only load profile on first mount if no initialData
+        loadProfile();
+        initializedRef.current = true;
+      }
     }
-  }, [initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   async function loadProfile() {
     try {
