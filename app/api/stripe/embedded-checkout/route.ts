@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeStripeService } from "@/src/application/stripe/stripe.factory";
-import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { AppError } from "@/src/application/shared/app-error";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { planId, interval = "month", promoCode } = body;
 
@@ -14,21 +24,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Require authentication
-    const supabase = await createServerClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     // Create subscription (trial)
     const stripeService = makeStripeService();
     const result = await stripeService.createEmbeddedCheckoutSession(
-      authUser.id,
+      userId,
       planId,
       interval,
       promoCode
@@ -42,10 +41,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-
-    return NextResponse.json({ success: true, subscriptionId, userId: authUser.id });
+    return NextResponse.json({ success: true, subscriptionId, userId });
   } catch (error) {
-    console.error("Error creating embedded checkout session:", error);
+    logger.error("Error creating embedded checkout session:", error);
+    
+    if (error instanceof AppError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.statusCode }
+      );
+    }
+    
     return NextResponse.json(
       { error: "Failed to create embedded checkout session" },
       { status: 500 }

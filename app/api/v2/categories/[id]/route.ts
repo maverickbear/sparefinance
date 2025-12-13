@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
-import { CategoryFormData } from "@/src/domain/categories/categories.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import { revalidateTag } from 'next/cache';
@@ -21,18 +20,16 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, macroId, groupId } = body;
+    const { name, type } = body;
 
     const service = makeCategoriesService();
     const category = await service.updateCategory(id, { 
-      name, 
-      groupId: groupId || macroId || undefined,
-      macroId: macroId || undefined 
+      name,
+      type: type || undefined
     });
     
     // Invalidate cache
     revalidateTag('categories', 'max');
-    revalidateTag('groups', 'max');
     
     return NextResponse.json(category, { status: 200 });
   } catch (error) {
@@ -73,7 +70,6 @@ export async function DELETE(
     
     // Invalidate cache
     revalidateTag('categories', 'max');
-    revalidateTag('groups', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

@@ -1,40 +1,18 @@
 /**
  * Subscription Detection Service
- * Business logic for detecting subscriptions from transaction history
+ * 
+ * @deprecated This service has been integrated into TransactionsService.
+ * Use TransactionsService.detectSubscriptions() instead.
+ * This file is kept for backward compatibility but will be removed in a future version.
+ * 
+ * See: src/application/transactions/subscription-detection.ts
  */
 
 import { DetectedSubscription } from "../../domain/subscriptions/subscriptions.types";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { getTransactionAmount, decryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
-// Plaid metadata type (kept for backward compatibility with existing data)
-type PlaidTransactionMetadata = Record<string, unknown>;
 import { AppError } from "../shared/app-error";
-
-/**
- * Get Plaid metadata field (supports both camelCase and snake_case for backward compatibility)
- */
-function getPlaidMetadataField(
-  plaidMetadata: PlaidTransactionMetadata | Record<string, unknown> | null | undefined,
-  camelCaseKey: keyof PlaidTransactionMetadata,
-  snakeCaseKey?: string
-): any {
-  if (!plaidMetadata || typeof plaidMetadata !== 'object') {
-    return null;
-  }
-
-  // Try camelCase first (new format)
-  if (camelCaseKey in plaidMetadata) {
-    return (plaidMetadata as any)[camelCaseKey];
-  }
-
-  // Fallback to snake_case (old format)
-  if (snakeCaseKey && snakeCaseKey in plaidMetadata) {
-    return (plaidMetadata as any)[snakeCaseKey];
-  }
-
-  return null;
-}
 
 /**
  * Known subscription services mapping
@@ -110,9 +88,13 @@ const KNOWN_SUBSCRIPTION_SERVICES: Record<string, {
   "kindle unlimited": { name: "Kindle Unlimited", typicalFrequency: "monthly" },
 };
 
+/**
+ * @deprecated Use TransactionsService.detectSubscriptions() instead
+ */
 export class SubscriptionDetectionService {
   /**
    * Detect subscriptions from user transactions
+   * @deprecated Use TransactionsService.detectSubscriptions() instead
    */
   async detectSubscriptionsFromTransactions(userId: string): Promise<DetectedSubscription[]> {
     try {
@@ -127,15 +109,14 @@ export class SubscriptionDetectionService {
       
       // Get all expense transactions (excluding transfers)
       const { data: transactions, error } = await supabase
-        .from("Transaction")
+        .from("transactions")
         .select(`
           id,
           date,
           amount,
           description,
           accountId,
-          plaidMetadata,
-          account:Account(id, name)
+          account:core.accounts(id, name)
         `)
         .eq("type", "expense")
         .gte("date", startDate.toISOString().split("T")[0])
@@ -162,19 +143,17 @@ export class SubscriptionDetectionService {
         accountName: string;
       }>();
       
-      for (const tx of transactions) {
-        const plaidMetadata = tx.plaidMetadata as PlaidTransactionMetadata | null;
-        const merchantName = getPlaidMetadataField(plaidMetadata, "merchantName", "merchant_name") || 
-                            decryptDescription(tx.description) || 
-                            "";
+      for (const tx of transactions as any[]) {
+        // Extract merchant name from description (no longer using plaidMetadata)
+        const merchantName = decryptDescription(tx.description) || "";
         
         if (!merchantName || merchantName.trim().length === 0) {
           continue; // Skip transactions without merchant name
         }
         
         const normalizedMerchant = this.normalizeMerchantName(merchantName);
-        const merchantEntityId = getPlaidMetadataField(plaidMetadata, "merchantEntityId", "merchant_entity_id");
-        const logoUrl = getPlaidMetadataField(plaidMetadata, "logoUrl", "logo_url");
+        const merchantEntityId = null; // No longer available from Plaid
+        const logoUrl = null; // No longer available from Plaid
         
         const account = Array.isArray(tx.account) ? tx.account[0] : tx.account;
         const accountId = tx.accountId;
@@ -209,12 +188,12 @@ export class SubscriptionDetectionService {
         }
         
         // Get amounts and dates
-        const amounts = transactions.map(tx => {
+        const amounts = (transactions as any[]).map(tx => {
           const amount = getTransactionAmount(tx.amount);
           return amount ?? 0;
         }).filter(amount => amount > 0);
         
-        const dates = transactions.map(tx => new Date(tx.date));
+        const dates = (transactions as any[]).map(tx => new Date(tx.date));
         
         if (amounts.length < 2) {
           continue;
@@ -277,7 +256,7 @@ export class SubscriptionDetectionService {
           lastTransactionDate: lastTransactionDate.toISOString().split("T")[0],
           confidence,
           description: `Detected from ${transactions.length} transaction(s)`,
-          transactionIds: transactions.map(tx => tx.id),
+          transactionIds: (transactions as any[]).map(tx => tx.id),
         });
       }
       

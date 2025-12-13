@@ -13,9 +13,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const toast = useCallback(
-    ({ title, description, variant = "default" }: Omit<Toast, "id">) => {
+    (props: Omit<Toast, "id">) => {
       const id = Math.random().toString(36).substring(7);
-      const newToast: Toast = { id, title, description, variant };
+      const newToast: Toast = { id, ...props };
       
       setToasts((prev) => [...prev, newToast]);
     },
@@ -23,7 +23,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   const onClose = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    setToasts((prev) => {
+      const toast = prev.find((t) => t.id === id);
+      // Call onDismiss if provided
+      if (toast?.onDismiss) {
+        toast.onDismiss();
+      }
+      return prev.filter((t) => t.id !== id);
+    });
   }, []);
 
   return (

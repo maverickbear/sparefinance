@@ -94,7 +94,7 @@ export default function FeedbackPage() {
                         Your changes have been saved successfully.
                       </AlertDescription>
                     </Alert>
-                    <button className="absolute top-4 right-4 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity text-muted-foreground hover:bg-accent">
+                    <button className="absolute top-4 right-4 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity text-muted-foreground hover:bg-secondary">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -191,7 +191,7 @@ export default function FeedbackPage() {
                         Your session will expire in 5 minutes.
                       </AlertDescription>
                     </Alert>
-                    <button className="absolute top-4 right-4 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity text-muted-foreground hover:bg-accent">
+                    <button className="absolute top-4 right-4 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity text-muted-foreground hover:bg-secondary">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -235,7 +235,7 @@ export default function FeedbackPage() {
                       <CheckCircle2 className="h-4 w-4" />
                       <AlertTitle>Saved</AlertTitle>
                     </Alert>
-                    <button className="absolute top-4 right-4 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity text-muted-foreground hover:bg-accent">
+                    <button className="absolute top-4 right-4 rounded-md p-1 opacity-70 hover:opacity-100 transition-opacity text-muted-foreground hover:bg-secondary">
                       <X className="h-4 w-4" />
                     </button>
                   </div>

@@ -40,14 +40,14 @@ export function HeroSection() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
             <Button
               asChild
-              size="large"
+              size="medium"
             >
               <Link href="/auth/signup">Get Started</Link>
             </Button>
             <Button
               asChild
               variant="outline"
-              size="large"
+              size="medium"
               className="backdrop-blur-sm"
             >
               <Link href="#features">

@@ -31,7 +31,7 @@ export class FederalBracketsRepository {
     const supabase = await createServerClient();
 
     const { data: brackets, error } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .select("*")
       .eq("country_code", countryCode)
       .eq("tax_year", taxYear)
@@ -53,7 +53,7 @@ export class FederalBracketsRepository {
     const supabase = await createServerClient();
 
     const { data: brackets, error } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .select("*")
       .order("country_code", { ascending: true })
       .order("tax_year", { ascending: false })
@@ -75,7 +75,7 @@ export class FederalBracketsRepository {
 
     // First, get the most recent year for this country
     const { data: yearData, error: yearError } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .select("tax_year")
       .eq("country_code", countryCode)
       .eq("is_active", true)
@@ -99,7 +99,7 @@ export class FederalBracketsRepository {
     const supabase = await createServerClient();
 
     const { data: bracket, error } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .select("*")
       .eq("id", id)
       .single();
@@ -134,7 +134,7 @@ export class FederalBracketsRepository {
     const supabase = await createServerClient();
 
     const { data: bracket, error } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .insert({
         country_code: data.countryCode,
         tax_year: data.taxYear,
@@ -176,7 +176,7 @@ export class FederalBracketsRepository {
     if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
     const { data: bracket, error } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -197,7 +197,7 @@ export class FederalBracketsRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("federal_tax_brackets")
+      .from("system_federal_tax_brackets")
       .delete()
       .eq("id", id);
 

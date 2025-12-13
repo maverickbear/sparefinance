@@ -165,7 +165,11 @@ export function SubscriptionCard({
 
           <div className="pt-2 border-t text-xs">
             <p className="text-muted-foreground">
-              First billing: {new Date(subscription.firstBillingDate).toLocaleDateString()}
+              First billing: {(() => {
+                if (!subscription.firstBillingDate) return "—";
+                const date = new Date(subscription.firstBillingDate);
+                return isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
+              })()}
             </p>
           </div>
         </div>

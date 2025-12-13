@@ -378,7 +378,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
             <>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Name</label>
-                <Input {...form.register("name")} size="small" required />
+                <Input {...form.register("name")} size="medium" required />
               </div>
 
               <div className="space-y-1">
@@ -398,7 +398,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                   }}
                   required
                 >
-                  <SelectTrigger size="small">
+                  <SelectTrigger size="medium">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -420,7 +420,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                       value={form.watch("creditLimit") || undefined}
                       onChange={(value) => form.setValue("creditLimit", value ?? undefined, { shouldValidate: true })}
                       placeholder="$ 0.00"
-                      size="small"
+                      size="medium"
                       required
                     />
                     {form.formState.errors.creditLimit && (
@@ -442,7 +442,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                         form.setValue("dueDayOfMonth", value !== undefined && !isNaN(value) ? value : undefined, { shouldValidate: true });
                       }}
                       placeholder="e.g., 10"
-                      size="small"
+                      size="medium"
                     />
                     {form.formState.errors.dueDayOfMonth && (
                       <p className="text-sm text-destructive">{form.formState.errors.dueDayOfMonth.message}</p>
@@ -458,7 +458,7 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
                     value={form.watch("initialBalance") ?? undefined}
                     onChange={(value) => form.setValue("initialBalance", value !== undefined ? value : undefined, { shouldValidate: true })}
                     placeholder="$ 0.00"
-                    size="small"
+                    size="medium"
                   />
                   {form.formState.errors.initialBalance && (
                     <p className="text-sm text-destructive">{form.formState.errors.initialBalance.message}</p>
@@ -517,11 +517,11 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
 
           <DialogFooter className="justify-between">
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="small" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+              <Button type="button" variant="outline" size="medium" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
                 Cancel
               </Button>
               {(!account && isLimitReached) ? null : (
-                <Button type="submit" size="small" disabled={isSubmitting}>
+                <Button type="submit" size="medium" disabled={isSubmitting}>
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

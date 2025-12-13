@@ -15,9 +15,9 @@ export interface BudgetRuleProfile {
   recommendedFor: string;
 }
 
-export interface GroupToRuleCategoryMapping {
-  groupId: string;
-  groupName: string;
+export interface CategoryToRuleCategoryMapping {
+  categoryId: string;
+  categoryName: string;
   ruleCategory: BudgetRuleCategory;
 }
 

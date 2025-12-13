@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       const serviceRoleClient = createServiceRoleClient();
       
       const { data: existingUser, error: userCheckError } = await serviceRoleClient
-        .from("User")
+        .from("users")
         .select("id")
         .eq("id", authUser.id)
         .maybeSingle();

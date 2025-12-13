@@ -248,7 +248,7 @@ export function ReceiptScanner({
                   type="button"
                   onClick={capturePhoto}
                   className="rounded-full h-16 w-16"
-                  size="large"
+                  size="medium"
                 >
                   <Camera className="h-6 w-6" />
                 </Button>
@@ -285,7 +285,7 @@ export function ReceiptScanner({
                   type="button"
                   onClick={startCamera}
                   className="w-full"
-                  size="large"
+                  size="medium"
                 >
                   <Camera className="h-5 w-5 mr-2" />
                   Take Photo
@@ -296,7 +296,7 @@ export function ReceiptScanner({
                 variant={isMobileOrTablet ? "outline" : "default"}
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full"
-                size="large"
+                size="medium"
               >
                 <Upload className="h-5 w-5 mr-2" />
                 Upload Image

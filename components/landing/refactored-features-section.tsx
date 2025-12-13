@@ -121,7 +121,7 @@ function CoreFeatureHero({
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center mb-14">
           {badge && (
-            <Badge variant="outline" size="large" className="mb-5 font-medium tracking-wide">
+            <Badge variant="outline" size="medium" className="mb-5 font-medium tracking-wide">
               {badge}
             </Badge>
           )}
@@ -291,7 +291,7 @@ export function RefactoredFeaturesSection() {
       <div className="pt-20 md:pt-28 pb-14 md:pb-20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
-            <Badge variant="outline" size="large" className="mb-5 font-medium tracking-wide">
+            <Badge variant="outline" size="medium" className="mb-5 font-medium tracking-wide">
               Everything You Need
             </Badge>
             <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold mb-5 tracking-tight leading-[1.1]">

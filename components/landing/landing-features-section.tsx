@@ -218,7 +218,7 @@ export function LandingFeaturesSection() {
           </p>
           <Button
             asChild
-            size="large"
+            size="medium"
           >
             <Link href="/auth/signup">
               Start Organizing Your Finances

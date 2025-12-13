@@ -82,7 +82,7 @@ export function QuotesTable() {
           <CardTitle>Market Quotes</CardTitle>
           <Button
             variant="outline"
-            size="small"
+            size="medium"
             onClick={handleRefresh}
             disabled={loading || refreshing}
           >

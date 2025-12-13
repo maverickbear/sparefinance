@@ -2,16 +2,11 @@ import { z } from "zod";
 
 export const categorySchema = z.object({
   name: z.string().min(1, "Name is required"),
-  groupId: z.string().min(1, "Group is required"),
-  // Deprecated: Use groupId instead
-  macroId: z.string().min(1, "Group is required").optional(),
-}).refine(
-  (data) => data.groupId || data.macroId,
-  {
-    message: "Group is required",
-    path: ["groupId"],
-  }
-);
+  type: z.enum(["income", "expense"], {
+    required_error: "Type is required",
+    invalid_type_error: "Type must be either 'income' or 'expense'",
+  }),
+});
 
 export type CategoryFormData = z.infer<typeof categorySchema>;
 
@@ -22,11 +17,4 @@ export const subcategorySchema = z.object({
 });
 
 export type SubcategoryFormData = z.infer<typeof subcategorySchema>;
-
-export const groupSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  type: z.enum(["income", "expense"]).nullable().optional(),
-});
-
-export type GroupFormData = z.infer<typeof groupSchema>;
 

@@ -9,6 +9,7 @@ import { AppError } from "@/src/application/shared/app-error";
  * 
  * SECURITY: Returns only public plan data (excludes Stripe IDs)
  */
+
 export async function GET() {
   noStore();
   try {

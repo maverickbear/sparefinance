@@ -12,21 +12,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Edit, Trash2, ChevronRight, ChevronDown } from "lucide-react";
-import type { SystemGroup, SystemCategory, SystemSubcategory } from "@/src/domain/admin/admin.types";
+import type { SystemCategory, SystemSubcategory } from "@/src/domain/admin/admin.types";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface SelectedItem {
   id: string;
-  type: "group" | "category" | "subcategory";
+  type: "category" | "subcategory";
 }
 
 interface UnifiedEntitiesTableProps {
-  groups: SystemGroup[];
+  groups: never[]; // Groups have been removed
   categories: SystemCategory[];
   subcategories: SystemSubcategory[];
   loading?: boolean;
-  onEditGroup: (group: SystemGroup) => void;
-  onDeleteGroup: (id: string) => void;
+  onEditGroup: () => void; // No-op - groups removed
+  onDeleteGroup: () => void; // No-op - groups removed
   onEditCategory: (category: SystemCategory) => void;
   onDeleteCategory: (id: string) => void;
   onEditSubcategory: (subcategory: SystemSubcategory) => void;
@@ -35,7 +35,6 @@ interface UnifiedEntitiesTableProps {
 }
 
 interface ExpandedState {
-  groups: Set<string>;
   categories: Set<string>;
 }
 
@@ -54,26 +53,12 @@ export function UnifiedEntitiesTable({
 }: UnifiedEntitiesTableProps) {
   const { openDialog, ConfirmDialog } = useConfirmDialog();
   const [expanded, setExpanded] = useState<ExpandedState>({
-    groups: new Set(),
     categories: new Set(),
   });
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deletingType, setDeletingType] = useState<"group" | "category" | "subcategory" | null>(null);
+  const [deletingType, setDeletingType] = useState<"category" | "subcategory" | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
-  const toggleGroup = (groupId: string) => {
-    const newExpanded = { ...expanded };
-    if (newExpanded.groups.has(groupId)) {
-      newExpanded.groups.delete(groupId);
-      // Also collapse all categories in this group
-      categories
-        .filter((c) => c.macroId === groupId)
-        .forEach((c) => newExpanded.categories.delete(c.id));
-    } else {
-      newExpanded.groups.add(groupId);
-    }
-    setExpanded(newExpanded);
-  };
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = { ...expanded };
@@ -87,17 +72,15 @@ export function UnifiedEntitiesTable({
 
   const handleDelete = (
     id: string,
-    type: "group" | "category" | "subcategory",
+    type: "category" | "subcategory",
     name: string
   ) => {
     const typeLabels = {
-      group: "group",
       category: "category",
       subcategory: "subcategory",
     };
 
     const deleteHandlers = {
-      group: onDeleteGroup,
       category: onDeleteCategory,
       subcategory: onDeleteSubcategory,
     };
@@ -131,7 +114,7 @@ export function UnifiedEntitiesTable({
     );
   };
 
-  const toggleSelection = (id: string, type: "group" | "category" | "subcategory") => {
+  const toggleSelection = (id: string, type: "category" | "subcategory") => {
     const key = `${type}:${id}`;
     setSelectedItems((prev) => {
       const next = new Set(prev);
@@ -144,30 +127,24 @@ export function UnifiedEntitiesTable({
     });
   };
 
-  const isSelected = (id: string, type: "group" | "category" | "subcategory") => {
+  const isSelected = (id: string, type: "category" | "subcategory") => {
     return selectedItems.has(`${type}:${id}`);
   };
 
   // Get all visible items for select all functionality
   const allVisibleItems = useMemo(() => {
     const items: SelectedItem[] = [];
-    groups.forEach((group) => {
-      items.push({ id: group.id, type: "group" });
-      if (expanded.groups.has(group.id)) {
-        const groupCategories = categories.filter((c) => c.macroId === group.id);
-        groupCategories.forEach((category) => {
-          items.push({ id: category.id, type: "category" });
-          if (expanded.categories.has(category.id)) {
-            const categorySubcategories = subcategories.filter((s) => s.categoryId === category.id);
-            categorySubcategories.forEach((subcategory) => {
-              items.push({ id: subcategory.id, type: "subcategory" });
-            });
-          }
+    categories.forEach((category) => {
+      items.push({ id: category.id, type: "category" });
+      if (expanded.categories.has(category.id)) {
+        const categorySubcategories = subcategories.filter((s) => s.categoryId === category.id);
+        categorySubcategories.forEach((subcategory) => {
+          items.push({ id: subcategory.id, type: "subcategory" });
         });
       }
     });
     return items;
-  }, [groups, categories, subcategories, expanded]);
+  }, [categories, subcategories, expanded]);
 
   const allVisibleSelected = useMemo(() => {
     return allVisibleItems.every((item) => selectedItems.has(`${item.type}:${item.id}`));
@@ -198,12 +175,11 @@ export function UnifiedEntitiesTable({
 
     const itemsToDelete: SelectedItem[] = Array.from(selectedItems).map((key) => {
       const [type, id] = key.split(":");
-      return { id, type: type as "group" | "category" | "subcategory" };
+      return { id, type: type as "category" | "subcategory" };
     });
 
     const count = itemsToDelete.length;
     const typeLabels = {
-      group: "groups",
       category: "categories",
       subcategory: "subcategories",
     };
@@ -250,14 +226,6 @@ export function UnifiedEntitiesTable({
     );
   }
 
-  // Group categories by group
-  const categoriesByGroup = new Map<string, SystemCategory[]>();
-  categories.forEach((category) => {
-    const groupCategories = categoriesByGroup.get(category.macroId) || [];
-    groupCategories.push(category);
-    categoriesByGroup.set(category.macroId, groupCategories);
-  });
-
   // Group subcategories by category
   const subcategoriesByCategory = new Map<string, SystemSubcategory[]>();
   subcategories.forEach((subcategory) => {
@@ -266,7 +234,7 @@ export function UnifiedEntitiesTable({
     subcategoriesByCategory.set(subcategory.categoryId, categorySubcategories);
   });
 
-  const totalItems = groups.length + categories.length + subcategories.length;
+  const totalItems = categories.length + subcategories.length;
 
   return (
     <div className="hidden lg:block rounded-lg border overflow-x-auto">
@@ -277,7 +245,7 @@ export function UnifiedEntitiesTable({
           </span>
           <Button
             variant="destructive"
-            size="small"
+            size="medium"
             onClick={handleBulkDelete}
           >
             <Trash2 className="h-4 w-4 mr-2" />
@@ -313,31 +281,30 @@ export function UnifiedEntitiesTable({
               </TableCell>
             </TableRow>
           ) : (
-            groups.map((group) => {
-              const groupCategories = categoriesByGroup.get(group.id) || [];
-              const isGroupExpanded = expanded.groups.has(group.id);
+            categories.map((category) => {
+              const categorySubcategories = subcategoriesByCategory.get(category.id) || [];
+              const isCategoryExpanded = expanded.categories.has(category.id);
 
               return (
-                <React.Fragment key={group.id}>
-                  {/* Group Row */}
-                  <TableRow className="bg-muted/50">
+                <React.Fragment key={category.id}>
+                  <TableRow className="bg-background">
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {onBulkDelete && (
                           <Checkbox
-                            checked={isSelected(group.id, "group")}
-                            onCheckedChange={() => toggleSelection(group.id, "group")}
-                            aria-label={`Select ${group.name}`}
+                            checked={isSelected(category.id, "category")}
+                            onCheckedChange={() => toggleSelection(category.id, "category")}
+                            aria-label={`Select ${category.name}`}
                           />
                         )}
-                        {groupCategories.length > 0 && (
+                        {categorySubcategories.length > 0 && (
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6"
-                            onClick={() => toggleGroup(group.id)}
+                            onClick={() => toggleCategory(category.id)}
                           >
-                            {isGroupExpanded ? (
+                            {isCategoryExpanded ? (
                               <ChevronDown className="h-4 w-4" />
                             ) : (
                               <ChevronRight className="h-4 w-4" />
@@ -348,21 +315,23 @@ export function UnifiedEntitiesTable({
                     </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold">{group.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({groupCategories.length} categories)
-                        </span>
+                        <span>{category.name}</span>
+                        {categorySubcategories.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            ({categorySubcategories.length} subcategories)
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          group.type === "income"
+                          category.type === "income"
                             ? "bg-sentiment-positive/10 text-sentiment-positive"
                             : "bg-sentiment-negative/10 text-sentiment-negative"
                         }`}
                       >
-                        {group.type === "income" ? "Income" : group.type === "expense" ? "Expense" : "N/A"}
+                        {category.type === "income" ? "Income" : "Expense"}
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">—</TableCell>
@@ -372,18 +341,18 @@ export function UnifiedEntitiesTable({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => onEditGroup(group)}
+                          onClick={() => onEditCategory(category)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(group.id, "group", group.name)}
-                          disabled={deletingId === group.id && deletingType === "group"}
+                          onClick={() => handleDelete(category.id, "category", category.name)}
+                          disabled={deletingId === category.id && deletingType === "category"}
                           className="h-8 w-8 text-destructive hover:text-destructive"
                         >
-                          {deletingId === group.id && deletingType === "group" ? (
+                          {deletingId === category.id && deletingType === "category" ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <Trash2 className="h-4 w-4" />
@@ -393,135 +362,53 @@ export function UnifiedEntitiesTable({
                     </TableCell>
                   </TableRow>
 
-                  {/* Category Rows (shown when group is expanded) */}
-                  {isGroupExpanded &&
-                    groupCategories.map((category) => {
-                      const categorySubcategories = subcategoriesByCategory.get(category.id) || [];
-                      const isCategoryExpanded = expanded.categories.has(category.id);
-
-                      return (
-                        <React.Fragment key={category.id}>
-                          <TableRow className="bg-background">
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {onBulkDelete && (
-                                  <Checkbox
-                                    checked={isSelected(category.id, "category")}
-                                    onCheckedChange={() => toggleSelection(category.id, "category")}
-                                    aria-label={`Select ${category.name}`}
-                                  />
-                                )}
-                                <span className="w-4 text-xs font-semibold text-muted-foreground">
-                                  {category.name.charAt(0).toUpperCase()}
-                                </span>
-                                {categorySubcategories.length > 0 && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => toggleCategory(category.id)}
-                                  >
-                                    {isCategoryExpanded ? (
-                                      <ChevronDown className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium pl-8">
-                              <div className="flex items-center gap-2">
-                                <span>{category.name}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  ({categorySubcategories.length} subcategories)
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>—</TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {group.name}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => onEditCategory(category)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDelete(category.id, "category", category.name)}
-                                  disabled={deletingId === category.id && deletingType === "category"}
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                >
-                                  {deletingId === category.id && deletingType === "category" ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-
-                          {/* Subcategory Rows (shown when category is expanded) */}
-                          {isCategoryExpanded &&
-                            categorySubcategories.map((subcategory) => (
-                              <TableRow key={subcategory.id} className="bg-muted/30">
-                                <TableCell>
-                                  <div className="flex items-center gap-2 pl-4">
-                                    {onBulkDelete && (
-                                      <Checkbox
-                                        checked={isSelected(subcategory.id, "subcategory")}
-                                        onCheckedChange={() => toggleSelection(subcategory.id, "subcategory")}
-                                        aria-label={`Select ${subcategory.name}`}
-                                      />
-                                    )}
-                                    <span className="w-4 text-xs font-semibold text-muted-foreground">
-                                      {subcategory.name.charAt(0).toUpperCase()}
-                                    </span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="font-medium pl-16">{subcategory.name}</TableCell>
-                                <TableCell>—</TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {category.name}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => onEditSubcategory(subcategory)}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => handleDelete(subcategory.id, "subcategory", subcategory.name)}
-                                      disabled={deletingId === subcategory.id && deletingType === "subcategory"}
-                                      className="h-8 w-8 text-destructive hover:text-destructive"
-                                    >
-                                      {deletingId === subcategory.id && deletingType === "subcategory" ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <Trash2 className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                        </React.Fragment>
-                      );
-                    })}
+                  {/* Subcategory Rows (shown when category is expanded) */}
+                  {isCategoryExpanded &&
+                    categorySubcategories.map((subcategory) => (
+                      <TableRow key={subcategory.id} className="bg-muted/30">
+                        <TableCell>
+                          <div className="flex items-center gap-2 pl-4">
+                            {onBulkDelete && (
+                              <Checkbox
+                                checked={isSelected(subcategory.id, "subcategory")}
+                                onCheckedChange={() => toggleSelection(subcategory.id, "subcategory")}
+                                aria-label={`Select ${subcategory.name}`}
+                              />
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium pl-8">{subcategory.name}</TableCell>
+                        <TableCell>—</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {category.name}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => onEditSubcategory(subcategory)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(subcategory.id, "subcategory", subcategory.name)}
+                              disabled={deletingId === subcategory.id && deletingType === "subcategory"}
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                            >
+                              {deletingId === subcategory.id && deletingType === "subcategory" ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </React.Fragment>
               );
             })

@@ -44,8 +44,8 @@ export class InvestmentsService {
 
     if (positions && positions.length > 0) {
       // Fetch securities and accounts for enrichment
-      const securityIds = new Set(positions.map(p => p.securityId));
-      const accountIds = new Set(positions.map(p => p.accountId));
+      const securityIds = new Set(positions.map(p => p.security_id));
+      const accountIds = new Set(positions.map(p => p.account_id));
 
       const [securities, accounts] = await Promise.all([
         securityIds.size > 0
@@ -60,8 +60,8 @@ export class InvestmentsService {
       const accountMap = new Map(accounts.map(a => [a.id, a]));
 
       const holdings = positions.map(position => {
-        const security = securityMap.get(position.securityId);
-        const account = accountMap.get(position.accountId);
+        const security = securityMap.get(position.security_id);
+        const account = accountMap.get(position.account_id);
         return InvestmentsMapper.positionToHolding(position, security || undefined, account || undefined);
       });
 
@@ -99,8 +99,8 @@ export class InvestmentsService {
     }
 
     // Fetch securities and accounts for enrichment
-    const securityIds = new Set(transactions.filter(t => t.securityId).map(t => t.securityId!));
-    const accountIds = new Set(transactions.map(t => t.accountId));
+    const securityIds = new Set(transactions.filter(t => t.security_id).map(t => t.security_id!));
+    const accountIds = new Set(transactions.map(t => t.account_id));
 
     const [securities, accounts] = await Promise.all([
       securityIds.size > 0
@@ -118,20 +118,20 @@ export class InvestmentsService {
     const holdingKeyMap = new Map<string, BaseHolding>();
 
     for (const tx of transactions) {
-      if (!tx.securityId || (tx.type !== "buy" && tx.type !== "sell")) {
+      if (!tx.security_id || (tx.type !== "buy" && tx.type !== "sell")) {
         continue;
       }
 
-      const security = securityMap.get(tx.securityId);
-      const account = accountMap.get(tx.accountId);
-      const holdingKey = `${tx.securityId}_${tx.accountId}`;
+      const security = securityMap.get(tx.security_id);
+      const account = accountMap.get(tx.account_id);
+      const holdingKey = `${tx.security_id}_${tx.account_id}`;
 
       if (!holdingKeyMap.has(holdingKey)) {
         const assetType = security?.class || "Stock";
         const sector = security?.sector || mapClassToSector(assetType, security?.symbol || "");
 
         holdingKeyMap.set(holdingKey, {
-          securityId: tx.securityId,
+          securityId: tx.security_id,
           symbol: security?.symbol || "",
           name: security?.name || security?.symbol || "",
           assetType: normalizeAssetType(assetType),
@@ -143,7 +143,7 @@ export class InvestmentsService {
           marketValue: 0,
           unrealizedPnL: 0,
           unrealizedPnLPercent: 0,
-          accountId: tx.accountId,
+          accountId: tx.account_id,
           accountName: account?.name || "Unknown Account",
         });
       }
@@ -170,7 +170,7 @@ export class InvestmentsService {
     if (allSecurityIds.length > 0) {
       const supabase = await createServerClient(accessToken, refreshToken);
       const { data: prices } = await supabase
-        .from("SecurityPrice")
+        .from("security_prices")
         .select("securityId, price, date")
         .in("securityId", allSecurityIds)
         .order("securityId", { ascending: true })
@@ -235,7 +235,7 @@ export class InvestmentsService {
 
     // Get all investment accounts (type = "investment")
     const { data: investmentAccounts, error: accountsError } = await supabase
-      .from("Account")
+      .from("accounts")
       .select("id")
       .eq("type", "investment");
 
@@ -252,13 +252,13 @@ export class InvestmentsService {
 
     // Get stored values for these accounts
     const { data: storedValues, error: valuesError } = await supabase
-      .from("AccountInvestmentValue")
+      .from("account_investment_values")
       .select("accountId, totalValue")
       .in("accountId", accountIds);
 
     // Get all entries for these accounts
     const { data: entries, error: entriesError } = await supabase
-      .from("SimpleInvestmentEntry")
+      .from("simple_investment_entries")
       .select("accountId, type, amount")
       .in("accountId", accountIds);
 
@@ -302,8 +302,8 @@ export class InvestmentsService {
     const transactions = await this.repository.findTransactions(filters);
 
     // Fetch relations
-    const securityIds = new Set(transactions.filter(t => t.securityId).map(t => t.securityId!));
-    const accountIds = new Set(transactions.map(t => t.accountId));
+    const securityIds = new Set(transactions.filter(t => t.security_id).map(t => t.security_id!));
+    const accountIds = new Set(transactions.map(t => t.account_id));
 
     const [securities, accounts] = await Promise.all([
       securityIds.size > 0
@@ -319,8 +319,8 @@ export class InvestmentsService {
 
     return transactions.map(tx => {
       return InvestmentsMapper.transactionToDomain(tx, {
-        security: tx.securityId ? (securityMap.get(tx.securityId) || null) : null,
-        account: accountMap.get(tx.accountId) || null,
+        security: tx.security_id ? (securityMap.get(tx.security_id) || null) : null,
+        account: accountMap.get(tx.account_id) || null,
       });
     });
   }
@@ -442,17 +442,17 @@ export class InvestmentsService {
     const prices = await this.repository.findSecurityPrices(securityId);
     
     // Fetch securities if needed
-    const securityIds = new Set(prices.map(p => p.securityId));
+    const securityIds = new Set(prices.map(p => p.security_id));
     const supabase = await createServerClient();
     const { data: securities } = await supabase
-      .from("Security")
+      .from("securities")
       .select("*")
       .in("id", Array.from(securityIds));
 
     const securityMap = new Map((securities || []).map(s => [s.id, InvestmentsMapper.securityToDomain(s)]));
 
-    return prices.map(price => {
-      return InvestmentsMapper.securityPriceToDomain(price, securityMap.get(price.securityId));
+    return prices.map((price: any) => {
+      return InvestmentsMapper.securityPriceToDomain(price, securityMap.get(price.security_id));
     });
   }
 
@@ -476,7 +476,7 @@ export class InvestmentsService {
     // Fetch security
     const supabase = await createServerClient();
     const { data: security } = await supabase
-      .from("Security")
+      .from("securities")
       .select("*")
       .eq("id", data.securityId)
       .single();
@@ -494,9 +494,13 @@ export class InvestmentsService {
     try {
       const accounts = await this.repository.findInvestmentAccounts(accessToken, refreshToken);
       return accounts.map(a => ({
-        ...a,
-        createdAt: new Date(a.createdAt),
-        updatedAt: new Date(a.updatedAt),
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        userId: a.user_id,
+        householdId: a.household_id,
+        createdAt: new Date(a.created_at),
+        updatedAt: new Date(a.updated_at),
       }));
     } catch (error: any) {
       // Handle permission denied errors gracefully (can happen during SSR)
@@ -524,7 +528,7 @@ export class InvestmentsService {
 
     // Create account in Account table with type "investment"
     const { data: account, error } = await supabase
-      .from("Account")
+      .from("accounts")
       .insert({
         id,
         name: data.name,
@@ -564,8 +568,8 @@ export class InvestmentsService {
       relations.account = account ? { id: account.id, name: account.name, type: account.type } : null;
     }
 
-    if (transaction.securityId) {
-      const securities = await this.repository.findSecuritiesByIds([transaction.securityId]);
+    if (transaction.security_id) {
+      const securities = await this.repository.findSecuritiesByIds([transaction.security_id]);
       const security = securities[0] || null;
       relations.security = security ? { id: security.id, symbol: security.symbol, name: security.name, class: security.class, sector: security.sector } : null;
     }
@@ -652,7 +656,7 @@ export class InvestmentsService {
 
     // Get all securities
     const { data: securities, error: securitiesError } = await supabase
-      .from("Security")
+      .from("securities")
       .select("id, symbol");
 
     if (securitiesError || !securities || securities.length === 0) {
@@ -694,7 +698,7 @@ export class InvestmentsService {
 
       // Check if price already exists for today
       const { data: existingPrice } = await supabase
-        .from("SecurityPrice")
+        .from("security_prices")
         .select("id, price")
         .eq("securityId", security.id)
         .eq("date", todayTimestamp)
@@ -706,7 +710,7 @@ export class InvestmentsService {
         
         if (priceChangePercent > 0.01) {
           const { error: updateError } = await supabase
-            .from("SecurityPrice")
+            .from("security_prices")
             .update({ price })
             .eq("id", existingPrice.id);
 
@@ -719,7 +723,7 @@ export class InvestmentsService {
       } else {
         const id = crypto.randomUUID();
         const { error: insertError } = await supabase
-          .from("SecurityPrice")
+          .from("security_prices")
           .insert({
             id,
             securityId: security.id,
@@ -937,12 +941,12 @@ export class InvestmentsService {
     const supabase = await createServerClient();
 
     let query = supabase
-      .from("SimpleInvestmentEntry")
+      .from("simple_investment_entries")
       .select("*")
       .order("date", { ascending: false });
 
     if (accountId) {
-      query = query.eq("accountId", accountId);
+      query = query.eq("account_id", accountId);
     }
 
     const { data, error } = await query;
@@ -990,7 +994,7 @@ export class InvestmentsService {
     const now = formatTimestamp(new Date());
 
     const { data: entry, error } = await supabase
-      .from("SimpleInvestmentEntry")
+      .from("simple_investment_entries")
       .insert({
         id,
         accountId: data.accountId,
@@ -1027,9 +1031,9 @@ export class InvestmentsService {
     const supabase = await createServerClient();
 
     const { data, error } = await supabase
-      .from("AccountInvestmentValue")
+      .from("account_investment_values")
       .select("*")
-      .eq("accountId", accountId)
+      .eq("account_id", accountId)
       .single();
 
     if (error) {
@@ -1067,12 +1071,12 @@ export class InvestmentsService {
 
     if (existing) {
       const { data: updated, error } = await supabase
-        .from("AccountInvestmentValue")
+        .from("account_investment_values")
         .update({
           totalValue: data.totalValue,
           updatedAt: now,
         })
-        .eq("accountId", data.accountId)
+        .eq("account_id", data.accountId)
         .select()
         .single();
 
@@ -1088,7 +1092,7 @@ export class InvestmentsService {
     } else {
       const id = crypto.randomUUID();
       const { data: created, error } = await supabase
-        .from("AccountInvestmentValue")
+        .from("account_investment_values")
         .insert({
           id,
           accountId: data.accountId,

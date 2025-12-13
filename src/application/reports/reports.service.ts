@@ -108,9 +108,8 @@ async function calculateNetWorthStandalone(
       return sum + Math.abs(Number(balance) || 0);
     }, 0);
 
-    // Add Plaid liabilities
+    // Liabilities tracking (no longer available from Plaid)
     try {
-      // Plaid integration removed - liabilities no longer available
       const liabilities: any[] = [];
       totalLiabilities += liabilities.reduce((sum, liability) => {
         const balance = (liability as any).balance ?? (liability as any).currentBalance ?? null;
@@ -387,12 +386,11 @@ async function getReportsDataCached(
         updatedAt: tx.updatedAt,
         suggestedCategoryId: tx.suggestedCategoryId ?? undefined,
         suggestedSubcategoryId: tx.suggestedSubcategoryId ?? undefined,
-        plaidMetadata: tx.plaidMetadata ?? undefined,
         account: tx.account ? { id: tx.account.id, name: tx.account.name } : null,
         category: tx.category ? { id: tx.category.id, name: tx.category.name } : null,
         subcategory: tx.subcategory ? { id: tx.subcategory.id, name: tx.subcategory.name } : null,
-        suggestedCategory: undefined,
-        suggestedSubcategory: undefined,
+        suggestedCategory: tx.suggestedCategory ? { id: tx.suggestedCategory.id, name: tx.suggestedCategory.name } : null,
+        suggestedSubcategory: tx.suggestedSubcategory ? { id: tx.suggestedSubcategory.id, name: tx.suggestedSubcategory.name } : null,
       };
     };
 

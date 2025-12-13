@@ -19,7 +19,6 @@ interface Budget {
   period: string;
   categoryId?: string | null;
   subcategoryId?: string | null;
-  macroId?: string | null;
   category: {
     id: string;
     name: string;
@@ -32,10 +31,6 @@ interface Budget {
   percentage?: number;
   status?: "ok" | "warning" | "over";
   displayName?: string;
-  macro?: {
-    id: string;
-    name: string;
-  } | null;
   budgetCategories?: Array<{
     category: {
       id: string;
@@ -44,19 +39,14 @@ interface Budget {
   }>;
 }
 
-interface Macro {
-  id: string;
-  name: string;
-}
-
 interface Category {
   id: string;
   name: string;
-  macroId: string;
-  macro?: {
+  type: "income" | "expense";
+  subcategories?: Array<{
     id: string;
     name: string;
-  };
+  }>;
 }
 
 export function BudgetsTab() {
@@ -64,7 +54,6 @@ export function BudgetsTab() {
   const { canWrite } = useWriteGuard();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [macros, setMacros] = useState<Macro[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,11 +68,11 @@ export function BudgetsTab() {
   async function loadData() {
     try {
       setLoading(true);
-      // OPTIMIZED: Single API call to get both groups and categories using v2 API routes
+      // OPTIMIZED: Single API call to get budgets and categories using v2 API routes
       const periodParam = now.toISOString();
       const [budgetsResponse, categoriesResponse] = await Promise.all([
         fetch(`/api/v2/budgets?period=${periodParam}`),
-        fetch("/api/v2/categories?consolidated=true"),
+        fetch("/api/v2/categories?all=true"),
       ]);
       
       if (!budgetsResponse.ok || !categoriesResponse.ok) {
@@ -95,11 +84,13 @@ export function BudgetsTab() {
         categoriesResponse.json(),
       ]);
       
-      const { groups: macrosData, categories: categoriesList } = categoriesData;
+      // Filter only expense categories for budgets
+      const expenseCategories = (categoriesData || []).filter(
+        (cat: Category) => cat.type === "expense"
+      );
       
       setBudgets(budgetsData as Budget[]);
-      setCategories(categoriesList || []);
-      setMacros(macrosData || []);
+      setCategories(expenseCategories);
       setHasLoaded(true);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -177,7 +168,7 @@ export function BudgetsTab() {
             setSelectedBudget(null);
             setIsFormOpen(true);
           }}
-          size="large"
+          size="medium"
           className="w-full md:w-auto"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -294,7 +285,6 @@ export function BudgetsTab() {
       )}
 
       <BudgetForm 
-        macros={macros}
         categories={categories} 
         period={now}
         budget={selectedBudget || undefined}

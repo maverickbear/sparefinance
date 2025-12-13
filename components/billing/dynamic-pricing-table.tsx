@@ -24,6 +24,7 @@ export function DynamicPricingTable({
 }: DynamicPricingTableProps) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [interval, setInterval] = useState<"month" | "year">("month");
 
   useEffect(() => {
@@ -49,10 +50,22 @@ export function DynamicPricingTable({
         
         if (response.ok) {
           const data = await response.json();
-          setPlans((data.plans || []).sort((a: Plan, b: Plan) => a.priceMonthly - b.priceMonthly));
+          const plansData = data.plans || [];
+          console.log("[DynamicPricingTable] Plans loaded:", plansData.length, plansData);
+          if (plansData.length === 0) {
+            setError("No plans available");
+          } else {
+            setError(null);
+          }
+          setPlans(plansData.sort((a: Plan, b: Plan) => a.priceMonthly - b.priceMonthly));
+        } else {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          console.error("[DynamicPricingTable] Error loading plans:", response.status, errorData);
+          setError(errorData.error || `Failed to load plans (${response.status})`);
         }
       } catch (error) {
-        console.error("Error loading plans:", error);
+        console.error("[DynamicPricingTable] Error loading plans:", error);
+        setError(error instanceof Error ? error.message : "Failed to load plans");
       } finally {
         setLoading(false);
       }
@@ -105,6 +118,23 @@ export function DynamicPricingTable({
     );
   }
 
+  if (error) {
+    return (
+      <div className={`flex flex-col items-center justify-center p-6 ${className || ""}`}>
+        <p className="text-destructive mb-2">Error loading plans</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    );
+  }
+
+  if (!loading && plans.length === 0) {
+    return (
+      <div className={`flex items-center justify-center p-6 ${className || ""}`}>
+        <p className="text-muted-foreground">No plans available at the moment.</p>
+      </div>
+    );
+  }
+
   return (
     <div className={`p-6 ${className || ""}`}>
       {/* Interval Toggle */}
@@ -113,7 +143,7 @@ export function DynamicPricingTable({
           <Button
             type="button"
             variant={interval === "month" ? "default" : "ghost"}
-            size="small"
+            size="medium"
             onClick={() => setInterval("month")}
             className={interval === "month" ? "shadow-sm" : ""}
           >
@@ -122,7 +152,7 @@ export function DynamicPricingTable({
           <Button
             type="button"
             variant={interval === "year" ? "default" : "ghost"}
-            size="small"
+            size="medium"
             onClick={() => setInterval("year")}
             className={interval === "year" ? "shadow-sm" : ""}
           >
@@ -135,8 +165,9 @@ export function DynamicPricingTable({
       </div>
 
       {/* Plans Grid */}
-      {/* Mobile: 1 column, MD: 2 columns with proper spacing, LG+: 2 columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+      {/* Single centered plan card for landing page */}
+      <div className="flex justify-center">
+        <div className="w-full max-w-lg">
         {plans.map((plan) => {
           // A plan is current only if both planId and interval match
           const isCurrent = plan.id === currentPlanId && interval === currentInterval;
@@ -144,10 +175,15 @@ export function DynamicPricingTable({
           const features = getFeatures(plan);
           const monthlyPrice = interval === "year" ? price / 12 : price;
 
+            // Split features into two columns
+            const midPoint = Math.ceil(features.length / 2);
+            const leftFeatures = features.slice(0, midPoint);
+            const rightFeatures = features.slice(midPoint);
+
           return (
             <Card
               key={plan.id}
-              className={`relative ${
+                className={`relative w-full ${
                 isCurrent ? "border-primary shadow-lg" : ""
               }`}
             >
@@ -204,9 +240,33 @@ export function DynamicPricingTable({
                 </div>
               </CardHeader>
               <CardContent className="!pt-0">
-                <ul className="space-y-1.5">
-                  {features.map((feature, index) => (
-                    <li key={index} className="flex items-start gap-1.5">
+                {/* Features in two columns */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                  {/* Left column features */}
+                  <div className="space-y-2">
+                    {leftFeatures.map((feature, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        {feature.enabled && (
+                          <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                        )}
+                        {!feature.enabled && (
+                          <span className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                        )}
+                        <span className={`text-sm ${
+                          feature.enabled 
+                            ? "text-foreground" 
+                            : "text-muted-foreground"
+                        }`}>
+                          {feature.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Right column features */}
+                  <div className="space-y-2">
+                    {rightFeatures.map((feature, index) => (
+                      <div key={index + midPoint} className="flex items-start gap-2">
                       {feature.enabled && (
                         <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
                       )}
@@ -220,13 +280,15 @@ export function DynamicPricingTable({
                       }`}>
                         {feature.label}
                       </span>
-                    </li>
+                      </div>
                   ))}
-                </ul>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           );
         })}
+        </div>
       </div>
     </div>
   );

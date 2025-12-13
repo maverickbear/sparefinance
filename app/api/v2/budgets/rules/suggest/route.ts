@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/src/application/shared/feature-guard";
  * GET /api/v2/budgets/rules/suggest
  * Suggest a budget rule based on user's income
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const incomeRange = searchParams.get("incomeRange") || null;
-    const cityCost = searchParams.get("cityCost") as "high" | "medium" | "low" | null;
+    // SIMPLIFIED: Removed cityCost parameter - no longer needed
 
     const service = makeBudgetRulesService();
 
@@ -51,7 +52,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const suggestion = service.suggestRule(monthlyIncome, cityCost || undefined);
+    // SIMPLIFIED: No cityCost parameter needed
+    const suggestion = service.suggestRule(monthlyIncome);
 
     return NextResponse.json(suggestion, {
     });

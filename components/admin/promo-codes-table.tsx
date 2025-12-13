@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -35,6 +35,15 @@ export function PromoCodesTable({
   const [loading, setLoading] = useState(initialLoading);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // Sync state when props change
+  useEffect(() => {
+    setPromoCodes(initialPromoCodes);
+  }, [initialPromoCodes]);
+
+  useEffect(() => {
+    setLoading(initialLoading);
+  }, [initialLoading]);
 
   const formatDate = (date: Date | null) => {
     if (!date) return "-";

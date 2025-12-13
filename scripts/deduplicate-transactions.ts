@@ -10,8 +10,6 @@
  * Otherwise, deduplicates all transactions.
  */
 
-import { makePlaidService } from '../src/application/plaid/plaid.factory';
-
 async function main() {
   const accountId = process.argv[2] || undefined;
 
@@ -23,8 +21,9 @@ async function main() {
   }
 
   try {
-    const plaidService = makePlaidService();
-    const result = await plaidService.deduplicateTransactions(accountId);
+    // Plaid service removed - deduplication functionality no longer available
+    console.error('❌ Deduplication is no longer available (Plaid integration removed)');
+    process.exit(1);
 
     console.log('\n✅ Deduplication completed!');
     console.log(`   Duplicates found: ${result.duplicatesFound}`);

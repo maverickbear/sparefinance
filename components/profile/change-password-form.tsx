@@ -184,7 +184,7 @@ export function ChangePasswordForm() {
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
-            <Button type="submit" size="small" disabled={loading} className="w-full sm:w-auto">
+            <Button type="submit" size="medium" disabled={loading} className="w-full sm:w-auto">
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

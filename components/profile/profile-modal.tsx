@@ -403,7 +403,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
                     <Button
                       type="button"
                       variant="outline"
-                      size="small"
+                      size="medium"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
                       className="w-full"
@@ -427,7 +427,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
                   <Input
                     {...form.register("name")}
                     placeholder="Enter your name"
-                    size="small"
+                    size="medium"
                   />
                   {form.formState.errors.name && (
                     <p className="text-sm text-destructive">
@@ -446,7 +446,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
                     value={profile?.email || ""}
                     readOnly
                     disabled
-                    size="small"
+                    size="medium"
                     className="bg-muted"
                     placeholder="Not available"
                   />
@@ -470,7 +470,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
                           onChange={(value) => field.onChange(value ?? "")}
                           onBlur={field.onBlur}
                           name={field.name}
-                          size="small"
+                          size="medium"
                         />
                         {fieldState.error && (
                           <p className="text-sm text-destructive">
@@ -510,7 +510,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
                       }
                     }}
                     placeholder="Select your date of birth"
-                    size="small"
+                    size="medium"
                   />
                   {form.formState.errors.dateOfBirth && (
                     <p className="text-sm text-destructive">
@@ -527,7 +527,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={handleCancel}
               disabled={saving || uploading || loading}
             >
@@ -536,7 +536,7 @@ export function ProfileModal({ open, onOpenChange, onSuccess }: ProfileModalProp
             </Button>
             <Button 
               type="submit" 
-              size="small"
+              size="medium"
               disabled={saving || uploading || loading}
             >
               {saving ? (

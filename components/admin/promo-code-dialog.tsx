@@ -43,7 +43,7 @@ interface PromoCodeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   promoCode?: PromoCode | null;
-  onSuccess?: () => void;
+  onSuccess?: (createdOrUpdatedPromoCode?: PromoCode) => void;
   availablePlans?: { id: string; name: string }[];
 }
 
@@ -106,6 +106,8 @@ export function PromoCodeDialog({
         payload.expiresAt = null;
       }
 
+      let createdOrUpdatedPromoCode: PromoCode | undefined;
+
       if (promoCode) {
         // Update
         const response = await fetch("/api/v2/admin/promo-codes", {
@@ -121,6 +123,9 @@ export function PromoCodeDialog({
           const error = await response.json();
           throw new Error(error.error || "Failed to update promo code");
         }
+
+        const result = await response.json();
+        createdOrUpdatedPromoCode = result.promoCode;
       } else {
         // Create
         const response = await fetch("/api/v2/admin/promo-codes", {
@@ -133,13 +138,16 @@ export function PromoCodeDialog({
           const error = await response.json();
           throw new Error(error.error || "Failed to create promo code");
         }
+
+        const result = await response.json();
+        createdOrUpdatedPromoCode = result.promoCode;
       }
 
       onOpenChange(false);
       form.reset();
       setSelectedPlanIds([]);
       if (onSuccess) {
-        onSuccess();
+        onSuccess(createdOrUpdatedPromoCode);
       }
     } catch (error) {
       console.error("Error saving promo code:", error);

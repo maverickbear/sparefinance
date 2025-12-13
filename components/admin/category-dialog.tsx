@@ -28,7 +28,10 @@ import type { SystemCategory } from "@/src/domain/admin/admin.types";
 
 const categorySchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
-  macroId: z.string().min(1, "Group is required"),
+  type: z.enum(["income", "expense"], {
+    required_error: "Type is required",
+    invalid_type_error: "Type must be either 'income' or 'expense'",
+  }),
 });
 
 type CategoryFormData = z.infer<typeof categorySchema>;
@@ -37,7 +40,6 @@ interface CategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   category?: SystemCategory | null;
-  availableMacros: { id: string; name: string }[];
   onSuccess?: () => void;
 }
 
@@ -45,15 +47,12 @@ export function CategoryDialog({
   open,
   onOpenChange,
   category,
-  availableMacros,
   onSuccess,
 }: CategoryDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetchedCategory, setFetchedCategory] = useState<SystemCategory | null>(null);
   // For create mode: textarea text with comma-separated category names
   const [categoryNamesText, setCategoryNamesText] = useState<string>("");
-  // For create mode: selected macroId (shared for all categories)
-  const [selectedMacroId, setSelectedMacroId] = useState<string>("");
 
   // Use fetched category if available, otherwise use prop category
   const currentCategory = fetchedCategory || category;
@@ -63,11 +62,11 @@ export function CategoryDialog({
     defaultValues: currentCategory
       ? {
           name: currentCategory.name,
-          macroId: currentCategory.macroId,
+          type: currentCategory.type || "expense",
         }
       : {
           name: "",
-          macroId: "",
+          type: "expense" as const,
         },
   });
 
@@ -76,7 +75,7 @@ export function CategoryDialog({
     if (currentCategory) {
       form.reset({
         name: currentCategory.name,
-        macroId: currentCategory.macroId,
+        type: currentCategory.type || "expense",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,7 +118,6 @@ export function CategoryDialog({
     if (!newOpen) {
       // Reset when closing
       setCategoryNamesText("");
-      setSelectedMacroId("");
       form.reset();
     }
     onOpenChange(newOpen);
@@ -136,11 +134,7 @@ export function CategoryDialog({
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate manually for create mode
-    if (!selectedMacroId) {
-      form.setError("macroId", { message: "Group is required" });
-      return;
-    }
+    // Categories can be created without groups
 
     // Parse comma-separated values
     const validNames = parseCommaSeparated(categoryNamesText);
@@ -159,7 +153,7 @@ export function CategoryDialog({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               name: name.trim(),
-              macroId: selectedMacroId,
+              type: form.watch("type") || "expense",
             }),
           })
         )
@@ -196,7 +190,6 @@ export function CategoryDialog({
       handleOpenChange(false);
       form.reset();
       setCategoryNamesText("");
-      setSelectedMacroId("");
       if (onSuccess) {
         onSuccess();
       }
@@ -218,7 +211,7 @@ export function CategoryDialog({
         body: JSON.stringify({
           id: currentCategory?.id,
           name: data.name,
-          macroId: data.macroId,
+          type: data.type,
         }),
       });
 
@@ -268,7 +261,7 @@ export function CategoryDialog({
                     id="name"
                     {...form.register("name")}
                     placeholder="e.g., Rent"
-                    size="small"
+                    size="medium"
                     required
                   />
                   {form.formState.errors.name && (
@@ -279,57 +272,47 @@ export function CategoryDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="macroId">Group</Label>
+                  <Label htmlFor="type">Type</Label>
                   <Select
-                    value={form.watch("macroId")}
-                    onValueChange={(value) => form.setValue("macroId", value)}
-                    required
+                    value={form.watch("type")}
+                    onValueChange={(value) => form.setValue("type", value as "income" | "expense")}
                   >
-                    <SelectTrigger size="small">
-                      <SelectValue placeholder="Select a group" />
+                    <SelectTrigger size="medium">
+                      <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableMacros.map((macro) => (
-                        <SelectItem key={macro.id} value={macro.id}>
-                          {macro.name}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="expense">Expense (Despesa)</SelectItem>
+                      <SelectItem value="income">Income (Receita)</SelectItem>
                     </SelectContent>
                   </Select>
-                  {form.formState.errors.macroId && (
+                  {form.formState.errors.type && (
                     <p className="text-sm text-destructive">
-                      {form.formState.errors.macroId.message}
+                      {form.formState.errors.type.message}
                     </p>
                   )}
                 </div>
+
               </>
             ) : (
               // Create mode: textarea with comma-separated values
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="macroId">Group</Label>
+                  <Label htmlFor="type">Type</Label>
                   <Select
-                    value={selectedMacroId}
-                    onValueChange={(value) => {
-                      setSelectedMacroId(value);
-                      form.setValue("macroId", value);
-                    }}
-                    required
+                    value={form.watch("type")}
+                    onValueChange={(value) => form.setValue("type", value as "income" | "expense")}
                   >
-                    <SelectTrigger size="small">
-                      <SelectValue placeholder="Select a group" />
+                    <SelectTrigger size="medium">
+                      <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {availableMacros.map((macro) => (
-                        <SelectItem key={macro.id} value={macro.id}>
-                          {macro.name}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="expense">Expense</SelectItem>
+                      <SelectItem value="income">Income</SelectItem>
                     </SelectContent>
                   </Select>
-                  {form.formState.errors.macroId && (
+                  {form.formState.errors.type && (
                     <p className="text-sm text-destructive">
-                      {form.formState.errors.macroId.message}
+                      {form.formState.errors.type.message}
                     </p>
                   )}
                 </div>
@@ -341,7 +324,7 @@ export function CategoryDialog({
                     value={categoryNamesText}
                     onChange={(e) => setCategoryNamesText(e.target.value)}
                     placeholder="e.g., Rent, Utilities, Home Maintenance"
-                    size="small"
+                    size="medium"
                     rows={4}
                     className="resize-none"
                   />
@@ -357,7 +340,7 @@ export function CategoryDialog({
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => handleOpenChange(false)}
               disabled={isSubmitting}
             >
@@ -365,10 +348,10 @@ export function CategoryDialog({
             </Button>
             <Button 
               type="submit" 
-              size="small"
+              size="medium"
               disabled={
                 isSubmitting || 
-                (!currentCategory && (!selectedMacroId || parseCommaSeparated(categoryNamesText).length === 0))
+                (!currentCategory && parseCommaSeparated(categoryNamesText).length === 0)
               }
             >
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

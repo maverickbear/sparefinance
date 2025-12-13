@@ -12,5 +12,8 @@ export interface HouseholdSettings {
   country?: string | null; // ISO 3166-1 alpha-2 country code (e.g., "US", "CA")
   stateOrProvince?: string | null; // State/province code (e.g., "CA", "ON")
   budgetRule?: BudgetRuleType | null; // Selected budget rule type
+  onboardingCompletedAt?: string | null; // ISO timestamp when onboarding was completed
+  onboardingGoals?: string[] | null; // User goals selected during onboarding
+  onboardingHouseholdType?: "personal" | "shared" | null; // Household type selected during onboarding
 }
 

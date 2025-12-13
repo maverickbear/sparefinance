@@ -161,12 +161,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       
       // Load decision and status in parallel
       const [shouldShow, status] = await Promise.all([
-        decisionService.shouldShowOnboardingDialog(userId),
+        decisionService.shouldShowOnboardingDialog(userId, accessToken, refreshToken),
         onboardingService.getOnboardingStatus(
           userId,
           accessToken,
           refreshToken,
-          { skipSubscriptionCheck: true } // Decision service already checked subscription
+          { skipSubscriptionCheck: true } // Onboarding no longer depends on subscription
         ),
       ]);
       
@@ -174,7 +174,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       onboardingStatus = {
         hasPersonalData: status.hasPersonalData,
         hasExpectedIncome: status.hasExpectedIncome,
-        hasPlan: status.hasPlan,
+        hasPlan: false, // No longer used for onboarding decision, kept for backward compatibility
         completedCount: status.completedCount,
         totalCount: status.totalCount,
       };

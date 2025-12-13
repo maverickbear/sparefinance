@@ -10,6 +10,7 @@ import { AppError } from "@/src/application/shared/app-error";
  * Get all contact forms with pagination
  * Only accessible by super_admin
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

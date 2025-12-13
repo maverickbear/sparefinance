@@ -63,7 +63,7 @@ export function AddTransactionSheet({
                     onClick={handleTakePicture}
                     variant="outline"
                     className="w-full h-auto p-4 flex flex-col items-center gap-2"
-                    size="small"
+                    size="medium"
                   >
                     <div className="p-2 rounded-lg bg-muted">
                       <Camera className="h-5 w-5" />
@@ -79,7 +79,7 @@ export function AddTransactionSheet({
                     onClick={handleUploadReceipt}
                     variant="outline"
                     className="w-full h-auto p-4 flex flex-col items-center gap-2"
-                    size="small"
+                    size="medium"
                   >
                     <div className="p-2 rounded-lg bg-muted">
                       <Upload className="h-5 w-5" />
@@ -97,7 +97,7 @@ export function AddTransactionSheet({
                 onClick={handleAddNewTransaction}
                 variant="outline"
                 className="w-full h-auto p-4 flex flex-col items-center gap-2"
-                size="small"
+                size="medium"
               >
                 <div className="p-2 rounded-lg bg-muted">
                   <Plus className="h-5 w-5" />

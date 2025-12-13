@@ -131,7 +131,7 @@ export function FederalBracketsTable({
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
-                          size="small"
+                          size="medium"
                           onClick={() => onEdit(bracket)}
                         >
                           <Edit className="h-4 w-4" />

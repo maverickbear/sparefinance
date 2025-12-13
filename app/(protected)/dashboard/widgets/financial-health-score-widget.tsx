@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/components/common/money";
 import { AnimatedNumber } from "@/components/common/animated-number";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 import { formatExpectedIncomeRange, formatMonthlyIncomeFromRange } from "@/src/presentation/utils/format-expected-income";
 
@@ -32,9 +32,20 @@ export function FinancialHealthScoreWidget({
     if (dateStr instanceof Date) {
       return dateStr;
     }
-    // Handle both "YYYY-MM-DD HH:MM:SS" and "YYYY-MM-DDTHH:MM:SS" formats
-    const normalized = dateStr.replace(' ', 'T').split('.')[0]; // Remove milliseconds if present
-    return new Date(normalized);
+    if (!dateStr || typeof dateStr !== 'string') {
+      return new Date();
+    }
+    try {
+      // Handle both "YYYY-MM-DD HH:MM:SS" and "YYYY-MM-DDTHH:MM:SS" formats
+      const normalized = dateStr.replace(' ', 'T').split('.')[0]; // Remove milliseconds if present
+      const date = new Date(normalized);
+      if (isNaN(date.getTime())) {
+        return new Date();
+      }
+      return date;
+    } catch (error) {
+      return new Date();
+    }
   };
 
   // Get today's date (without time) to filter out future transactions
@@ -84,10 +95,7 @@ export function FinancialHealthScoreWidget({
       }, 0);
   }, [pastSelectedMonthTransactions]);
 
-  const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 0;
-  
   const score = financialHealth?.score ?? 0;
-  const classification = financialHealth?.classification || "Unknown";
   const lastMonthScore = useMemo(() => {
     // Use calculated last month score if available
     return financialHealth?.lastMonthScore;
@@ -99,10 +107,6 @@ export function FinancialHealthScoreWidget({
     }
     return null; // No comparison available
   }, [score, lastMonthScore]);
-
-  const scoreChangeText = scoreChange !== null
-    ? scoreChange >= 0 ? `+${scoreChange.toFixed(0)} pts` : `${scoreChange.toFixed(0)} pts`
-    : null;
 
   // Spare Score levels with ranges and colors
   const scoreLevels = [
@@ -121,37 +125,6 @@ export function FinancialHealthScoreWidget({
     if (score >= 61) return "Poor";
     return "Critical";
   };
-
-
-  // Get spending discipline from financial health (now calculated)
-  const spendingDiscipline = financialHealth?.spendingDiscipline || "Unknown";
-  const debtExposure = financialHealth?.debtExposure || "Low";
-
-  const getSpendingDisciplineColor = (discipline: string) => {
-    switch (discipline) {
-      case "Excellent":
-        return "text-green-500";
-      case "Good":
-        return "text-green-600";
-      case "Fair":
-        return "text-yellow-500";
-      case "Poor":
-        return "text-orange-500";
-      case "Critical":
-        return "text-red-500";
-      default:
-        return "text-muted-foreground";
-    }
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 91) return "text-[hsl(var(--sentiment-positive))]";
-    if (score >= 81) return "text-[#94DD78]";
-    if (score >= 71) return "text-[hsl(var(--sentiment-warning))]";
-    if (score >= 61) return "text-[#FF8C42]";
-    return "text-[hsl(var(--sentiment-negative))]";
-  };
-  
 
   // Show error state if no data available
   if (!hasData) {
@@ -175,13 +148,15 @@ export function FinancialHealthScoreWidget({
     );
   }
 
+  const classificationText = getClassificationText(score);
+
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="flex-shrink-0">
+      <CardHeader className="flex-shrink-0 pb-3">
         <div className="flex items-center justify-between">
           <div>
-        <CardTitle>Spare Score</CardTitle>
-        <CardDescription>Combined view of spending, savings and debt</CardDescription>
+            <CardTitle>Spare Score</CardTitle>
+            <CardDescription>Combined view of spending, savings and debt</CardDescription>
           </div>
           {financialHealth?.isProjected && (
             <Badge variant="outline" className="text-xs">
@@ -190,37 +165,39 @@ export function FinancialHealthScoreWidget({
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col min-h-0">
+      <CardContent className="flex-1 flex flex-col pt-6">
         <div className="space-y-4 flex-1 flex flex-col">
           {/* Score Display with Legend */}
           <div className="flex-shrink-0">
-            <div className="flex items-start gap-4 md:gap-6">
-              {/* Score Number */}
-              <div className="flex-shrink-0">
-                <div className={cn("text-4xl md:text-5xl lg:text-6xl font-bold tabular-nums leading-none text-foreground")}>
+            <div className="flex flex-col lg:flex-row items-stretch gap-4 md:gap-6 bg-muted rounded-xl p-6">
+              {/* Left Side - Score Number and Classification */}
+              <div className="flex-1 lg:w-1/2 flex flex-col items-center justify-center">
+                {/* Large Score Number - Black */}
+                <div className={cn("text-4xl md:text-5xl lg:text-6xl font-bold tabular-nums leading-none text-foreground mb-2 md:mb-3")}>
                   <AnimatedNumber value={score} format="number" decimals={0} />
                 </div>
-                <div className="flex items-center gap-2 mt-1 md:mt-2">
-                  <div className="text-sm md:text-base font-medium text-foreground">
-                    {getClassificationText(score)}
-                  </div>
-                  {financialHealth?.isProjected && (
+                {/* Classification Text - Black */}
+                <div className="text-base md:text-lg lg:text-xl font-semibold text-foreground">
+                  {classificationText}
+                </div>
+                {financialHealth?.isProjected && (
+                  <div className="mt-3 md:mt-4">
                     <Badge variant="secondary" className="text-xs">
                       Based on expected income
                     </Badge>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
-              {/* Legend with score ranges - Two columns */}
-              <div className="flex-1 pt-1">
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {/* Right Side - Legend with score ranges */}
+              <div className="flex-1 lg:w-1/2 flex flex-col justify-center">
+                <div className="space-y-1">
                   {scoreLevels.map((level) => (
-                    <div key={level.label} className="flex flex-col">
+                    <div key={level.label} className="flex items-center justify-between w-full">
                       <span className="text-sm font-semibold text-foreground">
                         {level.label}
                       </span>
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-sm font-normal text-foreground text-right">
                         {level.range}
                       </span>
                     </div>
@@ -229,7 +206,7 @@ export function FinancialHealthScoreWidget({
               </div>
             </div>
             {financialHealth?.isProjected && expectedIncomeRange && (
-              <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+              <div className="text-xs text-muted-foreground mt-3 space-y-0.5">
                 <div>Expected income: {formatExpectedIncomeRange(expectedIncomeRange)}</div>
                 <div className="font-medium">
                   {formatMonthlyIncomeFromRange(expectedIncomeRange)}/month
@@ -237,21 +214,69 @@ export function FinancialHealthScoreWidget({
               </div>
             )}
             {financialHealth?.isProjected && financialHealth?.message && !expectedIncomeRange && (
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-xs text-muted-foreground mt-3">
                 {financialHealth.message}
               </p>
             )}
           </div>
 
-          {/* Insights Button */}
-          <div className="flex-shrink-0 mt-auto">
+          {/* Insights Preview */}
+          {financialHealth && (financialHealth.alerts?.length > 0 || financialHealth.suggestions?.length > 0) && (
+            <div className="flex-shrink-0 space-y-3 pt-4">
+              <h3 className="text-sm font-semibold text-foreground">Key Insights</h3>
+              
+              {/* Alerts Preview - Show first 2 */}
+              {financialHealth.alerts && financialHealth.alerts.length > 0 && (
+                <div className="space-y-1">
+                  {financialHealth.alerts.slice(0, 2).map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <AlertCircle
+                        className={cn(
+                          "h-4 w-4 flex-shrink-0",
+                          alert.severity === "critical"
+                            ? "text-red-600 dark:text-red-400"
+                            : alert.severity === "warning"
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-blue-600 dark:text-blue-400"
+                        )}
+                      />
+                      <p className="text-foreground">{alert.title}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Suggestions Preview - Show first 1 if no alerts or only 1 alert */}
+              {financialHealth.suggestions && financialHealth.suggestions.length > 0 && (
+                <div className="space-y-1">
+                  {financialHealth.suggestions
+                    .slice(0, financialHealth.alerts?.length >= 2 ? 0 : 1)
+                    .map((suggestion) => (
+                      <div
+                        key={suggestion.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
+                        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />
+                        <p className="text-foreground">{suggestion.title}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* View Full Report Button - Footer */}
+          <div className="flex-shrink-0 mt-auto pt-4">
             <Button
               variant="outline"
               className="w-full gap-2"
               onClick={() => router.push("/insights")}
             >
               <Lightbulb className="h-4 w-4" />
-              <span>View Insights & Actions</span>
+              <span>View Full Report</span>
             </Button>
           </div>
         </div>

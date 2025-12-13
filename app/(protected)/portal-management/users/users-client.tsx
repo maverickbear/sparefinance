@@ -76,7 +76,7 @@ export function UsersPageClient({ users, filter }: UsersPageClientProps) {
             {filter && (
               <Button
                 variant="ghost"
-                size="small"
+                size="medium"
                 onClick={() => {
                   router.push("/portal-management/users");
                 }}

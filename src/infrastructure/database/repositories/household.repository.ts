@@ -8,14 +8,15 @@ import { createServerClient } from "../supabase-server";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { HouseholdSettings } from "@/src/domain/household/household.types";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
+import { OnboardingMapper } from "@/src/application/onboarding/onboarding.mapper";
 
 export interface HouseholdRow {
   id: string;
   name: string;
   type: "personal" | "household";
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
   settings: Record<string, unknown> | null;
 }
 
@@ -31,7 +32,7 @@ export class HouseholdRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: household, error } = await supabase
-      .from("Household")
+      .from("households")
       .select("*")
       .eq("id", householdId)
       .single();
@@ -49,6 +50,7 @@ export class HouseholdRepository {
 
   /**
    * Get household settings
+   * Maps JSONB settings to domain HouseholdSettings using OnboardingMapper
    */
   async getSettings(
     householdId: string,
@@ -60,7 +62,8 @@ export class HouseholdRepository {
       return null;
     }
 
-    return (household.settings || {}) as HouseholdSettings;
+    // Use OnboardingMapper to properly map JSONB to domain type
+    return OnboardingMapper.settingsToDomain(household.settings);
   }
 
   /**
@@ -76,10 +79,10 @@ export class HouseholdRepository {
     const now = new Date().toISOString();
 
     const { data: household, error } = await supabase
-      .from("Household")
+      .from("households")
       .update({
         settings,
-        updatedAt: now,
+        updated_at: now,
       })
       .eq("id", householdId)
       .select()
@@ -109,13 +112,13 @@ export class HouseholdRepository {
     const now = formatTimestamp(new Date());
 
     const { data: household, error } = await supabase
-      .from("Household")
+      .from("households")
       .insert({
         name: data.name,
         type: data.type,
-        createdBy: data.createdBy,
-        createdAt: now,
-        updatedAt: now,
+        created_by: data.createdBy,
+        created_at: now,
+        updated_at: now,
         settings: {},
       })
       .select()
@@ -143,10 +146,10 @@ export class HouseholdRepository {
 
     // Verify user is a member of this household
     const { data: member, error: memberError } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select("id")
-      .eq("householdId", householdId)
-      .eq("userId", userId)
+      .eq("household_id", householdId)
+      .eq("user_id", userId)
       .eq("status", "active")
       .single();
 
@@ -155,11 +158,11 @@ export class HouseholdRepository {
     }
 
     const { error } = await supabase
-      .from("UserActiveHousehold")
+      .from("system_user_active_households")
       .upsert({
-        userId,
-        householdId,
-        updatedAt: now,
+        user_id: userId,
+        household_id: householdId,
+        updated_at: now,
       });
 
     if (error) {
@@ -175,7 +178,7 @@ export class HouseholdRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("Household")
+      .from("households")
       .delete()
       .eq("id", householdId);
 

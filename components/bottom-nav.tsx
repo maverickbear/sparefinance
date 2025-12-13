@@ -5,26 +5,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  LayoutDashboard,
-  Receipt,
-  Target,
-  MoreHorizontal,
-  Plus,
-} from "lucide-react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { AddTransactionSheet } from "@/components/bottom-nav/add-transaction-sheet";
 import { MoreMenuSheet } from "@/components/bottom-nav/more-menu-sheet";
+import { baseNavSections } from "@/src/presentation/config/navigation.config";
+import type { BottomNavItem } from "@/src/presentation/config/navigation.config";
+import { LayoutDashboard, Receipt, Target } from "lucide-react";
 
 interface BottomNavProps {
   hasSubscription?: boolean;
-}
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  type: "link" | "button";
-  onClick?: () => void;
 }
 
 export function BottomNav({ hasSubscription = true }: BottomNavProps) {
@@ -53,7 +42,9 @@ export function BottomNav({ hasSubscription = true }: BottomNavProps) {
     }
   };
 
-  const navItems: NavItem[] = [
+  // Build bottom nav items from centralized config
+  // Bottom nav has a specific structure with action buttons
+  const navItems: BottomNavItem[] = [
     {
       href: "/dashboard",
       label: "Dashboard",

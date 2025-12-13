@@ -9,6 +9,7 @@ import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { AppError } from "../shared/app-error";
 import { getCachedSubscriptionData } from "../subscriptions/get-dashboard-subscription";
+import { logger } from "@/src/infrastructure/utils/logger";
 import Stripe from "stripe";
 
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -38,10 +39,10 @@ export class BillingService {
 
     // Get billing interval from Stripe if subscription exists
     let interval: "month" | "year" | null = null;
-    if (subscriptionData.subscription?.stripeSubscriptionId) {
+    if (subscriptionData.subscription?.stripe_subscription_id) {
       try {
         const stripeSubscription = await stripe.subscriptions.retrieve(
-          subscriptionData.subscription.stripeSubscriptionId
+          subscriptionData.subscription.stripe_subscription_id
         );
         const priceId = stripeSubscription.items.data[0]?.price.id;
         if (priceId) {
@@ -50,7 +51,7 @@ export class BillingService {
         }
       } catch (error) {
         // If Stripe call fails, continue without interval
-        console.error("Error fetching Stripe subscription interval:", error);
+        logger.error("[BillingService] Error fetching Stripe subscription interval:", error);
       }
     }
 
@@ -86,20 +87,20 @@ export class BillingService {
 
     // Get subscription to find Stripe customer ID
     const { data: subscription } = await supabase
-      .from("Subscription")
-      .select("stripeCustomerId")
-      .eq("userId", userId)
-      .order("createdAt", { ascending: false })
+      .from("app_subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (!subscription?.stripeCustomerId) {
+    if (!subscription?.stripe_customer_id) {
       return [];
     }
 
     try {
       const paymentMethods = await stripe.paymentMethods.list({
-        customer: subscription.stripeCustomerId,
+        customer: subscription.stripe_customer_id,
         type: "card",
       });
 
@@ -114,7 +115,7 @@ export class BillingService {
         } : undefined,
       }));
     } catch (error) {
-      console.error("Error fetching payment methods:", error);
+      logger.error("[BillingService] Error fetching payment methods:", error);
       return [];
     }
   }
@@ -151,14 +152,14 @@ export class BillingService {
 
     // Get subscription to find Stripe customer ID
     const { data: subscription } = await supabase
-      .from("Subscription")
-      .select("stripeCustomerId")
-      .eq("userId", userId)
-      .order("createdAt", { ascending: false })
+      .from("app_subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (!subscription?.stripeCustomerId) {
+    if (!subscription?.stripe_customer_id) {
       return { invoices: [], hasMore: false, total: 0 };
     }
 
@@ -167,7 +168,7 @@ export class BillingService {
 
     try {
       const params: Stripe.InvoiceListParams = {
-        customer: subscription.stripeCustomerId,
+        customer: subscription.stripe_customer_id,
         limit: limit + 1, // Fetch one extra to check if there are more
       };
 
@@ -194,7 +195,7 @@ export class BillingService {
         total: invoices.data.length,
       };
     } catch (error) {
-      console.error("Error fetching invoices:", error);
+      logger.error("[BillingService] Error fetching invoices:", error);
       return { invoices: [], hasMore: false, total: 0 };
     }
   }

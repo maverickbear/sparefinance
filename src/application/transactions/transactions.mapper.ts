@@ -16,22 +16,23 @@ export class TransactionsMapper {
       date: row.date,
       type: row.type,
       amount: row.amount,
-      accountId: row.accountId,
-      categoryId: row.categoryId,
-      subcategoryId: row.subcategoryId,
+      accountId: row.account_id,
+      categoryId: row.category_id,
+      subcategoryId: row.subcategory_id,
       description: row.description,
-      isRecurring: row.isRecurring,
-      expenseType: row.expenseType,
-      transferToId: row.transferToId,
-      transferFromId: row.transferFromId,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      suggestedCategoryId: row.suggestedCategoryId,
-      suggestedSubcategoryId: row.suggestedSubcategoryId,
-      plaidMetadata: row.plaidMetadata,
-      receiptUrl: row.receiptUrl,
-      userId: row.userId,
-      householdId: row.householdId,
+      descriptionSearch: row.description_search,
+      tags: row.tags,
+      isRecurring: row.is_recurring,
+      expenseType: row.expense_type,
+      transferToId: row.transfer_to_id,
+      transferFromId: row.transfer_from_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      suggestedCategoryId: row.suggested_category_id,
+      suggestedSubcategoryId: row.suggested_subcategory_id,
+      receiptUrl: row.receipt_url,
+      userId: row.user_id,
+      householdId: row.household_id,
     };
   }
 
@@ -44,22 +45,23 @@ export class TransactionsMapper {
       date: typeof domain.date === 'string' ? domain.date : domain.date?.toISOString().split('T')[0],
       type: domain.type,
       amount: domain.amount,
-      accountId: domain.accountId,
-      categoryId: domain.categoryId ?? null,
-      subcategoryId: domain.subcategoryId ?? null,
+      account_id: domain.accountId,
+      category_id: domain.categoryId ?? null,
+      subcategory_id: domain.subcategoryId ?? null,
       description: domain.description ?? null,
-      isRecurring: domain.isRecurring ?? false,
-      expenseType: domain.expenseType ?? null,
-      transferToId: domain.transferToId ?? null,
-      transferFromId: domain.transferFromId ?? null,
-      createdAt: domain.createdAt,
-      updatedAt: domain.updatedAt,
-      suggestedCategoryId: domain.suggestedCategoryId ?? null,
-      suggestedSubcategoryId: domain.suggestedSubcategoryId ?? null,
-      plaidMetadata: domain.plaidMetadata ?? null,
-      receiptUrl: domain.receiptUrl ?? null,
-      userId: domain.userId ?? null,
-      householdId: domain.householdId ?? null,
+      description_search: domain.descriptionSearch ?? null,
+      tags: domain.tags ?? null,
+      is_recurring: domain.isRecurring ?? false,
+      expense_type: domain.expenseType ?? null,
+      transfer_to_id: domain.transferToId ?? null,
+      transfer_from_id: domain.transferFromId ?? null,
+      created_at: domain.createdAt,
+      updated_at: domain.updatedAt,
+      suggested_category_id: domain.suggestedCategoryId ?? null,
+      suggested_subcategory_id: domain.suggestedSubcategoryId ?? null,
+      receipt_url: domain.receiptUrl ?? null,
+      user_id: domain.userId ?? null,
+      household_id: domain.householdId ?? null,
     };
   }
 
@@ -71,8 +73,10 @@ export class TransactionsMapper {
     row: TransactionRow,
     relations?: {
       account?: { id: string; name: string; type: string; balance?: number } | null;
-      category?: { id: string; name: string; macroId?: string; macro?: { id: string; name: string } | null } | null;
+      category?: { id: string; name: string } | null;
       subcategory?: { id: string; name: string; logo?: string | null } | null;
+      suggestedCategory?: { id: string; name: string } | null;
+      suggestedSubcategory?: { id: string; name: string; logo?: string | null } | null;
     }
   ): TransactionWithRelations {
     return {
@@ -80,6 +84,8 @@ export class TransactionsMapper {
       account: relations?.account ?? null,
       category: relations?.category ?? null,
       subcategory: relations?.subcategory ?? null,
+      suggestedCategory: relations?.suggestedCategory ?? null,
+      suggestedSubcategory: relations?.suggestedSubcategory ?? null,
     };
   }
 }

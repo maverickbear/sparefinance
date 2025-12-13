@@ -186,7 +186,7 @@ export function TaxRatesPageClient({ initialRates }: TaxRatesPageClientProps) {
               value={selectedCountry}
               onValueChange={setSelectedCountry}
             >
-              <SelectTrigger id="country-filter" size="small">
+              <SelectTrigger id="country-filter" size="medium">
                 <SelectValue placeholder="All countries" />
               </SelectTrigger>
               <SelectContent>
@@ -209,7 +209,7 @@ export function TaxRatesPageClient({ initialRates }: TaxRatesPageClientProps) {
               onValueChange={setSelectedProvince}
               disabled={selectedCountry === "all"}
             >
-              <SelectTrigger id="province-filter" size="small">
+              <SelectTrigger id="province-filter" size="medium">
                 <SelectValue placeholder="All states/provinces" />
               </SelectTrigger>
               <SelectContent>

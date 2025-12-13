@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeAdminService } from "@/src/application/admin/admin.factory";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,8 +28,23 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify user is authenticated and is super_admin
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const service = makeAdminService();
+    const isSuperAdmin = await service.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only super_admin can create system categories" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
-    const { name, macroId } = body;
+    const { name, type } = body;
 
     if (!name || typeof name !== "string" || name.trim() === "") {
       return NextResponse.json(
@@ -36,15 +53,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!macroId || typeof macroId !== "string") {
+    if (!type || (type !== "income" && type !== "expense")) {
       return NextResponse.json(
-        { error: "Macro ID is required" },
+        { error: "Type is required and must be either 'income' or 'expense'" },
         { status: 400 }
       );
     }
-
-    const service = makeAdminService();
-    const category = await service.createSystemCategory({ name: name.trim(), macroId });
+    const category = await service.createSystemCategory({ 
+      name: name.trim(), 
+      type: type as "income" | "expense"
+    });
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
     console.error("Error creating system category:", error);
@@ -65,8 +83,23 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Verify user is authenticated and is super_admin
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const service = makeAdminService();
+    const isSuperAdmin = await service.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only super_admin can update system categories" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
-    const { id, name, macroId } = body;
+    const { id, name, type } = body;
 
     if (!id || typeof id !== "string") {
       return NextResponse.json(
@@ -75,14 +108,14 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (name === undefined && macroId === undefined) {
+    if (name === undefined && type === undefined) {
       return NextResponse.json(
-        { error: "At least one field (name or macroId) must be provided" },
+        { error: "At least one field (name or type) must be provided" },
         { status: 400 }
       );
     }
 
-    const updateData: { name?: string; macroId?: string } = {};
+    const updateData: { name?: string; type?: "income" | "expense" } = {};
     if (name !== undefined) {
       if (typeof name !== "string" || name.trim() === "") {
         return NextResponse.json(
@@ -92,17 +125,15 @@ export async function PUT(request: NextRequest) {
       }
       updateData.name = name.trim();
     }
-    if (macroId !== undefined) {
-      if (typeof macroId !== "string") {
+    if (type !== undefined) {
+      if (type !== "income" && type !== "expense") {
         return NextResponse.json(
-          { error: "Macro ID must be a string" },
+          { error: "Type must be either 'income' or 'expense'" },
           { status: 400 }
         );
       }
-      updateData.macroId = macroId;
+      updateData.type = type as "income" | "expense";
     }
-
-    const service = makeAdminService();
     const category = await service.updateSystemCategory(id, updateData);
     return NextResponse.json(category, { status: 200 });
   } catch (error) {
@@ -124,6 +155,21 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Verify user is authenticated and is super_admin
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const service = makeAdminService();
+    const isSuperAdmin = await service.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only super_admin can delete system categories" },
+        { status: 403 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
 
@@ -133,8 +179,6 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const service = makeAdminService();
     await service.deleteSystemCategory(id);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

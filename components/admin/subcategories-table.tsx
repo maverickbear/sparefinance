@@ -35,7 +35,7 @@ export function SubcategoriesTable({
   const [loading, setLoading] = useState(initialLoading);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",

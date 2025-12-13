@@ -27,7 +27,7 @@ interface Profile {
   phoneNumber?: string;
   dateOfBirth?: string;
   plan?: {
-    name: "essential" | "pro";
+    name: string; // Simplified: only "pro" exists, but allow string for flexibility
     isShadow: boolean;
     ownerId?: string;
     ownerName?: string;
@@ -476,7 +476,7 @@ export function ProfileModule() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="small"
+                  size="medium"
                   onClick={() => {
                     fileInputRef.current?.click();
                   }}
@@ -590,7 +590,7 @@ export function ProfileModule() {
               </div>
 
               <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2">
-                <Button type="submit" size="small" disabled={saving} className="w-full sm:w-auto">
+                <Button type="submit" size="medium" disabled={saving} className="w-full sm:w-auto">
                   {saving ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -46,22 +46,22 @@ export class DebtsService {
         const debtForCalculation: DebtForCalculation = {
           id: debt.id,
           name: debt.name,
-          initialAmount: debt.initialAmount,
-          downPayment: debt.downPayment,
-          currentBalance: debt.currentBalance,
-          interestRate: debt.interestRate,
-          totalMonths: debt.totalMonths,
-          firstPaymentDate: debt.firstPaymentDate,
-          monthlyPayment: debt.monthlyPayment,
-          paymentFrequency: debt.paymentFrequency as any,
-          paymentAmount: debt.paymentAmount,
-          principalPaid: debt.principalPaid,
-          interestPaid: debt.interestPaid,
-          additionalContributions: debt.additionalContributions,
-          additionalContributionAmount: debt.additionalContributionAmount,
+          initialAmount: debt.initial_amount,
+          downPayment: debt.down_payment,
+          currentBalance: debt.current_balance,
+          interestRate: debt.interest_rate,
+          totalMonths: debt.total_months,
+          firstPaymentDate: debt.first_payment_date,
+          monthlyPayment: debt.monthly_payment,
+          paymentFrequency: debt.payment_frequency as any,
+          paymentAmount: debt.payment_amount,
+          principalPaid: debt.principal_paid,
+          interestPaid: debt.interest_paid,
+          additionalContributions: debt.additional_contributions,
+          additionalContributionAmount: debt.additional_contribution_amount,
           priority: debt.priority,
-          isPaused: debt.isPaused,
-          isPaidOff: debt.isPaidOff,
+          isPaused: debt.is_paused,
+          isPaidOff: debt.is_paid_off,
           description: debt.description,
         };
 
@@ -70,11 +70,11 @@ export class DebtsService {
         
         // Update debt in database if calculated values are different
         const needsUpdate = 
-          Math.abs(calculatedPayments.principalPaid - debt.principalPaid) > 0.01 ||
-          Math.abs(calculatedPayments.interestPaid - debt.interestPaid) > 0.01 ||
-          Math.abs(calculatedPayments.currentBalance - debt.currentBalance) > 0.01;
+          Math.abs(calculatedPayments.principalPaid - debt.principal_paid) > 0.01 ||
+          Math.abs(calculatedPayments.interestPaid - debt.interest_paid) > 0.01 ||
+          Math.abs(calculatedPayments.currentBalance - debt.current_balance) > 0.01;
 
-        if (needsUpdate && !debt.isPaused && !debt.isPaidOff) {
+        if (needsUpdate && !debt.is_paused && !debt.is_paid_off) {
           const newBalance = Math.max(0, calculatedPayments.currentBalance);
           const isPaidOff = newBalance <= 0;
 
@@ -84,15 +84,15 @@ export class DebtsService {
               interestPaid: calculatedPayments.interestPaid,
               currentBalance: newBalance,
               isPaidOff,
-              paidOffAt: isPaidOff && !debt.paidOffAt ? formatTimestamp(new Date()) : debt.paidOffAt,
+              paidOffAt: isPaidOff && !debt.paid_off_at ? formatTimestamp(new Date()) : debt.paid_off_at,
               updatedAt: formatTimestamp(new Date()),
             });
             
             // Use updated values
-            debt.principalPaid = calculatedPayments.principalPaid;
-            debt.interestPaid = calculatedPayments.interestPaid;
-            debt.currentBalance = newBalance;
-            debt.isPaidOff = isPaidOff;
+            debt.principal_paid = calculatedPayments.principalPaid;
+            debt.interest_paid = calculatedPayments.interestPaid;
+            debt.current_balance = newBalance;
+            debt.is_paid_off = isPaidOff;
           } catch (error) {
             logger.error(`[DebtsService] Error updating debt ${debt.id}:`, error);
           }
@@ -101,10 +101,10 @@ export class DebtsService {
         // Use updated debt values for calculations
         const updatedDebtForCalculation: DebtForCalculation = {
           ...debtForCalculation,
-          principalPaid: debt.principalPaid,
-          interestPaid: debt.interestPaid,
-          currentBalance: debt.currentBalance,
-          isPaidOff: debt.isPaidOff,
+          principalPaid: debt.principal_paid,
+          interestPaid: debt.interest_paid,
+          currentBalance: debt.current_balance,
+          isPaidOff: debt.is_paid_off,
         };
 
         const metrics = calculateDebtMetrics(updatedDebtForCalculation);
@@ -133,22 +133,22 @@ export class DebtsService {
     const debtForCalculation: DebtForCalculation = {
       id: row.id,
       name: row.name,
-      initialAmount: row.initialAmount,
-      downPayment: row.downPayment,
-      currentBalance: row.currentBalance,
-      interestRate: row.interestRate,
-      totalMonths: row.totalMonths,
-      firstPaymentDate: row.firstPaymentDate,
-      monthlyPayment: row.monthlyPayment,
-      paymentFrequency: row.paymentFrequency as any,
-      paymentAmount: row.paymentAmount,
-      principalPaid: row.principalPaid,
-      interestPaid: row.interestPaid,
-      additionalContributions: row.additionalContributions,
-      additionalContributionAmount: row.additionalContributionAmount,
+      initialAmount: row.initial_amount,
+      downPayment: row.down_payment,
+      currentBalance: row.current_balance,
+      interestRate: row.interest_rate,
+      totalMonths: row.total_months,
+      firstPaymentDate: row.first_payment_date,
+      monthlyPayment: row.monthly_payment,
+      paymentFrequency: row.payment_frequency as any,
+      paymentAmount: row.payment_amount,
+      principalPaid: row.principal_paid,
+      interestPaid: row.interest_paid,
+      additionalContributions: row.additional_contributions,
+      additionalContributionAmount: row.additional_contribution_amount,
       priority: row.priority,
-      isPaused: row.isPaused,
-      isPaidOff: row.isPaidOff,
+      isPaused: row.is_paused,
+      isPaidOff: row.is_paid_off,
       description: row.description,
     };
 
@@ -218,7 +218,7 @@ export class DebtsService {
       isPaidOff,
       isPaused: data.isPaused ?? false,
       paidOffAt: isPaidOff ? now : null,
-      status: null,
+      status: isPaidOff ? 'closed' : 'active',
       nextDueDate: null,
       userId: user.id,
       householdId,
@@ -229,7 +229,7 @@ export class DebtsService {
     const debt = DebtsMapper.toDomain(debtRow);
 
     // Generate planned payments for the debt (async, don't wait)
-    if (!isPaidOff && !data.isPaused && debtRow.accountId) {
+    if (!isPaidOff && !data.isPaused && debtRow.account_id) {
       this.debtPlannedPaymentsService
         .generatePlannedPaymentsForDebt({
           ...debt,
@@ -266,7 +266,7 @@ export class DebtsService {
     // Use provided values or keep existing ones
     const effectiveCurrentBalance = data.currentBalance !== undefined
       ? data.currentBalance
-      : currentDebt.currentBalance;
+      : currentDebt.current_balance;
 
     // Check if debt should be marked as paid off
     const isPaidOff = effectiveCurrentBalance <= 0;
@@ -308,9 +308,9 @@ export class DebtsService {
 
     // Update completion status
     updateData.isPaidOff = isPaidOff;
-    if (isPaidOff && !currentDebt.paidOffAt) {
+    if (isPaidOff && !currentDebt.paid_off_at) {
       updateData.paidOffAt = formatTimestamp(new Date());
-    } else if (!isPaidOff && currentDebt.paidOffAt) {
+    } else if (!isPaidOff && currentDebt.paid_off_at) {
       updateData.paidOffAt = null;
     }
 
@@ -357,21 +357,21 @@ export class DebtsService {
       throw new AppError("Debt not found", 404);
     }
 
-    if (debt.isPaidOff) {
+    if (debt.is_paid_off) {
       throw new AppError("Debt is already paid off", 400);
     }
 
     // Calculate new balance
-    const newBalance = Math.max(0, debt.currentBalance - paymentAmount);
-    const principalReduction = Math.min(paymentAmount, debt.currentBalance);
-    const newPrincipalPaid = debt.principalPaid + principalReduction;
+    const newBalance = Math.max(0, debt.current_balance - paymentAmount);
+    const principalReduction = Math.min(paymentAmount, debt.current_balance);
+    const newPrincipalPaid = debt.principal_paid + principalReduction;
     const isPaidOff = newBalance <= 0;
 
     const debtRow = await this.repository.update(id, {
       currentBalance: newBalance,
       principalPaid: newPrincipalPaid,
       isPaidOff,
-      paidOffAt: isPaidOff && !debt.paidOffAt ? formatTimestamp(new Date()) : debt.paidOffAt,
+      paidOffAt: isPaidOff && !debt.paid_off_at ? formatTimestamp(new Date()) : debt.paid_off_at,
       updatedAt: formatTimestamp(new Date()),
     });
 

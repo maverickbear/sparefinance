@@ -5,26 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { Logo } from "@/components/common/logo";
-import { LogOut } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useAuthSafe } from "@/contexts/auth-context";
 
 interface LandingHeaderProps {
   isAuthenticated?: boolean; // Deprecated - kept for backward compatibility, not used
-}
-
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "U";
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  }
-  return name[0].toUpperCase();
 }
 
 /**
@@ -128,64 +112,23 @@ export function LandingHeader({ isAuthenticated: _initialAuth }: LandingHeaderPr
                 <Button
                   asChild
                   variant="ghost"
-                  size="small"
+                  size="medium"
                 >
                   <Link href="/dashboard">Dashboard</Link>
                 </Button>
-                <DropdownMenu>
-                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="relative rounded-full h-9 w-9 md:h-10 md:w-10 hover:bg-muted"
-                  >
-                    {user?.avatarUrl ? (
-                      <>
-                        <img
-                          src={user.avatarUrl}
-                          alt={user.name || "User"}
-                          className="h-9 w-9 md:h-10 md:w-10 rounded-full object-cover border"
-                          loading="eager"
-                          decoding="async"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            const initialsContainer =
-                              e.currentTarget.nextElementSibling;
-                            if (initialsContainer) {
-                              (initialsContainer as HTMLElement).style.display =
-                                "flex";
-                            }
-                          }}
-                        />
-                        <div className="h-9 w-9 md:h-10 md:w-10 rounded-full hidden items-center justify-center text-xs font-semibold border bg-primary text-black">
-                          {getInitials(user?.name)}
-                        </div>
-                      </>
-                    ) : user?.name ? (
-                      <div className="h-9 w-9 md:h-10 md:w-10 rounded-full flex items-center justify-center text-xs font-semibold border bg-primary text-black">
-                        {getInitials(user.name)}
-                      </div>
-                    ) : (
-                      <div className="h-9 w-9 md:h-10 md:w-10 rounded-full bg-muted animate-pulse" />
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive cursor-pointer"
+                  size="medium"
                     onClick={handleLogout}
                   >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log Out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  Log Out
+                </Button>
               </>
             ) : (
               <Button
                 asChild
                 variant="secondary"
-                size="small"
+                size="medium"
               >
                 <Link href="/auth/login">Sign In</Link>
               </Button>

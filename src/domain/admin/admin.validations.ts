@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { planFeaturesSchema } from "@/src/domain/subscriptions/subscriptions.validations";
 
 /**
  * Promo code validation schemas
@@ -43,7 +44,7 @@ export type UpdateSystemSettingsFormData = z.infer<typeof updateSystemSettingsSc
 export const updatePlanSchema = z.object({
   id: z.string().min(1, "Plan ID is required"),
   name: z.string().optional(),
-  features: z.any().optional(),
+  features: planFeaturesSchema.optional(),
   priceMonthly: z.number().optional(),
   priceYearly: z.number().optional(),
 });

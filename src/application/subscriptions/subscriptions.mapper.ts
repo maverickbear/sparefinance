@@ -14,18 +14,18 @@ export class SubscriptionsMapper {
   static subscriptionToDomain(row: SubscriptionRow): BaseSubscription {
     return {
       id: row.id,
-      userId: row.userId,
-      householdId: row.householdId,
-      planId: row.planId,
+      userId: row.user_id,
+      householdId: row.household_id,
+      planId: row.plan_id,
       status: row.status,
-      stripeSubscriptionId: row.stripeSubscriptionId,
-      stripeCustomerId: row.stripeCustomerId,
-      currentPeriodStart: row.currentPeriodStart ? new Date(row.currentPeriodStart) : null,
-      currentPeriodEnd: row.currentPeriodEnd ? new Date(row.currentPeriodEnd) : null,
-      trialEndDate: row.trialEndDate ? new Date(row.trialEndDate) : null,
-      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      stripeSubscriptionId: row.stripe_subscription_id,
+      stripeCustomerId: row.stripe_customer_id,
+      currentPeriodStart: row.current_period_start ? new Date(row.current_period_start) : null,
+      currentPeriodEnd: row.current_period_end ? new Date(row.current_period_end) : null,
+      trialEndDate: row.trial_end_date ? new Date(row.trial_end_date) : null,
+      cancelAtPeriodEnd: row.cancel_at_period_end,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 
@@ -39,14 +39,14 @@ export class SubscriptionsMapper {
     return {
       id: row.id,
       name: row.name,
-      priceMonthly: row.priceMonthly,
-      priceYearly: row.priceYearly,
+      priceMonthly: row.price_monthly,
+      priceYearly: row.price_yearly,
       features,
-      stripePriceIdMonthly: row.stripePriceIdMonthly,
-      stripePriceIdYearly: row.stripePriceIdYearly,
-      stripeProductId: row.stripeProductId,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      stripePriceIdMonthly: row.stripe_price_id_monthly,
+      stripePriceIdYearly: row.stripe_price_id_yearly,
+      stripeProductId: row.stripe_product_id,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 }

@@ -4,55 +4,12 @@ import { useEffect } from "react";
 import { Command } from "cmdk";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  LayoutDashboard,
-  Receipt,
-  Target,
-  FolderTree,
-  Wallet,
-  TrendingUp,
-  FileText,
-  PiggyBank,
-  CreditCard,
-  Users,
-  Repeat,
-  Calendar,
-} from "lucide-react";
+import { kbarCommandGroups } from "@/src/presentation/config/navigation.config";
 
 interface KBarProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const commandGroups = [
-  {
-    title: "Overview",
-    commands: [
-      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/" },
-      { id: "reports", label: "Reports", icon: FileText, href: "/reports" },
-    ],
-  },
-  {
-    title: "Money Management",
-    commands: [
-      { id: "accounts", label: "Bank Accounts", icon: Wallet, href: "/accounts" },
-      { id: "transactions", label: "Transactions", icon: Receipt, href: "/transactions" },
-      { id: "subscriptions", label: "Subscriptions", icon: Repeat, href: "/subscriptions" },
-      { id: "planned-payment", label: "Planned Payments", icon: Calendar, href: "/planned-payment" },
-      { id: "categories", label: "Categories", icon: FolderTree, href: "/settings/categories" },
-      { id: "household", label: "Household", icon: Users, href: "/settings/household" },
-    ],
-  },
-  {
-    title: "Planning",
-    commands: [
-      { id: "budgets", label: "Budgets", icon: Target, href: "/planning/budgets" },
-      { id: "goals", label: "Goals", icon: PiggyBank, href: "/planning/goals" },
-      { id: "debts", label: "Debts", icon: CreditCard, href: "/debts" },
-      { id: "investments", label: "Investments", icon: TrendingUp, href: "/investments" },
-    ],
-  },
-];
 
 export function KBar({ open, onOpenChange }: KBarProps) {
   const router = useRouter();
@@ -84,7 +41,7 @@ export function KBar({ open, onOpenChange }: KBarProps) {
           />
           <Command.List className="max-h-[300px] overflow-y-auto p-2">
             <Command.Empty>No results found.</Command.Empty>
-            {commandGroups.map((group) => (
+            {kbarCommandGroups.map((group) => (
               <Command.Group key={group.title} heading={group.title}>
                 {group.commands.map((cmd) => {
                   const Icon = cmd.icon;
@@ -93,7 +50,7 @@ export function KBar({ open, onOpenChange }: KBarProps) {
                       key={cmd.id}
                       value={cmd.label}
                       onSelect={() => handleSelect(cmd.href)}
-                      className="flex items-center space-x-2 px-2 py-2 rounded-lg cursor-pointer hover:bg-accent"
+                      className="flex items-center space-x-2 px-2 py-2 rounded-lg cursor-pointer hover:bg-secondary"
                     >
                       <Icon className="h-4 w-4" />
                       <span>{cmd.label}</span>

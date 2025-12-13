@@ -1,14 +1,23 @@
 /**
  * Planned Payments Service
  * Business logic for planned payments management
+ * 
+ * SIMPLIFIED: Renamed to Financial Events (domain types updated)
+ * This service maintains backward compatibility with old names
  */
 
 import { PlannedPaymentsRepository } from "@/src/infrastructure/database/repositories/planned-payments.repository";
 import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
 import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
 import { PlannedPaymentsMapper } from "./planned-payments.mapper";
-import { PlannedPaymentFormData } from "../../domain/planned-payments/planned-payments.validations";
-import { BasePlannedPayment } from "../../domain/planned-payments/planned-payments.types";
+// Use new domain types (with backward compatibility)
+// Use new domain types (with backward compatibility)
+import { 
+  FinancialEventFormData, 
+  BaseFinancialEvent,
+  PlannedPaymentFormData, // Backward compatibility alias
+  BasePlannedPayment // Backward compatibility alias
+} from "../../domain/financial-events/financial-events.types";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 import { encryptDescription } from "@/src/infrastructure/utils/transaction-encryption";
 import { getActiveHouseholdId } from "@/lib/utils/household";
@@ -25,6 +34,10 @@ export class PlannedPaymentsService {
 
   /**
    * Get planned payments with optional filters
+   * @param filters - Optional filters for planned payments
+   * @param accessToken - Optional access token for authentication
+   * @param refreshToken - Optional refresh token for authentication
+   * @param userId - Optional userId (if provided, skips getCurrentUserId() call - useful in cached functions)
    */
   async getPlannedPayments(
     filters?: {
@@ -41,16 +54,22 @@ export class PlannedPaymentsService {
       page?: number;
     },
     accessToken?: string,
-    refreshToken?: string
-  ): Promise<{ plannedPayments: BasePlannedPayment[]; total: number }> {
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      logger.warn("[PlannedPaymentsService] No userId found");
-      return { plannedPayments: [], total: 0 };
+    refreshToken?: string,
+    userId?: string
+  ): Promise<{ plannedPayments: BaseFinancialEvent[]; total: number }> {
+    // If userId is not provided, get it from context
+    // This allows the function to be called from cached functions where cookies() is not available
+    let finalUserId: string | null = userId ?? null;
+    if (!finalUserId) {
+      finalUserId = await getCurrentUserId();
+      if (!finalUserId) {
+        logger.warn("[PlannedPaymentsService] No userId found");
+        return { plannedPayments: [], total: 0 };
+      }
     }
 
     logger.info("[PlannedPaymentsService] Getting planned payments:", {
-      userId,
+      userId: finalUserId,
       filters: {
         startDate: filters?.startDate?.toISOString(),
         endDate: filters?.endDate?.toISOString(),
@@ -62,7 +81,7 @@ export class PlannedPaymentsService {
       },
     });
 
-    const { data, count } = await this.repository.findAll(userId, filters, accessToken, refreshToken);
+    const { data, count } = await this.repository.findAll(finalUserId, filters, accessToken, refreshToken);
 
     logger.info("[PlannedPaymentsService] Repository returned:", {
       dataCount: data?.length || 0,
@@ -80,10 +99,10 @@ export class PlannedPaymentsService {
     const subcategoryIds = new Set<string>();
 
     data.forEach(pp => {
-      if (pp.accountId) accountIds.add(pp.accountId);
-      if (pp.toAccountId) accountIds.add(pp.toAccountId);
-      if (pp.categoryId) categoryIds.add(pp.categoryId);
-      if (pp.subcategoryId) subcategoryIds.add(pp.subcategoryId);
+      if (pp.account_id) accountIds.add(pp.account_id);
+      if (pp.to_account_id) accountIds.add(pp.to_account_id);
+      if (pp.category_id) categoryIds.add(pp.category_id);
+      if (pp.subcategory_id) subcategoryIds.add(pp.subcategory_id);
     });
 
     const [accounts, categories, subcategories] = await Promise.all([
@@ -104,10 +123,10 @@ export class PlannedPaymentsService {
 
     const plannedPayments = data.map(pp => {
       return PlannedPaymentsMapper.toDomain(pp, {
-        account: pp.accountId ? (accountMap.get(pp.accountId) || null) : null,
-        toAccount: pp.toAccountId ? (accountMap.get(pp.toAccountId) || null) : null,
-        category: pp.categoryId ? (categoryMap.get(pp.categoryId) || null) : null,
-        subcategory: pp.subcategoryId ? (subcategoryMap.get(pp.subcategoryId) || null) : null,
+        account: pp.account_id ? (accountMap.get(pp.account_id) || null) : null,
+        toAccount: pp.to_account_id ? (accountMap.get(pp.to_account_id) || null) : null,
+        category: pp.category_id ? (categoryMap.get(pp.category_id) || null) : null,
+        subcategory: pp.subcategory_id ? (subcategoryMap.get(pp.subcategory_id) || null) : null,
       });
     });
 
@@ -121,10 +140,10 @@ export class PlannedPaymentsService {
    * Create a new planned payment
    */
   async createPlannedPayment(
-    data: PlannedPaymentFormData,
+    data: FinancialEventFormData,
     accessToken?: string,
     refreshToken?: string
-  ): Promise<BasePlannedPayment> {
+  ): Promise<BaseFinancialEvent> {
     const userId = await getCurrentUserId();
     if (!userId) {
       throw new AppError("Unauthorized", 401);
@@ -139,7 +158,8 @@ export class PlannedPaymentsService {
     const transactionDate = formatDateOnly(date);
     const encryptedDescription = encryptDescription(data.description || null);
 
-    const plannedPaymentRow = await this.repository.create({
+    // Use mapper to convert to snake_case for repository
+    const plannedPaymentData = PlannedPaymentsMapper.toRepository({
       date: transactionDate,
       type: data.type,
       amount: data.amount,
@@ -157,6 +177,8 @@ export class PlannedPaymentsService {
       userId,
       householdId,
     });
+    
+    const plannedPaymentRow = await this.repository.create(plannedPaymentData as any);
 
     // Fetch related data for enrichment
     const relations = await this.fetchRelations(plannedPaymentRow, accessToken, refreshToken);
@@ -169,8 +191,8 @@ export class PlannedPaymentsService {
    */
   async updatePlannedPayment(
     id: string,
-    data: Partial<PlannedPaymentFormData>
-  ): Promise<BasePlannedPayment> {
+    data: Partial<FinancialEventFormData>
+  ): Promise<BaseFinancialEvent> {
     const userId = await getCurrentUserId();
     if (!userId) {
       throw new AppError("Unauthorized", 401);
@@ -241,7 +263,7 @@ export class PlannedPaymentsService {
   /**
    * Mark planned payment as paid
    */
-  async markAsPaid(id: string): Promise<BasePlannedPayment> {
+  async markAsPaid(id: string): Promise<BaseFinancialEvent> {
     const plannedPayment = await this.repository.findById(id);
     if (!plannedPayment) {
       throw new AppError("Planned payment not found", 404);
@@ -264,10 +286,10 @@ export class PlannedPaymentsService {
       date: new Date(plannedPayment.date),
       type: plannedPayment.type,
       amount: plannedPayment.amount,
-      accountId: plannedPayment.accountId,
-      toAccountId: plannedPayment.type === "transfer" ? (plannedPayment.toAccountId || undefined) : undefined,
-      categoryId: plannedPayment.type === "transfer" ? undefined : (plannedPayment.categoryId || undefined),
-      subcategoryId: plannedPayment.type === "transfer" ? undefined : (plannedPayment.subcategoryId || undefined),
+      accountId: plannedPayment.account_id,
+      toAccountId: plannedPayment.type === "transfer" ? (plannedPayment.to_account_id || undefined) : undefined,
+      categoryId: plannedPayment.type === "transfer" ? undefined : (plannedPayment.category_id || undefined),
+      subcategoryId: plannedPayment.type === "transfer" ? undefined : (plannedPayment.subcategory_id || undefined),
       description: description || undefined,
       recurring: false,
     });
@@ -275,7 +297,7 @@ export class PlannedPaymentsService {
     // Update planned payment
     const updatedRow = await this.repository.update(id, {
       status: "paid",
-      linkedTransactionId: transaction.id,
+      linked_transaction_id: transaction.id,
     });
 
     const relations = await this.fetchRelations(updatedRow);
@@ -286,7 +308,7 @@ export class PlannedPaymentsService {
   /**
    * Skip a planned payment
    */
-  async skipPlannedPayment(id: string): Promise<BasePlannedPayment> {
+  async skipPlannedPayment(id: string): Promise<BaseFinancialEvent> {
     const plannedPayment = await this.repository.findById(id);
     if (!plannedPayment) {
       throw new AppError("Planned payment not found", 404);
@@ -308,7 +330,7 @@ export class PlannedPaymentsService {
   /**
    * Cancel a planned payment
    */
-  async cancelPlannedPayment(id: string): Promise<BasePlannedPayment> {
+  async cancelPlannedPayment(id: string): Promise<BaseFinancialEvent> {
     const plannedPayment = await this.repository.findById(id);
     if (!plannedPayment) {
       throw new AppError("Planned payment not found", 404);
@@ -387,23 +409,23 @@ export class PlannedPaymentsService {
   }> {
     const relations: any = {};
 
-    if (row.accountId) {
-      const account = await this.accountsRepository.findById(row.accountId, accessToken, refreshToken);
+    if (row.account_id) {
+      const account = await this.accountsRepository.findById(row.account_id, accessToken, refreshToken);
       relations.account = account ? { id: account.id, name: account.name } : null;
     }
 
-    if (row.toAccountId) {
-      const toAccount = await this.accountsRepository.findById(row.toAccountId, accessToken, refreshToken);
+    if (row.to_account_id) {
+      const toAccount = await this.accountsRepository.findById(row.to_account_id, accessToken, refreshToken);
       relations.toAccount = toAccount ? { id: toAccount.id, name: toAccount.name } : null;
     }
 
-    if (row.categoryId) {
-      const category = await this.categoriesRepository.findCategoryById(row.categoryId, accessToken, refreshToken);
+    if (row.category_id) {
+      const category = await this.categoriesRepository.findCategoryById(row.category_id, accessToken, refreshToken);
       relations.category = category ? { id: category.id, name: category.name } : null;
     }
 
-    if (row.subcategoryId) {
-      const subcategory = await this.categoriesRepository.findSubcategoryById(row.subcategoryId, accessToken, refreshToken);
+    if (row.subcategory_id) {
+      const subcategory = await this.categoriesRepository.findSubcategoryById(row.subcategory_id, accessToken, refreshToken);
       relations.subcategory = subcategory ? { id: subcategory.id, name: subcategory.name, logo: subcategory.logo } : null;
     }
 

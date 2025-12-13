@@ -7,10 +7,8 @@ import { AppError } from "@/src/application/shared/app-error";
  * GET /api/v2/members/invite/validate
  * Validate an invitation token
  * This endpoint can be called without authentication
- * 
- * Note: This route uses searchParams which causes prerendering warnings during build.
- * These warnings are expected and do not affect functionality.
  */
+
 export async function GET(request: NextRequest) {
   // Opt out of static generation - this route uses searchParams
   noStore();

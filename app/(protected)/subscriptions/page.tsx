@@ -295,6 +295,12 @@ export default function SubscriptionsPage() {
     return null;
   };
 
+  const formatFirstBillingDate = (date: string | null | undefined): string => {
+    if (!date) return "—";
+    const parsedDate = new Date(date);
+    return isNaN(parsedDate.getTime()) ? "—" : parsedDate.toLocaleDateString();
+  };
+
   async function handleDetectSubscriptions() {
     if (!checkWriteAccess()) return;
     
@@ -673,7 +679,9 @@ export default function SubscriptionsPage() {
             </TableHeader>
             <TableBody>
               {filteredSubscriptions.map((subscription) => {
-                const frequencyLabel = billingFrequencyLabels[subscription.billingFrequency] || subscription.billingFrequency;
+                const frequencyLabel = subscription.billingFrequency 
+                  ? (billingFrequencyLabels[subscription.billingFrequency] || subscription.billingFrequency)
+                  : "—";
                 const billingDayLabel = getBillingDayLabel(subscription);
                 const isSelected = selectedSubscriptions.has(subscription.id);
                 
@@ -748,7 +756,7 @@ export default function SubscriptionsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(subscription.firstBillingDate).toLocaleDateString()}
+                      {formatFirstBillingDate(subscription.firstBillingDate)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -928,7 +936,7 @@ export default function SubscriptionsPage() {
                               {detected.transactionCount} transaction(s)
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              First: {new Date(detected.firstBillingDate).toLocaleDateString()}
+                              First: {formatFirstBillingDate(detected.firstBillingDate)}
                             </span>
                             {detected.billingDay !== undefined && (
                               <span className="text-xs text-muted-foreground">
@@ -945,7 +953,7 @@ export default function SubscriptionsPage() {
                           
                           <Button
                             variant="ghost"
-                            size="small"
+                            size="medium"
                             className="mt-3 text-xs"
                             onClick={() => handleViewTransactions(index)}
                           >

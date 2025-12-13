@@ -10,22 +10,22 @@ import { BaseImportJob } from "@/src/domain/import-jobs/import-jobs.types";
 
 export interface ImportJobRow {
   id: string;
-  userId: string;
-  accountId: string | null;
+  user_id: string;
+  account_id: string | null;
   type: "plaid_sync" | "csv_import";
   status: "pending" | "processing" | "completed" | "failed";
   progress: number;
-  totalItems: number;
-  processedItems: number;
-  syncedItems: number;
-  skippedItems: number;
-  errorItems: number;
-  errorMessage: string | null;
-  retryCount: number;
-  nextRetryAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  total_items: number;
+  processed_items: number;
+  synced_items: number;
+  skipped_items: number;
+  error_items: number;
+  error_message: string | null;
+  retry_count: number;
+  next_retry_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
   metadata: Record<string, any> | null;
 }
 
@@ -37,10 +37,10 @@ export class ImportJobsRepository {
     const supabase = await createServerClient();
 
     const { data: job, error } = await supabase
-      .from("ImportJob")
+      .from("system_jobs_imports")
       .select("*")
       .eq("id", jobId)
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .single();
 
     if (error) {
@@ -66,11 +66,11 @@ export class ImportJobsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: jobs, error } = await supabase
-      .from("ImportJob")
+      .from("system_jobs_imports")
       .select("*")
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .in("status", ["pending", "processing"])
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       logger.error("[ImportJobsRepository] Error fetching active jobs:", error);

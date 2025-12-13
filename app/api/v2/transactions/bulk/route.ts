@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { revalidateTag } from 'next/cache';
 
 /**
  * DELETE /api/v2/transactions/bulk
@@ -28,7 +29,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     const service = makeTransactionsService();
+    // Hard delete directly (no soft delete)
     await service.deleteMultipleTransactions(ids);
+    
+    // Invalidate cache
+    revalidateTag(`transactions-${userId}`, 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

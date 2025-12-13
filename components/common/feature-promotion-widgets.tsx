@@ -1,7 +1,6 @@
 "use client";
 
-import { BudgetStatusWidget } from "@/app/(protected)/dashboard/widgets/budget-status-widget";
-import { SavingsGoalsWidget } from "@/app/(protected)/dashboard/widgets/savings-goals-widget";
+import { BudgetOverviewWidget } from "@/app/(protected)/dashboard/widgets/budget-overview-widget";
 import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
 import { Download, Users, Building2, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -149,34 +148,71 @@ interface FeaturePromotionWidgetProps {
 }
 
 // Mock data generators
-function getMockBudgets() {
+function getMockBudgets(): Array<{
+  id: string;
+  period: string;
+  amount: number;
+  userId: string;
+  isRecurring: boolean;
+  displayName: string;
+  actualSpend: number;
+  percentage: number;
+  status: "ok" | "warning" | "over";
+  category: { id: string; name: string };
+  categoryId?: string | null;
+  subcategoryId?: string | null;
+  note?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}> {
+  const currentDate = new Date();
+  const period = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-01 00:00:00`;
+  
   return [
     {
       id: "1",
-      displayName: "Groceries",
+      period,
       amount: 500,
+      userId: "mock-user-id",
+      isRecurring: true,
+      displayName: "Groceries",
       actualSpend: 450,
       percentage: 90,
-      status: "warning",
-      category: { name: "Groceries" },
+      status: "warning" as const,
+      category: { id: "cat-1", name: "Groceries" },
+      categoryId: "cat-1",
+      subcategoryId: null,
+      note: null,
     },
     {
       id: "2",
-      displayName: "Dining Out",
+      period,
       amount: 200,
+      userId: "mock-user-id",
+      isRecurring: true,
+      displayName: "Dining Out",
       actualSpend: 180,
       percentage: 90,
-      status: "warning",
-      category: { name: "Dining Out" },
+      status: "warning" as const,
+      category: { id: "cat-2", name: "Dining Out" },
+      categoryId: "cat-2",
+      subcategoryId: null,
+      note: null,
     },
     {
       id: "3",
-      displayName: "Entertainment",
+      period,
       amount: 150,
+      userId: "mock-user-id",
+      isRecurring: true,
+      displayName: "Entertainment",
       actualSpend: 95,
       percentage: 63.3,
-      status: "ok",
-      category: { name: "Entertainment" },
+      status: "ok" as const,
+      category: { id: "cat-3", name: "Entertainment" },
+      categoryId: "cat-3",
+      subcategoryId: null,
+      note: null,
     },
   ];
 }
@@ -324,17 +360,44 @@ export function FeaturePromotionWidget({ featureName }: FeaturePromotionWidgetPr
   if (featureName === "Budgets") {
     return (
       <div className="pointer-events-none">
-        <BudgetStatusWidget budgets={getMockBudgets()} />
+        <BudgetOverviewWidget budgets={getMockBudgets()} />
       </div>
     );
   }
 
-  // Goals Widget - Wrap in non-clickable container
+  // Goals Widget - Show mock goals widget
   if (featureName === "Goals") {
+    const mockGoals = getMockGoals();
     return (
-      <div className="pointer-events-none">
-        <SavingsGoalsWidget goals={getMockGoals()} />
-      </div>
+      <Card className="h-full pointer-events-none">
+        <CardHeader>
+          <CardTitle>Savings Goals</CardTitle>
+          <CardDescription>Track your progress</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {mockGoals.map((goal) => {
+              const progress = (goal.currentAmount / goal.targetAmount) * 100;
+              return (
+                <div key={goal.id} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{goal.name}</span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {formatMoney(goal.currentAmount)} / {formatMoney(goal.targetAmount)}
+                    </span>
+                  </div>
+                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${Math.min(progress, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 

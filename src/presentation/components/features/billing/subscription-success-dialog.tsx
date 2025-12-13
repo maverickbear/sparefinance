@@ -249,7 +249,7 @@ export function SubscriptionSuccessDialog({
                 <Button
                   onClick={handleGoToDashboard}
                   className="flex-1 w-full"
-                  size="large"
+                  size="medium"
                 >
                   Go to Dashboard
                 </Button>
@@ -257,7 +257,7 @@ export function SubscriptionSuccessDialog({
                   onClick={handleGoToBilling}
                   variant="outline"
                   className="flex-1 w-full"
-                  size="large"
+                  size="medium"
                 >
                   View Billing
                 </Button>

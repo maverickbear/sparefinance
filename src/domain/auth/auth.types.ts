@@ -17,5 +17,6 @@ export interface BaseUser {
 export interface AuthResult {
   user: BaseUser | null;
   error: string | null;
+  requiresEmailConfirmation?: boolean;
 }
 

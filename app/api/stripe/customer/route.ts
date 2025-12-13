@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
 import { AppError } from "@/src/application/shared/app-error";
-import { createServerClient } from "@/src/infrastructure/database/supabase-server";
+import { makeStripeService } from "@/src/application/stripe/stripe.factory";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 /**
  * GET /api/stripe/customer
@@ -19,27 +19,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user email from auth
-    const supabase = await createServerClient();
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !authUser) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const stripeService = makeStripeService();
+    const customerInfo = await stripeService.getCustomerInfo(userId);
 
-    // Get subscription data (uses cached function)
-    const subscriptionData = await getCachedSubscriptionData(userId);
-
-    return NextResponse.json({
-      customerId: subscriptionData.subscription?.stripeCustomerId || null,
-      customerEmail: authUser.email || null,
-      userId: authUser.id || null,
-    });
+    return NextResponse.json(customerInfo);
   } catch (error) {
-    console.error("[STRIPE/CUSTOMER] Error:", error);
+    logger.error("[STRIPE/CUSTOMER] Error:", error);
     
     if (error instanceof AppError) {
       return NextResponse.json(

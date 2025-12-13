@@ -18,7 +18,7 @@ A real-time, comprehensive view of your financial life:
 ### 💳 Bank Accounts
 All your accounts managed in one place:
 - Support for multiple account types: checking, savings, credit cards, investments
-- Automatic bank integration via Plaid
+- Manual account entry and CSV import
 - Real-time balance calculations
 - Multi-user support for families or teams
 
@@ -93,7 +93,7 @@ Integrated intelligent features:
 ## Benefits
 
 ✅ **Total Control**: View your entire financial profile, anytime, anywhere  
-✅ **Automation**: Bank integrations and automatic categorization for efficiency  
+✅ **Automation**: CSV import and automatic categorization for efficiency  
 ✅ **Planning**: Built-in budgets and goals to help you achieve your ambitions  
 ✅ **Security**: All data is encrypted and securely stored in the cloud  
 ✅ **Intelligence**: AI-driven insights and recommendations  

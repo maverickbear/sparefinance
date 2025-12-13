@@ -3,6 +3,7 @@ import { makeAdminService } from "@/src/application/admin/admin.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

@@ -39,7 +39,7 @@ async function processImportJobs(req: NextRequest) {
     // If triggered by cron, process all jobs
     const now = new Date().toISOString();
     let query = supabase
-      .from('ImportJob')
+      .from('system.importJobs')
       .select('*')
       .or(`status.eq.pending,and(status.eq.failed,nextRetryAt.lte.${now})`)
       .order('createdAt', { ascending: true })
@@ -73,7 +73,7 @@ async function processImportJobs(req: NextRequest) {
       try {
         // Update job status to processing
         await supabase
-          .from('ImportJob')
+          .from('system.importJobs')
           .update({ 
             status: 'processing',
             updatedAt: formatTimestamp(new Date()),
@@ -87,7 +87,7 @@ async function processImportJobs(req: NextRequest) {
           // Other job types can be added here
           console.warn(`Unknown job type: ${job.type}`);
           await supabase
-            .from('ImportJob')
+            .from('system.importJobs')
             .update({
               status: 'failed',
               errorMessage: `Unknown job type: ${job.type}`,
@@ -111,7 +111,7 @@ async function processImportJobs(req: NextRequest) {
           const nextRetryAt = new Date(Date.now() + retryDelay);
           
           await supabase
-            .from('ImportJob')
+            .from('system.importJobs')
             .update({
               status: 'failed',
               errorMessage: error.message || 'Unknown error',
@@ -123,7 +123,7 @@ async function processImportJobs(req: NextRequest) {
         } else {
           // Max retries reached, mark as permanently failed
           await supabase
-            .from('ImportJob')
+            .from('system.importJobs')
             .update({
               status: 'failed',
               errorMessage: error.message || 'Unknown error (max retries reached)',
@@ -216,7 +216,7 @@ async function processCsvImportJob(supabase: any, job: any) {
       : 100;
 
     await supabase
-      .from('ImportJob')
+      .from('system.importJobs')
       .update({
         progress,
         processedItems: processed,
@@ -235,7 +235,7 @@ async function processCsvImportJob(supabase: any, job: any) {
 
   // Update job as completed
   await supabase
-    .from('ImportJob')
+    .from('system.importJobs')
     .update({
       status: 'completed',
       progress: 100,

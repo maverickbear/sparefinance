@@ -133,6 +133,9 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
             hasUser: !!user,
           });
         }
+        // If session couldn't be set or user is not authenticated, the client will still work
+        // but RLS policies will block access. This is expected behavior.
+        // The calling code should handle authentication errors appropriately.
       }
       // Removed verbose success logging - authentication is expected and happens frequently
     } catch (error: any) {

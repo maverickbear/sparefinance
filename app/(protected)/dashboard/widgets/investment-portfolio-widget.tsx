@@ -4,7 +4,8 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatMoney, formatMoneyCompact } from "@/components/common/money";
 import { cn } from "@/lib/utils";
-import { useSubscription } from "@/hooks/use-subscription";
+import { useSubscriptionContext } from "@/contexts/subscription-context";
+import { useCanAccessFeature } from "@/hooks/use-subscription-selectors";
 import { usePortfolioData } from "@/hooks/use-portfolio-data";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { subMonths, format } from "date-fns";
@@ -24,19 +25,34 @@ interface PortfolioSummary {
   holdingsCount: number;
 }
 
+import { sentiment, interactive } from "@/lib/design-system/colors";
+
 interface HistoricalDataPoint {
   date: string;
   value: number;
 }
-
-import { sentiment, interactive } from "@/lib/design-system/colors";
 
 // Colors for the chart - use design system colors
 const PORTFOLIO_VALUE_COLOR = sentiment.positive; // #2F5711 - positive sentiment for portfolio value
 const TOTAL_COST_COLOR = sentiment.negative; // #A8200D - negative sentiment for cost
 
 // Custom tooltip component
-const CustomTooltip = ({ active, payload }: any) => {
+interface TooltipEntry {
+  payload: {
+    month: string;
+    [key: string]: unknown;
+  };
+  color: string;
+  value: number;
+  name: string;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipEntry[];
+}
+
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
@@ -44,7 +60,7 @@ const CustomTooltip = ({ active, payload }: any) => {
           {payload[0].payload.month}
         </p>
         <div className="space-y-1">
-          {payload.map((entry: any, index: number) => (
+          {payload.map((entry, index) => (
             <div key={index} className="flex items-center gap-2">
               <div
                 className="h-3 w-3 rounded-full"
@@ -66,10 +82,19 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 // Custom legend component
-const CustomLegend = ({ payload }: any) => {
+interface LegendEntry {
+  color: string;
+  value: string;
+}
+
+interface CustomLegendProps {
+  payload?: LegendEntry[];
+}
+
+const CustomLegend = ({ payload }: CustomLegendProps) => {
   return (
     <div className="flex items-center justify-center gap-4 pt-2">
-      {payload?.map((entry: any, index: number) => (
+      {payload?.map((entry, index) => (
         <div key={index} className="flex items-center gap-1.5">
           <div
             className="h-2.5 w-2.5 rounded-full"
@@ -195,10 +220,10 @@ export function InvestmentPortfolioWidget({
   }
 
   // Real component logic (only used in protected routes)
-  const { limits, checking: limitsLoading } = useSubscription();
+  const { checking: limitsLoading } = useSubscriptionContext();
   
-  // Check if user has access to investments feature
-  const hasInvestmentsAccess = limits.hasInvestments === true;
+  // Check if user has access to investments feature (using selector to prevent unnecessary re-renders)
+  const hasInvestmentsAccess = useCanAccessFeature("hasInvestments");
 
   // OPTIMIZED: Use shared portfolio hook to avoid duplicate API calls
   const { data: portfolioData, isLoading } = usePortfolioData({
@@ -251,7 +276,7 @@ export function InvestmentPortfolioWidget({
         if (monthlyValue !== undefined) {
           // Use historical value, estimate cost proportionally
           // Assume cost grows proportionally to value (simplified)
-          const costRatio = totalCost > 0 ? totalCost / portfolioValue : 0;
+          const costRatio = portfolioValue > 0 && totalCost > 0 ? totalCost / portfolioValue : 0;
           months.push({
             month: monthLabel,
             portfolioValue: monthlyValue,

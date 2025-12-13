@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeGoalsService } from "@/src/application/goals/goals.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { topUpAmountSchema } from "@/src/domain/goals/goals.validations";
 import { revalidateTag } from 'next/cache';
 
 export async function POST(
@@ -12,9 +13,11 @@ export async function POST(
     const body = await request.json();
     const { amount } = body;
 
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
+    // Validate amount using domain schema
+    const validationResult = topUpAmountSchema.safeParse(amount);
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: "Amount must be a positive number" },
+        { error: validationResult.error.errors[0]?.message || "Amount must be a positive number" },
         { status: 400 }
       );
     }
@@ -25,7 +28,7 @@ export async function POST(
     }
     
     const service = makeGoalsService();
-    const goal = await service.addTopUp(id, amount);
+    const goal = await service.addTopUp(id, validationResult.data);
     
     // Invalidate cache
     revalidateTag(`dashboard-${userId}`, 'max');

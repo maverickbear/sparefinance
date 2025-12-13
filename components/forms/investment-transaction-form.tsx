@@ -983,7 +983,7 @@ export function InvestmentTransactionForm({
                                   <div
                                     key={security.id}
                                     className={cn(
-                                      "px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground border-b",
+                                      "px-3 py-2 cursor-pointer hover:bg-secondary hover:text-secondary-foreground border-b",
                                       isSelected && "bg-accent"
                                     )}
                                     onClick={() => {
@@ -1034,7 +1034,7 @@ export function InvestmentTransactionForm({
                                     return (
                                       <div
                                         key={`api-${result.symbol}-${index}`}
-                                        className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground border-b last:border-b-0"
+                                        className="px-3 py-2 cursor-pointer hover:bg-secondary hover:text-secondary-foreground border-b last:border-b-0"
                                         onClick={async () => {
                                           // Check if security already exists
                                           const existing = securities.find(
@@ -1193,7 +1193,7 @@ export function InvestmentTransactionForm({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="small"
+                    size="medium"
                     onClick={extractInfoFromNotes}
                     disabled={isExtractingInfo || !form.watch("notes") || form.watch("notes")?.trim().length === 0}
                     className="h-7 text-xs"
@@ -1300,7 +1300,7 @@ export function InvestmentTransactionForm({
                     {searchResults.map((result, index) => (
                       <div
                         key={`${result.symbol}-${index}`}
-                        className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground border-b last:border-b-0"
+                        className="px-3 py-2 cursor-pointer hover:bg-secondary hover:text-secondary-foreground border-b last:border-b-0"
                         onClick={() => handleSelectSearchResult(result)}
                       >
                         <div className="font-medium">{result.name}</div>

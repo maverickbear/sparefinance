@@ -148,7 +148,7 @@ export function DashboardDemo() {
                             "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out cursor-pointer",
                             isActive
                               ? "bg-primary text-primary-foreground translate-x-0"
-                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-1 translate-x-0",
+                              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground hover:translate-x-1 translate-x-0",
                             isCollapsed
                               ? "justify-center px-3 py-2"
                               : "space-x-3 px-3 py-2"
@@ -237,7 +237,7 @@ export function DashboardDemo() {
           <PageHeader title="Welcome, John Doe">
             <div style={{ pointerEvents: "none" }}>
               <Select value="current" disabled>
-                <SelectTrigger size="small" className="w-[180px]">
+                <SelectTrigger size="medium" className="w-[180px]">
                   <SelectValue>
                     {currentDate ? format(currentDate, "MMMM yyyy") : "Loading..."}
                   </SelectValue>

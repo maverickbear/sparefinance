@@ -3,7 +3,7 @@
  * Business logic for account management
  */
 
-import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
+import { IAccountsRepository } from "@/src/infrastructure/database/repositories/interfaces/accounts.repository.interface";
 import { InvestmentsRepository } from "@/src/infrastructure/database/repositories/investments.repository";
 import { AccountsMapper } from "./accounts.mapper";
 import { AccountFormData } from "../../domain/accounts/accounts.validations";
@@ -17,7 +17,7 @@ import { AppError } from "../shared/app-error";
 
 export class AccountsService {
   constructor(
-    private repository: AccountsRepository,
+    private repository: IAccountsRepository,
     private investmentsRepository: InvestmentsRepository
   ) {}
 
@@ -48,17 +48,8 @@ export class AccountsService {
     accessToken?: string,
     refreshToken?: string
   ): Promise<AccountWithBalance[]> {
-    logger.debug("[AccountsService] Fetching accounts for user:", userId);
-
     // Fetch accounts from repository
     const accountRows = await this.repository.findAll(accessToken, refreshToken);
-
-    logger.debug("[AccountsService] Repository returned accounts:", {
-      count: accountRows.length,
-      userId,
-      accountIds: accountRows.map(row => row.id),
-      accountNames: accountRows.map(row => row.name),
-    });
 
     if (accountRows.length === 0) {
       logger.warn("[AccountsService] No accounts found for user:", userId);
@@ -86,7 +77,7 @@ export class AccountsService {
     // Map accounts to format expected by balance calculator
     const accountsWithInitialBalance = accountRows.map(row => ({
       ...AccountsMapper.toDomain(row),
-      initialBalance: row.initialBalance ?? 0,
+      initialBalance: row.initial_balance ?? 0,
       balance: 0,
     }));
 
@@ -113,7 +104,7 @@ export class AccountsService {
     const accountOwnersMap = new Map<string, string[]>();
     for (const account of accountRows) {
       const owners = await this.repository.getAccountOwners(account.id, accessToken, refreshToken);
-      accountOwnersMap.set(account.id, owners.map(o => o.ownerId));
+      accountOwnersMap.set(account.id, owners.map(o => o.owner_id));
     }
 
     // Get owner names for household names
@@ -122,7 +113,7 @@ export class AccountsService {
       ownerIds.forEach(id => allOwnerIds.add(id));
     });
     accountRows.forEach(row => {
-      if (row.userId) allOwnerIds.add(row.userId);
+      if (row.user_id) allOwnerIds.add(row.user_id);
     });
 
     // Get owner names from repository
@@ -144,16 +135,6 @@ export class AccountsService {
       householdNamesMap
     );
     
-    logger.debug("[AccountsService] Final accounts with balances:", {
-      count: accountsWithBalance.length,
-      accounts: accountsWithBalance.map(acc => ({
-        id: acc.id,
-        name: acc.name,
-        type: acc.type,
-        balance: acc.balance,
-      })),
-    });
-    
     return accountsWithBalance;
   }
 
@@ -165,11 +146,6 @@ export class AccountsService {
     refreshToken?: string
   ): Promise<void> {
     const investmentAccountIds = investmentAccounts.map(acc => acc.id);
-    
-    logger.debug("[AccountsService] Calculating investment balances:", {
-      accountIds: investmentAccountIds,
-      includeHoldings,
-    });
 
     // 1. Try to get values from InvestmentAccount
     const investmentAccountData = await this.investmentsRepository.getInvestmentAccountData(
@@ -178,23 +154,12 @@ export class AccountsService {
       refreshToken
     );
 
-    logger.debug("[AccountsService] InvestmentAccount data:", {
-      count: investmentAccountData.length,
-      data: investmentAccountData,
-    });
-
     investmentAccountData.forEach((ia: any) => {
       if (ia.accountId) {
         const totalEquity = ia.totalEquity != null ? Number(ia.totalEquity) : null;
         const marketValue = ia.marketValue != null ? Number(ia.marketValue) : 0;
         const cash = ia.cash != null ? Number(ia.cash) : 0;
         const accountValue = totalEquity ?? (marketValue + cash);
-        logger.debug(`[AccountsService] Setting balance for investment account ${ia.accountId}:`, {
-          totalEquity,
-          marketValue,
-          cash,
-          accountValue,
-        });
         balances.set(ia.accountId, accountValue);
       }
     });
@@ -204,11 +169,6 @@ export class AccountsService {
       (accountId: string) => !balances.has(accountId)
     );
 
-    logger.debug("[AccountsService] Accounts without InvestmentAccount data:", {
-      count: accountsWithoutInvestmentAccount.length,
-      accountIds: accountsWithoutInvestmentAccount,
-    });
-
     if (accountsWithoutInvestmentAccount.length > 0) {
       const investmentValues = await this.investmentsRepository.getAccountInvestmentValues(
         accountsWithoutInvestmentAccount,
@@ -216,16 +176,8 @@ export class AccountsService {
         refreshToken
       );
 
-      logger.debug("[AccountsService] AccountInvestmentValue data:", {
-        count: investmentValues.length,
-        data: investmentValues,
-      });
-
       investmentValues.forEach((iv: any) => {
         const totalValue = iv.totalValue != null ? Number(iv.totalValue) : 0;
-        logger.debug(`[AccountsService] Setting balance from AccountInvestmentValue for ${iv.accountId}:`, {
-          totalValue,
-        });
         balances.set(iv.accountId, totalValue);
       });
     }
@@ -268,15 +220,8 @@ export class AccountsService {
     // 4. Set to 0 for accounts without any value
     investmentAccounts.forEach((account: any) => {
       if (!balances.has(account.id)) {
-        logger.warn(`[AccountsService] Investment account ${account.id} (${account.name}) has no balance data - setting to 0`);
         balances.set(account.id, 0);
       }
-    });
-    
-    logger.debug("[AccountsService] Final investment balances:", {
-      balances: Array.from(balances.entries()).filter(([accountId]) => 
-        investmentAccountIds.includes(accountId)
-      ),
     });
   }
 
@@ -305,17 +250,17 @@ export class AccountsService {
     const membersService = makeMembersService();
     const householdId = await membersService.getActiveHouseholdId(userId);
 
-    // Create account via repository
+    // Create account via repository (repository maps camelCase to snake_case internally)
     const accountRow = await this.repository.create({
       id,
       name: data.name,
       type: data.type,
+      userId,
       creditLimit: data.type === "credit" ? data.creditLimit : null,
       initialBalance: (data.type === "checking" || data.type === "savings" || data.type === "cash") ? (data.initialBalance ?? 0) : null,
       dueDayOfMonth: data.type === "credit" ? (data.dueDayOfMonth ?? null) : null,
       currencyCode: data.currencyCode || 'USD',
-      userId,
-      householdId,
+      householdId: householdId,
       createdAt: now,
       updatedAt: now,
     });

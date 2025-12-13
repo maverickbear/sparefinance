@@ -1210,7 +1210,7 @@ export function PlannedPaymentList() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                size="small"
+                size="medium"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1 || loading}
                 className="h-9"
@@ -1236,7 +1236,7 @@ export function PlannedPaymentList() {
                     <Button
                       key={pageNum}
                       variant={currentPage === pageNum ? "default" : "outline"}
-                      size="small"
+                      size="medium"
                       onClick={() => setCurrentPage(pageNum)}
                       disabled={loading}
                       className="h-9 w-9"
@@ -1249,7 +1249,7 @@ export function PlannedPaymentList() {
               
               <Button
                 variant="outline"
-                size="small"
+                size="medium"
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages || loading}
                 className="h-9"
@@ -1276,7 +1276,7 @@ export function PlannedPaymentList() {
       {/* Mobile Floating Action Button */}
       <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
         <Button
-          size="large"
+          size="medium"
           className="h-14 w-14 rounded-full shadow-lg"
           onClick={() => setIsFormOpen(true)}
         >

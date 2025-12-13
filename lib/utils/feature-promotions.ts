@@ -268,19 +268,19 @@ export const featurePromotions: Record<string, FeaturePromotion> = {
         icon: "CreditCard",
       },
       {
-        title: "Works with major Canadian banks",
-        description: "Connect TD, RBC, CIBC, BMO, Scotiabank, and thousands more through Plaid. Your bank, your data, automatically synced.",
+        title: "Manual entry and CSV import",
+        description: "Add your accounts manually or import transactions via CSV file. Full control over your financial data.",
         icon: "Building2",
       },
       {
-        title: "Bank-level security",
-        description: "Plaid's SOC 2 Type 2 certified infrastructure. We never see or store your bank credentials. Read-only access means we can't move your money—ever.",
+        title: "Secure data storage",
+        description: "Your financial data is encrypted and stored securely. We use bank-level encryption and security standards.",
         icon: "CheckCircle2",
       },
     ],
     preview: {
-      title: "Bank Integration",
-      description: "Read about supported banks, how Plaid integration works, and security measures for connecting your accounts",
+      title: "Account Management",
+      description: "Learn about adding accounts, importing transactions, and managing your financial data",
     },
   },
 };

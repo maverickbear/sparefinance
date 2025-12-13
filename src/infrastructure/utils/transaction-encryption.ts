@@ -14,7 +14,7 @@ import { logger } from './logger';
  * - Backfill scripts
  * - createTransaction
  * - updateTransaction
- * - category_learning
+ * - analytics.categoryLearning
  */
 export function normalizeDescription(description: string | null | undefined): string {
   if (!description) return "";

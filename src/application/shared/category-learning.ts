@@ -34,8 +34,14 @@ export interface CategorySuggestion {
  * @returns Category suggestion with confidence level, or null if no match
  */
 /**
- * Update category_learning table when user confirms a category
- * This function is idempotent and can be called multiple times safely
+ * Update analytics.categoryLearning table when user confirms a category
+ * 
+ * @deprecated This function is deprecated. Category learning now uses direct transaction queries.
+ * The analytics_category_learning table is no longer used for category suggestions.
+ * This function is kept for backward compatibility but does nothing.
+ * 
+ * SIMPLIFIED: Removed dependency on analytics_category_learning table.
+ * Category suggestions now come directly from transaction history (simpler and more reliable).
  */
 export async function updateCategoryLearning(
   userId: string,
@@ -45,70 +51,31 @@ export async function updateCategoryLearning(
   subcategoryId: string | null,
   amount: number
 ): Promise<void> {
-  if (!normalizedDescription || !userId || !categoryId) {
-    return;
-  }
-
-  const supabase = await createServerClient();
-  
-  // Check if we should increment description_and_amount_count or description_only_count
-  // We need to check if there are other transactions with same description+amount
-  // For now, we'll use a simple heuristic: if amount matches exactly, increment both
-  // In practice, we'll track this more accurately in the learning table
-  
-  // Check if record exists
-  const { data: existing } = await supabase
-    .from('category_learning')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('normalized_description', normalizedDescription)
-    .eq('type', type)
-    .single();
-
-  if (existing) {
-    // Update existing record - increment appropriate counter
-    // Check if amount matches to decide which counter to increment
-    // For now, we'll check if there are other transactions with same description+amount
-    // This is a simplified version - in production you might want to track this more accurately
-    
-    // Increment both counters for now (we can refine this later with better tracking)
-    const { error: updateError } = await supabase
-      .from('category_learning')
-      .update({
-        description_and_amount_count: (existing.description_and_amount_count || 0) + 1,
-        description_only_count: (existing.description_only_count || 0) + 1,
-        last_used_at: new Date().toISOString(),
-        category_id: categoryId, // Update category in case it changed
-        subcategory_id: subcategoryId,
-      })
-      .eq('user_id', userId)
-      .eq('normalized_description', normalizedDescription)
-      .eq('type', type);
-    
-    if (updateError) {
-      console.error('Error updating category_learning:', updateError);
-    }
-  } else {
-    // Insert new record
-    const { error: insertError } = await supabase
-      .from('category_learning')
-      .insert({
-        user_id: userId,
-        normalized_description: normalizedDescription,
-        type: type,
-        category_id: categoryId,
-        subcategory_id: subcategoryId,
-        description_and_amount_count: 1,
-        description_only_count: 1,
-        last_used_at: new Date().toISOString(),
-      });
-    
-    if (insertError) {
-      console.error('Error inserting category_learning:', insertError);
-    }
-  }
+  // No-op: Category learning now uses direct transaction queries
+  // No need to maintain a separate analytics table
+  return;
 }
 
+/**
+ * Suggest category based on user's transaction history
+ * 
+ * SIMPLIFIED: Now uses direct transaction queries instead of analytics_category_learning table.
+ * This is simpler, more reliable, and always up-to-date.
+ * 
+ * Criteria for high confidence (auto-categorize):
+ * - Same normalized description + same exact amount: 3+ occurrences
+ * - Same normalized description: 5+ occurrences with same category
+ * 
+ * Criteria for medium confidence (suggest):
+ * - Same normalized description + same exact amount: 2 occurrences
+ * - Same normalized description: 3-4 occurrences with same category
+ * 
+ * @param userId - User ID to analyze history for
+ * @param description - Transaction description
+ * @param amount - Transaction amount
+ * @param type - Transaction type (expense/income)
+ * @returns Category suggestion with confidence level, or null if no match
+ */
 export async function suggestCategory(
   userId: string,
   description: string,
@@ -119,95 +86,18 @@ export async function suggestCategory(
     return null;
   }
 
-  const supabase = await createServerClient();
   const normalizedDesc = normalizeDescription(description);
-
-  // Query category_learning table instead of scanning 12 months of transactions
-  const { data: learningData, error } = await supabase
-    .from("category_learning")
-    .select("category_id, subcategory_id, description_and_amount_count, description_only_count, last_used_at")
-    .eq("user_id", userId)
-    .eq("normalized_description", normalizedDesc)
-    .eq("type", type)
-    .order("last_used_at", { ascending: false });
-
-  if (error) {
-    console.error("Error fetching category learning data:", error);
-    // Fallback to old method if table doesn't exist yet
-    return await suggestCategoryLegacy(userId, description, amount, type, normalizedDesc);
-  }
-
-  if (!learningData || learningData.length === 0) {
-    return null;
-  }
-
-  // Find best match from learning data
-  let bestMatch: CategorySuggestion | null = null;
-  let bestScore = 0;
-
-  for (const learning of learningData) {
-    const descAndAmount = learning.description_and_amount_count || 0;
-    const descOnly = learning.description_only_count || 0;
-
-    // Prioritize description + amount matches
-    if (descAndAmount >= 3) {
-      // High confidence: auto-categorize
-      return {
-        categoryId: learning.category_id,
-        subcategoryId: learning.subcategory_id,
-        confidence: "high",
-        matchCount: descAndAmount,
-        matchType: "description_and_amount",
-      };
-    }
-
-    if (descOnly >= 5) {
-      // High confidence: auto-categorize
-      return {
-        categoryId: learning.category_id,
-        subcategoryId: learning.subcategory_id,
-        confidence: "high",
-        matchCount: descOnly,
-        matchType: "description_only",
-      };
-    }
-
-    // Calculate score for medium/low confidence suggestions
-    const score = descAndAmount * 2 + descOnly;
-
-    if (score > bestScore) {
-      bestScore = score;
-      
-      if (descAndAmount >= 2 || descOnly >= 3) {
-        // Medium confidence: suggest
-        bestMatch = {
-          categoryId: learning.category_id,
-          subcategoryId: learning.subcategory_id,
-          confidence: "medium",
-          matchCount: descAndAmount >= 2 ? descAndAmount : descOnly,
-          matchType: descAndAmount >= 2 ? "description_and_amount" : "description_only",
-        };
-      } else if (descAndAmount >= 1 || descOnly >= 1) {
-        // Low confidence: still suggest but with lower priority
-        bestMatch = {
-          categoryId: learning.category_id,
-          subcategoryId: learning.subcategory_id,
-          confidence: "low",
-          matchCount: descAndAmount >= 1 ? descAndAmount : descOnly,
-          matchType: descAndAmount >= 1 ? "description_and_amount" : "description_only",
-        };
-      }
-    }
-  }
-
-  return bestMatch;
+  
+  // Use direct transaction query (simpler and more reliable)
+  return await suggestCategoryFromTransactions(userId, description, amount, type, normalizedDesc);
 }
 
 /**
- * Legacy suggestCategory implementation (fallback if category_learning table doesn't exist)
- * Scans 12 months of transactions - slower but works as fallback
+ * Suggest category from transaction history
+ * SIMPLIFIED: This is now the primary method (no longer a fallback).
+ * Scans 12 months of transactions to find category patterns.
  */
-async function suggestCategoryLegacy(
+async function suggestCategoryFromTransactions(
   userId: string,
   description: string,
   amount: number,
@@ -224,11 +114,11 @@ async function suggestCategoryLegacy(
   // Get all categorized transactions for this user in the last 12 months
   // Only consider transactions with the same type (expense/income)
   const { data: historicalTransactions, error } = await supabase
-    .from("Transaction")
-    .select("id, description, amount, categoryId, subcategoryId, type")
-    .eq("userId", userId)
+    .from("transactions")
+    .select("id, description, amount, category_id, subcategory_id, type")
+    .eq("user_id", userId)
     .eq("type", type)
-    .not("categoryId", "is", null)
+    .not("category_id", "is", null)
     .gte("date", startDateStr)
     .order("date", { ascending: false });
 
@@ -254,15 +144,15 @@ async function suggestCategoryLegacy(
 
   // Analyze matches
   for (const tx of historicalTransactions) {
-    if (!tx.categoryId || !tx.description) continue;
+    if (!tx.category_id || !tx.description) continue;
 
     const normalizedTxDesc = normalizeDescription(tx.description);
-    const key = `${tx.categoryId}-${tx.subcategoryId || "null"}`;
+    const key = `${tx.category_id}-${tx.subcategory_id || "null"}`;
 
     if (!categoryMatches.has(key)) {
       categoryMatches.set(key, {
-        categoryId: tx.categoryId,
-        subcategoryId: tx.subcategoryId,
+        categoryId: tx.category_id,
+        subcategoryId: tx.subcategory_id,
         descriptionAndAmount: 0,
         descriptionOnly: 0,
       });

@@ -31,3 +31,6 @@ export const goalSchema = z.object({
 
 export type GoalFormData = z.infer<typeof goalSchema>;
 
+export const topUpAmountSchema = z.number().positive("Amount must be positive");
+export type TopUpAmount = z.infer<typeof topUpAmountSchema>;
+

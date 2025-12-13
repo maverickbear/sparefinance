@@ -54,6 +54,7 @@ function calculateDateRange(range: DateRange): { startDate: Date; endDate: Date;
  * GET /api/v2/dashboard
  * Get dashboard data for the current user
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

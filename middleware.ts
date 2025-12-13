@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { SecurityLogger } from "@/lib/utils/security-logging";
 import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
+import { generateCorrelationId } from "@/src/infrastructure/utils/structured-logger";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 // New format (sb_publishable_...) is preferred, fallback to old format (anon JWT) for backward compatibility
@@ -199,6 +200,8 @@ function isMaliciousRequest(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  // Generate correlation ID for request tracking
+  const correlationId = request.headers.get('x-correlation-id') || generateCorrelationId();
   const { pathname } = request.nextUrl;
 
   // Block malicious requests immediately (before any other processing)
@@ -341,7 +344,7 @@ export async function middleware(request: NextRequest) {
           if (user) {
             // User is authenticated - check if super_admin and if blocked
             const { data: userData } = await supabase
-              .from("User")
+              .from("core.users")
               .select("role, isBlocked")
               .eq("id", user.id)
               .single();
@@ -425,7 +428,7 @@ export async function middleware(request: NextRequest) {
       { status: 429 }
     );
 
-    // Add rate limit headers
+    // Add rate limit headers and correlation ID
     response.headers.set("X-RateLimit-Limit", config.maxRequests.toString());
     response.headers.set("X-RateLimit-Remaining", "0");
     response.headers.set(
@@ -436,11 +439,12 @@ export async function middleware(request: NextRequest) {
       "Retry-After",
       Math.ceil((result.resetTime - Date.now()) / 1000).toString()
     );
+    response.headers.set("X-Correlation-ID", correlationId);
 
     return response;
   }
 
-  // Request allowed - add rate limit headers
+  // Request allowed - add rate limit headers and correlation ID
   const response = NextResponse.next();
   response.headers.set("X-RateLimit-Limit", config.maxRequests.toString());
   response.headers.set("X-RateLimit-Remaining", result.remaining.toString());
@@ -448,6 +452,7 @@ export async function middleware(request: NextRequest) {
     "X-RateLimit-Reset",
     new Date(result.resetTime).toISOString()
   );
+  response.headers.set("X-Correlation-ID", correlationId);
 
   return response;
 }

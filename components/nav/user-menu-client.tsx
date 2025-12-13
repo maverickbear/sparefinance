@@ -131,7 +131,7 @@ export function UserMenuClient({ isCollapsed }: UserMenuClientProps) {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                size="small"
+                size="medium"
                 className={`w-full h-auto p-2 border border-border shadow hover:bg-secondary ${
                   isCollapsed ? "justify-center" : "justify-start"
                 }`}

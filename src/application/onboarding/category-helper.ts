@@ -40,7 +40,7 @@ export class CategoryHelper {
    */
   async findOrCreateCategory(
     name: string,
-    groupName: string,
+    categoryType: "income" | "expense",
     userId: string,
     accessToken?: string,
     refreshToken?: string
@@ -53,34 +53,24 @@ export class CategoryHelper {
       }
 
       // For onboarding, we prefer not to create categories
-      // Try to find a similar category in the same group
+      // Try to find a similar category of the same type
       const categoriesService = makeCategoriesService();
       const allCategories = await categoriesService.getAllCategories();
-      const groups = await categoriesService.getGroups();
-      const group = groups.find((g) => g.name.toLowerCase().trim() === groupName.toLowerCase().trim());
+      const similarCategory = allCategories.find(
+        (cat) => cat.type === categoryType && cat.name.toLowerCase().includes(name.toLowerCase())
+      );
 
-      if (group) {
-        // Try to find any category in the same group as fallback
-        const groupCategory = allCategories.find(
-          (cat) => cat.groupId === group.id
-        );
-        if (groupCategory) {
-          logger.info(`[CategoryHelper] Using existing category "${groupCategory.name}" from group "${groupName}" instead of creating "${name}"`);
-          return groupCategory;
-        }
+      if (similarCategory) {
+        logger.info(`[CategoryHelper] Using existing category "${similarCategory.name}" instead of creating "${name}"`);
+        return similarCategory;
       }
 
       // Last resort: try to create (may fail if user doesn't have paid plan)
       // This is OK - we'll just skip that budget category
       try {
-        if (!group) {
-          logger.error(`[CategoryHelper] Group "${groupName}" not found`);
-          return null;
-        }
-
         const newCategory = await categoriesService.createCategory({
           name,
-          groupId: group.id,
+          type: categoryType,
         });
 
         return newCategory;

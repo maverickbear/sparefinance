@@ -13,13 +13,6 @@ export interface DebtCategoryMapping {
 export async function getDebtCategoryMapping(loanType: string): Promise<DebtCategoryMapping | null> {
   const categoriesService = makeCategoriesService();
   const allCategories = await categoriesService.getAllCategories();
-  const groups = await categoriesService.getGroups();
-
-  // Find group IDs
-  const groupMap = groups.reduce((acc, group) => {
-    acc[group.name] = group.id;
-    return acc;
-  }, {} as Record<string, string>);
 
   // Helper function to find category by name
   const findCategory = (name: string) => {
@@ -39,15 +32,10 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
   };
 
   // Helper function to create category if it doesn't exist
-  const getOrCreateCategory = async (name: string, groupName: string) => {
+  const getOrCreateCategory = async (name: string) => {
     let category = findCategory(name);
     if (!category) {
-      const groupId = groupMap[groupName];
-      if (!groupId) {
-        console.error(`Group ${groupName} not found`);
-        return null;
-      }
-      category = await categoriesService.createCategory({ name, groupId });
+      category = await categoriesService.createCategory({ name, type: "expense" });
     }
     return category;
   };
@@ -89,12 +77,7 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
         };
       }
       // If Rent doesn't exist, try to create Mortgage Payment subcategory under Housing
-      const housingGroup = groupMap["Housing"];
-      if (!housingGroup) {
-        console.error("Housing group not found");
-        return null;
-      }
-      const housingCategory = findCategory("Utilities") || await getOrCreateCategory("Housing", "Housing");
+      const housingCategory = findCategory("Utilities") || findCategory("Housing") || await getOrCreateCategory("Housing");
       if (!housingCategory) {
         return null;
       }
@@ -106,13 +89,8 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
     }
 
     case "personal_loan": {
-      // Create "Personal Loan" category in Misc
-      const miscGroup = groupMap["Misc"];
-      if (!miscGroup) {
-        console.error("Misc group not found");
-        return null;
-      }
-      const personalLoanCategory = await getOrCreateCategory("Personal Loan", "Misc");
+      // Create "Personal Loan" category
+      const personalLoanCategory = await getOrCreateCategory("Personal Loan");
       if (!personalLoanCategory) {
         return null;
       }
@@ -122,13 +100,8 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
     }
 
     case "credit_card": {
-      // Create "Credit Card Payment" category in Misc
-      const miscGroup = groupMap["Misc"];
-      if (!miscGroup) {
-        console.error("Misc group not found");
-        return null;
-      }
-      const creditCardCategory = await getOrCreateCategory("Credit Card Payment", "Misc");
+      // Create "Credit Card Payment" category
+      const creditCardCategory = await getOrCreateCategory("Credit Card Payment");
       if (!creditCardCategory) {
         return null;
       }
@@ -138,25 +111,17 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
     }
 
     case "student_loan": {
-      // Create "Student Loan" category in Education or Misc
-      const educationGroup = groupMap["Family"]; // Education is typically under Family
-      const miscGroup = groupMap["Misc"];
-      if (educationGroup) {
-        const educationCategory = findCategory("Education");
-        if (educationCategory) {
-          const studentLoanSub = await getOrCreateSubcategory("Student Loan", educationCategory.id);
-          return {
-            categoryId: educationCategory.id,
-            subcategoryId: studentLoanSub?.id,
-          };
-        }
+      // Create "Student Loan" category or subcategory under Education
+      const educationCategory = findCategory("Education");
+      if (educationCategory) {
+        const studentLoanSub = await getOrCreateSubcategory("Student Loan", educationCategory.id);
+        return {
+          categoryId: educationCategory.id,
+          subcategoryId: studentLoanSub?.id,
+        };
       }
-      // Fallback to Misc
-      if (!miscGroup) {
-        console.error("Misc group not found");
-        return null;
-      }
-      const studentLoanCategory = await getOrCreateCategory("Student Loan", "Misc");
+      // Fallback: create as category
+      const studentLoanCategory = await getOrCreateCategory("Student Loan");
       if (!studentLoanCategory) {
         return null;
       }
@@ -166,13 +131,8 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
     }
 
     case "business_loan": {
-      // Create "Business Loan" category in Business
-      const businessGroup = groupMap["Business"];
-      if (!businessGroup) {
-        console.error("Business group not found");
-        return null;
-      }
-      const businessLoanCategory = await getOrCreateCategory("Business Loan", "Business");
+      // Create "Business Loan" category
+      const businessLoanCategory = await getOrCreateCategory("Business Loan");
       if (!businessLoanCategory) {
         return null;
       }
@@ -190,12 +150,7 @@ export async function getDebtCategoryMapping(loanType: string): Promise<DebtCate
         };
       }
       // If Misc doesn't exist, create it
-      const miscGroup = groupMap["Misc"];
-      if (!miscGroup) {
-        console.error("Misc group not found");
-        return null;
-      }
-      const miscCategoryCreated = await getOrCreateCategory("Misc", "Misc");
+      const miscCategoryCreated = await getOrCreateCategory("Misc");
       if (!miscCategoryCreated) {
         return null;
       }

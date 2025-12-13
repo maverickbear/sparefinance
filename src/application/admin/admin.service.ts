@@ -9,7 +9,7 @@ import { AuthRepository } from "@/src/infrastructure/database/repositories/auth.
 import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
 import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
 import { SubscriptionServicesRepository } from "@/src/infrastructure/database/repositories/subscription-services.repository";
-import { AdminUser, PromoCode, SystemGroup, SystemCategory, SystemSubcategory } from "../../domain/admin/admin.types";
+import { AdminUser, PromoCode, SystemCategory, SystemSubcategory } from "../../domain/admin/admin.types";
 import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import Stripe from "stripe";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
@@ -25,6 +25,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: "2025-10-29.clover",
   typescript: true,
 });
+
+/**
+ * SEO Settings type
+ */
+type SEOSettings = Record<string, unknown>;
 
 export class AdminService {
   constructor(
@@ -94,33 +99,37 @@ export class AdminService {
       options?.blockedBy
     );
 
+    // Clear user verification cache since user status changed
+    const { clearUserVerificationCache } = await import("@/lib/utils/verify-user-exists");
+    await clearUserVerificationCache(userId);
+
     // Pause/resume subscription in Stripe if requested
     if (options?.pauseSubscription) {
       const supabase = await createServerClient();
       const { data: subscription } = await supabase
-        .from("Subscription")
-        .select("stripeSubscriptionId, status")
-        .eq("userId", userId)
-        .order("createdAt", { ascending: false })
+        .from("app_subscriptions")
+        .select("stripe_subscription_id, status")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (subscription?.stripeSubscriptionId) {
+      if (subscription?.stripe_subscription_id) {
         try {
           if (isBlocked) {
-            await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            await stripe.subscriptions.update(subscription.stripe_subscription_id, {
               pause_collection: {
                 behavior: "keep_as_draft",
               },
             });
           } else {
-            await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            await stripe.subscriptions.update(subscription.stripe_subscription_id, {
               pause_collection: null,
             });
           }
         } catch (error) {
           // Log but don't fail - user is still blocked in database
-          console.error("Error updating subscription in Stripe:", error);
+          logger.error("[AdminService] Error updating subscription in Stripe:", error);
         }
       }
     }
@@ -200,7 +209,7 @@ export class AdminService {
       try {
         await stripe.coupons.del(stripeCoupon.id);
       } catch (delError) {
-        console.error("Error deleting Stripe coupon after failed insert:", delError);
+        logger.error("[AdminService] Error deleting Stripe coupon after failed insert:", delError);
       }
       throw error;
     }
@@ -224,7 +233,7 @@ export class AdminService {
           await stripe.coupons.del(promoCode.stripeCouponId);
         }
       } catch (error) {
-        console.error("Error updating Stripe coupon:", error);
+        logger.error("[AdminService] Error updating Stripe coupon:", error);
       }
     }
 
@@ -244,7 +253,7 @@ export class AdminService {
       try {
         await stripe.coupons.del(promoCode.stripeCouponId);
       } catch (error) {
-        console.error("Error deleting Stripe coupon:", error);
+        logger.error("[AdminService] Error deleting Stripe coupon:", error);
         // Continue with database deletion even if Stripe deletion fails
       }
     }
@@ -260,66 +269,8 @@ export class AdminService {
     return this.updatePromoCode(id, { isActive });
   }
 
-  /**
-   * Get all system groups
-   */
-  async getAllSystemGroups(): Promise<SystemGroup[]> {
-    return this.repository.getAllSystemGroups();
-  }
-
-  /**
-   * Create a system group
-   */
-  async createSystemGroup(data: { name: string; type?: "income" | "expense" }): Promise<SystemGroup> {
-    // Check if system group with this name already exists
-    const existing = await this.repository.getAllSystemGroups();
-    if (existing.some(g => g.name === data.name)) {
-      throw new AppError("A system group with this name already exists", 400);
-    }
-
-    const id = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const group = await this.repository.createSystemGroup({
-      id,
-      name: data.name,
-      type: data.type,
-    });
-
-    // Invalidate cache for all users
-
-    return group;
-  }
-
-  /**
-   * Update a system group
-   */
-  async updateSystemGroup(id: string, data: { name?: string; type?: "income" | "expense" }): Promise<SystemGroup> {
-    // Verify it's a system group
-    const existing = await this.repository.getAllSystemGroups();
-    const group = existing.find(g => g.id === id);
-    if (!group) {
-      throw new AppError("Group not found", 404);
-    }
-
-    // Check for duplicate name if updating name
-    if (data.name && existing.some(g => g.id !== id && g.name === data.name)) {
-      throw new AppError("A system group with this name already exists", 400);
-    }
-
-    const updated = await this.repository.updateSystemGroup(id, data);
-
-    // Invalidate cache for all users
-
-    return updated;
-  }
-
-  /**
-   * Delete a system group
-   */
-  async deleteSystemGroup(id: string): Promise<void> {
-    await this.repository.deleteSystemGroup(id);
-
-    // Invalidate cache for all users
-  }
+  // NOTE: All group-related methods have been removed. Groups are no longer part of the system.
+  // Categories now have a direct type property ("income" | "expense") instead of being grouped.
 
   /**
    * Get all system categories
@@ -331,25 +282,18 @@ export class AdminService {
   /**
    * Create a system category
    */
-  async createSystemCategory(data: { name: string; macroId: string }): Promise<SystemCategory> {
-    // Verify group is a system group
-    const groups = await this.repository.getAllSystemGroups();
-    const group = groups.find(g => g.id === data.macroId);
-    if (!group) {
-      throw new AppError("Group not found", 404);
-    }
-
-    // Check if system category with this name already exists in this group
+  async createSystemCategory(data: { name: string; type: "income" | "expense" }): Promise<SystemCategory> {
+    // Check if system category with this name already exists for this type
     const existing = await this.repository.getAllSystemCategories();
-    if (existing.some(c => c.name === data.name && c.macroId === data.macroId)) {
-      throw new AppError("A system category with this name already exists in this macro", 400);
+    if (existing.some(c => c.name === data.name && c.type === data.type)) {
+      throw new AppError("A system category with this name already exists for this type", 400);
     }
 
     const id = `cat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const category = await this.repository.createSystemCategory({
       id,
       name: data.name,
-      macroId: data.macroId,
+      type: data.type,
     });
 
     // Invalidate cache for all users
@@ -360,7 +304,7 @@ export class AdminService {
   /**
    * Update a system category
    */
-  async updateSystemCategory(id: string, data: { name?: string; macroId?: string }): Promise<SystemCategory> {
+  async updateSystemCategory(id: string, data: { name?: string; type?: "income" | "expense" }): Promise<SystemCategory> {
     // Verify it's a system category
     const existing = await this.repository.getAllSystemCategories();
     const category = existing.find(c => c.id === id);
@@ -368,19 +312,11 @@ export class AdminService {
       throw new AppError("Category not found", 404);
     }
 
-    // Verify new group is a system group if macroId is being updated
-    if (data.macroId) {
-      const groups = await this.repository.getAllSystemGroups();
-      if (!groups.some(g => g.id === data.macroId)) {
-        throw new AppError("Group not found", 404);
-      }
-    }
-
     // Check for duplicate name
     if (data.name) {
-      const targetMacroId = data.macroId || category.macroId;
-      if (existing.some(c => c.id !== id && c.name === data.name && c.macroId === targetMacroId)) {
-        throw new AppError("A system category with this name already exists in this group", 400);
+      const targetType = data.type || category.type;
+      if (existing.some(c => c.id !== id && c.name === data.name && c.type === targetType)) {
+        throw new AppError("A system category with this name already exists for this type", 400);
       }
     }
 
@@ -469,11 +405,10 @@ export class AdminService {
     // Invalidate cache for all users
   }
 
-
   /**
    * Get system settings
    */
-  async getSystemSettings(): Promise<{ maintenanceMode: boolean; seoSettings?: any }> {
+  async getSystemSettings(): Promise<{ maintenanceMode: boolean; seoSettings?: SEOSettings }> {
     return this.repository.getSystemSettings();
   }
 
@@ -557,7 +492,7 @@ export class AdminService {
         operatingSystem: "Web",
         price: "0",
         priceCurrency: "USD",
-        offersUrl: "/",
+        offersUrl: "/pricing",
       },
       googleTagId: "",
     };
@@ -566,22 +501,22 @@ export class AdminService {
   /**
    * Update system settings
    */
-  async updateSystemSettings(data: { maintenanceMode?: boolean; seoSettings?: any }): Promise<{ maintenanceMode: boolean; seoSettings?: any }> {
+  async updateSystemSettings(data: { maintenanceMode?: boolean; seoSettings?: SEOSettings }): Promise<{ maintenanceMode: boolean; seoSettings?: SEOSettings }> {
     return this.repository.updateSystemSettings(data);
   }
 
   /**
    * Get SEO settings
    */
-  async getSEOSettings(): Promise<any> {
+  async getSEOSettings(): Promise<SEOSettings> {
     const settings = await this.repository.getSystemSettings();
-    return settings.seoSettings || this.getDefaultSEOSettings();
+    return settings.seoSettings || this.getDefaultSeoSettings();
   }
 
   /**
    * Update SEO settings
    */
-  async updateSEOSettings(seoSettings: any): Promise<any> {
+  async updateSEOSettings(seoSettings: SEOSettings): Promise<SEOSettings> {
     if (!seoSettings.title || !seoSettings.description) {
       throw new AppError("Title and description are required", 400);
     }
@@ -596,75 +531,73 @@ export class AdminService {
   }
 
   /**
-   * Get default SEO settings
-   */
-  getDefaultSEOSettings() {
-    return {
-      title: "Spare Finance - Powerful Tools for Easy Money Management",
-      titleTemplate: "%s | Spare Finance",
-      description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together with your household. Start your 30-day free trial today.",
-      keywords: [
-        "personal finance",
-        "expense tracking",
-        "budget management",
-        "financial planning",
-        "money management",
-        "household finance",
-        "savings goals",
-        "investment tracking",
-        "debt management",
-        "financial dashboard",
-        "budget app",
-        "finance software",
-        "money tracker",
-        "expense manager",
-      ],
-      author: "Spare Finance",
-      publisher: "Spare Finance",
-      openGraph: {
-        title: "Spare Finance - Powerful Tools for Easy Money Management",
-        description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together with your household.",
-        image: "/og-image.png",
-        imageWidth: 1200,
-        imageHeight: 630,
-        imageAlt: "Spare Finance - Personal Finance Management Platform",
-      },
-      twitter: {
-        card: "summary_large_image",
-        title: "Spare Finance - Powerful Tools for Easy Money Management",
-        description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together.",
-        image: "/og-image.png",
-        creator: "@sparefinance",
-      },
-      organization: {
-        name: "Spare Finance",
-        logo: "/icon-512x512.png",
-        url: process.env.NEXT_PUBLIC_APP_URL || "https://app.sparefinance.com",
-        socialLinks: {
-          twitter: "",
-          linkedin: "",
-          facebook: "",
-          instagram: "",
-        },
-      },
-      application: {
-        name: "Spare Finance",
-        description: "Take control of your finances with Spare Finance. Track expenses, manage budgets, set savings goals, and build wealth together with your household.",
-        category: "FinanceApplication",
-        operatingSystem: "Web",
-        price: "0",
-        priceCurrency: "USD",
-        offersUrl: "/pricing",
-      },
-      googleTagId: "",
-    };
-  }
-
-  /**
    * Get all plans
+   * Maps from database snake_case to domain camelCase
    */
-  async getAllPlans(): Promise<any[]> {
-    return this.repository.getAllPlans();
+  async getAllPlans(): Promise<Array<{
+    id: string;
+    name: string;
+    priceMonthly: number;
+    priceYearly: number;
+    features: {
+      hasHousehold: boolean;
+      maxTransactions: number;
+      maxAccounts: number;
+      hasInvestments: boolean;
+      hasAdvancedReports: boolean;
+      hasCsvExport: boolean;
+      hasCsvImport: boolean;
+      hasDebts: boolean;
+      hasGoals: boolean;
+      hasBankIntegration: boolean;
+      hasBudgets: boolean;
+      hasReceiptScanner: boolean;
+    };
+    stripePriceIdMonthly: string | null;
+    stripePriceIdYearly: string | null;
+    stripeProductId: string | null;
+    createdAt: string | Date;
+    updatedAt: string | Date;
+  }>> {
+    const plans = await this.repository.getAllPlans();
+    
+    // Map from database format (snake_case) to domain format (camelCase)
+    // Use SubscriptionsMapper to ensure consistency
+    const { SubscriptionsMapper } = await import("@/src/application/subscriptions/subscriptions.mapper");
+    
+    const mappedPlans = plans.map((plan: {
+      id: string;
+      name: string;
+      price_monthly: number | string;
+      price_yearly: number | string;
+      features: Record<string, unknown>;
+      stripe_price_id_monthly: string | null;
+      stripe_price_id_yearly: string | null;
+      stripe_product_id: string | null;
+      created_at: string;
+      updated_at: string;
+    }) => {
+      // Convert to PlanRow format (snake_case)
+      const planRow = {
+        id: plan.id,
+        name: plan.name,
+        price_monthly: typeof plan.price_monthly === 'string' ? parseFloat(plan.price_monthly) : plan.price_monthly,
+        price_yearly: typeof plan.price_yearly === 'string' ? parseFloat(plan.price_yearly) : plan.price_yearly,
+        features: plan.features,
+        stripe_price_id_monthly: plan.stripe_price_id_monthly,
+        stripe_price_id_yearly: plan.stripe_price_id_yearly,
+        stripe_product_id: plan.stripe_product_id,
+        created_at: plan.created_at,
+        updated_at: plan.updated_at,
+      };
+      
+      // Map to domain format (camelCase)
+      return SubscriptionsMapper.planToDomain(planRow);
+    });
+    
+    // BasePlan and Plan are structurally identical (BasePlanFeatures === PlanFeatures)
+    // Return as the expected type (features are already validated by normalizeAndValidateFeatures)
+    return mappedPlans;
   }
 
   /**
@@ -674,7 +607,7 @@ export class AdminService {
     planId: string,
     data: {
       name?: string;
-      features?: any;
+      features?: Record<string, unknown>;
       priceMonthly?: number;
       priceYearly?: number;
     }
@@ -686,7 +619,27 @@ export class AdminService {
     }
 
     // Update plan in database
-    const updatedPlan = await this.repository.updatePlan(planId, data);
+    const updatedPlanRow = await this.repository.updatePlan(planId, data);
+
+    // Map from database format (snake_case) to domain format (camelCase)
+    const { SubscriptionsMapper } = await import("@/src/application/subscriptions/subscriptions.mapper");
+    
+    // Convert to PlanRow format (snake_case)
+    const planRow = {
+      id: updatedPlanRow.id,
+      name: updatedPlanRow.name,
+      price_monthly: typeof updatedPlanRow.price_monthly === 'string' ? parseFloat(updatedPlanRow.price_monthly) : updatedPlanRow.price_monthly,
+      price_yearly: typeof updatedPlanRow.price_yearly === 'string' ? parseFloat(updatedPlanRow.price_yearly) : updatedPlanRow.price_yearly,
+      features: updatedPlanRow.features,
+      stripe_price_id_monthly: updatedPlanRow.stripe_price_id_monthly,
+      stripe_price_id_yearly: updatedPlanRow.stripe_price_id_yearly,
+      stripe_product_id: updatedPlanRow.stripe_product_id,
+      created_at: updatedPlanRow.created_at,
+      updated_at: updatedPlanRow.updated_at,
+    };
+    
+    // Map to domain format (camelCase)
+    const updatedPlan = SubscriptionsMapper.planToDomain(planRow);
 
     // Invalidate plans cache
     const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
@@ -860,9 +813,9 @@ export class AdminService {
     // Fetch Stripe subscription data in parallel (with error handling)
     const stripeSubscriptions = await Promise.allSettled(
       activeSubscriptions
-        .filter((sub) => sub.stripeSubscriptionId)
+        .filter((sub) => sub.stripe_subscription_id)
         .map((sub) =>
-          stripe.subscriptions.retrieve(sub.stripeSubscriptionId!).then(
+          stripe.subscriptions.retrieve(sub.stripe_subscription_id!).then(
             (stripeSub) => ({ dbSubscriptionId: sub.id, stripeSub }),
             (error) => ({ dbSubscriptionId: sub.id, error })
           )
@@ -889,42 +842,42 @@ export class AdminService {
       let interval: "month" | "year" | "unknown" = "unknown";
 
       // Try to determine interval from Stripe if available
-      const stripeSub = sub.stripeSubscriptionId
+      const stripeSub = sub.stripe_subscription_id
         ? stripeSubMap.get(sub.id)
         : null;
 
       if (stripeSub) {
         const priceId = stripeSub.items.data[0]?.price.id;
 
-        if (priceId === plan.stripePriceIdMonthly) {
+        if (priceId === plan.stripe_price_id_monthly) {
           interval = "month";
-          monthlyRevenue = Number(plan.priceMonthly) || 0;
-        } else if (priceId === plan.stripePriceIdYearly) {
+          monthlyRevenue = Number(plan.price_monthly) || 0;
+        } else if (priceId === plan.stripe_price_id_yearly) {
           interval = "year";
           // Convert yearly to monthly for MRR
-          monthlyRevenue = (Number(plan.priceYearly) || 0) / 12;
+          monthlyRevenue = (Number(plan.price_yearly) || 0) / 12;
         } else {
           // Fallback: assume monthly if we can't determine
           interval = "month";
-          monthlyRevenue = Number(plan.priceMonthly) || 0;
+          monthlyRevenue = Number(plan.price_monthly) || 0;
         }
       } else {
         // No Stripe subscription ID or failed to fetch, assume monthly
         interval = "month";
-        monthlyRevenue = Number(plan.priceMonthly) || 0;
+        monthlyRevenue = Number(plan.price_monthly) || 0;
       }
 
       mrr += monthlyRevenue;
 
       subscriptionDetails.push({
         subscriptionId: sub.id,
-        userId: sub.userId,
-        planId: sub.planId,
+        userId: sub.user_id,
+        planId: sub.plan_id,
         planName: plan.name,
         status: sub.status,
         monthlyRevenue,
         interval,
-        trialEndDate: sub.trialEndDate,
+        trialEndDate: sub.trial_end_date,
       });
     }
 
@@ -943,9 +896,9 @@ export class AdminService {
     for (const sub of trialingSubscriptions) {
       // Handle plan as array (from Supabase join) or single object
       const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
-      if (!plan || !sub.trialEndDate) continue;
+      if (!plan || !sub.trial_end_date) continue;
 
-      const trialEnd = new Date(sub.trialEndDate);
+      const trialEnd = new Date(sub.trial_end_date);
       const daysUntilEnd = Math.ceil(
         (trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -953,15 +906,15 @@ export class AdminService {
       // Only count trials that haven't ended
       if (daysUntilEnd > 0) {
         // Assume they'll convert to monthly plan
-        const estimatedMonthlyRevenue = Number(plan.priceMonthly) || 0;
+        const estimatedMonthlyRevenue = Number(plan.price_monthly) || 0;
         estimatedFutureMRR += estimatedMonthlyRevenue;
 
         upcomingTrials.push({
           subscriptionId: sub.id,
-          userId: sub.userId,
-          planId: sub.planId,
+          userId: sub.user_id,
+          planId: sub.plan_id,
           planName: plan.name,
-          trialEndDate: sub.trialEndDate,
+          trialEndDate: sub.trial_end_date,
           daysUntilEnd,
           estimatedMonthlyRevenue,
         });
@@ -996,26 +949,26 @@ export class AdminService {
     subscriptionsList.forEach((sub) => {
       // Handle plan as array (from Supabase join) or single object
       const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
-      if (plan && planDistribution[sub.planId]) {
-        planDistribution[sub.planId].totalCount++;
+      if (plan && planDistribution[sub.plan_id]) {
+        planDistribution[sub.plan_id].totalCount++;
         if (sub.status === "active") {
-          planDistribution[sub.planId].activeCount++;
+          planDistribution[sub.plan_id].activeCount++;
         } else if (sub.status === "trialing") {
-          planDistribution[sub.planId].trialingCount++;
+          planDistribution[sub.plan_id].trialingCount++;
         }
       }
     });
 
     // Calculate users without subscription
     const usersWithSubscription = new Set(
-      subscriptionsList.map((sub) => sub.userId)
+      subscriptionsList.map((sub) => sub.user_id)
     );
     const usersWithoutSubscription =
       (totalUsers || 0) - usersWithSubscription.size;
 
     // Calculate churn risk (subscriptions that will cancel at period end)
     const churnRisk = activeSubscriptions.filter(
-      (sub) => sub.cancelAtPeriodEnd === true
+      (sub) => sub.cancel_at_period_end === true
     ).length;
 
     return {
@@ -1049,15 +1002,15 @@ export class AdminService {
     // Transform the data to handle plan as array or object
     return (data.subscriptions || []).map((sub: any) => ({
       id: sub.id,
-      userId: sub.userId,
-      planId: sub.planId,
+      userId: sub.user_id,
+      planId: sub.plan_id,
       status: sub.status,
-      trialStartDate: sub.trialStartDate,
-      trialEndDate: sub.trialEndDate,
-      currentPeriodStart: sub.currentPeriodStart,
-      currentPeriodEnd: sub.currentPeriodEnd,
-      cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
-      stripeSubscriptionId: sub.stripeSubscriptionId,
+      trialStartDate: sub.trial_start_date,
+      trialEndDate: sub.trial_end_date,
+      currentPeriodStart: sub.current_period_start,
+      currentPeriodEnd: sub.current_period_end,
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      stripeSubscriptionId: sub.stripe_subscription_id,
       plan: Array.isArray(sub.plan) ? sub.plan[0] : sub.plan,
     }));
   }
@@ -1070,9 +1023,9 @@ export class AdminService {
 
     // Get all user service subscriptions
     const { data: subscriptions, error } = await supabase
-      .from("UserServiceSubscription")
+      .from("user_subscriptions")
       .select("*")
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       logger.error("[AdminService] Error fetching user subscriptions:", error);
@@ -1090,10 +1043,10 @@ export class AdminService {
     const serviceNames = new Set<string>();
 
     subscriptions.forEach((sub: any) => {
-      if (sub.userId) userIds.add(sub.userId);
-      if (sub.accountId) accountIds.add(sub.accountId);
-      if (sub.subcategoryId) subcategoryIds.add(sub.subcategoryId);
-      if (sub.serviceName) serviceNames.add(sub.serviceName);
+      if (sub.user_id) userIds.add(sub.user_id);
+      if (sub.account_id) accountIds.add(sub.account_id);
+      if (sub.subcategory_id) subcategoryIds.add(sub.subcategory_id);
+      if (sub.service_name) serviceNames.add(sub.service_name);
     });
 
     // Batch fetch all related data in parallel
@@ -1122,10 +1075,10 @@ export class AdminService {
     return subscriptions.map((sub: any) => ({
       ...sub,
       amount: Number(sub.amount),
-      User: sub.userId ? (usersMap.get(sub.userId) || null) : null,
-      Account: sub.accountId ? (accountsMap.get(sub.accountId) || null) : null,
-      Subcategory: sub.subcategoryId ? (subcategoriesMap.get(sub.subcategoryId) || null) : null,
-      serviceLogo: servicesMap.get(sub.serviceName)?.logo || null,
+      User: sub.user_id ? (usersMap.get(sub.user_id) || null) : null,
+      Account: sub.account_id ? (accountsMap.get(sub.account_id) || null) : null,
+      Subcategory: sub.subcategory_id ? (subcategoriesMap.get(sub.subcategory_id) || null) : null,
+      serviceLogo: servicesMap.get(sub.service_name)?.logo || null,
     }));
   }
 
@@ -1140,9 +1093,9 @@ export class AdminService {
 
     // Get all categories
     const { data: categories, error: categoriesError } = await supabase
-      .from("SubscriptionServiceCategory")
+      .from("external_service_categories")
       .select("*")
-      .order("displayOrder", { ascending: true });
+      .order("display_order", { ascending: true });
 
     if (categoriesError) {
       logger.error("[AdminService] Error fetching categories:", categoriesError);
@@ -1151,7 +1104,7 @@ export class AdminService {
 
     // Get all services (sorted alphabetically by name)
     const { data: services, error: servicesError } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .select("*")
       .order("name", { ascending: true });
 
@@ -1163,10 +1116,10 @@ export class AdminService {
     // Group services by category
     const servicesByCategory = new Map<string, typeof services>();
     (services || []).forEach((service: any) => {
-      if (!servicesByCategory.has(service.categoryId)) {
-        servicesByCategory.set(service.categoryId, []);
+      if (!servicesByCategory.has(service.category_id)) {
+        servicesByCategory.set(service.category_id, []);
       }
-      servicesByCategory.get(service.categoryId)!.push(service);
+      servicesByCategory.get(service.category_id)!.push(service);
     });
 
     // Enrich categories with their services
@@ -1488,7 +1441,7 @@ export class AdminService {
       throw new AppError("cancelAt is required when cancelOption is 'specific_date'", 400);
     }
 
-    const result = await this.repository.cancelSubscription(subscriptionId, cancelOption, cancelAt, refundOption);
+    const result = await this.repository.cancelSubscription(subscriptionId, cancelOption, cancelAt);
 
     // Update in Stripe
     try {

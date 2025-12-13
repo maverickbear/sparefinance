@@ -107,7 +107,7 @@ export function OnboardingSuccessStep({
               <Button
                 onClick={onGoToDashboard}
                 className="flex-1 w-full"
-                size="large"
+                size="medium"
               >
                 Go to Dashboard
               </Button>
@@ -115,7 +115,7 @@ export function OnboardingSuccessStep({
                 onClick={onGoToBilling}
                 variant="outline"
                 className="flex-1 w-full"
-                size="large"
+                size="medium"
               >
                 View Billing
               </Button>

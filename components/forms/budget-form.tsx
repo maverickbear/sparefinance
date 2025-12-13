@@ -27,19 +27,10 @@ import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AccountRequiredDialog } from "@/components/common/account-required-dialog";
 
-interface Macro {
-  id: string;
-  name: string;
-}
-
 interface Category {
   id: string;
   name: string;
-  macroId: string;
-  macro?: {
-    id: string;
-    name: string;
-  };
+  type: "income" | "expense";
   subcategories?: Array<{
     id: string;
     name: string;
@@ -51,16 +42,11 @@ interface Budget {
   period: string;
   categoryId?: string | null;
   subcategoryId?: string | null;
-  macroId?: string | null;
   amount: number;
   note?: string | null;
   actualSpend?: number;
   percentage?: number;
   status?: "ok" | "warning" | "over";
-  macro?: {
-    id: string;
-    name: string;
-  } | null;
   budgetCategories?: Array<{
     category: {
       id: string;
@@ -70,7 +56,6 @@ interface Budget {
 }
 
 interface BudgetFormProps {
-  macros?: Macro[];
   categories: Category[];
   period: Date;
   budget?: Budget;
@@ -80,7 +65,6 @@ interface BudgetFormProps {
 }
 
 export function BudgetForm({
-  macros = [],
   categories,
   period,
   budget,
@@ -90,8 +74,6 @@ export function BudgetForm({
 }: BudgetFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedMacroId, setSelectedMacroId] = useState<string>("");
-  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [subcategoriesMap, setSubcategoriesMap] = useState<Map<string, Array<{ id: string; name: string }>>>(new Map());
   const [showAccountDialog, setShowAccountDialog] = useState(false);
   const [shouldShowForm, setShouldShowForm] = useState(false);
@@ -100,7 +82,6 @@ export function BudgetForm({
     resolver: zodResolver(budgetSchema),
     defaultValues: {
       period,
-      macroId: "",
       categoryId: "",
       subcategoryId: "",
       amount: 0,
@@ -110,75 +91,38 @@ export function BudgetForm({
   const selectedCategoryId = form.watch("categoryId") || "";
   const selectedSubcategoryId = form.watch("subcategoryId") || "";
 
-  // Load categories when macro is selected (only for new budgets)
+  // Load subcategories when category is selected
   useEffect(() => {
-    if (selectedMacroId && !budget) {
-      loadCategoriesForMacro(selectedMacroId);
+    if (selectedCategoryId) {
+      loadSubcategoriesForCategory(selectedCategoryId);
     }
-  }, [selectedMacroId, budget]);
+  }, [selectedCategoryId]);
 
-  async function loadCategoriesForMacro(macroId: string) {
+  async function loadSubcategoriesForCategory(categoryId: string) {
     try {
-      const res = await fetch(`/api/v2/categories?macroId=${macroId}`);
-      if (!res.ok) {
-        throw new Error("Failed to fetch categories");
-      }
-      const cats = await res.json();
-      setAvailableCategories(cats || []);
-      
-      // Load subcategories for all categories
-      const newSubcategoriesMap = new Map<string, Array<{ id: string; name: string }>>();
-      for (const category of cats || []) {
-        if (category.subcategories && category.subcategories.length > 0) {
-          newSubcategoriesMap.set(category.id, category.subcategories);
-        } else {
-          // Fetch subcategories if not included
-          try {
-            const subRes = await fetch(`/api/v2/categories?categoryId=${category.id}`);
-            if (subRes.ok) {
-              const subcats = await subRes.json();
-              if (subcats && subcats.length > 0) {
-                newSubcategoriesMap.set(category.id, subcats);
-              }
-            }
-          } catch (err) {
-            console.error("Error loading subcategories:", err);
-          }
+      const res = await fetch(`/api/v2/categories?categoryId=${categoryId}`);
+      if (res.ok) {
+        const subcats = await res.json();
+        if (subcats && subcats.length > 0) {
+          setSubcategoriesMap((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(categoryId, subcats);
+            return newMap;
+          });
         }
       }
-      setSubcategoriesMap(newSubcategoriesMap);
-    } catch (error) {
-      console.error("Error loading categories:", error);
-      setAvailableCategories([]);
+    } catch (err) {
+      console.error("Error loading subcategories:", err);
     }
   }
 
   // Load budget data when editing
   useEffect(() => {
-    if (open && budget) {
-      // Determine if it's a grouped budget (has macroId) or single category budget
-      if (budget.macroId && budget.macro) {
-        // Grouped budget: load macro and related categories
-        setSelectedMacroId(budget.macroId);
-        loadCategoriesForMacro(budget.macroId);
-      } else if (budget.categoryId) {
-        // Single category budget: load category and its macro
-        const budgetCategory = categories.find((cat) => cat.id === budget.categoryId);
-        if (budgetCategory) {
-          setSelectedMacroId(budgetCategory.macroId);
-          loadCategoriesForMacro(budgetCategory.macroId);
-          // If budget has subcategoryId, ensure subcategories are loaded
-          if (budget.subcategoryId) {
-            // Subcategories will be loaded by loadCategoriesForMacro
-          }
-        }
-      }
-    } else if (open && !budget) {
-      // Reset when creating new budget
-      setSelectedMacroId("");
-      setAvailableCategories([]);
+    if (open && budget && budget.categoryId) {
+      // Load subcategories for the budget's category
+      loadSubcategoriesForCategory(budget.categoryId);
     }
-  }, [open, budget, categories]);
+  }, [open, budget]);
 
   useEffect(() => {
     if (open) {
@@ -190,7 +134,6 @@ export function BudgetForm({
           period: new Date(budget.period),
           categoryId: budget.categoryId || "",
           subcategoryId: budget.subcategoryId || "",
-          macroId: budget.macroId || "",
           amount: budget.amount,
         });
       } else {
@@ -219,7 +162,6 @@ export function BudgetForm({
           // Reset form for new budget
           form.reset({
             period,
-            macroId: "",
             categoryId: "",
             subcategoryId: "",
             amount: 0,
@@ -234,13 +176,6 @@ export function BudgetForm({
       // In case of error, try to show the form anyway
       setShouldShowForm(true);
     }
-  }
-
-  function handleMacroChange(macroId: string) {
-    setSelectedMacroId(macroId);
-    form.setValue("macroId", macroId);
-    form.setValue("categoryId", "");
-    form.setValue("subcategoryId", "");
   }
 
   function handleCategoryChange(categoryId: string) {
@@ -274,8 +209,6 @@ export function BudgetForm({
         // Close dialog and reset form first
         onOpenChange(false);
         form.reset();
-        setSelectedMacroId("");
-        setAvailableCategories([]);
 
         // Call onSuccess after API response to reload data with updated budget
         if (onSuccess) {
@@ -305,11 +238,6 @@ export function BudgetForm({
           categoryId: data.categoryId,
         };
 
-        // Add macroId if selected
-        if (selectedMacroId) {
-          requestBody.macroId = selectedMacroId;
-        }
-
         // Add subcategoryId if selected
         if (data.subcategoryId) {
           requestBody.subcategoryId = data.subcategoryId;
@@ -330,8 +258,6 @@ export function BudgetForm({
       // Close dialog and reset form first
       onOpenChange(false);
       form.reset();
-      setSelectedMacroId("");
-      setAvailableCategories([]);
 
       toast({
         title: "Budget created",
@@ -382,7 +308,7 @@ export function BudgetForm({
           <DialogDescription>
             {budget 
               ? "Update the budget details"
-              : "Select a group and choose multiple categories to create budgets"}
+              : "Select a category and set the budget amount"}
           </DialogDescription>
         </DialogHeader>
 
@@ -392,202 +318,123 @@ export function BudgetForm({
         })} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
           {budget ? (
-            // Editing mode: show group and categories (read-only for grouped, editable for single)
-            <>
-              {budget.macroId && budget.macro ? (
-                // Grouped budget: show macro and related categories
-                <>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Group</label>
-                    <Select value={budget.macroId} disabled={true}>
-                      <SelectTrigger size="small">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {macros.map((macro) => (
-                          <SelectItem key={macro.id} value={macro.id}>
-                            {macro.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Categories</label>
-                    <div className="border rounded-lg p-4 max-h-60 overflow-y-auto space-y-2">
-                      {budget.budgetCategories && budget.budgetCategories.length > 0 ? (
-                        budget.budgetCategories.map((bc) => (
-                          <div key={bc.category?.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={bc.category?.id}
-                              checked={true}
-                              disabled={true}
-                            />
-                            <label
-                              htmlFor={bc.category?.id}
-                              className="text-sm font-medium flex-1"
-                            >
-                              {bc.category?.name || "Unknown"}
-                            </label>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No categories found</p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                // Single category budget: show category and subcategory (read-only)
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Category</label>
-                    <Select
-                      value={form.watch("categoryId")}
-                      disabled={true}
-                    >
-                      <SelectTrigger size="small">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => {
-                          const macro = Array.isArray(category.macro) 
-                            ? category.macro[0] 
-                            : category.macro;
-                          const macroName = macro?.name || "Unknown";
-                          return (
-                            <SelectItem key={category.id} value={category.id}>
-                              {macroName} - {category.name}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {form.watch("subcategoryId") && (
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium">Subcategory</label>
-                      <Select
-                        value={form.watch("subcategoryId")}
-                        disabled={true}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(() => {
-                            const selectedCategoryId = form.watch("categoryId");
-                            if (!selectedCategoryId) return null;
-                            const subcategories = subcategoriesMap.get(selectedCategoryId) || [];
-                            return subcategories.map((subcategory) => (
-                              <SelectItem key={subcategory.id} value={subcategory.id}>
-                                {subcategory.name}
-                              </SelectItem>
-                            ));
-                          })()}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            // Creating mode: show group selection and category/subcategory
-            <>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  Group {!selectedMacroId && <span className="text-gray-400 text-[12px]">required</span>}
-                </label>
+            // Editing mode: show category and subcategory (read-only)
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Category</label>
                 <Select
-                  value={selectedMacroId}
-                  onValueChange={handleMacroChange}
+                  value={form.watch("categoryId")}
+                  disabled={true}
                 >
-                  <SelectTrigger size="small">
-                    <SelectValue placeholder="Select a group" />
+                  <SelectTrigger size="medium">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {macros.map((macro) => (
-                      <SelectItem key={macro.id} value={macro.id}>
-                        {macro.name}
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {selectedMacroId && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Category {!selectedCategoryId && <span className="text-gray-400 text-[12px]">required</span>}
-                    </label>
-                    <Select
-                      value={selectedCategoryId}
-                      onValueChange={handleCategoryChange}
-                    >
-                      <SelectTrigger size="small">
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableCategories.length === 0 ? (
-                          <div className="p-2 text-sm text-muted-foreground">
-                            No categories found for this group
-                          </div>
-                        ) : (
-                          availableCategories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {form.formState.errors.categoryId && (
-                      <p className="text-xs text-destructive">
-                        {form.formState.errors.categoryId.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {selectedCategoryId && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">
-                        Subcategory <span className="text-gray-400 text-[12px]">(optional)</span>
-                      </label>
-                      <Select
-                        value={selectedSubcategoryId}
-                        onValueChange={handleSubcategoryChange}
-                        disabled={(() => {
-                          const subcategories = subcategoriesMap.get(selectedCategoryId) || [];
-                          return subcategories.length === 0;
-                        })()}
-                      >
-                        <SelectTrigger size="small">
-                          <SelectValue placeholder="Select a subcategory" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(() => {
-                            const subcategories = subcategoriesMap.get(selectedCategoryId) || [];
-                            return subcategories.length === 0 ? (
-                              <div className="p-2 text-sm text-muted-foreground">
-                                No subcategories found for this category
-                              </div>
-                            ) : (
-                              subcategories.map((subcategory) => (
-                                <SelectItem key={subcategory.id} value={subcategory.id}>
-                                  {subcategory.name}
-                                </SelectItem>
-                              ))
-                            );
-                          })()}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+              {form.watch("subcategoryId") && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Subcategory</label>
+                  <Select
+                    value={form.watch("subcategoryId")}
+                    disabled={true}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const selectedCategoryId = form.watch("categoryId");
+                        if (!selectedCategoryId) return null;
+                        const subcategories = subcategoriesMap.get(selectedCategoryId) || [];
+                        return subcategories.map((subcategory) => (
+                          <SelectItem key={subcategory.id} value={subcategory.id}>
+                            {subcategory.name}
+                          </SelectItem>
+                        ));
+                      })()}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
-            </>
+            </div>
+          ) : (
+            // Creating mode: show category/subcategory selection
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Category {!selectedCategoryId && <span className="text-gray-400 text-[12px]">required</span>}
+                </label>
+                <Select
+                  value={selectedCategoryId}
+                  onValueChange={handleCategoryChange}
+                >
+                  <SelectTrigger size="medium">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        No categories found
+                      </div>
+                    ) : (
+                      categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.categoryId && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.categoryId.message}
+                  </p>
+                )}
+              </div>
+
+              {selectedCategoryId && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Subcategory <span className="text-gray-400 text-[12px]">(optional)</span>
+                  </label>
+                  <Select
+                    value={selectedSubcategoryId}
+                    onValueChange={handleSubcategoryChange}
+                    disabled={(() => {
+                      const subcategories = subcategoriesMap.get(selectedCategoryId) || [];
+                      return subcategories.length === 0;
+                    })()}
+                  >
+                    <SelectTrigger size="medium">
+                      <SelectValue placeholder="Select a subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const subcategories = subcategoriesMap.get(selectedCategoryId) || [];
+                        return subcategories.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground">
+                            No subcategories found for this category
+                          </div>
+                        ) : (
+                          subcategories.map((subcategory) => (
+                            <SelectItem key={subcategory.id} value={subcategory.id}>
+                              {subcategory.name}
+                            </SelectItem>
+                          ))
+                        );
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="space-y-1">
@@ -598,7 +445,7 @@ export function BudgetForm({
               value={form.watch("amount") || undefined}
               onChange={(value) => form.setValue("amount", value ?? 0, { shouldValidate: true })}
               placeholder="$ 0.00"
-              size="small"
+              size="medium"
             />
             {form.formState.errors.amount && (
               <p className="text-xs text-destructive">
@@ -610,10 +457,10 @@ export function BudgetForm({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" size="small" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            <Button type="button" variant="outline" size="medium" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" size="small" disabled={isSubmitting}>
+            <Button type="submit" size="medium" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

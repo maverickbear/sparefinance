@@ -36,6 +36,12 @@ import { FeatureGuard } from "@/components/common/feature-guard";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import {
+  calculateBudgetStatus,
+  getBudgetStatusColor,
+  getBudgetStatusTextColor,
+  getBudgetStatusLabel,
+} from "@/lib/utils/budget-utils";
 
 interface Budget {
   id: string;
@@ -44,7 +50,6 @@ interface Budget {
   period: string;
   categoryId?: string | null;
   subcategoryId?: string | null;
-  macroId?: string | null;
   category: {
     id: string;
     name: string;
@@ -57,10 +62,6 @@ interface Budget {
   percentage?: number;
   status?: "ok" | "warning" | "over";
   displayName?: string;
-  macro?: {
-    id: string;
-    name: string;
-  } | null;
   budgetCategories?: Array<{
     category: {
       id: string;
@@ -69,19 +70,14 @@ interface Budget {
   }>;
 }
 
-interface Macro {
-  id: string;
-  name: string;
-}
-
 interface Category {
   id: string;
   name: string;
-  macroId: string;
-  macro?: {
+  type: "income" | "expense";
+  subcategories?: Array<{
     id: string;
     name: string;
-  };
+  }>;
 }
 
 export default function BudgetsPage() {
@@ -91,7 +87,6 @@ export default function BudgetsPage() {
   const { checkWriteAccess, canWrite } = useWriteGuard();
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [macros, setMacros] = useState<Macro[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [loading, setLoading] = useState(false);
@@ -111,11 +106,11 @@ export default function BudgetsPage() {
   async function loadData() {
     try {
       setLoading(true);
-      // OPTIMIZED: Single API call to get both groups and categories using v2 API routes
+      // OPTIMIZED: Single API call to get budgets and categories using v2 API routes
       const periodParam = now.toISOString();
       const [budgetsResponse, categoriesResponse] = await Promise.all([
         fetch(`/api/v2/budgets?period=${periodParam}`),
-        fetch("/api/v2/categories?consolidated=true"),
+        fetch("/api/v2/categories?all=true"),
       ]);
       
       if (!budgetsResponse.ok || !categoriesResponse.ok) {
@@ -127,11 +122,13 @@ export default function BudgetsPage() {
         categoriesResponse.json(),
       ]);
       
-      const { groups: macrosData, categories: categoriesList } = categoriesData;
+      // Filter only expense categories for budgets
+      const expenseCategories = (categoriesData || []).filter(
+        (cat: Category) => cat.type === "expense"
+      );
       
       setBudgets(budgetsData as Budget[]);
-      setCategories(categoriesList || []);
-      setMacros(macrosData || []);
+      setCategories(expenseCategories);
       setHasLoaded(true);
       perf.markDataLoaded();
     } catch (error) {
@@ -318,33 +315,22 @@ export default function BudgetsPage() {
     }
   }, [someSelected]);
 
-  function getStatusColor(status?: "ok" | "warning" | "over") {
-    if (status === "over") return "bg-destructive";
-    if (status === "warning") return "bg-sentiment-warning";
-    return "bg-sentiment-positive";
-  }
+  // SIMPLIFIED: Calculate status in frontend for all budgets
+  const budgetsWithStatus = budgets.map(budget => {
+    const actualSpend = budget.actualSpend || 0;
+    const { percentage, status } = calculateBudgetStatus(budget.amount, actualSpend);
+    return { ...budget, percentage, status };
+  });
 
-  function getStatusTextColor(status?: "ok" | "warning" | "over") {
-    if (status === "over") return "text-destructive";
-    if (status === "warning") return "text-yellow-600 dark:text-yellow-400";
-    return "text-green-600 dark:text-green-400";
-  }
-
-  function getStatusLabel(status?: "ok" | "warning" | "over") {
-    if (status === "over") return "Over Budget";
-    if (status === "warning") return "Warning";
-    return "On Track";
-  }
-
-  // Calculate summary statistics
-  const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
-  const totalSpent = budgets.reduce((sum, b) => sum + (b.actualSpend || 0), 0);
+  // Calculate summary statistics using calculated status
+  const totalBudget = budgetsWithStatus.reduce((sum, b) => sum + b.amount, 0);
+  const totalSpent = budgetsWithStatus.reduce((sum, b) => sum + (b.actualSpend || 0), 0);
   const totalRemaining = totalBudget - totalSpent;
-  const budgetsOnTrack = budgets.filter(b => b.status === "ok").length;
-  const budgetsWarning = budgets.filter(b => b.status === "warning").length;
-  const budgetsOver = budgets.filter(b => b.status === "over").length;
-  const averageUsage = budgets.length > 0 
-    ? budgets.reduce((sum, b) => sum + (b.percentage || 0), 0) / budgets.length 
+  const budgetsOnTrack = budgetsWithStatus.filter(b => b.status === "ok").length;
+  const budgetsWarning = budgetsWithStatus.filter(b => b.status === "warning").length;
+  const budgetsOver = budgetsWithStatus.filter(b => b.status === "over").length;
+  const averageUsage = budgetsWithStatus.length > 0 
+    ? budgetsWithStatus.reduce((sum, b) => sum + (b.percentage || 0), 0) / budgetsWithStatus.length 
     : 0;
 
   return (
@@ -497,11 +483,12 @@ export default function BudgetsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                budgets.map((budget) => {
+                budgetsWithStatus.map((budget) => {
                   const percentage = budget.percentage || 0;
                   const clampedPercentage = Math.min(percentage, 100);
                   const actualSpend = budget.actualSpend || 0;
                   const remaining = Math.max(0, budget.amount - actualSpend);
+                  const status = budget.status || "ok";
 
                   return (
                     <TableRow key={budget.id}>
@@ -520,11 +507,6 @@ export default function BudgetsPage() {
                               {budget.subcategory.name}
                             </span>
                           )}
-                          {budget.macro && (
-                            <span className="text-xs text-muted-foreground">
-                              {budget.macro.name}
-                            </span>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-xs md:text-sm">
@@ -533,7 +515,7 @@ export default function BudgetsPage() {
                       <TableCell className="text-xs md:text-sm">
                         {formatMoney(actualSpend)}
                       </TableCell>
-                      <TableCell className={cn("text-xs md:text-sm font-medium", getStatusTextColor(budget.status))}>
+                      <TableCell className={cn("text-xs md:text-sm font-medium", getBudgetStatusTextColor(status))}>
                         {formatMoney(remaining)}
                       </TableCell>
                       <TableCell className="text-xs md:text-sm">
@@ -542,7 +524,7 @@ export default function BudgetsPage() {
                             <div
                               className={cn(
                                 "h-full transition-all",
-                                getStatusColor(budget.status)
+                                getBudgetStatusColor(status)
                               )}
                               style={{ width: `${clampedPercentage}%` }}
                             />
@@ -550,7 +532,7 @@ export default function BudgetsPage() {
                               <div
                                 className={cn(
                                   "absolute top-0 h-full transition-all opacity-30",
-                                  getStatusColor(budget.status)
+                                  getBudgetStatusColor(status)
                                 )}
                                 style={{
                                   width: `${((percentage - 100) / percentage) * 100}%`,
@@ -560,14 +542,14 @@ export default function BudgetsPage() {
                             )}
                             <div className="absolute top-0 left-0 h-full w-[1px] bg-border" style={{ left: "100%" }} />
                           </div>
-                          <span className={cn("text-xs whitespace-nowrap", getStatusTextColor(budget.status))}>
+                          <span className={cn("text-xs whitespace-nowrap", getBudgetStatusTextColor(status))}>
                             {percentage.toFixed(1)}%
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={cn(getStatusColor(budget.status), "text-white text-xs")} variant="default">
-                          {getStatusLabel(budget.status)}
+                        <Badge className={cn(getBudgetStatusColor(status), "text-white text-xs")} variant="default">
+                          {getBudgetStatusLabel(status)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -657,7 +639,6 @@ export default function BudgetsPage() {
       </Dialog>
 
       <BudgetForm 
-        macros={macros}
         categories={categories} 
         period={now}
         budget={selectedBudget || undefined}
@@ -682,7 +663,7 @@ export default function BudgetsPage() {
       {canWrite && (
         <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
           <Button
-            size="large"
+            size="medium"
             className="h-14 w-14 rounded-full shadow-lg"
             onClick={() => {
               if (!checkWriteAccess()) return;

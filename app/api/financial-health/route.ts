@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calculateFinancialHealth } from "@/src/application/shared/financial-health";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

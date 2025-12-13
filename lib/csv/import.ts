@@ -13,10 +13,16 @@ export interface ColumnMapping {
   category?: string;
   subcategory?: string;
   type?: string;
+  recurring?: string; // "true"/"false" or "yes"/"no"
+  expenseType?: string; // "fixed" | "variable"
 }
 
 export interface AccountMapping {
   [csvAccountName: string]: string; // Maps CSV account name to account ID
+}
+
+export interface TransactionTypeMapping {
+  [csvTypeValue: string]: "expense" | "income" | "transfer"; // Maps CSV type value to system type
 }
 
 export function parseCSV(file: File): Promise<CSVRow[]> {
@@ -90,6 +96,7 @@ interface TransactionInput {
   categoryId?: string;
   subcategoryId?: string;
   description?: string;
+  recurring?: boolean;
 }
 
 export interface MapResult {
@@ -115,13 +122,31 @@ export function extractUniqueAccountNames(
   return Array.from(accountNames).sort();
 }
 
+/**
+ * Extract unique transaction type values from CSV rows
+ */
+export function extractUniqueTransactionTypes(
+  rows: CSVRow[],
+  typeColumn: string
+): string[] {
+  const typeValues = new Set<string>();
+  rows.forEach((row) => {
+    const typeValue = row[typeColumn]?.trim();
+    if (typeValue) {
+      typeValues.add(typeValue);
+    }
+  });
+  return Array.from(typeValues).sort();
+}
+
 export function mapCSVToTransactions(
   rows: CSVRow[],
   mapping: ColumnMapping,
   accounts: Account[],
   categories: Category[],
   accountMapping?: AccountMapping,
-  defaultAccountId?: string
+  defaultAccountId?: string,
+  transactionTypeMapping?: TransactionTypeMapping
 ): MapResult[] {
   return rows.map((row, index) => {
     try {
@@ -160,10 +185,36 @@ export function mapCSVToTransactions(
       const subcategoryName = mapping.subcategory ? row[mapping.subcategory] : "";
       
       // Normalize transaction type
-      let type = (mapping.type ? row[mapping.type]?.toLowerCase().trim() : "expense") || "expense";
-      if (!["expense", "income", "transfer"].includes(type)) {
-        // Default to expense if type is invalid
+      // If transactionTypeMapping exists, use it (individual mapping from CSV column)
+      // Otherwise, if mapping.type is a direct value (expense/income/transfer), use it as default
+      // Otherwise, default to expense
+      let type: string;
+      if (transactionTypeMapping && mapping.type && row[mapping.type]) {
+        // Use individual type mapping from CSV column
+        const csvTypeValue = row[mapping.type]?.trim();
+        if (csvTypeValue && transactionTypeMapping[csvTypeValue]) {
+          type = transactionTypeMapping[csvTypeValue];
+        } else {
+          // CSV value not mapped - default to expense
+          type = "expense";
+        }
+      } else if (mapping.type && ["expense", "income", "transfer"].includes(mapping.type)) {
+        // Direct default type specified (not a CSV column)
+        type = mapping.type;
+      } else {
+        // Default to expense if no mapping
         type = "expense";
+      }
+      
+      // Parse recurring (boolean)
+      let recurring: boolean = false;
+      if (mapping.recurring) {
+        const recurringValue = row[mapping.recurring]?.toLowerCase().trim();
+        if (recurringValue === "true" || recurringValue === "1" || recurringValue === "yes" || recurringValue === "y") {
+          recurring = true;
+        } else if (recurringValue === "false" || recurringValue === "0" || recurringValue === "no" || recurringValue === "n") {
+          recurring = false;
+        }
       }
 
       // Find account using mapping or direct match (case-insensitive)
@@ -209,21 +260,27 @@ export function mapCSVToTransactions(
         }
         
         if (!account?.id) {
+          const availableAccounts = accounts.map(a => a.name).join(", ");
+          const errorMsg = accountName 
+            ? `Account not found: "${accountName}". Available accounts: ${availableAccounts || "None"}. Please map the account or set a default account.`
+            : `No account specified. Please map an account column or set a default account. Available accounts: ${availableAccounts || "None"}`;
           return {
             rowIndex: index + 1,
-            error: `Account not found: "${accountName}". Available accounts: ${accounts.map(a => a.name).join(", ")}`,
+            error: errorMsg,
           };
         }
       }
 
-      // Validate transfer requirements
-      if (type === "transfer") {
-        if (!toAccountName) {
-          return {
-            rowIndex: index + 1,
-            error: `Transfer transaction requires a destination account (toAccount). Please map the "To Account" column.`,
-          };
-        }
+      // Final validation: ensure account.id exists
+      if (!account || !account.id) {
+        return {
+          rowIndex: index + 1,
+          error: `Invalid account. Please check your account mapping.`,
+        };
+      }
+
+      // Validate transfer requirements (only if toAccount is provided)
+      if (type === "transfer" && toAccountName) {
         if (!toAccount?.id) {
           return {
             rowIndex: index + 1,
@@ -249,6 +306,7 @@ export function mapCSVToTransactions(
           categoryId: category?.id,
           subcategoryId: subcategory?.id,
           description: description || "",
+          recurring: recurring,
         },
       };
     } catch (error) {

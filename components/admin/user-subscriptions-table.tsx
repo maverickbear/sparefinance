@@ -151,7 +151,11 @@ export function UserSubscriptionsTable({
                   )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {new Date(subscription.firstBillingDate).toLocaleDateString()}
+                  {(() => {
+                    if (!subscription.firstBillingDate) return "—";
+                    const date = new Date(subscription.firstBillingDate);
+                    return isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
+                  })()}
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {new Date(subscription.createdAt).toLocaleDateString()}

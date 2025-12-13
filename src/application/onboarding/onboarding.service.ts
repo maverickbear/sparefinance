@@ -119,9 +119,11 @@ export class OnboardingService {
         }
       }
 
-      // Calculate counts - new onboarding: personal data, income, plan (3 steps)
-      const completedCount = [hasPersonalData, hasExpectedIncome, hasPlan].filter(Boolean).length;
-      const totalCount = 3;
+      // Calculate counts - simplified onboarding: personal data, income (2 steps)
+      // Note: hasPlan is no longer part of onboarding completion criteria
+      // Onboarding completion is now determined by onboardingCompletedAt flag in household settings
+      const completedCount = [hasPersonalData, hasExpectedIncome].filter(Boolean).length;
+      const totalCount = 2;
 
       return {
         hasAccount,
@@ -143,7 +145,7 @@ export class OnboardingService {
         hasExpectedIncome: false,
         hasPlan: false,
         completedCount: 0,
-        totalCount: 3,
+        totalCount: 2,
       };
     }
   }
@@ -243,6 +245,91 @@ export class OnboardingService {
     );
 
     logger.info(`[OnboardingService] Saved expected income for user ${userId}: ${incomeRange}${incomeAmount ? ` (amount: $${incomeAmount})` : ''}`);
+  }
+
+  /**
+   * Mark onboarding as completed for a user
+   * Sets onboardingCompletedAt timestamp in household settings
+   */
+  async markOnboardingComplete(
+    userId: string,
+    householdId: string,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<void> {
+    try {
+      // Get current settings
+      const currentSettings = await this.householdRepository.getSettings(
+        householdId,
+        accessToken,
+        refreshToken
+      );
+
+      if (!currentSettings) {
+        throw new AppError("Household settings not found", 400);
+      }
+
+      // Update settings with completion timestamp
+      const updatedSettings = OnboardingMapper.settingsToDatabase({
+        ...currentSettings,
+        onboardingCompletedAt: new Date().toISOString(),
+      });
+
+      await this.householdRepository.updateSettings(
+        householdId,
+        updatedSettings,
+        accessToken,
+        refreshToken
+      );
+
+      logger.info(`[OnboardingService] Marked onboarding as complete for user ${userId}`, {
+        userId,
+        householdId,
+        completedAt: updatedSettings.onboardingCompletedAt,
+      });
+    } catch (error) {
+      logger.error("[OnboardingService] Error marking onboarding as complete:", error);
+      throw new AppError(
+        "Failed to mark onboarding as complete",
+        500
+      );
+    }
+  }
+
+  /**
+   * Check if user has completed onboarding data (goals and householdType)
+   * Used to determine if onboarding should be marked as complete
+   */
+  async checkHasOnboardingData(
+    userId: string,
+    householdId: string | null,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<boolean> {
+    if (!householdId) {
+      return false;
+    }
+
+    try {
+      const settings = await this.householdRepository.getSettings(
+        householdId,
+        accessToken,
+        refreshToken
+      );
+
+      if (!settings) {
+        return false;
+      }
+
+      // Check if user has goals and householdType saved
+      const hasGoals = Array.isArray(settings.onboardingGoals) && settings.onboardingGoals.length > 0;
+      const hasHouseholdType = settings.onboardingHouseholdType === "personal" || settings.onboardingHouseholdType === "shared";
+
+      return hasGoals && hasHouseholdType;
+    } catch (error) {
+      logger.warn("[OnboardingService] Error checking onboarding data:", error);
+      return false;
+    }
   }
 
   /**

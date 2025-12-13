@@ -95,7 +95,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
       return "Start 1-month trial";
     }
 
-    // For paid plans (Essential and Pro) when user has a plan, show "Subscribe"
+    // For paid plans when user has a plan, show "Subscribe"
     if (plan.priceMonthly > 0) {
       return "Subscribe";
     }
@@ -126,7 +126,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
             <Button
               type="button"
               variant={interval === "month" ? "default" : "ghost"}
-              size="small"
+              size="medium"
               onClick={() => setInterval("month")}
               className={interval === "month" ? "shadow-sm" : ""}
             >
@@ -135,7 +135,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
             <Button
               type="button"
               variant={interval === "year" ? "default" : "ghost"}
-              size="small"
+              size="medium"
               onClick={() => setInterval("year")}
               className={`flex items-center gap-2 ${interval === "year" ? "shadow-sm" : ""}`}
             >

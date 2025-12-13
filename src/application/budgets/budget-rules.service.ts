@@ -9,15 +9,15 @@ import {
   BudgetRuleCategory,
   BudgetRuleSuggestion,
   BudgetRuleValidation,
-  GroupToRuleCategoryMapping
+  CategoryToRuleCategoryMapping
 } from "../../domain/budgets/budget-rules.types";
 import {
   BUDGET_RULE_PROFILES,
   getAvailableBudgetRules,
   getBudgetRuleById,
-  mapGroupNameToRuleCategory
+  mapCategoryNameToRuleCategory
 } from "../../domain/budgets/budget-rules.constants";
-import { BaseGroup } from "../../domain/categories/categories.types";
+import { BaseCategory } from "../../domain/categories/categories.types";
 import { BudgetWithRelations } from "../../domain/budgets/budgets.types";
 import { BaseTransaction } from "../../domain/transactions/transactions.types";
 
@@ -37,81 +37,70 @@ export class BudgetRulesService {
   }
 
   /**
-   * Suggest a budget rule based on monthly income and optional city cost
+   * Suggest a budget rule based on monthly income
+   * 
+   * SIMPLIFIED: Removed cityCost parameter and complex logic.
+   * Now uses only 2 simple profiles: 50/30/20 (default) and Pay Yourself First (high income).
    */
-  suggestRule(monthlyIncome: number, cityCost?: "high" | "medium" | "low"): BudgetRuleSuggestion {
+  suggestRule(monthlyIncome: number): BudgetRuleSuggestion {
+    // Simple logic: Pay Yourself First for high income, 50/30/20 for everyone else
+    if (monthlyIncome > 8000) {
+      return {
+        rule: BUDGET_RULE_PROFILES["PAY_YOURSELF_FIRST"],
+        explanation: "With your income level, the Pay Yourself First rule can help you build wealth faster by prioritizing investments.",
+        confidence: "high",
+      };
+    }
+
     // Default to 50/30/20 for most users
-    let suggestedRule: BudgetRuleProfile = BUDGET_RULE_PROFILES["50_30_20"];
-    let explanation = "The 50/30/20 rule is the most popular and works well for most people.";
-    let confidence: "high" | "medium" | "low" = "high";
-
-    // High-cost cities should use 40/30/20/10
-    if (cityCost === "high") {
-      suggestedRule = BUDGET_RULE_PROFILES["40_30_20_10"];
-      explanation = "Since you're in a high-cost city, the 40/30/20/10 rule better reflects housing costs while maintaining investment focus.";
-      confidence = "high";
-    }
-    // Very high income might benefit from Pay Yourself First
-    else if (monthlyIncome > 10000) {
-      suggestedRule = BUDGET_RULE_PROFILES["PAY_YOURSELF_FIRST"];
-      explanation = "With your income level, the Pay Yourself First rule can help you build wealth faster by prioritizing investments.";
-      confidence = "medium";
-    }
-    // Lower income might benefit from 60% Fixed Costs for stability
-    else if (monthlyIncome < 3000) {
-      suggestedRule = BUDGET_RULE_PROFILES["60_FIXED"];
-      explanation = "The 60% Fixed Costs rule provides stability and predictability, which is helpful with lower income.";
-      confidence = "medium";
-    }
-
     return {
-      rule: suggestedRule,
-      explanation,
-      confidence,
+      rule: BUDGET_RULE_PROFILES["50_30_20"],
+      explanation: "The 50/30/20 rule is the most popular and works well for most people.",
+      confidence: "high",
     };
   }
 
   /**
-   * Map Groups to rule categories using default mappings
-   * Currently only includes "Food & Drinks" group
+   * Map Categories to rule categories using default mappings
+   * Currently only includes "Food & Drinks" category
    */
-  mapGroupsToRuleCategories(groups: BaseGroup[]): GroupToRuleCategoryMapping[] {
-    return groups
-      .filter(group => {
-        // Only include "Food & Drinks" group
-        const groupName = group.name.toLowerCase().trim();
-        return (group.type === "expense" || group.type === null) && 
-               (groupName === "food & drinks" || groupName === "food and drinks");
+  mapCategoriesToRuleCategories(categories: BaseCategory[]): CategoryToRuleCategoryMapping[] {
+    return categories
+      .filter(category => {
+        // Only include "Food & Drinks" category
+        const categoryName = category.name.toLowerCase().trim();
+        return (category.type === "expense" || category.type === null) && 
+               (categoryName === "food & drinks" || categoryName === "food and drinks");
       })
-      .map(group => ({
-        groupId: group.id,
-        groupName: group.name,
-        ruleCategory: mapGroupNameToRuleCategory(group.name),
+      .map(category => ({
+        categoryId: category.id,
+        categoryName: category.name,
+        ruleCategory: mapCategoryNameToRuleCategory(category.name),
       }))
-      .filter((mapping): mapping is GroupToRuleCategoryMapping => mapping.ruleCategory !== null);
+      .filter((mapping): mapping is CategoryToRuleCategoryMapping => mapping.ruleCategory !== null);
   }
 
   /**
-   * Calculate budget amounts per Group based on rule and monthly income
+   * Calculate budget amounts per Category based on rule and monthly income
    */
   calculateBudgetAmounts(
     rule: BudgetRuleProfile,
     monthlyIncome: number,
-    groupMappings: GroupToRuleCategoryMapping[]
-  ): Array<{ groupId: string; amount: number; ruleCategory: BudgetRuleCategory }> {
-    const budgets: Array<{ groupId: string; amount: number; ruleCategory: BudgetRuleCategory }> = [];
+    categoryMappings: CategoryToRuleCategoryMapping[]
+  ): Array<{ categoryId: string; amount: number; ruleCategory: BudgetRuleCategory }> {
+    const budgets: Array<{ categoryId: string; amount: number; ruleCategory: BudgetRuleCategory }> = [];
 
-    // Group mappings by rule category
-    const groupsByCategory = new Map<BudgetRuleCategory, GroupToRuleCategoryMapping[]>();
-    for (const mapping of groupMappings) {
-      const category = mapping.ruleCategory;
-      if (!groupsByCategory.has(category)) {
-        groupsByCategory.set(category, []);
+    // Category mappings by rule category
+    const categoriesByRuleCategory = new Map<BudgetRuleCategory, CategoryToRuleCategoryMapping[]>();
+    for (const mapping of categoryMappings) {
+      const ruleCategory = mapping.ruleCategory;
+      if (!categoriesByRuleCategory.has(ruleCategory)) {
+        categoriesByRuleCategory.set(ruleCategory, []);
       }
-      groupsByCategory.get(category)!.push(mapping);
+      categoriesByRuleCategory.get(ruleCategory)!.push(mapping);
     }
 
-    // Calculate total amount per category
+    // Calculate total amount per rule category
     const categoryAmounts = new Map<BudgetRuleCategory, number>();
     for (const [category, percentage] of Object.entries(rule.percentages)) {
       if (percentage > 0) {
@@ -119,16 +108,16 @@ export class BudgetRulesService {
       }
     }
 
-    // Distribute amount evenly among groups in each category
-    for (const [category, amount] of categoryAmounts.entries()) {
-      const groups = groupsByCategory.get(category) || [];
-      if (groups.length > 0) {
-        const amountPerGroup = amount / groups.length;
-        for (const group of groups) {
+    // Distribute amount evenly among categories in each rule category
+    for (const [ruleCategory, amount] of categoryAmounts.entries()) {
+      const categories = categoriesByRuleCategory.get(ruleCategory) || [];
+      if (categories.length > 0) {
+        const amountPerCategory = amount / categories.length;
+        for (const category of categories) {
           budgets.push({
-            groupId: group.groupId,
-            amount: Math.round(amountPerGroup * 100) / 100, // Round to 2 decimals
-            ruleCategory: category,
+            categoryId: category.categoryId,
+            amount: Math.round(amountPerCategory * 100) / 100, // Round to 2 decimals
+            ruleCategory: ruleCategory,
           });
         }
       }
@@ -145,8 +134,7 @@ export class BudgetRulesService {
     transactions: BaseTransaction[],
     rule: BudgetRuleProfile,
     monthlyIncome: number,
-    groupMappings: GroupToRuleCategoryMapping[],
-    categoriesMap?: Map<string, { groupId?: string | null }> // Optional map of categoryId to category with groupId
+    categoryMappings: CategoryToRuleCategoryMapping[]
   ): BudgetRuleValidation {
     const alerts: BudgetRuleValidation["alerts"] = [];
 
@@ -156,47 +144,22 @@ export class BudgetRulesService {
 
     // Calculate actual spending by rule category
     const spendingByCategory = new Map<BudgetRuleCategory, number>();
-    const groupToRuleCategoryMap = new Map<string, BudgetRuleCategory>();
+    const categoryToRuleCategoryMap = new Map<string, BudgetRuleCategory>();
 
-    // Build map of groupId to rule category
-    for (const mapping of groupMappings) {
-      groupToRuleCategoryMap.set(mapping.groupId, mapping.ruleCategory);
-    }
-
-    // Build map of categoryId to groupId from budgets
-    const categoryToGroupMap = new Map<string, string>();
-    for (const budget of budgets) {
-      if (budget.categoryId && budget.groupId) {
-        categoryToGroupMap.set(budget.categoryId, budget.groupId);
-      }
-      // Also map via category relation if available
-      if (budget.category?.groupId) {
-        categoryToGroupMap.set(budget.categoryId || '', budget.category.groupId);
-      }
-    }
-
-    // Also use provided categories map if available
-    if (categoriesMap) {
-      for (const [categoryId, category] of categoriesMap.entries()) {
-        if (category.groupId) {
-          categoryToGroupMap.set(categoryId, category.groupId);
-        }
-      }
+    // Build map of categoryId to rule category
+    for (const mapping of categoryMappings) {
+      categoryToRuleCategoryMap.set(mapping.categoryId, mapping.ruleCategory);
     }
 
     // Calculate spending from transactions
     for (const transaction of transactions) {
       if (transaction.type !== "expense" || !transaction.categoryId) continue;
 
-      // Find the category's group to determine rule category
-      const groupId = categoryToGroupMap.get(transaction.categoryId);
-      
-      if (groupId) {
-        const ruleCategory = groupToRuleCategoryMap.get(groupId);
-        if (ruleCategory) {
-          const current = spendingByCategory.get(ruleCategory) || 0;
-          spendingByCategory.set(ruleCategory, current + Math.abs(transaction.amount));
-        }
+      // Find the category's rule category directly
+      const ruleCategory = categoryToRuleCategoryMap.get(transaction.categoryId);
+      if (ruleCategory) {
+        const current = spendingByCategory.get(ruleCategory) || 0;
+        spendingByCategory.set(ruleCategory, current + Math.abs(transaction.amount));
       }
     }
 

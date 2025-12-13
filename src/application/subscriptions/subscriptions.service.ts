@@ -57,9 +57,10 @@ export class SubscriptionsService {
   /**
    * Get plan by ID
    */
-  async getPlanById(planId: string): Promise<BasePlan | null> {
+  async getPlanById(planId: string, useServiceRole: boolean = false): Promise<BasePlan | null> {
     try {
-      const plan = await this.repository.findPlanById(planId);
+      // CRITICAL: Pass useServiceRole flag to repository when called from cache context
+      const plan = await this.repository.findPlanById(planId, useServiceRole);
       if (!plan) {
         return null;
       }
@@ -292,8 +293,14 @@ export class SubscriptionsService {
     // which cannot access cookies()
     const userCache = await this.repository.getUserSubscriptionCache(userId, true);
     
-    if (userCache?.effectivePlanId && userCache?.effectiveSubscriptionStatus && userCache?.subscriptionUpdatedAt) {
-      const subscriptionUpdatedAtTime = new Date(userCache.subscriptionUpdatedAt).getTime();
+    // FIX: Repository returns snake_case, not camelCase
+    const effectivePlanId = userCache?.effective_plan_id;
+    const effectiveSubscriptionStatus = userCache?.effective_subscription_status;
+    const effectiveSubscriptionId = userCache?.effective_subscription_id;
+    const subscriptionUpdatedAt = userCache?.subscription_updated_at;
+    
+    if (effectivePlanId && effectiveSubscriptionStatus && subscriptionUpdatedAt) {
+      const subscriptionUpdatedAtTime = new Date(subscriptionUpdatedAt).getTime();
       const now = Date.now();
       const cacheAge = now - subscriptionUpdatedAtTime;
       // Optimized: Increased cache age to 10 minutes to reduce database queries
@@ -311,7 +318,7 @@ export class SubscriptionsService {
           `[SubscriptionsService] Subscription cache timestamp is significantly in the future for user ${userId}. ` +
           `This may indicate timezone differences or clock skew. ` +
           `Cache age: ${Math.round(cacheAge / 1000)}s, ` +
-          `Timestamp: ${userCache.subscriptionUpdatedAt}, ` +
+          `Timestamp: ${subscriptionUpdatedAt}, ` +
           `Current time: ${new Date(now).toISOString()}`
         );
       }
@@ -319,32 +326,44 @@ export class SubscriptionsService {
       // Accept cache if: valid timestamp AND (recent OR future within 1 hour OR not very old)
       // Future timestamps within 1 hour are likely just timezone differences and should be accepted
       if (isValidTimestamp && (isRecentCache || (isFutureTimestamp && Math.abs(cacheAge) <= 60 * 60 * 1000) || !isVeryOldCache)) {
-        const plan = await this.getPlanById(userCache.effectivePlanId);
+        // CRITICAL: Pass useServiceRole=true because we're in a cache context
+        // where cookies() can't be accessed, so findPlanById needs to use service role client
+        const plan = await this.getPlanById(effectivePlanId, true);
         if (plan) {
           let fullSubscription: BaseSubscription | null = null;
-          if (userCache.effectiveSubscriptionId) {
-            // Fetch full subscription if needed using repository
-            const subscriptionRow = await this.repository.findById(userCache.effectiveSubscriptionId);
-            
-            if (subscriptionRow) {
-              fullSubscription = SubscriptionsMapper.subscriptionToDomain(subscriptionRow as any);
+          if (effectiveSubscriptionId) {
+            // CRITICAL: Always fetch full subscription from database to get all fields
+            // (currentPeriodStart, currentPeriodEnd, trialEndDate, etc.)
+            // Use service role client to bypass RLS (called from cache context where cookies() can't be accessed)
+            try {
+              // Pass useServiceRole=true because we're in a cache context
+              const subscriptionRow = await this.repository.findById(effectiveSubscriptionId, true);
+              
+              if (subscriptionRow) {
+                fullSubscription = SubscriptionsMapper.subscriptionToDomain(subscriptionRow as any);
+              }
+            } catch (error) {
+              logger.warn("[SubscriptionsService] Error fetching full subscription, will use fallback", {
+                subscriptionId: effectiveSubscriptionId,
+                error: error instanceof Error ? error.message : String(error),
+              });
             }
           }
 
           // Cache hit - return cached data
-          logger.debug("[SubscriptionsService] Using cached subscription data from User table", {
-            userId,
-            planId: userCache.effectivePlanId,
-            status: userCache.effectiveSubscriptionStatus,
-            cacheAge: Math.round(cacheAge / 1000) + 's',
-          });
-          
-          return {
-            subscription: fullSubscription || (userCache.effectiveSubscriptionId ? {
-              id: userCache.effectiveSubscriptionId,
+          // IMPORTANT: Only use fallback subscription if we couldn't fetch the full one
+          // The fallback is missing critical fields like currentPeriodStart, currentPeriodEnd, trialEndDate
+          if (!fullSubscription && effectiveSubscriptionId) {
+            logger.warn("[SubscriptionsService] Could not fetch full subscription, using minimal subscription from cache", {
+              subscriptionId: effectiveSubscriptionId,
+              userId,
+            });
+            // Fallback: create minimal subscription (missing dates will cause UI issues)
+            fullSubscription = {
+              id: effectiveSubscriptionId,
               userId: userId,
-              planId: userCache.effectivePlanId,
-              status: userCache.effectiveSubscriptionStatus as any,
+              planId: effectivePlanId,
+              status: effectiveSubscriptionStatus as any,
               householdId: null,
               stripeSubscriptionId: null,
               stripeCustomerId: null,
@@ -354,7 +373,11 @@ export class SubscriptionsService {
               cancelAtPeriodEnd: false,
               createdAt: new Date(),
               updatedAt: new Date(),
-            } : null),
+            };
+          }
+
+          return {
+            subscription: fullSubscription,
             plan,
             limits: plan.features,
           };
@@ -363,119 +386,56 @@ export class SubscriptionsService {
     }
 
     // Fallback: Full query (cache miss or invalid cache)
-    const householdId = await this.repository.getActiveHouseholdId(userId);
+    // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+    // which cannot access cookies(), so getActiveHouseholdId needs to use service role client
+    const householdId = await this.repository.getActiveHouseholdId(userId, true);
     let subscription: BaseSubscription | null = null;
 
-    // NOTE: This log appears when User table cache is missing or expired (>10 minutes old)
-    // The cache is written by the repository layer when subscription data is updated
-    logger.debug("[SubscriptionsService] Fetching subscription data (cache miss)", {
-      userId,
-      householdId: householdId || null,
-      reason: "no-cache-hit",
-      cacheKey: `user-subscription-cache-${userId}`,
-    });
-
     if (householdId) {
-      logger.debug("[SubscriptionsService] Checking subscription by householdId", { householdId, userId });
-      const subscriptionRow = await this.repository.findByHouseholdId(householdId);
+      // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+      // which cannot access cookies(), so findByHouseholdId needs to use service role client
+      const subscriptionRow = await this.repository.findByHouseholdId(householdId, true);
       if (subscriptionRow) {
         subscription = SubscriptionsMapper.subscriptionToDomain(subscriptionRow);
-        logger.debug("[SubscriptionsService] Found subscription by householdId", {
-          subscriptionId: subscription.id,
-          planId: subscription.planId,
-          status: subscription.status,
-          householdId,
-          userId: subscriptionRow.userId,
-        });
       } else {
-        logger.debug("[SubscriptionsService] No subscription found by householdId, checking owner's subscription", {
-          householdId,
-          userId,
-        });
         // Try owner's subscription for inheritance
-        const ownerId = await this.repository.getHouseholdOwnerId(householdId);
+        // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+        const ownerId = await this.repository.getHouseholdOwnerId(householdId, true);
         if (ownerId && ownerId !== userId) {
-          logger.debug("[SubscriptionsService] Checking owner's subscription for household member", {
-            userId,
-            ownerId,
-            householdId,
-          });
-          const ownerSubscriptionRow = await this.repository.findByUserId(ownerId);
+          // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+          const ownerSubscriptionRow = await this.repository.findByUserId(ownerId, true);
           if (ownerSubscriptionRow) {
             subscription = SubscriptionsMapper.subscriptionToDomain(ownerSubscriptionRow);
-            logger.debug("[SubscriptionsService] Found owner's subscription for household member", {
-              subscriptionId: subscription.id,
-              planId: subscription.planId,
-              status: subscription.status,
-              userId,
-              ownerId,
-              householdId,
-            });
-          } else {
-            logger.debug("[SubscriptionsService] Owner has no subscription", {
-              userId,
-              ownerId,
-              householdId,
-            });
           }
-        } else {
-          logger.debug("[SubscriptionsService] User is household owner or ownerId not found", {
-            userId,
-            ownerId: ownerId || null,
-            householdId,
-          });
         }
       }
-    } else {
-      logger.debug("[SubscriptionsService] No active household found for user", { userId });
     }
 
     // Fallback to user's own subscription
     if (!subscription) {
-      logger.debug("[SubscriptionsService] Checking user's own subscription as fallback", { userId });
-      const subscriptionRow = await this.repository.findByUserId(userId);
+      // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+      // which cannot access cookies(), so findByUserId needs to use service role client
+      const subscriptionRow = await this.repository.findByUserId(userId, true);
       if (subscriptionRow) {
         // Check if subscription is paused in Stripe
         const pauseStatus = await this.isSubscriptionPaused(userId);
         if (pauseStatus.isPaused && pauseStatus.pausedReason === "household_member") {
           // Subscription is paused because user is a household member
           // Don't use this subscription - user should use household/owner subscription instead
-          logger.debug("[SubscriptionsService] User's subscription is paused (household_member), ignoring", {
-            subscriptionId: subscriptionRow.id,
-            userId,
-          });
         } else {
           subscription = SubscriptionsMapper.subscriptionToDomain(subscriptionRow);
-          logger.debug("[SubscriptionsService] Found user's own subscription", {
-            subscriptionId: subscription.id,
-            planId: subscription.planId,
-            status: subscription.status,
-            userId,
-            householdId: subscriptionRow.householdId,
-          });
           
           // CRITICAL: If subscription has householdId but we couldn't find it via getActiveHouseholdId,
           // try to find it directly using the householdId from the subscription
-          if (subscriptionRow.householdId && !householdId) {
-            logger.debug("[SubscriptionsService] Subscription has householdId but user's active household not found, trying direct lookup", {
-              subscriptionHouseholdId: subscriptionRow.householdId,
-              userId,
-            });
+          if (subscriptionRow.household_id && !householdId) {
             // Try to find subscription by the householdId from the subscription itself
-            const directSubscriptionRow = await this.repository.findByHouseholdId(subscriptionRow.householdId);
+            // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+            const directSubscriptionRow = await this.repository.findByHouseholdId(subscriptionRow.household_id, true);
             if (directSubscriptionRow) {
               subscription = SubscriptionsMapper.subscriptionToDomain(directSubscriptionRow);
-              logger.debug("[SubscriptionsService] Found subscription via direct householdId lookup", {
-                subscriptionId: subscription.id,
-                planId: subscription.planId,
-                status: subscription.status,
-                householdId: subscriptionRow.householdId,
-              });
             }
           }
         }
-      } else {
-        logger.debug("[SubscriptionsService] No subscription found for user", { userId });
       }
     }
 
@@ -500,7 +460,9 @@ export class SubscriptionsService {
       }
     }
 
-    const plan = await this.getPlanById(subscription.planId);
+    // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+    // which cannot access cookies(), so getPlanById needs to use service role client
+    const plan = await this.getPlanById(subscription.planId, true);
     if (!plan) {
       return {
         subscription,
@@ -529,7 +491,7 @@ export class SubscriptionsService {
       // Get user's personal subscription (by userId, not householdId)
       const subscriptionRow = await this.repository.findByUserId(userId);
       
-      if (!subscriptionRow || !subscriptionRow.stripeSubscriptionId) {
+      if (!subscriptionRow || !subscriptionRow.stripe_subscription_id) {
         // No subscription to pause
         return { paused: true };
       }
@@ -538,11 +500,11 @@ export class SubscriptionsService {
       try {
         const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
         const stripe = getStripeClient();
-        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripe_subscription_id);
         
         if (stripeSubscription.pause_collection) {
           // Already paused
-          logger.debug("[SubscriptionsService] Subscription already paused:", subscriptionRow.stripeSubscriptionId);
+          logger.debug("[SubscriptionsService] Subscription already paused:", subscriptionRow.stripe_subscription_id);
           return { paused: true };
         }
       } catch (stripeError) {
@@ -556,7 +518,7 @@ export class SubscriptionsService {
         const stripe = getStripeClient();
         
         // Get existing subscription to preserve metadata
-        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripe_subscription_id);
         const existingMetadata = stripeSubscription.metadata || {};
         
         const updateData: any = {
@@ -571,9 +533,9 @@ export class SubscriptionsService {
           },
         };
 
-        await stripe.subscriptions.update(subscriptionRow.stripeSubscriptionId, updateData);
+        await stripe.subscriptions.update(subscriptionRow.stripe_subscription_id, updateData);
         logger.debug("[SubscriptionsService] Paused Stripe subscription:", {
-          subscriptionId: subscriptionRow.stripeSubscriptionId,
+          subscriptionId: subscriptionRow.stripe_subscription_id,
           reason,
         });
       } catch (stripeError) {
@@ -600,7 +562,7 @@ export class SubscriptionsService {
       // Get user's personal subscription (by userId, not householdId)
       const subscriptionRow = await this.repository.findByUserId(userId);
       
-      if (!subscriptionRow || !subscriptionRow.stripeSubscriptionId) {
+      if (!subscriptionRow || !subscriptionRow.stripe_subscription_id) {
         // No subscription to resume
         return { resumed: true };
       }
@@ -609,11 +571,11 @@ export class SubscriptionsService {
       try {
         const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
         const stripe = getStripeClient();
-        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripe_subscription_id);
         
         if (!stripeSubscription.pause_collection) {
           // Not paused
-          logger.debug("[SubscriptionsService] Subscription not paused:", subscriptionRow.stripeSubscriptionId);
+          logger.debug("[SubscriptionsService] Subscription not paused:", subscriptionRow.stripe_subscription_id);
           return { resumed: true };
         }
       } catch (stripeError) {
@@ -631,7 +593,7 @@ export class SubscriptionsService {
         };
 
         // Remove pause metadata
-        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripe_subscription_id);
         const metadata = { ...stripeSubscription.metadata };
         delete metadata.pausedReason;
         delete metadata.pausedAt;
@@ -644,8 +606,8 @@ export class SubscriptionsService {
           updateData.metadata = {};
         }
 
-        await stripe.subscriptions.update(subscriptionRow.stripeSubscriptionId, updateData);
-        logger.debug("[SubscriptionsService] Resumed Stripe subscription:", subscriptionRow.stripeSubscriptionId);
+        await stripe.subscriptions.update(subscriptionRow.stripe_subscription_id, updateData);
+          logger.debug("[SubscriptionsService] Resumed Stripe subscription:", subscriptionRow.stripe_subscription_id);
       } catch (stripeError) {
         logger.error("[SubscriptionsService] Error resuming Stripe subscription:", stripeError);
         return { resumed: false, error: "Failed to resume subscription in Stripe" };
@@ -669,14 +631,14 @@ export class SubscriptionsService {
     try {
       const subscriptionRow = await this.repository.findByUserId(userId);
       
-      if (!subscriptionRow || !subscriptionRow.stripeSubscriptionId) {
+      if (!subscriptionRow || !subscriptionRow.stripe_subscription_id) {
         return { isPaused: false };
       }
 
       try {
         const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
         const stripe = getStripeClient();
-        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripeSubscriptionId);
+        const stripeSubscription = await stripe.subscriptions.retrieve(subscriptionRow.stripe_subscription_id);
         
         const isPaused = !!stripeSubscription.pause_collection;
         const pausedReason = stripeSubscription.metadata?.pausedReason;
@@ -722,7 +684,9 @@ export class SubscriptionsService {
       // Try to get subscription by householdId first (current architecture)
       let subscription = null;
       if (householdId) {
-        const subscriptionRow = await this.repository.findByHouseholdId(householdId);
+        // FIX: Pass useServiceRole=true because this is called from within "use cache" functions
+        // which cannot access cookies(), so findByHouseholdId needs to use service role client
+        const subscriptionRow = await this.repository.findByHouseholdId(householdId, true);
         if (subscriptionRow && (subscriptionRow.status === "active" || subscriptionRow.status === "trialing")) {
           subscription = subscriptionRow;
         }
@@ -736,7 +700,7 @@ export class SubscriptionsService {
         }
       }
 
-      if (!subscription || !subscription.stripeSubscriptionId) {
+      if (!subscription || !subscription.stripe_subscription_id) {
         // No active subscription to cancel
         return { cancelled: true };
       }
@@ -745,8 +709,8 @@ export class SubscriptionsService {
       try {
         const { getStripeClient } = await import("@/src/infrastructure/external/stripe/stripe-client");
         const stripe = getStripeClient();
-        await stripe.subscriptions.cancel(subscription.stripeSubscriptionId);
-        logger.debug("[SubscriptionsService] Cancelled Stripe subscription:", subscription.stripeSubscriptionId);
+        await stripe.subscriptions.cancel(subscription.stripe_subscription_id);
+        logger.debug("[SubscriptionsService] Cancelled Stripe subscription:", subscription.stripe_subscription_id);
       } catch (stripeError) {
         logger.error("[SubscriptionsService] Error cancelling Stripe subscription:", stripeError);
         // Don't fail deletion if Stripe cancellation fails, but log it

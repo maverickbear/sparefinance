@@ -3,6 +3,7 @@ import { makeInvestmentsService } from "@/src/application/investments/investment
 import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 
+
 export async function GET(request: Request) {
   try {
     const userId = await getCurrentUserId();

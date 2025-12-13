@@ -173,6 +173,17 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
         return;
       }
 
+      // If email confirmation is required, user profile will be created after confirmation
+      // This is a valid success case - proceed to OTP verification
+      if (result.requiresEmailConfirmation) {
+        // After signup, redirect to OTP verification page
+        // The user needs to verify their email before proceeding
+        // Checkout linking and plan selection are handled after OTP verification
+        router.push(`/auth/verify-otp?email=${encodeURIComponent(data.email)}${finalPlanId ? `&planId=${finalPlanId}&interval=${finalInterval}` : ""}${fromCheckout ? "&from_checkout=true" : ""}`);
+        return;
+      }
+
+      // If no user and no email confirmation flag, this is an error
       if (!result.user) {
         setError("Failed to sign up");
         // Reset Turnstile widget on error
@@ -303,6 +314,16 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
               )}
             </button>
           </div>
+          <div className="text-xs text-muted-foreground space-y-1 pt-1">
+            <p className="font-medium">Password requirements:</p>
+            <ul className="list-disc list-inside space-y-0.5 ml-2">
+              <li>At least 12 characters</li>
+              <li>One uppercase letter</li>
+              <li>One lowercase letter</li>
+              <li>One number</li>
+              <li>One special character</li>
+            </ul>
+          </div>
           {form.formState.errors.password && (
             <p className="text-sm text-destructive flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
@@ -325,7 +346,7 @@ export function SignUpForm({ planId, interval }: SignUpFormProps = {}) {
 
         <Button 
           type="submit" 
-          size="small"
+          size="medium"
           className="w-full text-base font-medium" 
           disabled={loading || (!!turnstileSiteKey && !turnstileToken)}
         >

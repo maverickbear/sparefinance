@@ -3,8 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus, Building2, Target } from "lucide-react";
-import { AddAccountSheet } from "@/components/accounts/add-account-sheet";
+import { Plus, Target, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import dynamic from "next/dynamic";
 
 // Lazy load heavy form components
@@ -15,12 +20,7 @@ const TransactionForm = dynamic(
 
 export function DashboardHeaderActions() {
   const router = useRouter();
-  const [isAccountSheetOpen, setIsAccountSheetOpen] = useState(false);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
-
-  const handleConnectAccount = () => {
-    setIsAccountSheetOpen(true);
-  };
 
   const handleAddTransaction = () => {
     setIsTransactionFormOpen(true);
@@ -32,41 +32,26 @@ export function DashboardHeaderActions() {
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="small"
-          onClick={handleConnectAccount}
-        >
-          <Building2 className="h-3 w-3 mr-1.5" />
-          Connect Account
-        </Button>
-        <Button
-          variant="outline"
-          size="small"
-          onClick={handleAddTransaction}
-        >
-          <Plus className="h-3 w-3 mr-1.5" />
-          Add Transaction
-        </Button>
-        <Button
-          variant="outline"
-          size="small"
-          onClick={handleCreateBudget}
-        >
-          <Target className="h-3 w-3 mr-1.5" />
-          Create Budget
-        </Button>
+      <div className="flex items-center gap-2 px-0">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="medium">
+              Quick Actions
+              <ChevronDown className="h-3 w-3 ml-1.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleAddTransaction}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Transaction
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleCreateBudget}>
+              <Target className="h-4 w-4 mr-2" />
+              Create Budget
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-
-      <AddAccountSheet
-        open={isAccountSheetOpen}
-        onOpenChange={setIsAccountSheetOpen}
-        onSuccess={() => {
-          setIsAccountSheetOpen(false);
-          router.refresh();
-        }}
-      />
 
       <TransactionForm
         open={isTransactionFormOpen}

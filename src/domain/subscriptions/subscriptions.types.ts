@@ -74,7 +74,14 @@ export interface BaseLimitCheckResult {
   message?: string;
 }
 
-// User Service Subscription types (for subscription services like Netflix, Spotify, etc.)
+/**
+ * User Service Subscription types
+ * 
+ * ⚠️ IMPORTANT: These are for EXTERNAL service subscriptions (Netflix, Spotify, ChatGPT, etc.)
+ * NOT for Spare Finance app subscriptions. For app subscriptions, see AppSubscription type.
+ * 
+ * This tracks user's personal expenses for external services they subscribe to.
+ */
 export interface UserServiceSubscription {
   id: string;
   userId: string;
@@ -109,6 +116,7 @@ export interface UserServiceSubscriptionFormData {
   categoryId?: string | null;
   newSubcategoryName?: string | null;
   planId?: string | null; // ID of the selected SubscriptionServicePlan
+  isActive?: boolean;
 }
 
 // Detected Subscription types (for subscription detection from transactions)

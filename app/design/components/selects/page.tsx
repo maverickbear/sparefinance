@@ -35,7 +35,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Tiny (h-8)</Label>
                   <Select>
-                    <SelectTrigger size="tiny">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select an option" />
                     </SelectTrigger>
                     <SelectContent>
@@ -48,7 +48,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Small (h-9)</Label>
                   <Select>
-                    <SelectTrigger size="small">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select an option" />
                     </SelectTrigger>
                     <SelectContent>
@@ -74,7 +74,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Large (h-11)</Label>
                   <Select>
-                    <SelectTrigger size="large">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select an option" />
                     </SelectTrigger>
                     <SelectContent>
@@ -88,7 +88,7 @@ export default function SelectsPage() {
               <div className="bg-muted p-4 rounded-lg">
                 <code className="text-sm whitespace-pre-wrap">
 {`<Select>
-  <SelectTrigger size="small">
+  <SelectTrigger size="medium">
     <SelectValue placeholder="Select an option" />
   </SelectTrigger>
   <SelectContent>
@@ -115,7 +115,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="small-select">Country</Label>
                   <Select>
-                    <SelectTrigger id="small-select" size="small">
+                    <SelectTrigger id="small-select" size="medium">
                       <SelectValue placeholder="Select a country" />
                     </SelectTrigger>
                     <SelectContent>
@@ -161,7 +161,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="large-select">Country</Label>
                   <Select>
-                    <SelectTrigger id="large-select" size="large">
+                    <SelectTrigger id="large-select" size="medium">
                       <SelectValue placeholder="Select a country" />
                     </SelectTrigger>
                     <SelectContent>
@@ -253,7 +253,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Tiny</Label>
                   <Select>
-                    <SelectTrigger size="tiny">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -265,7 +265,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Small</Label>
                   <Select>
-                    <SelectTrigger size="small">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -289,7 +289,7 @@ export default function SelectsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Large</Label>
                   <Select>
-                    <SelectTrigger size="large">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select..." />
                     </SelectTrigger>
                     <SelectContent>

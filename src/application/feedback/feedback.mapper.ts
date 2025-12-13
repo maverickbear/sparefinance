@@ -13,11 +13,11 @@ export class FeedbackMapper {
   static toDomain(row: FeedbackRow): BaseFeedback {
     return {
       id: row.id,
-      userId: row.userId,
+      userId: row.user_id,
       rating: row.rating,
       feedback: row.feedback,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 }

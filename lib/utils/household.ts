@@ -17,23 +17,23 @@ export async function getActiveHouseholdId(
   try {
     const supabase = await createServerClient(accessToken, refreshToken);
 
-    // First try to get from UserActiveHousehold
+    // First try to get from system_user_active_households
     const { data: activeHousehold, error: activeHouseholdError } = await supabase
-      .from("UserActiveHousehold")
-      .select("householdId")
-      .eq("userId", userId)
+      .from("system_user_active_households")
+      .select("household_id")
+      .eq("user_id", userId)
       .maybeSingle();
 
-    if (!activeHouseholdError && activeHousehold?.householdId) {
-      return activeHousehold.householdId;
+    if (!activeHouseholdError && activeHousehold?.household_id) {
+      return activeHousehold.household_id;
     }
 
     // Fallback to default (personal) household
     const { data: defaultMember, error: defaultError } = await supabase
-      .from("HouseholdMember")
-      .select("householdId")
-      .eq("userId", userId)
-      .eq("isDefault", true)
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .eq("is_default", true)
       .eq("status", "active")
       .maybeSingle();
 
@@ -56,13 +56,13 @@ export async function getActiveHouseholdId(
       return null;
     }
 
-    if (!defaultMember?.householdId) {
+    if (!defaultMember?.household_id) {
       // No default household found - this is OK, user might not have one set up yet
       // Don't log this as an error, it's a valid state
       return null;
     }
 
-    return defaultMember.householdId;
+    return defaultMember.household_id;
   } catch (error) {
     console.error("Error in getActiveHouseholdId:", error);
     return null;

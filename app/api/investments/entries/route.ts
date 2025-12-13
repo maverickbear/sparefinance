@@ -5,6 +5,7 @@ import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/f
 import { AppError } from "@/src/application/shared/app-error";
 import { createSimpleInvestmentEntrySchema } from "@/src/domain/investments/investments.validations";
 
+
 export async function GET(request: Request) {
   try {
     const userId = await getCurrentUserId();

@@ -24,6 +24,7 @@ import { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 import { AccountWithBalance } from "@/src/domain/accounts/accounts.types";
 import { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import { BasePlannedPayment } from "@/src/domain/planned-payments/planned-payments.types";
+import { UserServiceSubscription } from "@/src/domain/subscriptions/subscriptions.types";
 import { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 // CRITICAL DATA - needed for first render
@@ -56,7 +57,7 @@ interface SecondaryDashboardData {
   liabilities: AccountWithBalance[];
   debts: DebtWithCalculations[];
   recurringPayments: TransactionWithRelations[];
-  subscriptions: unknown[]; // Subscription type not found in domain
+  subscriptions: UserServiceSubscription[];
 }
 
 // Full dashboard data (for backward compatibility)
@@ -130,9 +131,9 @@ async function loadDashboardDataInternal(
 
     // Fetch AccountOwner relationships and collect all owner IDs
     const { data: accountOwners } = await supabase
-      .from("AccountOwner")
-      .select("accountId, ownerId")
-      .in("accountId", accountIds);
+      .from("account_owners")
+      .select("account_id, owner_id")
+      .in("account_id", accountIds);
 
     // Collect all owner IDs from both AccountOwner and accounts
     const allOwnerIds = new Set<string>();
@@ -142,13 +143,13 @@ async function loadDashboardDataInternal(
       }
     });
     accountOwners?.forEach((ao) => {
-      allOwnerIds.add(ao.ownerId);
+      allOwnerIds.add(ao.owner_id);
     });
 
     // Fetch owner names in parallel (only if we have owner IDs)
     const ownersResult = allOwnerIds.size > 0
       ? await supabase
-          .from("User")
+          .from("users")
           .select("id, name")
           .in("id", Array.from(allOwnerIds))
       : { data: null, error: null };
@@ -157,10 +158,10 @@ async function loadDashboardDataInternal(
 
     const accountOwnersMap = new Map<string, string[]>();
     (accountOwners || []).forEach((ao) => {
-      if (!accountOwnersMap.has(ao.accountId)) {
-        accountOwnersMap.set(ao.accountId, []);
+      if (!accountOwnersMap.has(ao.account_id)) {
+        accountOwnersMap.set(ao.account_id, []);
       }
-      accountOwnersMap.get(ao.accountId)!.push(ao.ownerId);
+      accountOwnersMap.get(ao.account_id)!.push(ao.owner_id);
     });
 
     const ownerNameMap = new Map<string, string>();
@@ -578,8 +579,7 @@ export async function loadSecondaryDashboardData(
       logger.error("Error fetching chart aggregates:", error);
       return [];
     }),
-    // TODO: Implement PlaidService for liabilities
-    // For now, return empty array until PlaidService is implemented
+    // Plaid integration removed - liabilities no longer available
     Promise.resolve([]),
     getDebtsWithTokens(accessToken, refreshToken).catch((error) => {
       logger.error("Error fetching debts:", error);

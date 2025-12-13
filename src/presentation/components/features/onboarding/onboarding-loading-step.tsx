@@ -595,7 +595,7 @@ export function OnboardingLoadingStep({
                 <Button
                   onClick={handleRetry}
                   variant="outline"
-                  size="small"
+                  size="medium"
                   className="w-full"
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />

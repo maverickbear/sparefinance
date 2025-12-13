@@ -338,16 +338,9 @@ async function calculateFinancialHealthInternal(
       // Get budgets for the period
       const budgets = await budgetsService.getBudgets(selectedMonth, accessToken, refreshToken);
       
-      // Get groups to map to rule categories
-      const groups = await categoriesService.getGroups();
-      const groupMappings = budgetRulesService.mapGroupsToRuleCategories(groups);
-      
-      // Get categories to build category-to-group map
+      // Get categories to map to rule categories
       const allCategories = await categoriesService.getAllCategories();
-      const categoriesMap = new Map<string, { groupId?: string | null }>();
-      for (const category of allCategories) {
-        categoriesMap.set(category.id, { groupId: category.groupId });
-      }
+      const categoryMappings = budgetRulesService.mapCategoriesToRuleCategories(allCategories);
       
       // Validate budgets against rule
       const validation = budgetRulesService.validateBudgetAgainstRule(
@@ -355,8 +348,7 @@ async function calculateFinancialHealthInternal(
         transactions,
         budgetRule,
         monthlyIncome,
-        groupMappings,
-        categoriesMap
+        categoryMappings
       );
       
       // Add rule-based alerts to existing alerts
@@ -537,11 +529,11 @@ async function calculateFinancialHealthInternal(
       
       if (householdId) {
         const { data: goal } = await supabase
-          .from("Goal")
+          .from("goals")
           .select("*")
-          .eq("householdId", householdId)
+          .eq("household_id", householdId)
           .eq("name", "Emergency Funds")
-          .eq("isSystemGoal", true)
+          .eq("is_system_goal", true)
           .maybeSingle();
         
         emergencyFundGoal = goal;
@@ -977,11 +969,11 @@ export async function recalculateFinancialHealthFromTransactions(
         // Try to get emergency fund goal from system
         // Always use the system Goal "Emergency Funds" if it exists
         const { data: goal } = await supabase
-          .from("Goal")
+          .from("goals")
           .select("*")
-          .eq("householdId", householdId)
+          .eq("household_id", householdId)
           .eq("name", "Emergency Funds")
-          .eq("isSystemGoal", true)
+          .eq("is_system_goal", true)
           .maybeSingle();
         
         emergencyFundGoal = goal;

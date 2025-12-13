@@ -1,59 +1,108 @@
 /**
  * Dashboard Service
- * Business logic for dashboard operations
+ * Provides dashboard-related business logic
  */
 
+import { SubscriptionsRepository } from "@/src/infrastructure/database/repositories/subscriptions.repository";
 import { DashboardRepository } from "@/src/infrastructure/database/repositories/dashboard.repository";
-import { UpdateCheckResult } from "../../domain/dashboard/dashboard.types";
-import { getCurrentUserId } from "@/src/application/shared/feature-guard";
-import { AppError } from "../shared/app-error";
+import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
+import { logger } from "@/src/infrastructure/utils/logger";
+import { UpdateCheckResult } from "@/src/domain/dashboard/dashboard.types";
 
-
-export class DashboardService {
-  constructor(private repository: DashboardRepository) {}
-
-  /**
-   * Check for updates silently
-   * Returns a hash/timestamp that changes when any relevant data is updated
-   */
-  async checkUpdates(lastCheck?: string | null): Promise<UpdateCheckResult> {
-    const startTime = Date.now();
-    const userId = await getCurrentUserId();
-    if (!userId) {
-      throw new AppError("Unauthorized", 401);
-    }
-
-    // Fetch from database
-    // Try RPC function first
-    let updates = await this.repository.getLatestUpdatesRPC(userId);
-
-    // Fallback to individual queries if RPC doesn't work
-    if (updates.length === 0) {
-      updates = await this.repository.getLatestUpdatesFallback();
-    }
-
-    // Calculate hash based on latest update
-    const timestamps = updates.map((u) => u.last_update).filter((t) => t > 0);
-    const maxTimestamp = timestamps.length > 0 ? Math.max(...timestamps) : 0;
-    const currentHash = maxTimestamp.toString();
-
-    // Check if there are updates
-    let hasUpdates = false;
-    if (lastCheck) {
-      const lastCheckTime = new Date(lastCheck).getTime();
-      hasUpdates = maxTimestamp > lastCheckTime;
-    }
-
-    // Prepare response
-    const result: UpdateCheckResult = {
-      hasUpdates,
-      currentHash,
-      timestamp: maxTimestamp > 0 ? new Date(maxTimestamp).toISOString() : null,
-      source: "database",
-      executionTime: Date.now() - startTime,
-    };
-
-    return result;
-  }
+export interface TransactionUsage {
+  current: number;
+  limit: number;
+  percentage: number;
+  warning: boolean;
+  remaining: number;
+  isUnlimited: boolean;
 }
 
+export class DashboardService {
+  constructor(
+    private subscriptionsRepository: SubscriptionsRepository = new SubscriptionsRepository(),
+    private dashboardRepository: DashboardRepository = new DashboardRepository()
+  ) {}
+
+  /**
+   * Get transaction usage for current month
+   */
+  async getTransactionUsage(userId: string, month?: Date): Promise<TransactionUsage> {
+    try {
+      const { limits } = await getCachedSubscriptionData(userId);
+      const checkMonth = month || new Date();
+      const monthDate = new Date(checkMonth.getFullYear(), checkMonth.getMonth(), 1);
+
+      const current = await this.subscriptionsRepository.getUserMonthlyUsage(userId, monthDate);
+
+      // Unlimited transactions
+      if (limits.maxTransactions === -1) {
+        return {
+          current,
+          limit: -1,
+          percentage: 0,
+          warning: false,
+          remaining: -1,
+          isUnlimited: true,
+        };
+      }
+
+      const percentage = Math.round((current / limits.maxTransactions) * 100);
+      const warning = percentage >= 80; // Warn when 80% or more
+      const remaining = Math.max(0, limits.maxTransactions - current);
+
+      return {
+        current,
+        limit: limits.maxTransactions,
+        percentage,
+        warning,
+        remaining,
+        isUnlimited: false,
+      };
+    } catch (error) {
+      logger.error("[DashboardService] Error getting transaction usage:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check for dashboard updates since lastCheck timestamp
+   * 
+   * SIMPLIFIED: Uses simple timestamp-based checking instead of complex hash/RPC
+   * Queries transactions table (most frequently updated) to detect changes
+   */
+  async checkUpdates(userId: string, lastCheck?: string): Promise<UpdateCheckResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Simple query: get MAX(updated_at) from transactions table
+      // This is sufficient for detecting changes in dashboard data
+      const maxUpdate = await this.dashboardRepository.getMaxUpdatedAt();
+      const timestamp = maxUpdate ? new Date(maxUpdate).toISOString() : null;
+
+      // Check if there are updates since lastCheck
+      let hasUpdates = false;
+      if (lastCheck) {
+        const lastCheckTime = new Date(lastCheck).getTime();
+        hasUpdates = maxUpdate ? maxUpdate > lastCheckTime : true;
+      } else {
+        // If no lastCheck provided, assume there are updates (first check)
+        hasUpdates = true;
+      }
+
+      const executionTime = Date.now() - startTime;
+
+      return {
+        hasUpdates,
+        // Keep currentHash for frontend compatibility (use timestamp as hash)
+        currentHash: timestamp || new Date().toISOString(),
+        timestamp,
+        source: "database",
+        executionTime,
+      };
+    } catch (error) {
+      logger.error("[DashboardService] Error checking updates:", error);
+      throw error;
+    }
+  }
+}

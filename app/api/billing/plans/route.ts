@@ -14,6 +14,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   typescript: true,
 });
 
+
 export async function GET() {
   noStore();
   console.log("[API/BILLING/PLANS] GET request received");

@@ -145,7 +145,7 @@ export function FederalBracketDialog({
                 id="country"
                 value={countryName}
                 disabled
-                size="small"
+                size="medium"
                 className="bg-muted"
               />
             </div>
@@ -155,7 +155,7 @@ export function FederalBracketDialog({
                 id="year"
                 value={bracket.taxYear}
                 disabled
-                size="small"
+                size="medium"
                 className="bg-muted"
               />
             </div>
@@ -170,7 +170,7 @@ export function FederalBracketDialog({
                 min="0"
                 value={minIncome}
                 onChange={(e) => setMinIncome(e.target.value)}
-                size="small"
+                size="medium"
                 required
               />
             </div>
@@ -189,7 +189,7 @@ export function FederalBracketDialog({
                 value={maxIncome}
                 onChange={(e) => setMaxIncome(e.target.value)}
                 placeholder="No limit"
-                size="small"
+                size="medium"
               />
             </div>
             <div className="grid gap-2">
@@ -207,7 +207,7 @@ export function FederalBracketDialog({
                 max="100"
                 value={taxRate}
                 onChange={(e) => setTaxRate(e.target.value)}
-                size="small"
+                size="medium"
                 required
               />
             </div>
@@ -224,13 +224,13 @@ export function FederalBracketDialog({
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
               Cancel
             </Button>
-            <Button type="submit" size="small" disabled={loading}>
+            <Button type="submit" size="medium" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Changes
             </Button>

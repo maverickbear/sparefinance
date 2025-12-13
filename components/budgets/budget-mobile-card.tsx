@@ -7,6 +7,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { formatMoney } from "@/components/common/money";
 import { cn } from "@/lib/utils";
 import { Edit, Trash2, Loader2 } from "lucide-react";
+import {
+  calculateBudgetStatus,
+  getBudgetStatusColor,
+  getBudgetStatusTextColor,
+  getBudgetStatusLabel,
+} from "@/lib/utils/budget-utils";
 
 interface BudgetMobileCardProps {
   budget: {
@@ -16,7 +22,6 @@ interface BudgetMobileCardProps {
     period: string;
     categoryId?: string | null;
     subcategoryId?: string | null;
-    macroId?: string | null;
     category: {
       id: string;
       name: string;
@@ -29,10 +34,6 @@ interface BudgetMobileCardProps {
     percentage?: number;
     status?: "ok" | "warning" | "over";
     displayName?: string;
-    macro?: {
-      id: string;
-      name: string;
-    } | null;
     budgetCategories?: Array<{
       category: {
         id: string;
@@ -55,27 +56,11 @@ export function BudgetMobileCard({
   onDelete,
   deleting,
 }: BudgetMobileCardProps) {
-  const getStatusColor = () => {
-    if (budget.status === "over") return "bg-destructive";
-    if (budget.status === "warning") return "bg-sentiment-warning";
-    return "bg-sentiment-positive";
-  };
-
-  const getStatusTextColor = () => {
-    if (budget.status === "over") return "text-destructive";
-    if (budget.status === "warning") return "text-yellow-600 dark:text-yellow-400";
-    return "text-green-600 dark:text-green-400";
-  };
-
-  const getStatusLabel = () => {
-    if (budget.status === "over") return "Over Budget";
-    if (budget.status === "warning") return "Warning";
-    return "On Track";
-  };
-
-  const percentage = budget.percentage || 0;
-  const clampedPercentage = Math.min(percentage, 100);
+  // SIMPLIFIED: Calculate status and percentage in frontend
   const actualSpend = budget.actualSpend || 0;
+  const { percentage, status } = calculateBudgetStatus(budget.amount, actualSpend);
+  
+  const clampedPercentage = Math.min(percentage, 100);
   const remaining = Math.max(0, budget.amount - actualSpend);
 
   return (
@@ -98,14 +83,9 @@ export function BudgetMobileCard({
                     {budget.subcategory.name}
                   </p>
                 )}
-                {budget.macro && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {budget.macro.name}
-                  </p>
-                )}
               </div>
-              <Badge className={cn(getStatusColor(), "text-white text-xs")} variant="default">
-                {getStatusLabel()}
+              <Badge className={cn(getBudgetStatusColor(status), "text-white text-xs")} variant="default">
+                {getBudgetStatusLabel(status)}
               </Badge>
             </div>
 
@@ -120,7 +100,7 @@ export function BudgetMobileCard({
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Remaining</p>
-                <p className={cn("font-semibold text-sm", getStatusTextColor())}>
+                <p className={cn("font-semibold text-sm", getBudgetStatusTextColor(status))}>
                   {formatMoney(remaining)}
                 </p>
               </div>
@@ -129,7 +109,7 @@ export function BudgetMobileCard({
             <div className="space-y-1 mb-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">Progress</span>
-                <span className={cn("font-medium", getStatusTextColor())}>
+                <span className={cn("font-medium", getBudgetStatusTextColor(status))}>
                   {percentage.toFixed(1)}%
                 </span>
               </div>
@@ -137,7 +117,7 @@ export function BudgetMobileCard({
                 <div
                   className={cn(
                     "h-full transition-all",
-                    getStatusColor()
+                    getBudgetStatusColor(status)
                   )}
                   style={{ width: `${clampedPercentage}%` }}
                 />
@@ -145,7 +125,7 @@ export function BudgetMobileCard({
                   <div
                     className={cn(
                       "absolute top-0 h-full transition-all opacity-30",
-                      getStatusColor()
+                      getBudgetStatusColor(status)
                     )}
                     style={{
                       width: `${((percentage - 100) / percentage) * 100}%`,

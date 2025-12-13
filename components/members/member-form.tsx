@@ -123,7 +123,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
               type="email"
               placeholder="member@example.com"
               {...form.register("email")}
-              size="small"
+              size="medium"
             />
             {isEditing && member?.status === "active" && (
               <p className="text-xs text-muted-foreground">
@@ -139,7 +139,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Name</label>
-            <Input {...form.register("name")} placeholder="Member name" size="small" />
+            <Input {...form.register("name")} placeholder="Member name" size="medium" />
             {form.formState.errors.name && (
               <p className="text-sm text-destructive">
                 {form.formState.errors.name?.message}
@@ -153,7 +153,7 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
               value={form.watch("role") || "member"}
               onValueChange={(value) => form.setValue("role", value as "admin" | "member")}
             >
-              <SelectTrigger size="small">
+              <SelectTrigger size="medium">
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
@@ -174,10 +174,10 @@ export function MemberForm({ open, onOpenChange, member, onSuccess }: MemberForm
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" size="small" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+            <Button type="button" variant="outline" size="medium" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" size="small" disabled={isSubmitting}>
+            <Button type="submit" size="medium" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

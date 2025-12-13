@@ -4,8 +4,8 @@
  */
 
 import { makePlannedPaymentsService } from "./planned-payments.factory";
-import { PlannedPaymentFormData } from "../../domain/planned-payments/planned-payments.validations";
-import { PLANNED_HORIZON_DAYS } from "../../domain/planned-payments/planned-payments.types";
+// Use new domain types (with backward compatibility)
+import { PlannedPaymentFormData, PLANNED_HORIZON_DAYS } from "../../domain/financial-events/financial-events.types";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { getTransactionAmount, decryptDescription } from "@/lib/utils/transaction-encryption";
@@ -29,14 +29,14 @@ export class RecurringPlannedPaymentsService {
 
     // Get all recurring transactions
     const { data: recurringTransactions, error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .select(`
         *,
-        account:Account(*),
-        category:Category!Transaction_categoryId_fkey(*),
-        subcategory:Subcategory!Transaction_subcategoryId_fkey(id, name, logo)
+        account:core.accounts(*),
+        category:core.categories!transactions_categoryid_fkey(*),
+        subcategory:core.subcategories!transactions_subcategoryid_fkey(id, name, logo)
       `)
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .eq("isRecurring", true)
       .order("date", { ascending: true });
 
@@ -80,7 +80,7 @@ export class RecurringPlannedPaymentsService {
     let errors = 0;
 
     // Generate planned payments for each recurring transaction
-    for (const tx of recurringTransactions) {
+    for (const tx of recurringTransactions as any[]) {
       const originalDate = new Date(tx.date);
       const originalDay = originalDate.getDate();
       const amount = getTransactionAmount(tx.amount) ?? 0;

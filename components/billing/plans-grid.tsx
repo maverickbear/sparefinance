@@ -209,10 +209,8 @@ export function PlansGrid({ currentPlanId, currentInterval, subscription, onPlan
     );
   }
 
-  const sortedPlans = [...plans].sort((a, b) => {
-    const order = { essential: 1, pro: 2 };
-    return (order[a.name as keyof typeof order] || 0) - (order[b.name as keyof typeof order] || 0);
-  });
+  // Only show Pro plan (single plan system)
+  const sortedPlans = plans.filter(plan => plan.name === 'pro');
 
   return (
     <>

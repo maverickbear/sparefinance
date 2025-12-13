@@ -7,6 +7,7 @@ import { ZodError } from "zod";
 import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 import { revalidateTag } from 'next/cache';
 
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

@@ -209,7 +209,7 @@ export function BlockedFeature({ feature, featureName }: BlockedFeatureProps) {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2">
               <Button
-                size="large"
+                size="medium"
                 onClick={handleUpgrade}
                 className="w-full sm:w-auto min-w-[220px] text-base"
               >
@@ -219,7 +219,7 @@ export function BlockedFeature({ feature, featureName }: BlockedFeatureProps) {
               </Button>
               <Button
                 variant="outline"
-                size="large"
+                size="medium"
                 onClick={() => router.push("/dashboard?openPricingModal=true")}
                 className="w-full sm:w-auto text-base"
               >

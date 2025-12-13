@@ -14,61 +14,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SummaryCards } from "./summary-cards";
+import { BalanceCard } from "./balance-card";
 import { FinancialHealthScoreWidget } from "./widgets/financial-health-score-widget";
+import { QuickStatsWidget } from "./widgets/quick-stats-widget";
+import { MoneyFlowMetricsWidget } from "./widgets/money-flow-metrics-widget";
+import { BudgetOverviewWidget } from "./widgets/budget-overview-widget";
+import { AccountsOverviewWidget } from "./widgets/accounts-overview-widget";
+import { DebtsOverviewWidget } from "./widgets/debts-overview-widget";
+import { RecentTransactionsWidget } from "./widgets/recent-transactions-widget";
+import { SubscriptionsRecurringGoalsWidget } from "./widgets/subscriptions-recurring-goals-widget";
+import { SectionHeader } from "./section-header";
 import { calculateTotalIncome, calculateTotalExpenses } from "./utils/transaction-helpers";
+import { formatMonthlyIncomeFromRange } from "@/src/presentation/utils/format-expected-income";
+import { format } from "date-fns";
 // Using API route instead of client-side API
 import type { HouseholdMember } from "@/src/domain/members/members.types";
 import { calculateLastMonthBalanceFromCurrent } from "@/lib/services/balance-calculator";
+import type { TransactionWithRelations, UpcomingTransaction } from "@/src/domain/transactions/transactions.types";
+import type { AccountWithBalance } from "@/src/domain/accounts/accounts.types";
+import type { BudgetWithRelations } from "@/src/domain/budgets/budgets.types";
+import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
+import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
+import type { BasePlannedPayment } from "@/src/domain/planned-payments/planned-payments.types";
+import type { UserServiceSubscription } from "@/src/domain/subscriptions/subscriptions.types";
+import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 // Lazy load widgets with heavy chart libraries (recharts) - no SSR
-const CashFlowTimelineWidget = dynamic(
-  () => import("./widgets/cash-flow-timeline-widget").then(m => ({ default: m.CashFlowTimelineWidget })),
-  { 
-    ssr: false, // recharts doesn't work well with SSR
-    loading: () => <ChartSkeleton height={400} />
-  }
-);
-
-// Lazy load widgets below the fold - with SSR
-const ExpensesByCategoryWidget = dynamic(
-  () => import("./widgets/expenses-by-category-widget").then(m => ({ default: m.ExpensesByCategoryWidget })),
-  { 
-    ssr: true,
-    loading: () => <CardSkeleton />
-  }
-);
-
-
-const BudgetStatusWidget = dynamic(
-  () => import("./widgets/budget-status-widget").then(m => ({ default: m.BudgetStatusWidget })),
-  { 
-    ssr: true,
-    loading: () => <CardSkeleton />
-  }
-);
-
-const SavingsGoalsWidget = dynamic(
-  () => import("./widgets/savings-goals-widget").then(m => ({ default: m.SavingsGoalsWidget })),
-  { 
-    ssr: true,
-    loading: () => <CardSkeleton />
-  }
-);
-
 const NetWorthWidget = dynamic(
   () => import("./widgets/net-worth-widget").then(m => ({ default: m.NetWorthWidget })),
   { 
     ssr: false, // recharts doesn't work well with SSR
     loading: () => <ChartSkeleton height={300} />
-  }
-);
-
-const PortfolioPerformanceWidget = dynamic(
-  () => import("./widgets/portfolio-performance-widget").then(m => ({ default: m.PortfolioPerformanceWidget })),
-  { 
-    ssr: false, // recharts doesn't work well with SSR
-    loading: () => <CardSkeleton />
   }
 );
 
@@ -80,39 +56,37 @@ const InvestmentPortfolioWidget = dynamic(
   }
 );
 
-const RecurringPaymentsWidget = dynamic(
-  () => import("./widgets/recurring-payments-widget").then(m => ({ default: m.RecurringPaymentsWidget })),
+const PlannedPaymentWidget = dynamic(
+  () => import("./widgets/planned-payment-widget").then(m => ({ default: m.PlannedPaymentWidget })),
   { 
     ssr: true,
     loading: () => <CardSkeleton />
   }
 );
 
-const SubscriptionsWidget = dynamic(
-  () => import("./widgets/subscriptions-widget").then(m => ({ default: m.SubscriptionsWidget })),
-  { 
-    ssr: true,
-    loading: () => <CardSkeleton />
-  }
-);
+interface ChartTransactionData {
+  month: string;
+  income: number;
+  expenses: number;
+}
 
 interface FinancialOverviewPageProps {
-  selectedMonthTransactions: any[];
-  lastMonthTransactions: any[];
+  selectedMonthTransactions: TransactionWithRelations[];
+  lastMonthTransactions: TransactionWithRelations[];
   savings: number;
   totalBalance: number;
   lastMonthTotalBalance: number;
-  accounts: any[];
-  budgets: any[];
-  upcomingTransactions: any[];
-  financialHealth: any;
-  goals: any[];
-  chartTransactions: any[];
-  liabilities: any[];
-  debts: any[];
-  recurringPayments: any[];
-  subscriptions: any[];
-  plannedPayments: any[];
+  accounts: AccountWithBalance[];
+  budgets: BudgetWithRelations[];
+  upcomingTransactions: UpcomingTransaction[];
+  financialHealth: FinancialHealthData;
+  goals: GoalWithCalculations[];
+  chartTransactions: ChartTransactionData[];
+  liabilities: AccountWithBalance[];
+  debts: DebtWithCalculations[];
+  recurringPayments: TransactionWithRelations[];
+  subscriptions: UserServiceSubscription[];
+  plannedPayments: BasePlannedPayment[];
   selectedMonthDate: Date;
   expectedIncomeRange?: string | null;
 }
@@ -276,7 +250,15 @@ export function FinancialOverviewPage({
   // Load secondary dashboard data from window (loaded via Suspense)
   useEffect(() => {
     const checkSecondaryData = () => {
-      const secondaryData = (window as any).__SECONDARY_DASHBOARD_DATA__;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const secondaryData = (window as { __SECONDARY_DASHBOARD_DATA__?: unknown }).__SECONDARY_DASHBOARD_DATA__ as {
+        lastMonthTransactions?: TransactionWithRelations[];
+        lastMonthTotalBalance?: number;
+        chartTransactions?: ChartTransactionData[];
+        debts?: DebtWithCalculations[];
+        recurringPayments?: TransactionWithRelations[];
+        subscriptions?: UserServiceSubscription[];
+      } | undefined;
       if (secondaryData) {
         // Update state with secondary data
         if (secondaryData.lastMonthTransactions) {
@@ -317,13 +299,13 @@ export function FinancialOverviewPage({
     // An account belongs to a member if:
     // 1. The account's userId matches the selectedMemberId, OR
     // 2. The account has the selectedMemberId in its ownerIds array
-    return accounts.filter((acc: any) => {
+    return accounts.filter((acc: AccountWithBalance) => {
       // Use String() to ensure type consistency in comparison
       if (String(acc.userId) === String(selectedMemberId)) {
         return true;
       }
       if (acc.ownerIds && Array.isArray(acc.ownerIds)) {
-        return acc.ownerIds.some((id: any) => String(id) === String(selectedMemberId));
+        return acc.ownerIds.some((id: string) => String(id) === String(selectedMemberId));
       }
       return false;
     });
@@ -331,17 +313,17 @@ export function FinancialOverviewPage({
 
   // Recalculate totalBalance and savings based on filtered accounts
   const filteredTotalBalance = useMemo(() => {
-    return filteredAccounts.reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
+    return filteredAccounts.reduce((sum: number, acc: AccountWithBalance) => sum + (acc.balance || 0), 0);
   }, [filteredAccounts]);
 
   const filteredSavings = useMemo(() => {
     return filteredAccounts
-      .filter((acc: any) => acc.type === 'savings')
-      .reduce((sum: number, acc: any) => sum + (acc.balance || 0), 0);
+      .filter((acc: AccountWithBalance) => acc.type === 'savings')
+      .reduce((sum: number, acc: AccountWithBalance) => sum + (acc.balance || 0), 0);
   }, [filteredAccounts]);
 
   // Filter transactions by selected household member
-  const filterTransactionsByMember = useCallback((transactions: any[]) => {
+  const filterTransactionsByMember = useCallback((transactions: TransactionWithRelations[]) => {
     if (!selectedMemberId) {
       return transactions; // Show all household transactions
     }
@@ -499,45 +481,45 @@ export function FinancialOverviewPage({
     );
   }, [filteredTotalBalance, pastSelectedMonthTransactions]);
 
-  // Filter chart transactions by household member
+  // Chart transactions are aggregated data and don't need member filtering
   const filteredChartTransactions = useMemo(() => {
-    return filterTransactionsByMember(chartTransactions);
-  }, [chartTransactions, filterTransactionsByMember]);
+    return chartTransactions;
+  }, [chartTransactions]);
 
   // Filter other data by household member
   const filteredBudgets = useMemo(() => {
     if (!selectedMemberId) {
       return budgets;
     }
-    return budgets.filter((b: any) => b.userId === selectedMemberId);
+    return budgets.filter((b: BudgetWithRelations) => b.userId === selectedMemberId);
   }, [budgets, selectedMemberId]);
 
   const filteredGoals = useMemo(() => {
     if (!selectedMemberId) {
       return goals;
     }
-    return goals.filter((g: any) => g.userId === selectedMemberId);
+    return goals.filter((g: GoalWithCalculations) => g.userId === selectedMemberId);
   }, [goals, selectedMemberId]);
 
   const filteredRecurringPayments = useMemo(() => {
     if (!selectedMemberId) {
       return recurringPayments;
     }
-    return recurringPayments.filter((rp: any) => rp.userId === selectedMemberId);
+    return recurringPayments.filter((rp: TransactionWithRelations) => rp.userId === selectedMemberId);
   }, [recurringPayments, selectedMemberId]);
 
   const filteredSubscriptions = useMemo(() => {
     if (!selectedMemberId) {
       return subscriptions;
     }
-    return subscriptions.filter((s: any) => s.userId === selectedMemberId);
+    return subscriptions.filter((s: UserServiceSubscription) => s.userId === selectedMemberId);
   }, [subscriptions, selectedMemberId]);
 
   const filteredDebts = useMemo(() => {
     if (!selectedMemberId) {
       return debts;
     }
-    return debts.filter((d: any) => d.userId === selectedMemberId);
+    return debts.filter((d: DebtWithCalculations) => d.userId === selectedMemberId);
   }, [debts, selectedMemberId]);
 
   const filteredLiabilities = useMemo(() => {
@@ -545,8 +527,8 @@ export function FinancialOverviewPage({
       return liabilities;
     }
     // Filter liabilities by account ownership
-    const filteredAccountIds = new Set(filteredAccounts.map((acc: any) => acc.id));
-    return liabilities.filter((l: any) => filteredAccountIds.has(l.accountId));
+    const filteredAccountIds = new Set(filteredAccounts.map((acc: AccountWithBalance) => acc.id));
+    return liabilities.filter((l: AccountWithBalance) => filteredAccountIds.has(l.id));
   }, [liabilities, selectedMemberId, filteredAccounts]);
 
   // Calculate income and expenses using helper functions for consistency
@@ -577,11 +559,11 @@ export function FinancialOverviewPage({
   const totalDebts = useMemo(() => {
     let total = 0;
 
-    // Calculate from PlaidLiabilities (from Plaid connections)
+    // Calculate from liabilities (manually entered)
     if (filteredLiabilities && filteredLiabilities.length > 0) {
-      const liabilitiesTotal = filteredLiabilities.reduce((sum: number, liability: any) => {
-        // Try balance first (for backward compatibility), then currentBalance
-        const balance = liability.balance ?? liability.currentBalance ?? null;
+      const liabilitiesTotal = filteredLiabilities.reduce((sum: number, liability: AccountWithBalance) => {
+        // Use balance from AccountWithBalance
+        const balance = liability.balance ?? null;
         
         if (balance == null || balance === undefined) {
           return sum;
@@ -611,7 +593,7 @@ export function FinancialOverviewPage({
 
     // Calculate from Debt table (manually entered debts, only those not paid off)
     if (filteredDebts && filteredDebts.length > 0) {
-      const debtsTotal = filteredDebts.reduce((sum: number, debt: any) => {
+      const debtsTotal = filteredDebts.reduce((sum: number, debt: DebtWithCalculations) => {
         // Only include debts that are not paid off
         if (debt.isPaidOff) {
           return sum;
@@ -654,6 +636,63 @@ export function FinancialOverviewPage({
   const monthlyExpenses = currentExpenses || 1; // Avoid division by zero
   const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 
     (filteredTotalBalance > 0 ? (filteredTotalBalance / monthlyExpenses) : 0);
+
+  // Calculate metrics for QuickStatsWidget
+  const netCashFlow = currentIncome - currentExpenses;
+  const monthlySavings = netCashFlow; // Savings = income - expenses
+  const savingsRate = currentIncome > 0 ? (monthlySavings / currentIncome) * 100 : 0;
+  
+  // Calculate expected monthly income from range
+  const expectedMonthlyIncome = useMemo(() => {
+    if (!expectedIncomeRange) return undefined;
+    // Use the same logic as formatMonthlyIncomeFromRange but return number
+    const range = expectedIncomeRange as string;
+    const INCOME_RANGE_TO_MONTHLY: Record<string, number> = {
+      "0-50k": 25000 / 12,
+      "50k-100k": 75000 / 12,
+      "100k-150k": 125000 / 12,
+      "150k-250k": 200000 / 12,
+      "250k+": 300000 / 12,
+    };
+    return INCOME_RANGE_TO_MONTHLY[range] || undefined;
+  }, [expectedIncomeRange]);
+
+  // Calculate budgeted expenses (sum of all budgets)
+  const budgetedExpenses = useMemo(() => {
+    return filteredBudgets.reduce((sum, budget) => sum + (budget.amount || 0), 0);
+  }, [filteredBudgets]);
+
+  // Calculate savings goal (from goals or use a default)
+  const savingsGoal = useMemo(() => {
+    // Try to find a savings goal
+    const savingsGoal = filteredGoals.find(g => 
+      !g.isCompleted && 
+      (g.name?.toLowerCase().includes("savings") || g.name?.toLowerCase().includes("emergency"))
+    );
+    return savingsGoal?.targetAmount || undefined;
+  }, [filteredGoals]);
+
+  // Calculate income/expenses change percentages
+  const incomeChangePercent = useMemo(() => {
+    if (lastMonthIncome > 0) {
+      return ((currentIncome - lastMonthIncome) / lastMonthIncome) * 100;
+    }
+    return undefined;
+  }, [currentIncome, lastMonthIncome]);
+
+  const expensesChangePercent = useMemo(() => {
+    if (budgetedExpenses > 0) {
+      return ((monthlyExpenses - budgetedExpenses) / budgetedExpenses) * 100;
+    } else if (lastMonthExpenses > 0) {
+      return ((monthlyExpenses - lastMonthExpenses) / lastMonthExpenses) * 100;
+    }
+    return undefined;
+  }, [monthlyExpenses, budgetedExpenses, lastMonthExpenses]);
+
+  // Get credit card accounts for DebtsOverviewWidget
+  const creditCardAccounts = useMemo(() => {
+    return filteredAccounts.filter(acc => acc.type === "credit");
+  }, [filteredAccounts]);
 
 
   return (
@@ -707,85 +746,158 @@ export function FinancialOverviewPage({
         </div>
       </div>
       
-      {/* Financial Summary - Full Width */}
-      <SummaryCards
-        selectedMonthTransactions={pastSelectedMonthTransactions}
-        lastMonthTransactions={pastLastMonthTransactions}
-        savings={filteredSavings}
-        totalBalance={filteredTotalBalance}
-        lastMonthTotalBalance={filteredLastMonthTotalBalance}
-        accounts={filteredAccounts}
-        selectedMemberId={selectedMemberId}
-        onMemberChange={setSelectedMemberId}
-        householdMembers={householdMembers}
-        isLoadingMembers={isLoadingMembers}
-        financialHealth={financialHealth}
-        expectedIncomeRange={expectedIncomeRange}
-        recurringPayments={filteredRecurringPayments}
-        subscriptions={filteredSubscriptions}
-        plannedPayments={plannedPayments}
-        goals={filteredGoals}
-        debts={filteredDebts}
-      />
-
-      {/* Top Widgets - Spare Score and Expenses by Category side by side */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-        <FinancialHealthScoreWidget
-          financialHealth={financialHealth}
-          selectedMonthTransactions={pastSelectedMonthTransactions}
-          lastMonthTransactions={pastLastMonthTransactions}
-          expectedIncomeRange={expectedIncomeRange}
-        />
-        <ExpensesByCategoryWidget
-          selectedMonthTransactions={pastSelectedMonthTransactions}
-          selectedMonthDate={selectedMonthDate}
+      {/* Balance - Full Width */}
+        <div>
+        <BalanceCard
+            totalBalance={filteredTotalBalance}
+            lastMonthTotalBalance={filteredLastMonthTotalBalance}
+            accounts={filteredAccounts}
+            selectedMemberId={selectedMemberId}
+            onMemberChange={setSelectedMemberId}
+            householdMembers={householdMembers}
+            isLoadingMembers={isLoadingMembers}
+          pastSelectedMonthTransactions={pastSelectedMonthTransactions}
+            recurringPayments={filteredRecurringPayments}
+            subscriptions={filteredSubscriptions}
+            plannedPayments={plannedPayments}
+            goals={filteredGoals}
+            debts={filteredDebts}
         />
       </div>
 
-      {/* Cash Flow Timeline and Budget Status side by side */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-        <CashFlowTimelineWidget
-          chartTransactions={filteredChartTransactions}
-          selectedMonthDate={selectedMonthDate}
+      {/* SECTION 1: Financial Health */}
+      <section className="space-y-4 md:space-y-6">
+        <SectionHeader
+          title="How you're doing right now"
+          subtitle="Your financial health at a glance: score, savings, cash flow and safety net."
+          action={
+            <button
+              onClick={() => router.push("/insights")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+            >
+              <span>Spare Score report</span>
+              <span>›</span>
+            </button>
+          }
         />
-        <BudgetStatusWidget
-          budgets={filteredBudgets}
+
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-[1.2fr_1fr]">
+          {/* Left - Spare Score */}
+          <FinancialHealthScoreWidget
+            financialHealth={financialHealth}
+            selectedMonthTransactions={pastSelectedMonthTransactions}
+            lastMonthTransactions={pastLastMonthTransactions}
+            expectedIncomeRange={expectedIncomeRange}
+          />
+
+          {/* Right - Quick Stats */}
+          <QuickStatsWidget
+            netCashFlow={netCashFlow}
+            savingsRate={savingsRate}
+            savingsRateTarget={15}
+            emergencyFundMonths={emergencyFundMonths}
+            recommendedEmergencyFundMonths={6}
+          />
+        </div>
+      </section>
+
+      {/* SECTION 2: Money Flow */}
+      <section className="space-y-4 md:space-y-6">
+        <SectionHeader
+          title="Where your money is going this month"
+          subtitle="See how income, expenses and budgets shape this month's story."
+          action={
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs">
+              <span>{format(selectedMonthDate, "MMMM")} • This month</span>
+            </div>
+          }
         />
-      </div>
 
-      {/* Recurring Payments and Savings Goals side by side */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-      <RecurringPaymentsWidget
-        recurringPayments={filteredRecurringPayments}
-        monthlyIncome={currentIncome}
-      />
-        <SavingsGoalsWidget
-          goals={filteredGoals}
+        {/* Top metrics */}
+        <MoneyFlowMetricsWidget
+          monthlyIncome={currentIncome}
+          expectedIncome={expectedMonthlyIncome}
+          incomeChangePercent={incomeChangePercent}
+          monthlyExpenses={monthlyExpenses}
+          budgetedExpenses={budgetedExpenses}
+          expensesChangePercent={expensesChangePercent}
+          monthlySavings={monthlySavings}
+          savingsGoal={savingsGoal}
+          savingsChangeText={monthlySavings > 0 ? "Better than last month" : undefined}
         />
-      </div>
 
-      {/* Subscriptions Widget - Full Width */}
-      <SubscriptionsWidget
-        subscriptions={filteredSubscriptions}
-      />
+        {/* Flow details */}
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
+          {/* Upcoming payments */}
+          <PlannedPaymentWidget
+            upcomingTransactions={upcomingTransactions}
+          />
 
-      {/* Dashboard Grid */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {/* Net Worth Snapshot and Investment Portfolio - side by side, full width */}
-        <div className="col-span-full">
-          <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
-            <NetWorthWidget
-              netWorth={netWorth}
-              totalAssets={totalAssets}
-              totalDebts={totalDebts}
-            />
-            <InvestmentPortfolioWidget
-              savings={filteredSavings}
-            />
-          </div>
+          {/* Budget overview */}
+          <BudgetOverviewWidget
+            budgets={filteredBudgets}
+          />
+        </div>
+      </section>
+
+      {/* SECTION 3: Accounts & Net Worth */}
+      <section className="space-y-4 md:space-y-6">
+        <SectionHeader
+          title="What you've built so far"
+          subtitle="Your assets, debts and net worth across every account you've connected."
+        />
+
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
+          {/* Net worth snapshot */}
+          <NetWorthWidget
+            netWorth={netWorth}
+            totalAssets={totalAssets}
+            totalDebts={totalDebts}
+          />
+
+          {/* Accounts overview */}
+          <AccountsOverviewWidget
+            accounts={filteredAccounts}
+            liabilities={filteredLiabilities}
+            debts={filteredDebts}
+          />
         </div>
 
-      </div>
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
+          {/* Debts */}
+          <DebtsOverviewWidget
+            creditCardAccounts={creditCardAccounts}
+            debts={filteredDebts}
+          />
+
+          {/* Investments */}
+          <InvestmentPortfolioWidget
+            savings={filteredSavings}
+          />
+        </div>
+      </section>
+
+      {/* SECTION 4: Activity & Insights */}
+      <section className="space-y-4 md:space-y-6">
+        <SectionHeader
+          title="What changed recently"
+          subtitle="Latest transactions, subscriptions and goals that might need your attention."
+        />
+
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
+          {/* Recent transactions */}
+          <RecentTransactionsWidget
+            transactions={pastSelectedMonthTransactions}
+          />
+
+          {/* Subscriptions, recurring & goals */}
+          <SubscriptionsRecurringGoalsWidget
+            subscriptions={filteredSubscriptions}
+            recurringPayments={filteredRecurringPayments}
+            goals={filteredGoals}
+          />
+        </div>
+      </section>
     </div>
   );
 }

@@ -36,12 +36,9 @@ export default function FAQPage() {
       .catch(err => console.error("Error fetching plans:", err));
   }, []);
 
-  const essentialPlan = plans.find(p => p.id === 'essential');
-  const proPlan = plans.find(p => p.id === 'pro');
-  const essentialPlanName = essentialPlan?.name || 'ESSENTIAL';
+  // Only Pro plan exists now
+  const proPlan = plans.find(p => p.name === 'pro');
   const proPlanName = proPlan?.name || 'PRO';
-  const essentialPriceMonthly = essentialPlan?.priceMonthly || 7.99;
-  const essentialPriceYearly = essentialPlan?.priceYearly || 79.90;
   const proPriceMonthly = proPlan?.priceMonthly || 14.99;
   const proPriceYearly = proPlan?.priceYearly || 149.90;
 
@@ -72,23 +69,19 @@ export default function FAQPage() {
       questions: [
         {
           question: "What plans do you offer?",
-          answer: `We have two simple plans: ${essentialPlanName} ($${essentialPriceMonthly.toFixed(2)} per month or $${essentialPriceYearly.toFixed(2)} per year) and ${proPlanName} ($${proPriceMonthly.toFixed(2)} per month or $${proPriceYearly.toFixed(2)} per year). Both plans come with a 30-day free trial so you can try them risk-free. The ${essentialPlanName} plan lets you track up to 500 transactions per month and connect up to 10 accounts. The ${proPlanName} plan gives you unlimited transactions and accounts.`,
+          answer: `We offer the ${proPlanName} plan ($${proPriceMonthly.toFixed(2)} per month or $${proPriceYearly.toFixed(2)} per year) with unlimited access to all features. The plan comes with a 30-day free trial so you can try it risk-free. You get unlimited transactions, unlimited accounts, and access to all features including investments, advanced reports, CSV import/export, bank integration, budgets, goals, and more.`,
         },
         {
           question: "Can I try it for free?",
-          answer: `Yes! Both plans come with a 30-day free trial. That means you can use all the features for a full month without paying anything. If you decide it's not for you, just cancel before the trial ends and you won't be charged. If you love it, your subscription will start automatically after 30 days.`,
+          answer: `Yes! The ${proPlanName} plan comes with a 30-day free trial. That means you can use all the features for a full month without paying anything. If you decide it's not for you, just cancel before the trial ends and you won't be charged. If you love it, your subscription will start automatically after 30 days.`,
         },
         {
           question: "What happens after my free trial ends?",
           answer: "If you don't cancel, your subscription will start automatically and you'll be charged for the plan you chose. Don't worry—you can cancel anytime! If you cancel, you'll still have access until the end of the period you already paid for. No surprises!",
         },
         {
-          question: `What do I get with the ${essentialPlanName} plan?`,
-          answer: `The ${essentialPlanName} plan includes everything you need: track your investments, see detailed reports, import and export your data, connect your bank account automatically, and get smart category suggestions. You can track up to 500 transactions per month and connect up to 10 accounts.`,
-        },
-        {
-          question: `What's the difference between ${essentialPlanName} and ${proPlanName}?`,
-          answer: `The ${proPlanName} plan has everything the ${essentialPlanName} plan has, but with no limits! You can track unlimited transactions and connect unlimited accounts. It's perfect if you have lots of transactions or multiple bank accounts to manage.`,
+          question: `What do I get with the ${proPlanName} plan?`,
+          answer: `The ${proPlanName} plan includes everything: unlimited transactions, unlimited accounts, track your investments, see detailed reports, import and export your data, connect your bank account automatically, get smart category suggestions, budgets, goals, receipt scanner, household members, and more.`,
         },
         {
           question: "Can I switch plans later?",
@@ -96,7 +89,7 @@ export default function FAQPage() {
         },
         {
           question: "Do you offer a discount if I pay yearly?",
-          answer: `Yes! Save 17% when you pay for a full year upfront. The ${essentialPlanName} plan is $${essentialPriceYearly.toFixed(2)} per year (that's only $${(essentialPriceYearly / 12).toFixed(2)} per month), and the ${proPlanName} plan is $${proPriceYearly.toFixed(2)} per year (that's only $${(proPriceYearly / 12).toFixed(2)} per month).`,
+          answer: `Yes! Save 17% when you pay for a full year upfront. The ${proPlanName} plan is $${proPriceYearly.toFixed(2)} per year (that's only $${(proPriceYearly / 12).toFixed(2)} per month).`,
         },
         {
           question: "Can I cancel anytime?",
@@ -112,20 +105,20 @@ export default function FAQPage() {
       title: "Features",
       questions: [
         {
-          question: "How do I connect my bank account?",
-          answer: `It's super easy! We use a secure service called Plaid (the same one used by thousands of other financial apps). When you connect your bank, you'll log in through Plaid's secure system. We never see or store your bank password—Plaid handles all that securely. Once connected, your transactions and account balances will automatically sync to Spare Finance. This feature is available on both ${essentialPlanName} and ${proPlanName} plans.`,
+          question: "How do I add my bank account?",
+          answer: `You can manually add your bank accounts in the Accounts section. Simply click "Add Account" and enter your account details (name, type, initial balance). You can then add transactions manually or import them via CSV file.`,
         },
         {
-          question: "Is it safe to connect my bank account?",
-          answer: "Yes, it's very safe! We use Plaid, which is trusted by banks and uses the same security as your bank does. We never see your bank password, username, or security questions. Plaid handles all the secure login stuff, and we only get your account information, transactions, and balances. You can disconnect your bank account anytime if you want to stop syncing.",
+          question: "Can I sync my bank account automatically?",
+          answer: "Automatic bank account syncing is currently not available. You can add transactions manually or import them via CSV file. We're always working on improving our features, so stay tuned for updates!",
         },
         {
           question: "Can I import my transactions from a file?",
-          answer: `Yes! If you have your transactions in a CSV file (like from Excel or another app), you can import them on ${essentialPlanName} and ${proPlanName} plans. The app will help you match up the columns in your file (like date, amount, description) with the right fields. You can even preview everything before importing to make sure it looks right!`,
+          answer: `Yes! If you have your transactions in a CSV file (like from Excel or another app), you can import them. The app will help you match up the columns in your file (like date, amount, description) with the right fields. You can even preview everything before importing to make sure it looks right!`,
         },
         {
           question: "Can I download my data?",
-          answer: `Yes! On ${essentialPlanName} and ${proPlanName} plans, you can export all your transactions as a CSV file anytime. This is great for keeping a backup, using your data in other tools, or for tax time. You can export everything or just filter what you need.`,
+          answer: `Yes! You can export all your transactions as a CSV file anytime. This is great for keeping a backup, using your data in other tools, or for tax time. You can export everything or just filter what you need.`,
         },
         {
           question: "How do budgets work?",
@@ -133,7 +126,7 @@ export default function FAQPage() {
         },
         {
           question: "Can I track my investments?",
-          answer: `Yes! On ${essentialPlanName} and ${proPlanName} plans, you can track all your investments. You can add different types of investment accounts (like TFSA, RRSP, crypto wallets, etc.), add your stocks, ETFs, crypto, bonds, and other investments, record when you buy or sell, and see how much your portfolio is worth. The app even calculates your average cost automatically!`,
+          answer: `Yes! You can track all your investments. You can add different types of investment accounts (like TFSA, RRSP, crypto wallets, etc.), add your stocks, ETFs, crypto, bonds, and other investments, record when you buy or sell, and see how much your portfolio is worth. The app even calculates your average cost automatically!`,
         },
         {
           question: "How do savings goals work?",
@@ -228,7 +221,7 @@ export default function FAQPage() {
         },
       ],
     },
-  ], [essentialPlanName, proPlanName, essentialPriceMonthly, essentialPriceYearly, proPriceMonthly, proPriceYearly]);
+  ], [proPlanName, proPriceMonthly, proPriceYearly]);
 
   // Filter FAQ based on search query
   const filteredCategories = useMemo(() => {
@@ -294,7 +287,7 @@ export default function FAQPage() {
                 {searchQuery && (
                   <Button
                     variant="ghost"
-                    size="small"
+                    size="medium"
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 p-0"
                     onClick={() => setSearchQuery("")}
                   >

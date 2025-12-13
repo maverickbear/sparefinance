@@ -9,6 +9,7 @@ import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
  * Reports API endpoint
  * GET /api/v2/reports?period=last-12-months
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

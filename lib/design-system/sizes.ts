@@ -262,7 +262,7 @@ export const mobileSpacing = {
 /**
  * Default size for all components
  */
-export const DEFAULT_SIZE = "small" as const;
+export const DEFAULT_SIZE = "medium" as const;
 
 /**
  * Helper function to get size classes for a component

@@ -94,19 +94,18 @@ export class BudgetGenerator {
       }
     }
 
-    // Get all groups to map to rule categories
-    const groups = await categoriesService.getGroups();
-    const groupMappings = budgetRulesService.mapGroupsToRuleCategories(groups);
+    // Get all categories to map to rule categories
+    const allCategories = await categoriesService.getAllCategories();
+    const categoryMappings = budgetRulesService.mapCategoriesToRuleCategories(allCategories);
 
-    // Calculate budget amounts per group based on rule
+    // Calculate budget amounts per category based on rule
     const budgetAmounts = budgetRulesService.calculateBudgetAmounts(
       selectedRule,
       incomeToUse,
-      groupMappings
+      categoryMappings
     );
 
-    // Get all categories to find specific categories to create budgets for
-    const allCategories = await categoriesService.getAllCategories();
+    // Get all categories (already fetched above, but keeping for clarity)
     
     /**
      * Restaurant budget profiles based on income after taxes
@@ -164,11 +163,10 @@ export class BudgetGenerator {
       
       try {
         // Create budget for the specific category
-        // Use the category's groupId for reference, but budget is based on income percentage
+        // Budget is based on income percentage
         const budget = await budgetsService.createBudget({
           period: periodStart,
           categoryId: config.categoryId,
-          groupId: category.groupId, // Keep groupId for reference
           amount: categoryBudgetAmount,
         });
 
@@ -189,17 +187,15 @@ export class BudgetGenerator {
       }
     }
     
-    // Create budgets for remaining groups (excluding groups that have specific category budgets)
-    const groupsWithSpecificCategories = new Set(
-      specificCategoryConfigs
-        .map(config => allCategories.find(cat => cat.id === config.categoryId)?.groupId)
-        .filter((id): id is string => id !== undefined)
+    // Create budgets for remaining categories (excluding categories that have specific budgets)
+    const categoriesWithSpecificBudgets = new Set(
+      specificCategoryConfigs.map(config => config.categoryId)
     );
     
-    for (const { groupId, amount, ruleCategory } of budgetAmounts) {
-      // Skip groups that have specific category budgets
-      if (groupsWithSpecificCategories.has(groupId)) {
-        logger.debug(`[BudgetGenerator] Skipping group ${groupId} - has specific category budgets`);
+    for (const { categoryId, amount, ruleCategory } of budgetAmounts) {
+      // Skip categories that have specific budgets
+      if (categoriesWithSpecificBudgets.has(categoryId)) {
+        logger.debug(`[BudgetGenerator] Skipping category ${categoryId} - has specific budget`);
         continue;
       }
       
@@ -208,16 +204,15 @@ export class BudgetGenerator {
       }
 
       try {
-        // Create budget for the group
-        // Using groupId creates a grouped budget that applies to all categories in that group
+        // Create budget for the category
         const budget = await budgetsService.createBudget({
           period: periodStart,
-          groupId: groupId,
+          categoryId: categoryId,
           amount: amount,
         });
 
         createdBudgets.push(budget);
-        logger.debug(`[BudgetGenerator] Created budget for group ${groupId} (${ruleCategory}): $${amount}`);
+        logger.debug(`[BudgetGenerator] Created budget for category ${categoryId} (${ruleCategory}): $${amount}`);
       } catch (error) {
         // Budget might already exist, skip it silently
         const isAppError = error && typeof error === 'object' && 'statusCode' in error;
@@ -225,9 +220,9 @@ export class BudgetGenerator {
         const isAlreadyExistsError = error instanceof Error && error.message.includes("already exists");
         
         if (is409Error || isAlreadyExistsError) {
-          logger.debug(`[BudgetGenerator] Budget already exists for group ${groupId}, skipping`);
+          logger.debug(`[BudgetGenerator] Budget already exists for category ${categoryId}, skipping`);
         } else {
-          logger.warn(`[BudgetGenerator] Could not create budget for group ${groupId}:`, error);
+          logger.warn(`[BudgetGenerator] Could not create budget for category ${categoryId}:`, error);
         }
       }
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { getCurrentUserId, guardFeatureAccess } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
+import { TRANSACTION_IMPORT_THRESHOLD } from "@/src/domain/shared/constants";
 
 interface ImportRequest {
   transactions: Array<{
@@ -54,10 +55,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const TRANSACTION_THRESHOLD = 20;
-
-    // For large imports (>= 20 transactions), create a background job
-    if (transactions.length >= TRANSACTION_THRESHOLD) {
+    // For large imports, create a background job
+    if (transactions.length >= TRANSACTION_IMPORT_THRESHOLD) {
       // Get accountId from first transaction (all should have same accountId for CSV import)
       const accountId = transactions[0]?.accountId;
       if (!accountId) {
@@ -70,6 +69,17 @@ export async function POST(request: NextRequest) {
       // Create import job using service
       const service = makeTransactionsService();
       const jobId = await service.createImportJob(userId, accountId, transactions);
+
+      // Initialize progress tracker
+      const { progressTracker } = await import("@/src/infrastructure/utils/progress-tracker");
+      progressTracker.create(jobId, transactions.length, `Queued ${transactions.length} transactions for import...`);
+
+      // Process in background (fire and forget)
+      service.importTransactions(userId, transactions, jobId).catch(error => {
+        const { progressTracker } = require("@/src/infrastructure/utils/progress-tracker");
+        progressTracker.error(jobId, error instanceof Error ? error.message : "Unknown error");
+        console.error("[IMPORT] Background import failed:", error);
+      });
 
       return NextResponse.json({
         success: true,

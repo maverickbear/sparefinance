@@ -10,11 +10,11 @@ import { BaseFeedback } from "@/src/domain/feedback/feedback.types";
 
 export interface FeedbackRow {
   id: string;
-  userId: string;
+  user_id: string;
   rating: number;
   feedback: string | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export class FeedbackRepository {
@@ -32,13 +32,13 @@ export class FeedbackRepository {
     const now = formatTimestamp(new Date());
 
     const { data: feedback, error } = await supabase
-      .from("Feedback")
+      .from("system_feedback")
       .insert({
-        userId,
+        user_id: userId,
         rating: data.rating,
         feedback: data.feedback || null,
-        createdAt: now,
-        updatedAt: now,
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();

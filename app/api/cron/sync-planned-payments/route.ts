@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     // Get all active users (users with accounts)
     const { data: users, error: usersError } = await supabase
-      .from("Account")
+      .from("core.accounts")
       .select("userId")
       .not("userId", "is", null);
 
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     // Get all debts and goals directly from database
     const { data: allDebts, error: debtsError } = await supabase
-      .from("Debt")
+      .from("core.debts")
       .select("*")
       .eq("isPaidOff", false)
       .eq("isPaused", false);
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
 
     // Get all goals with incomePercentage > 0
     const { data: allGoals, error: goalsError } = await supabase
-      .from("Goal")
+      .from("core.goals")
       .select("*")
       .gt("incomePercentage", 0)
       .eq("isCompleted", false)

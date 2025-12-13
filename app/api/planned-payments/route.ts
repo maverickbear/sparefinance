@@ -6,6 +6,7 @@ import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/app
 import { AppError } from "@/src/application/shared/app-error";
 import { ZodError } from "zod";
 
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
       startDate?: Date;
       endDate?: Date;
       status?: "scheduled" | "paid" | "skipped" | "cancelled";
-      source?: "recurring" | "debt" | "manual" | "subscription";
+      source?: "recurring" | "debt" | "manual" | "subscription" | "goal";
       accountId?: string;
       type?: "expense" | "income" | "transfer";
       page?: number;
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       filters.status = searchParams.get("status") as "scheduled" | "paid" | "skipped" | "cancelled";
     }
     if (searchParams.get("source")) {
-      filters.source = searchParams.get("source") as "recurring" | "debt" | "manual" | "subscription";
+      filters.source = searchParams.get("source") as "recurring" | "debt" | "manual" | "subscription" | "goal";
     }
     if (searchParams.get("accountId")) {
       filters.accountId = searchParams.get("accountId")!;

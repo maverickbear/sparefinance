@@ -81,7 +81,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Skip external domains - let them pass through without interception
-  // This prevents CSP violations for external resources (Stripe, Supabase, Plaid, etc.)
+  // This prevents CSP violations for external resources (Stripe, Supabase, etc.)
   const isExternalDomain = !origin.startsWith(self.location.origin);
   if (isExternalDomain) {
     // Don't intercept external requests - let them pass through

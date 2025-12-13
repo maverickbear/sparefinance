@@ -1,16 +1,34 @@
 import { z } from "zod";
 
+/**
+ * Password validation helper
+ * Validates password complexity: 12+ characters, uppercase, lowercase, number, special character
+ */
+const passwordValidation = z
+  .string()
+  .min(12, "Password must be at least 12 characters")
+  .refine(
+    (password) => {
+      // Check length
+      if (password.length < 12) return false;
+      // Check for uppercase letter
+      if (!/[A-Z]/.test(password)) return false;
+      // Check for lowercase letter
+      if (!/[a-z]/.test(password)) return false;
+      // Check for number
+      if (!/[0-9]/.test(password)) return false;
+      // Check for special character
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) return false;
+      return true;
+    },
+    {
+      message: "Password must be at least 12 characters and include uppercase, lowercase, number, and special character",
+    }
+  );
+
 export const signUpSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .refine(
-      (password) => password.length >= 8,
-      {
-        message: "Password must be at least 8 characters long",
-      }
-    ),
+  password: passwordValidation,
   name: z.string().min(1, "Name is required"),
   turnstileToken: z.string().optional(),
 });
@@ -33,15 +51,7 @@ export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 
 export const resetPasswordSchema = z
   .object({
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .refine(
-        (password) => password.length >= 8,
-        {
-          message: "Password must be at least 8 characters long",
-        }
-      ),
+    password: passwordValidation,
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -54,15 +64,7 @@ export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 export const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .refine(
-        (password) => password.length >= 8,
-        {
-          message: "Password must be at least 8 characters long",
-        }
-      ),
+    newPassword: passwordValidation,
     confirmPassword: z.string().min(1, "Please confirm your new password"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {

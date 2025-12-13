@@ -37,7 +37,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
             <Target className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4">No goals yet</p>
             <Link href="/planning/budgets?tab=goals">
-              <Button variant="outline" size="small">Create Your First Goal</Button>
+              <Button variant="outline" size="medium">Create Your First Goal</Button>
             </Link>
           </div>
         </CardContent>
@@ -85,7 +85,7 @@ export function GoalsOverview({ goals }: GoalsOverviewProps) {
             <CardDescription>Track your financial progress</CardDescription>
           </div>
           <Link href="/planning/budgets?tab=goals">
-            <Button variant="ghost" size="small">
+            <Button variant="ghost" size="medium">
               View All
             </Button>
           </Link>

@@ -13,14 +13,14 @@ export class ContactMapper {
   static toDomain(row: ContactRow): BaseContact {
     return {
       id: row.id,
-      userId: row.userId,
+      userId: row.user_id,
       name: row.name,
       email: row.email,
       subject: row.subject,
       message: row.message,
       status: row.status,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 }

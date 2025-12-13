@@ -9,7 +9,6 @@ export interface BaseBudget {
   amount: number;
   categoryId?: string | null;
   subcategoryId?: string | null;
-  groupId?: string | null;
   userId: string;
   note?: string | null;
   isRecurring: boolean;
@@ -25,11 +24,11 @@ export interface BudgetWithRelations extends BaseBudget {
   category?: {
     id: string;
     name: string;
-    groupId?: string;
-    group?: { id: string; name: string } | null;
+    type?: "income" | "expense";
   } | null;
   subcategory?: { id: string; name: string } | null;
-  group?: { id: string; name: string } | null;
+  /** @deprecated Groups have been completely removed. This field is never set and should not be used. */
+  group?: never;
   budgetCategories?: Array<{
     id: string;
     budgetId: string;
@@ -44,9 +43,6 @@ export interface BudgetWithRelations extends BaseBudget {
     createdAt?: string;
     subcategory?: { id: string; name: string } | null;
   }>;
-  // Deprecated: Use groupId and group instead
-  macroId?: string | null;
-  macro?: { id: string; name: string } | null;
 }
 
 // Alias for backward compatibility (matches lib/api/budgets.ts interface)

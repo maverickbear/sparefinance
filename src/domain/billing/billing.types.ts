@@ -3,10 +3,16 @@
  * Pure TypeScript types with no external dependencies
  */
 
+import type {
+  BaseSubscription,
+  BasePlan,
+  BasePlanFeatures,
+} from "@/src/domain/subscriptions/subscriptions.types";
+
 export interface BaseBillingData {
-  subscription: any | null; // BaseSubscription from subscriptions domain
-  plan: any | null; // BasePlan from subscriptions domain
-  limits: any | null; // BasePlanFeatures from subscriptions domain
+  subscription: BaseSubscription | null;
+  plan: BasePlan | null;
+  limits: BasePlanFeatures | null;
   transactionLimit: BaseLimitCheckResult | null;
   accountLimit: BaseLimitCheckResult | null;
   interval: "month" | "year" | null;

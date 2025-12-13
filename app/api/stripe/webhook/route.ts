@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle the event
-    console.log("[WEBHOOK:ROUTE] Handling webhook event:", event.type);
+    // Handle the event (with idempotency check inside service)
+    console.log("[WEBHOOK:ROUTE] Handling webhook event:", event.type, event.id);
     const result = await stripeService.handleWebhookEvent(event);
 
     if (!result.success) {
@@ -57,8 +57,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[WEBHOOK:ROUTE] Webhook event handled successfully");
-    return NextResponse.json({ received: true });
+    console.log("[WEBHOOK:ROUTE] Webhook event handled successfully (idempotent)");
+    return NextResponse.json({ received: true, eventId: event.id });
   } catch (error) {
     console.error("[WEBHOOK:ROUTE] Error processing webhook:", error);
     

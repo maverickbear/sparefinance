@@ -16,6 +16,12 @@ import {
   Edit,
   Trash2,
 } from "lucide-react";
+import {
+  calculateBudgetStatus,
+  getBudgetStatusColor,
+  getBudgetStatusTextColor,
+  getBudgetStatusLabel,
+} from "@/lib/utils/budget-utils";
 
 export interface BudgetCardProps {
   budget: {
@@ -25,7 +31,6 @@ export interface BudgetCardProps {
     period: string;
     categoryId?: string | null;
     subcategoryId?: string | null;
-    macroId?: string | null;
     category: {
       id: string;
       name: string;
@@ -38,10 +43,6 @@ export interface BudgetCardProps {
     percentage?: number;
     status?: "ok" | "warning" | "over";
     displayName?: string;
-    macro?: {
-      id: string;
-      name: string;
-    } | null;
     budgetCategories?: Array<{
       category: {
         id: string;
@@ -60,27 +61,11 @@ export function BudgetCard({
   onDelete,
   deletingId,
 }: BudgetCardProps) {
-  const getStatusColor = () => {
-    if (budget.status === "over") return "bg-destructive";
-    if (budget.status === "warning") return "bg-sentiment-warning";
-    return "bg-sentiment-positive";
-  };
-
-  const getStatusTextColor = () => {
-    if (budget.status === "over") return "text-destructive";
-    if (budget.status === "warning") return "text-yellow-600 dark:text-yellow-400";
-    return "text-green-600 dark:text-green-400";
-  };
-
-  const getStatusLabel = () => {
-    if (budget.status === "over") return "Over Budget";
-    if (budget.status === "warning") return "Warning";
-    return "On Track";
-  };
-
-  const percentage = budget.percentage || 0;
-  const clampedPercentage = Math.min(percentage, 100);
+  // SIMPLIFIED: Calculate status and percentage in frontend
   const actualSpend = budget.actualSpend || 0;
+  const { percentage, status } = calculateBudgetStatus(budget.amount, actualSpend);
+  
+  const clampedPercentage = Math.min(percentage, 100);
   const remaining = Math.max(0, budget.amount - actualSpend);
 
   return (
@@ -92,15 +77,10 @@ export function BudgetCard({
               <CardTitle className="text-lg">
                 {budget.displayName || budget.category?.name || "Unknown"}
               </CardTitle>
-              <Badge className={cn(getStatusColor(), "text-white")} variant="default">
-                {getStatusLabel()}
+              <Badge className={cn(getBudgetStatusColor(status), "text-white")} variant="default">
+                {getBudgetStatusLabel(status)}
               </Badge>
             </div>
-            {budget.macro && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Group: {budget.macro.name}
-              </p>
-            )}
             {budget.subcategory && (
               <p className="text-xs text-muted-foreground mt-1">
                 {budget.subcategory.name}
@@ -148,7 +128,7 @@ export function BudgetCard({
             </div>
             <div>
               <p className="text-muted-foreground">Remaining</p>
-              <p className={cn("font-semibold text-base", getStatusTextColor())}>
+              <p className={cn("font-semibold text-base", getBudgetStatusTextColor(status))}>
                 {formatMoney(remaining)}
               </p>
             </div>
@@ -157,7 +137,7 @@ export function BudgetCard({
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Progress</span>
-              <span className={cn("font-medium", getStatusTextColor())}>
+              <span className={cn("font-medium", getBudgetStatusTextColor(status))}>
                 {percentage.toFixed(1)}%
               </span>
             </div>
@@ -165,7 +145,7 @@ export function BudgetCard({
               <div
                 className={cn(
                   "h-full transition-all",
-                  getStatusColor()
+                  getBudgetStatusColor(status)
                 )}
                 style={{ width: `${clampedPercentage}%` }}
               />
@@ -173,7 +153,7 @@ export function BudgetCard({
                 <div
                   className={cn(
                     "absolute top-0 h-full transition-all opacity-30",
-                    getStatusColor()
+                    getBudgetStatusColor(status)
                   )}
                   style={{
                     width: `${((percentage - 100) / percentage) * 100}%`,
@@ -186,7 +166,7 @@ export function BudgetCard({
             </div>
           </div>
 
-          {budget.status === "over" && (
+          {status === "over" && (
             <div className="text-xs text-destructive">
               You've exceeded your budget by {formatMoney(actualSpend - budget.amount)}
             </div>

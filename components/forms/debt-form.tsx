@@ -593,53 +593,66 @@ export function DebtForm({
 
   async function loadDebtsCategories() {
     try {
-      // OPTIMIZED: Single API call to get both groups and categories using v2 API route
-      const response = await fetch("/api/v2/categories?consolidated=true");
+      // Fetch all categories from API
+      const response = await fetch("/api/v2/categories?all=true");
       if (!response.ok) {
         throw new Error("Failed to fetch categories data");
       }
-      const { groups: macros, categories: allCategories } = await response.json();
+      const allCategories: Category[] = await response.json();
       
-      // Find the "Debts" group
-      const debtsGroup = macros?.find((macro: any) => macro.name.toLowerCase() === "debts");
-      if (!debtsGroup) {
-        console.warn("Debts group not found");
-        setDebtsCategories([]);
-        return;
+      // Debt-related category names (based on debt-categories.ts utility)
+      const debtCategoryNames = [
+        "Vehicle",
+        "Rent",
+        "Personal Loan",
+        "Credit Card Payment",
+        "Student Loan",
+        "Business Loan",
+        "Misc",
+        "Bank Fees",
+        "Housing",
+        "Education",
+      ];
+      
+      // Debt-related keywords to match in category names
+      const debtKeywords = [
+        "loan",
+        "debt",
+        "credit",
+        "mortgage",
+        "payment",
+        "vehicle",
+        "car",
+        "auto",
+      ];
+      
+      // Filter categories that match debt-related names or keywords (case-insensitive)
+      let debtsCategoriesList = (allCategories || []).filter((cat) => {
+        const categoryNameLower = cat.name.toLowerCase();
+        
+        // Check for exact match with debt category names
+        const exactMatch = debtCategoryNames.some(
+          (debtName) => categoryNameLower === debtName.toLowerCase()
+        );
+        
+        // Check for keyword match
+        const keywordMatch = debtKeywords.some((keyword) =>
+          categoryNameLower.includes(keyword)
+        );
+        
+        return exactMatch || keywordMatch;
+      });
+      
+      // Fallback: if no debt-related categories found, show all categories
+      if (debtsCategoriesList.length === 0 && allCategories.length > 0) {
+        console.warn("No debt-related categories found, showing all categories");
+        debtsCategoriesList = allCategories;
       }
-      
-      // Filter categories that belong to the Debts group
-      const debtsCategoriesList = (allCategories || []).filter(
-        (cat: any) => cat.groupId === debtsGroup.id
-      );
       
       setDebtsCategories(debtsCategoriesList);
     } catch (error) {
       console.error("Error loading debts categories:", error);
-      // Fallback to API routes if consolidated endpoint fails
-      try {
-        const [categoriesResponse, groupsResponse] = await Promise.all([
-          fetch("/api/v2/categories?all=true"),
-          fetch("/api/v2/categories"),
-        ]);
-        if (!categoriesResponse.ok || !groupsResponse.ok) {
-          throw new Error("Failed to fetch categories");
-        }
-        const [allCategories, macros] = await Promise.all([
-          categoriesResponse.json(),
-          groupsResponse.json(),
-        ]);
-        const debtsGroup = macros.find((macro: any) => macro.name.toLowerCase() === "debts");
-        if (debtsGroup) {
-          const debtsCategoriesList = allCategories.filter(
-            (cat: any) => cat.groupId === debtsGroup.id
-          );
-          setDebtsCategories(debtsCategoriesList);
-        }
-      } catch (fallbackError) {
-        console.error("Error in fallback loading:", fallbackError);
       setDebtsCategories([]);
-      }
     }
   }
 
@@ -979,7 +992,7 @@ export function DebtForm({
                     }}
                     required
                   >
-                    <SelectTrigger size="small">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select Category" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1023,7 +1036,7 @@ export function DebtForm({
                         }
                       }}
                     >
-                      <SelectTrigger size="small">
+                      <SelectTrigger size="medium">
                         <SelectValue placeholder="Select Subcategory (optional)" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1046,7 +1059,7 @@ export function DebtForm({
                 </label>
                 <Input
                   {...form.register("name")}
-                  size="small"
+                  size="medium"
                   required
                 />
                 {form.formState.errors.name && (
@@ -1066,7 +1079,7 @@ export function DebtForm({
                   value={form.watch("initialAmount") || undefined}
                   onChange={(value) => form.setValue("initialAmount", value ?? 0, { shouldValidate: true })}
                   placeholder="$ 0.00"
-                  size="small"
+                  size="medium"
                   required
                 />
                 {form.formState.errors.initialAmount && (
@@ -1085,7 +1098,7 @@ export function DebtForm({
                     value={form.watch("downPayment") || undefined}
                     onChange={(value) => form.setValue("downPayment", value ?? 0, { shouldValidate: true })}
                     placeholder="$ 0.00"
-                    size="small"
+                    size="medium"
                     required={fieldConfig.downPaymentRequired}
                   />
                   {form.formState.errors.downPayment && (
@@ -1104,7 +1117,7 @@ export function DebtForm({
                   value={form.watch("interestRate") || undefined}
                   onChange={(value) => form.setValue("interestRate", value ?? 0, { shouldValidate: true })}
                   placeholder="0.00 %"
-                  size="small"
+                  size="medium"
                 />
                 {form.formState.errors.interestRate && (
                   <p className="text-xs text-destructive">
@@ -1134,7 +1147,7 @@ export function DebtForm({
                     }}
                     required={fieldConfig.totalMonthsRequired}
                   >
-                    <SelectTrigger size="small">
+                    <SelectTrigger size="medium">
                       <SelectValue placeholder="Select months" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1175,7 +1188,7 @@ export function DebtForm({
                   disabled={fieldConfig.paymentFrequencyLocked}
                   required
                 >
-                  <SelectTrigger size="small">
+                  <SelectTrigger size="medium">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1213,7 +1226,7 @@ export function DebtForm({
                     form.setValue("paymentAmount", value ?? 0, { shouldValidate: true });
                   }}
                   placeholder="$ 0.00"
-                  size="small"
+                  size="medium"
                 />
                 {form.formState.errors.paymentAmount && (
                   <p className="text-xs text-destructive">
@@ -1253,7 +1266,7 @@ export function DebtForm({
                   onValueChange={(value) => form.setValue("accountId", value)}
                   required
                 >
-                  <SelectTrigger size="small">
+                  <SelectTrigger size="medium">
                     <SelectValue placeholder="Select account" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1281,7 +1294,7 @@ export function DebtForm({
                     form.setValue("startDate", date || new Date(), { shouldValidate: true });
                   }}
                   placeholder="Select start date"
-                  size="small"
+                  size="medium"
                   required={!((loanType || "").toLowerCase().includes("credit") || (loanType || "").toLowerCase().includes("card"))}
                 />
                 {form.formState.errors.startDate && (
@@ -1301,7 +1314,7 @@ export function DebtForm({
                     form.setValue("firstPaymentDate", date || new Date(), { shouldValidate: true });
                   }}
                   placeholder="Select first payment date"
-                  size="small"
+                  size="medium"
                   required
                 />
                 {form.formState.errors.firstPaymentDate && (
@@ -1329,7 +1342,7 @@ export function DebtForm({
                       }
                     })()}
                     disabled
-                    size="small"
+                    size="medium"
                     className="bg-muted"
                   />
                 </div>
@@ -1348,7 +1361,7 @@ export function DebtForm({
                     form.setValue("principalPaid", value ?? 0, { shouldValidate: true });
                   }}
                   placeholder="$ 0.00"
-                  size="small"
+                  size="medium"
                 />
                 {form.formState.errors.principalPaid && (
                   <p className="text-xs text-destructive">
@@ -1363,7 +1376,7 @@ export function DebtForm({
                   value={form.watch("interestPaid") || undefined}
                   onChange={(value) => form.setValue("interestPaid", value ?? 0, { shouldValidate: true })}
                   placeholder="$ 0.00"
-                  size="small"
+                  size="medium"
                 />
                 {form.formState.errors.interestPaid && (
                   <p className="text-xs text-destructive">
@@ -1412,13 +1425,13 @@ export function DebtForm({
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" size="small" disabled={isSubmitting}>
+            <Button type="submit" size="medium" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

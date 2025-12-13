@@ -60,8 +60,22 @@ export function PromoCodesPageClient({ initialPromoCodes, availablePlans }: Prom
     router.refresh();
   }
 
-  function handleSuccess() {
-    router.refresh();
+  function handleSuccess(createdOrUpdatedPromoCode?: PromoCode) {
+    if (createdOrUpdatedPromoCode) {
+      // Update state immediately without needing a refresh
+      if (editingPromoCode) {
+        // Update existing promo code
+        setPromoCodes((prev) =>
+          prev.map((pc) => (pc.id === createdOrUpdatedPromoCode.id ? createdOrUpdatedPromoCode : pc))
+        );
+      } else {
+        // Add new promo code to the beginning of the list
+        setPromoCodes((prev) => [createdOrUpdatedPromoCode, ...prev]);
+      }
+    } else {
+      // Fallback: refresh if no promo code was returned
+      router.refresh();
+    }
   }
 
   return (

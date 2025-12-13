@@ -5,18 +5,10 @@ import { usePagePerformance } from "@/hooks/use-page-performance";
 import { DebtCard } from "@/components/debts/debt-card";
 import { DebtForm } from "@/components/forms/debt-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Plus, CreditCard, Loader2 } from "lucide-react";
 import { RecordPaymentDialog } from "@/components/debts/record-payment-dialog";
 import { useToast } from "@/components/toast-provider";
 import { formatMoney } from "@/components/common/money";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/empty-state";
@@ -208,34 +200,6 @@ export default function DebtsPage() {
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
-        {debts.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex gap-4 items-center">
-            <Select value={filterBy} onValueChange={(value) => setFilterBy(value as typeof filterBy)}>
-              <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Debts</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="paused">Paused</SelectItem>
-                <SelectItem value="paid_off">Paid Off</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
-              <SelectTrigger className="h-9 w-auto min-w-[120px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="progress">Progress</SelectItem>
-                <SelectItem value="months_remaining">Months Remaining</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
 
       {loading && debts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -390,7 +354,7 @@ export default function DebtsPage() {
       {canWrite && (
         <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
           <Button
-            size="large"
+            size="medium"
             className="h-14 w-14 rounded-full shadow-lg"
             onClick={() => {
               if (!checkWriteAccess()) return;

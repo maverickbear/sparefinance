@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, Suspense, lazy } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CreditCard } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
+import { PageHeader } from "@/components/common/page-header";
 import { UsageChart } from "@/components/billing/usage-chart";
 import { SubscriptionManagementEmbedded } from "@/components/billing/subscription-management-embedded";
 import { PaymentMethodManager } from "@/components/billing/payment-method-manager";
@@ -217,18 +217,14 @@ export default function BillingPage() {
   }, [loadBillingData]);
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      <div>
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-2">
-          <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
-          Billing
-        </h2>
-        <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">
-          Manage your subscription and usage
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Billing"
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div className="w-full p-4 lg:p-8">
+        <div className="space-y-4 md:space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <SubscriptionManagementEmbedded
           subscription={subscription}
           plan={plan}
@@ -246,9 +242,11 @@ export default function BillingPage() {
         />
       </div>
 
-      <PaymentMethodManager />
+          <PaymentMethodManager />
 
-      <LazyPaymentHistory />
+          <LazyPaymentHistory />
+        </div>
+      </div>
     </div>
   );
 }

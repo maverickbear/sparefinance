@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, createContext, useContext, memo, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Receipt, Target, FolderTree, TrendingUp, FileText, CreditCard, PiggyBank, Users, User, ChevronLeft, ChevronRight, ChevronDown, Settings2, Wallet, Calendar, Repeat, Tag, Mail, Star, Search, Palette, Calculator } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
 import { useAuthSafe } from "@/contexts/auth-context";
@@ -15,55 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-// Nav item type definition
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  isToggle?: boolean;
-  isBack?: boolean;
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-// Base nav sections (without Portal Management)
-const baseNavSections: NavSection[] = [
-  {
-    title: "Overview",
-    items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/reports", label: "Reports", icon: FileText },
-    ],
-  },
-  {
-    title: "Money Management",
-    items: [
-      { href: "/accounts", label: "Bank Accounts", icon: Wallet },
-      { href: "/transactions", label: "Transactions", icon: Receipt },
-      { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
-      { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
-    ],
-  },
-  {
-    title: "Planning",
-    items: [
-      { href: "/planning/budgets", label: "Budgets", icon: Target },
-      { href: "/planning/goals", label: "Goals", icon: PiggyBank },
-      { href: "/debts", label: "Debts", icon: CreditCard },
-      { href: "/investments", label: "Investments", icon: TrendingUp },
-    ],
-  },
-  {
-    title: "Settings",
-    items: [
-      { href: "/settings", label: "My Account", icon: User },
-    ],
-  },
-];
+import { getNavSections, type NavSection } from "@/src/presentation/config/navigation.config";
 
 // Context for sidebar collapsed state
 const SidebarContext = createContext<{
@@ -140,35 +92,9 @@ function NavComponent() {
   }, []);
 
 
-  // Portal Management items (without the toggle button)
-  const portalManagementItems = [
-    { href: "/portal-management/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/portal-management/users", label: "Users", icon: Users },
-    { href: "/portal-management/promo-codes", label: "Promo Codes", icon: Tag },
-    { href: "/portal-management/system-entities", label: "System Entities", icon: FolderTree },
-    { href: "/portal-management/contact-forms", label: "Contact Forms", icon: Mail },
-    { href: "/portal-management/feedback", label: "Feedback", icon: Star },
-    { href: "/portal-management/plans", label: "Plans", icon: CreditCard },
-    { href: "/portal-management/subscription-services", label: "Subscription Services", icon: Settings2 },
-    { href: "/portal-management/tax-rates", label: "Tax Rates", icon: Calculator },
-    { href: "/portal-management/seo", label: "SEO Settings", icon: Search },
-    { href: "/design", label: "Design System", icon: Palette },
-  ];
-
-  // Build nav sections - add portal management items directly to base sections
+  // Build nav sections using centralized configuration
   const navSections = useMemo((): NavSection[] => {
-    if (!isSuperAdmin) {
-      return baseNavSections;
-    }
-
-    // Always show portal management items as a regular section when super admin
-    return [
-      {
-        title: "Portal Management",
-        items: portalManagementItems,
-      },
-      ...baseNavSections,
-    ];
+    return getNavSections(isSuperAdmin);
   }, [isSuperAdmin]);
 
   return (
@@ -270,10 +196,10 @@ function NavComponent() {
                               "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full",
                               isActive
                                 ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                                : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                             )}
                           >
-                            <Icon className="h-5 w-5 flex-shrink-0" />
+                            <Icon className="h-4 w-4 flex-shrink-0" />
                           </button>
                         );
                         return (
@@ -303,11 +229,11 @@ function NavComponent() {
                             "flex items-center justify-between w-full rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2",
                             isActive
                               ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                           )}
                         >
                           <div className="flex items-center space-x-3">
-                            <Icon className="h-5 w-5 flex-shrink-0" />
+                            <Icon className="h-4 w-4 flex-shrink-0" />
                             <span>{item.label}</span>
                           </div>
                           <ChevronDown
@@ -329,9 +255,9 @@ function NavComponent() {
                               setShowPortalManagementItems(false);
                               router.push("/dashboard");
                             }}
-                            className="flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                            className="flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                           >
-                            <ChevronLeft className="h-5 w-5 flex-shrink-0" />
+                            <ChevronLeft className="h-4 w-4 flex-shrink-0" />
                           </button>
                         );
                         return (
@@ -355,7 +281,7 @@ function NavComponent() {
                             setShowPortalManagementItems(false);
                             router.push("/dashboard");
                           }}
-                          className="flex items-center space-x-3 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          className="flex items-center space-x-3 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                         >
                           <ChevronLeft className="h-5 w-5 flex-shrink-0" />
                           <span>Back to Main Menu</span>
@@ -380,13 +306,13 @@ function NavComponent() {
                           "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out",
                           isActive
                             ? "bg-primary text-primary-foreground translate-x-0"
-                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground hover:translate-x-1 translate-x-0",
+                            : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground hover:translate-x-1 translate-x-0",
                           isCollapsed
                             ? "justify-center px-3 py-2"
                             : "space-x-3 px-3 py-2"
                         )}
                       >
-                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <Icon className="h-4 w-4 flex-shrink-0" />
                         {!isCollapsed && <span>{item.label}</span>}
                       </Link>
                     );

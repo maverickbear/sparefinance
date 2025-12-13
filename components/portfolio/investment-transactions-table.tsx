@@ -416,7 +416,7 @@ export function InvestmentTransactionsTable({
                   </span>
                   <Button
                     variant="destructive"
-                    size="small"
+                    size="medium"
                     onClick={() => setShowDeleteMultipleDialog(true)}
                     disabled={deletingMultiple}
                   >
@@ -451,7 +451,7 @@ export function InvestmentTransactionsTable({
                     onClick={handleAddNew}
                     variant="outline"
                     className="mt-4"
-                    size="small"
+                    size="medium"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Your First Transaction

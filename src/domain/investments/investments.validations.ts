@@ -51,3 +51,21 @@ export const createSecuritySchema = z.object({
 
 export type CreateSecurityFormData = z.infer<typeof createSecuritySchema>;
 
+// Investment Refresh System Validations
+
+export const manualInvestmentSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  currentValue: z.number().positive("Current value must be positive"),
+  estimatedGrowth: z.number().min(-100).max(100).optional().nullable(),
+});
+
+export type ManualInvestmentFormData = z.infer<typeof manualInvestmentSchema>;
+
+export const updateManualInvestmentSchema = z.object({
+  title: z.string().min(1).optional(),
+  currentValue: z.number().positive().optional(),
+  estimatedGrowth: z.number().min(-100).max(100).optional().nullable(),
+});
+
+export type UpdateManualInvestmentFormData = z.infer<typeof updateManualInvestmentSchema>;
+

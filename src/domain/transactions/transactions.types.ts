@@ -17,6 +17,8 @@ export interface BaseTransaction {
   categoryId?: string | null;
   subcategoryId?: string | null;
   description?: string | null;
+  descriptionSearch?: string | null;
+  tags?: string | null;
   isRecurring?: boolean;
   expenseType?: string | null;
   transferToId?: string | null;
@@ -25,7 +27,6 @@ export interface BaseTransaction {
   updatedAt?: string;
   suggestedCategoryId?: string | null;
   suggestedSubcategoryId?: string | null;
-  plaidMetadata?: Record<string, unknown> | null;
   receiptUrl?: string | null;
   userId?: string | null;
   householdId?: string | null;
@@ -41,13 +42,17 @@ export interface TransactionWithRelations extends BaseTransaction {
   category?: {
     id: string;
     name: string;
-    macroId?: string;
-    macro?: {
-      id: string;
-      name: string;
-    } | null;
   } | null;
   subcategory?: {
+    id: string;
+    name: string;
+    logo?: string | null;
+  } | null;
+  suggestedCategory?: {
+    id: string;
+    name: string;
+  } | null;
+  suggestedSubcategory?: {
     id: string;
     name: string;
     logo?: string | null;

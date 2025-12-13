@@ -11,6 +11,7 @@ import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
  * 
  * OPTIMIZED: Uses cached function to prevent duplicate calculations
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

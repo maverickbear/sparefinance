@@ -3,6 +3,7 @@ import { makeAccountsService } from "@/src/application/accounts/accounts.factory
 import { AccountFormData } from "@/src/domain/accounts/accounts.validations";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { requireAccountOwnership } from "@/src/infrastructure/utils/security";
 import { revalidateTag } from 'next/cache';
 
 export async function GET(
@@ -16,6 +17,9 @@ export async function GET(
     }
 
     const { id } = await params;
+    
+    // Verify account ownership
+    await requireAccountOwnership(id);
     
     const service = makeAccountsService();
     const account = await service.getAccountById(id);
@@ -50,6 +54,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify account ownership
+    await requireAccountOwnership(id);
     
     const service = makeAccountsService();
     const account = await service.updateAccount(id, data);
@@ -89,6 +96,9 @@ export async function DELETE(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify account ownership
+    await requireAccountOwnership(id);
     
     const service = makeAccountsService();
     await service.deleteAccount(id, transferToAccountId);

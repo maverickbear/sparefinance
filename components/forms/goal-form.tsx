@@ -522,7 +522,7 @@ export function GoalForm({
             <Input
               {...form.register("name")}
               placeholder="e.g., Emergency Fund, Down Payment"
-              size="small"
+              size="medium"
               required
             />
             {form.formState.errors.name && (
@@ -545,7 +545,7 @@ export function GoalForm({
                 }
               }}
             >
-              <SelectTrigger size="small">
+              <SelectTrigger size="medium">
                 <SelectValue placeholder="Select an account (optional)" />
               </SelectTrigger>
               <SelectContent>
@@ -570,7 +570,7 @@ export function GoalForm({
                 }}
                 disabled={loadingHoldings}
               >
-                <SelectTrigger size="small">
+                <SelectTrigger size="medium">
                   <SelectValue placeholder={loadingHoldings ? "Loading..." : "All Holdings"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -594,7 +594,7 @@ export function GoalForm({
                 value={form.watch("targetAmount") || undefined}
                 onChange={(value) => form.setValue("targetAmount", value ?? 0, { shouldValidate: true })}
                 placeholder="$ 0.00"
-                size="small"
+                size="medium"
                 required
               />
               {form.formState.errors.targetAmount && (
@@ -612,7 +612,7 @@ export function GoalForm({
                 value={form.watch("currentBalance") || undefined}
                 onChange={(value) => form.setValue("currentBalance", value ?? 0, { shouldValidate: true })}
                 placeholder="$ 0.00"
-                size="small"
+                size="medium"
                 disabled={!!accountId}
               />
               {form.formState.errors.currentBalance && (
@@ -639,7 +639,7 @@ export function GoalForm({
               }}
               required
             >
-              <SelectTrigger size="small">
+              <SelectTrigger size="medium">
                 <SelectValue placeholder="Select months" />
               </SelectTrigger>
               <SelectContent>
@@ -676,7 +676,7 @@ export function GoalForm({
               }
               required
             >
-              <SelectTrigger size="small">
+              <SelectTrigger size="medium">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -697,7 +697,7 @@ export function GoalForm({
             <Textarea
               {...form.register("description")}
               placeholder="Add notes about this goal..."
-              size="small"
+              size="medium"
               rows={3}
             />
           </div>
@@ -768,13 +768,13 @@ export function GoalForm({
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancel
             </Button>
-            <Button type="submit" size="small" disabled={isSubmitting || !!forecast?.allocationError}>
+            <Button type="submit" size="medium" disabled={isSubmitting || !!forecast?.allocationError}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

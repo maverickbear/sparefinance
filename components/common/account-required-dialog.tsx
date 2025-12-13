@@ -74,10 +74,10 @@ export function AccountRequiredDialog({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" size="small" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" size="medium" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button size="small" onClick={handleCreateAccount}>
+              <Button size="medium" onClick={handleCreateAccount}>
                 Create Account
               </Button>
             </DialogFooter>

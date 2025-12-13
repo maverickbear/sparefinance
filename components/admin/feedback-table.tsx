@@ -119,7 +119,7 @@ export function FeedbackTable({ feedbacks, loading }: FeedbackTableProps) {
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
-                      size="small"
+                      size="medium"
                       onClick={() => handleView(feedback)}
                     >
                       <Eye className="h-4 w-4 mr-1" />

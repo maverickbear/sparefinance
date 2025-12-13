@@ -5,38 +5,32 @@
  */
 
 import { createServerClient } from "../supabase-server";
-import { BaseCategory, BaseSubcategory, BaseGroup } from "../../../domain/categories/categories.types";
+import { BaseCategory, BaseSubcategory } from "../../../domain/categories/categories.types";
 import { logger } from "@/lib/utils/logger";
+import { ICategoriesRepository } from "./interfaces/categories.repository.interface";
 
 export interface CategoryRow {
   id: string;
   name: string;
-  groupId: string;
-  userId: string | null;
-  createdAt: string;
-  updatedAt: string;
+  type: "income" | "expense" | null;
+  user_id: string | null;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SubcategoryRow {
   id: string;
   name: string;
-  categoryId: string;
-  userId: string | null;
+  category_id: string;
+  user_id: string | null;
+  is_system: boolean;
   logo: string | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface GroupRow {
-  id: string;
-  name: string;
-  type: "income" | "expense" | null;
-  userId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export class CategoriesRepository {
+export class CategoriesRepository implements ICategoriesRepository {
   /**
    * Find all categories for a user
    */
@@ -50,16 +44,16 @@ export class CategoriesRepository {
     const userId = user?.id || null;
 
     let query = supabase
-      .from("Category")
+      .from("categories")
       .select("*")
       .order("name", { ascending: true });
 
-    // If authenticated, get system defaults (userId IS NULL) OR user's own categories
+    // If authenticated, get system categories (is_system = true) OR user's own categories
     if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
+      query = query.or(`is_system.eq.true,user_id.eq.${userId}`);
     } else {
-      // If not authenticated, only return system defaults
-      query = query.is("userId", null);
+      // If not authenticated, only return system categories
+      query = query.eq("is_system", true);
     }
 
     const { data: categories, error } = await query;
@@ -83,7 +77,7 @@ export class CategoriesRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: category, error } = await supabase
-      .from("Category")
+      .from("categories")
       .select("*")
       .eq("id", id)
       .single();
@@ -117,15 +111,15 @@ export class CategoriesRepository {
     const userId = user?.id || null;
 
     let query = supabase
-      .from("Category")
-      .select("id, name, groupId")
+      .from("categories")
+      .select("id, name")
       .in("id", ids);
 
-    // If authenticated, get system defaults (userId IS NULL) OR user's own categories
+    // If authenticated, get system categories (is_system = true) OR user's own categories
     if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
+      query = query.or(`is_system.eq.true,user_id.eq.${userId}`);
     } else {
-      query = query.is("userId", null);
+      query = query.eq("is_system", true);
     }
 
     const { data: categories, error } = await query;
@@ -144,7 +138,7 @@ export class CategoriesRepository {
   async createCategory(data: {
     id: string;
     name: string;
-    groupId: string;
+    type: "income" | "expense";
     userId: string | null;
     createdAt: string;
     updatedAt: string;
@@ -152,14 +146,15 @@ export class CategoriesRepository {
     const supabase = await createServerClient();
 
     const { data: category, error } = await supabase
-      .from("Category")
+      .from("categories")
       .insert({
         id: data.id,
         name: data.name,
-        groupId: data.groupId,
-        userId: data.userId,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
+        type: data.type,
+        user_id: data.userId,
+        is_system: data.userId === null,
+        created_at: data.createdAt,
+        updated_at: data.updatedAt,
       })
       .select()
       .single();
@@ -179,15 +174,20 @@ export class CategoriesRepository {
     id: string,
     data: Partial<{
       name: string;
-      groupId: string;
+      type: "income" | "expense";
       updatedAt: string;
     }>
   ): Promise<CategoryRow> {
     const supabase = await createServerClient();
 
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.type !== undefined) updateData.type = data.type;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+
     const { data: category, error } = await supabase
-      .from("Category")
-      .update(data)
+      .from("categories")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -207,7 +207,7 @@ export class CategoriesRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("Category")
+      .from("categories")
       .delete()
       .eq("id", id);
 
@@ -231,16 +231,17 @@ export class CategoriesRepository {
     const userId = user?.id || null;
 
     let query = supabase
-      .from("Subcategory")
+      .from("subcategories")
       .select("*")
-      .eq("categoryId", categoryId)
+      .eq("category_id", categoryId)
       .order("name", { ascending: true });
 
-    // If authenticated, get system defaults (userId IS NULL) OR user's own subcategories
+    // If authenticated, get system subcategories (is_system = true) OR subcategories from user's own categories
     if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
+      query = query.or(`is_system.eq.true,user_id.eq.${userId}`);
     } else {
-      query = query.is("userId", null);
+      // If not authenticated, only return system subcategories
+      query = query.eq("is_system", true);
     }
 
     const { data: subcategories, error } = await query;
@@ -271,17 +272,18 @@ export class CategoriesRepository {
     const userId = user?.id || null;
 
     let query = supabase
-      .from("Subcategory")
+      .from("subcategories")
       .select("*")
-      .in("categoryId", categoryIds)
-      .order("categoryId", { ascending: true })
+      .in("category_id", categoryIds)
+      .order("category_id", { ascending: true })
       .order("name", { ascending: true });
 
-    // If authenticated, get system defaults (userId IS NULL) OR user's own subcategories
+    // If authenticated, get system subcategories (is_system = true) OR subcategories from user's own categories
     if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
+      query = query.or(`is_system.eq.true,user_id.eq.${userId}`);
     } else {
-      query = query.is("userId", null);
+      // If not authenticated, only return system subcategories
+      query = query.eq("is_system", true);
     }
 
     const { data: subcategories, error } = await query;
@@ -305,7 +307,7 @@ export class CategoriesRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: subcategory, error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .select("*")
       .eq("id", id)
       .single();
@@ -339,15 +341,16 @@ export class CategoriesRepository {
     const userId = user?.id || null;
 
     let query = supabase
-      .from("Subcategory")
+      .from("subcategories")
       .select("id, name, logo")
       .in("id", ids);
 
-    // If authenticated, get system defaults (userId IS NULL) OR user's own subcategories
+    // If authenticated, get system subcategories (is_system = true) OR subcategories from user's own categories
     if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
+      query = query.or(`is_system.eq.true,user_id.eq.${userId}`);
     } else {
-      query = query.is("userId", null);
+      // If not authenticated, only return system subcategories
+      query = query.eq("is_system", true);
     }
 
     const { data: subcategories, error } = await query;
@@ -374,16 +377,22 @@ export class CategoriesRepository {
   }): Promise<SubcategoryRow> {
     const supabase = await createServerClient();
 
+    // Determine is_system based on userId
+    // If userId is null, it's a system subcategory
+    // If userId is not null, it's a user-created subcategory
+    const isSystem = data.userId === null;
+
     const { data: subcategory, error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .insert({
         id: data.id,
         name: data.name,
-        categoryId: data.categoryId,
-        userId: data.userId,
+        category_id: data.categoryId,
+        user_id: data.userId,
+        is_system: isSystem,
         logo: data.logo,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
+        created_at: data.createdAt,
+        updated_at: data.updatedAt,
       })
       .select()
       .single();
@@ -410,9 +419,15 @@ export class CategoriesRepository {
   ): Promise<SubcategoryRow> {
     const supabase = await createServerClient();
 
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.categoryId !== undefined) updateData.category_id = data.categoryId;
+    if (data.logo !== undefined) updateData.logo = data.logo;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+
     const { data: subcategory, error } = await supabase
-      .from("Subcategory")
-      .update(data)
+      .from("subcategories")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -432,7 +447,7 @@ export class CategoriesRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .delete()
       .eq("id", id);
 
@@ -442,177 +457,5 @@ export class CategoriesRepository {
     }
   }
 
-  /**
-   * Find all groups
-   * Users can only see system groups (userId IS NULL)
-   * User-created groups are not visible to regular users
-   */
-  async findAllGroups(
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<GroupRow[]> {
-    const supabase = await createServerClient(accessToken, refreshToken);
-
-    // Only return system groups (userId IS NULL) - shared by all users
-    const query = supabase
-      .from("Group")
-      .select("*")
-      .is("userId", null)
-      .order("name", { ascending: true });
-
-    const { data: groups, error } = await query;
-
-    if (error) {
-      logger.error("[CategoriesRepository] Error fetching groups:", error);
-      throw new Error(`Failed to fetch groups: ${error.message}`);
-    }
-
-    return (groups || []) as GroupRow[];
-  }
-
-  /**
-   * Find group by ID
-   */
-  async findGroupById(
-    id: string,
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<GroupRow | null> {
-    const supabase = await createServerClient(accessToken, refreshToken);
-
-    const { data: group, error } = await supabase
-      .from("Group")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return null;
-      }
-      logger.error("[CategoriesRepository] Error fetching group:", error);
-      throw new Error(`Failed to fetch group: ${error.message}`);
-    }
-
-    return group as GroupRow;
-  }
-
-  /**
-   * Find multiple groups by IDs
-   */
-  async findGroupsByIds(
-    ids: string[],
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<GroupRow[]> {
-    if (ids.length === 0) {
-      return [];
-    }
-
-    const supabase = await createServerClient(accessToken, refreshToken);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id || null;
-
-    let query = supabase
-      .from("Group")
-      .select("*")
-      .in("id", ids);
-
-    // If authenticated, get system defaults (userId IS NULL) OR user's own groups
-    if (userId) {
-      query = query.or(`userId.is.null,userId.eq.${userId}`);
-    } else {
-      query = query.is("userId", null);
-    }
-
-    const { data: groups, error } = await query;
-
-    if (error) {
-      logger.error("[CategoriesRepository] Error fetching groups by IDs:", error);
-      throw new Error(`Failed to fetch groups: ${error.message}`);
-    }
-
-    return (groups || []) as GroupRow[];
-  }
-
-  /**
-   * Create a new group
-   */
-  async createGroup(data: {
-    id: string;
-    name: string;
-    type: "income" | "expense" | null;
-    userId: string | null;
-    createdAt: string;
-    updatedAt: string;
-  }): Promise<GroupRow> {
-    const supabase = await createServerClient();
-
-    const { data: group, error } = await supabase
-      .from("Group")
-      .insert({
-        id: data.id,
-        name: data.name,
-        type: data.type,
-        userId: data.userId,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      logger.error("[CategoriesRepository] Error creating group:", error);
-      throw new Error(`Failed to create group: ${error.message}`);
-    }
-
-    return group as GroupRow;
-  }
-
-  /**
-   * Update a group
-   */
-  async updateGroup(
-    id: string,
-    data: Partial<{
-      name: string;
-      type: "income" | "expense" | null;
-      updatedAt: string;
-    }>
-  ): Promise<GroupRow> {
-    const supabase = await createServerClient();
-
-    const { data: group, error } = await supabase
-      .from("Group")
-      .update(data)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) {
-      logger.error("[CategoriesRepository] Error updating group:", error);
-      throw new Error(`Failed to update group: ${error.message}`);
-    }
-
-    return group as GroupRow;
-  }
-
-  /**
-   * Delete a group
-   */
-  async deleteGroup(id: string): Promise<void> {
-    const supabase = await createServerClient();
-
-    const { error } = await supabase
-      .from("Group")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      logger.error("[CategoriesRepository] Error deleting group:", error);
-      throw new Error(`Failed to delete group: ${error.message}`);
-    }
-  }
 }
 

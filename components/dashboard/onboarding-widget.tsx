@@ -373,7 +373,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
                         "relative z-10 h-full flex flex-col transition-all duration-200",
                         step.completed
                           ? "border-sentiment-positive/50 bg-sentiment-positive/5 hover:border-sentiment-positive/70 hover:bg-sentiment-positive/10"
-                          : "border-border hover:border-primary/50 hover:bg-accent/50",
+                          : "border-border hover:border-primary/50 hover:bg-secondary/50",
                         // Only make clickable if not completed OR if it's the income step (which is always editable)
                         (step.completed && step.id !== "income") ? "" : "cursor-pointer"
                 )}

@@ -22,10 +22,10 @@ export class SubscriptionServicesMapper {
     return {
       id: row.id,
       name: row.name,
-      displayOrder: row.displayOrder,
-      isActive: row.isActive,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      displayOrder: row.display_order,
+      isActive: row.is_active,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 
@@ -36,11 +36,11 @@ export class SubscriptionServicesMapper {
     return {
       id: row.id,
       name: row.name,
-      categoryId: row.categoryId,
+      categoryId: row.category_id,
       logo: row.logo,
-      isActive: row.isActive,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      isActive: row.is_active,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 
@@ -50,14 +50,14 @@ export class SubscriptionServicesMapper {
   static planToDomain(row: SubscriptionServicePlanRow): BaseSubscriptionServicePlan {
     return {
       id: row.id,
-      serviceId: row.serviceId,
-      planName: row.planName,
+      serviceId: row.service_id,
+      planName: row.plan_name,
       price: row.price,
       currency: row.currency,
-      billingCycle: row.billingCycle,
-      isActive: row.isActive,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      billingCycle: "monthly", // Default to monthly - column doesn't exist in DB yet
+      isActive: row.is_active,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 }

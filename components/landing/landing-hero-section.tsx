@@ -43,7 +43,7 @@ export function LandingHeroSection() {
                 <Button
                   asChild
                   variant="secondary"
-                  size="large"
+                  size="medium"
                   className="shadow-lg hover:shadow-xl"
                 >
                   <Link href="/auth/signup">Start your 30-day free trial</Link>

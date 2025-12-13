@@ -6,10 +6,8 @@ import { AppError } from "@/src/application/shared/app-error";
 /**
  * GET /api/subscription-services/plans
  * Get active plans for a subscription service (public endpoint)
- * 
- * Note: This route uses request.url which causes prerendering warnings during build.
- * These warnings are expected and do not affect functionality.
  */
+
 export async function GET(request: NextRequest) {
   noStore();
   try {

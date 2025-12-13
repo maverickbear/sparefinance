@@ -180,7 +180,7 @@ export function PaymentMethodManager({ customerId }: PaymentMethodManagerProps) 
               <CardTitle>Payment Methods</CardTitle>
               <CardDescription>Your payment methods are safely managed by Stripe</CardDescription>
             </div>
-            <Button onClick={handleAddPaymentMethod} size="small" className="w-full md:w-auto">
+            <Button onClick={handleAddPaymentMethod} size="medium" className="w-full md:w-auto">
               Add Payment Method
             </Button>
           </div>
@@ -215,7 +215,7 @@ export function PaymentMethodManager({ customerId }: PaymentMethodManagerProps) 
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
-                      size="small"
+                      size="medium"
                       onClick={() => handleSetDefault(pm.id)}
                       title="Set as default"
                     >
@@ -223,7 +223,7 @@ export function PaymentMethodManager({ customerId }: PaymentMethodManagerProps) 
                     </Button>
                     <Button
                       variant="ghost"
-                      size="small"
+                      size="medium"
                       onClick={() => handleDelete(pm.id)}
                       disabled={deletingId === pm.id}
                     >

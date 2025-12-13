@@ -23,7 +23,7 @@ export interface BaseAccount {
   plaidUnofficialCurrencyCode?: string | null;
   plaidAvailableBalance?: number | null;
   plaidPersistentAccountId?: string | null;
-  plaidHolderCategory?: 'personal' | 'business' | 'unrecognized' | null;
+  plaidHolderCategory?: string | null;
   plaidVerificationName?: string | null;
   createdAt?: string;
   updatedAt?: string;

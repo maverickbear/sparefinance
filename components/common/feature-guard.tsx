@@ -12,7 +12,7 @@ interface FeatureGuardProps {
   feature: keyof PlanFeatures;
   children: ReactNode;
   fallback?: ReactNode;
-  requiredPlan?: "essential" | "pro";
+  requiredPlan?: string; // Simplified: only "pro" exists, but allow string for flexibility
   featureName?: string;
   header?: ReactNode;
   headerTitle?: string;

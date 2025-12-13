@@ -11,13 +11,13 @@ export interface UserRow {
   id: string;
   email: string;
   name: string | null;
-  avatarUrl: string | null;
-  phoneNumber: string | null;
-  dateOfBirth: string | null;
-  temporaryExpectedIncome: string | null;
+  avatar_url: string | null;
+  phone_number: string | null;
+  date_of_birth: string | null;
+  temporary_expected_income: string | null;
   role: string | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export class ProfileRepository {
@@ -32,8 +32,8 @@ export class ProfileRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: user, error } = await supabase
-      .from("User")
-      .select("id, email, name, avatarUrl, phoneNumber, dateOfBirth, temporaryExpectedIncome, role, createdAt, updatedAt")
+      .from("users")
+      .select("id, email, name, avatar_url, phone_number, date_of_birth, temporary_expected_income, role, created_at, updated_at")
       .eq("id", userId)
       .single();
 
@@ -64,11 +64,19 @@ export class ProfileRepository {
   ): Promise<UserRow> {
     const supabase = await createServerClient();
 
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.avatarUrl !== undefined) updateData.avatar_url = data.avatarUrl;
+    if (data.phoneNumber !== undefined) updateData.phone_number = data.phoneNumber;
+    if (data.dateOfBirth !== undefined) updateData.date_of_birth = data.dateOfBirth;
+    if (data.temporaryExpectedIncome !== undefined) updateData.temporary_expected_income = data.temporaryExpectedIncome;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+
     const { data: user, error } = await supabase
-      .from("User")
-      .update(data)
+      .from("users")
+      .update(updateData)
       .eq("id", userId)
-      .select("id, email, name, avatarUrl, phoneNumber, dateOfBirth, temporaryExpectedIncome, role, createdAt, updatedAt")
+      .select("id, email, name, avatar_url, phone_number, date_of_birth, temporary_expected_income, role, created_at, updated_at")
       .single();
 
     if (error) {

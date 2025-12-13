@@ -153,7 +153,7 @@ export function TrialWidget({
   return (
     <div className="px-3 py-3">
       <div 
-        className="rounded-lg bg-card border border-border overflow-hidden relative cursor-pointer hover:bg-accent/50 transition-colors"
+        className="rounded-lg bg-card border border-border overflow-hidden relative cursor-pointer hover:bg-secondary/50 transition-colors"
         onClick={handleClick}
         role="button"
         tabIndex={0}

@@ -10,9 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -31,11 +29,6 @@ import type { SystemSubcategory } from "@/src/domain/admin/admin.types";
 const subcategorySchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
   categoryId: z.string().min(1, "Category is required"),
-  logo: z.union([
-    z.string().url("Logo must be a valid URL"),
-    z.literal(""),
-    z.null(),
-  ]).optional(),
 });
 
 type SubcategoryFormData = z.infer<typeof subcategorySchema>;
@@ -44,7 +37,7 @@ interface SubcategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   subcategory?: SystemSubcategory | null;
-  availableCategories: { id: string; name: string; group?: { id: string; name: string } | null }[];
+  availableCategories: { id: string; name: string }[];
   onSuccess?: () => void;
 }
 
@@ -66,7 +59,6 @@ export function SubcategoryDialog({
     defaultValues: {
       name: "",
       categoryId: "",
-      logo: "",
     },
   });
 
@@ -78,14 +70,12 @@ export function SubcategoryDialog({
         form.reset({
           name: subcategory.name,
           categoryId: subcategory.categoryId,
-          logo: subcategory.logo || "",
         });
       } else {
         // Create mode: reset form to empty
         form.reset({
           name: "",
           categoryId: "",
-          logo: "",
         });
         setSubcategoryNamesText("");
         setSelectedCategoryId("");
@@ -138,7 +128,6 @@ export function SubcategoryDialog({
             body: JSON.stringify({
               name: name.trim(),
               categoryId: selectedCategoryId,
-              logo: null,
             }),
           })
         )
@@ -190,16 +179,13 @@ export function SubcategoryDialog({
     setIsSubmitting(true);
     try {
         // Update (only name can be updated)
-        // Handle logo: if empty string, send null; if valid URL, send it; otherwise send null
-        const logoValue = data.logo && data.logo.trim() !== "" ? data.logo.trim() : null;
-        
         const response = await fetch("/api/admin/subcategories", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
           id: subcategory!.id,
             name: data.name.trim(),
-            logo: logoValue,
+            logo: null,
           }),
         });
 
@@ -255,7 +241,7 @@ export function SubcategoryDialog({
               id="name"
               {...form.register("name")}
               placeholder="e.g., BC Hydro"
-              size="small"
+              size="medium"
               required
             />
             {form.formState.errors.name && (
@@ -265,37 +251,12 @@ export function SubcategoryDialog({
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="logo">Logo URL (optional)</Label>
-            <Input
-              id="logo"
-              {...form.register("logo", {
-                validate: (value) => {
-                  if (!value || value.trim() === "") return true; // Empty is OK
-                  try {
-                    new URL(value);
-                    return true;
-                  } catch {
-                    return "Logo must be a valid URL";
-                  }
-                },
-              })}
-              placeholder="https://example.com/logo.png"
-              size="small"
-            />
-            {form.formState.errors.logo && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.logo.message}
-              </p>
-            )}
-          </div>
-
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Input
                   value={availableCategories.find((c) => c.id === subcategory.categoryId)?.name || subcategory.categoryId}
                   disabled
-                  size="small"
+                  size="medium"
                   className="bg-muted"
                 />
               </div>
@@ -313,41 +274,17 @@ export function SubcategoryDialog({
                   }}
                 required
               >
-                <SelectTrigger size="small">
+                <SelectTrigger size="medium">
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(() => {
-                    // Group categories by group name
-                    const groupedCategories = availableCategories.reduce((acc, category) => {
-                      const groupName = category.group?.name || "Sem Grupo";
-                      if (!acc[groupName]) {
-                        acc[groupName] = [];
-                      }
-                      acc[groupName].push(category);
-                      return acc;
-                    }, {} as Record<string, typeof availableCategories>);
-
-                    // Sort group names, but put "Sem Grupo" at the end if it exists
-                    const sortedGroupNames = Object.keys(groupedCategories).sort((a, b) => {
-                      if (a === "Sem Grupo") return 1;
-                      if (b === "Sem Grupo") return -1;
-                      return a.localeCompare(b);
-                    });
-
-                    return sortedGroupNames.map((groupName) => (
-                      <SelectGroup key={groupName}>
-                        <SelectLabel>{groupName}</SelectLabel>
-                        {groupedCategories[groupName]
-                          .sort((a, b) => a.name.localeCompare(b.name))
-                          .map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                      </SelectGroup>
-                    ));
-                  })()}
+                  {availableCategories
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               {form.formState.errors.categoryId && (
@@ -364,7 +301,7 @@ export function SubcategoryDialog({
                   value={subcategoryNamesText}
                   onChange={(e) => setSubcategoryNamesText(e.target.value)}
                   placeholder="e.g., BC Hydro, Fortis BC, Internet"
-                  size="small"
+                  size="medium"
                   rows={4}
                   className="resize-none"
                 />
@@ -380,7 +317,7 @@ export function SubcategoryDialog({
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
@@ -388,7 +325,7 @@ export function SubcategoryDialog({
             </Button>
             <Button 
               type="submit" 
-              size="small"
+              size="medium"
               disabled={
                 isSubmitting || 
                 (!subcategory && (!selectedCategoryId || parseCommaSeparated(subcategoryNamesText).length === 0))

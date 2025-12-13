@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { makeSubscriptionDetectionService } from "@/src/application/subscription-detection/subscription-detection.factory";
+import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 /**
  * GET /api/subscriptions/detect
  * Detect subscriptions from user's transaction history
+ * 
+ * SIMPLIFIED: Now uses TransactionsService instead of separate SubscriptionDetectionService
  */
 export async function GET(request: NextRequest) {
   try {
@@ -14,8 +16,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const service = makeSubscriptionDetectionService();
-    const detectedSubscriptions = await service.detectSubscriptionsFromTransactions(userId);
+    const transactionsService = makeTransactionsService();
+    const detectedSubscriptions = await transactionsService.detectSubscriptions(userId);
     
     return NextResponse.json({
       success: true,

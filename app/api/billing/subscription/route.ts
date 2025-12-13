@@ -19,6 +19,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
  * Returns current user's subscription data (subscription + plan + limits)
  * Uses unified subscription API as single source of truth
  */
+
 export async function GET(request: Request) {
   try {
     const userId = await getCurrentUserId();

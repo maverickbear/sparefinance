@@ -17,12 +17,23 @@ export const metadata = {
 
 export default async function PrivacyPolicyPage() {
   // Fetch plans to get dynamic plan names
-  const subscriptionsService = makeSubscriptionsService();
-  const plans = await subscriptionsService.getPlans();
-  const essentialPlan = plans.find(p => p.id === 'essential');
-  const proPlan = plans.find(p => p.id === 'pro');
-  const essentialPlanName = essentialPlan?.name || 'ESSENTIAL';
-  const proPlanName = proPlan?.name || 'PRO';
+  let proPlanName = 'PRO';
+  try {
+    const subscriptionsService = makeSubscriptionsService();
+    const plans = await subscriptionsService.getPlans();
+    // Only Pro plan exists now
+    const proPlan = plans.find(p => p.name === 'pro');
+    proPlanName = proPlan?.name || 'PRO';
+  } catch (error: any) {
+    // Handle prerendering errors gracefully - use default during build
+    const errorMessage = error?.message || '';
+    if (!errorMessage.includes('prerender') && 
+        !errorMessage.includes('HANGING_PROMISE') &&
+        !errorMessage.includes('fetch() rejects')) {
+      console.error("Error fetching plans:", error);
+    }
+    // Use default 'PRO' if fetch fails
+  }
   return (
     <div className="min-h-screen bg-background">
       <LandingHeader isAuthenticated={false} />
@@ -91,7 +102,7 @@ export default async function PrivacyPolicyPage() {
                   <li>Budget and goal information (monthly budgets, savings goals, progress tracking, target amounts, priorities)</li>
                   <li>Investment data: securities (stocks, ETFs, bonds), holdings, positions, portfolio values, investment transactions (buys, sells, dividends, transfers), market prices, asset allocation</li>
                   <li>Debt tracking data: loan types, balances, interest rates, payment schedules, minimum payments, due dates, payment history, principal and interest paid</li>
-                  <li>Bank account data (when connected via Plaid): account numbers (masked), transaction history, balances, account types, liability information (credit cards, loans)</li>
+                  <li>Bank account data: account names, types, balances, transaction history (manually entered or imported via CSV)</li>
                   <li>Category learning data: historical transaction patterns used for AI-powered categorization suggestions</li>
                   <li>AI interaction data: queries, responses, and insights generated through AI features</li>
                 </ul>
@@ -123,7 +134,7 @@ export default async function PrivacyPolicyPage() {
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                 <li>Provide, maintain, and improve our services</li>
                 <li>Process transactions and manage your account</li>
-                <li>Sync bank account data through Plaid integration ({essentialPlanName} and {proPlanName} plans)</li>
+                <li>Import and manage bank account data via CSV import</li>
                 <li>Provide AI-powered category suggestions and financial insights using OpenAI</li>
                 <li>Manage household member accounts and permissions ({proPlanName} plan)</li>
                 <li>Calculate budgets, goals, investments, and debt tracking</li>
@@ -155,7 +166,7 @@ export default async function PrivacyPolicyPage() {
                   <ul className="list-disc list-inside ml-6 mt-2 space-y-1">
                     <li><strong>Stripe:</strong> For payment processing and subscription management. 
                     We do not store payment card information - all payment data is handled by Stripe.</li>
-                    <li><strong>Plaid:</strong> For secure bank account connections ({essentialPlanName} and {proPlanName} plans only). 
+                    <li><strong>CSV Import:</strong> For importing bank account transactions. 
                     We only receive account information, transactions, and balances - we never access your bank credentials.</li>
                     <li><strong>OpenAI:</strong> For AI-powered categorization and financial insights. 
                     Transaction data and patterns may be processed by OpenAI to generate category suggestions and insights. 
@@ -222,29 +233,6 @@ export default async function PrivacyPolicyPage() {
                   </p>
                 </div>
 
-                <div>
-                  <h3 className="font-semibold mb-2">Plaid - Bank Account Connection</h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    We use Plaid to securely connect your bank accounts (available on {essentialPlanName} and {proPlanName} plans). 
-                    When you connect your bank account through Plaid:
-                  </p>
-                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                    <li>Plaid securely authenticates your bank credentials using bank-level security</li>
-                    <li>We only receive account information (account names, types, masked account numbers), transaction data (amounts, dates, descriptions, categories), balances, and liability information (for credit cards and loans) in real-time</li>
-                    <li>We do not have access to your bank login credentials (username, password, PIN, or security questions)</li>
-                    <li>Plaid uses bank-level encryption and security standards (SOC 2 Type 2 certified)</li>
-                    <li>Transaction data is automatically synced and categorized using our AI-powered categorization system</li>
-                    <li>We store Plaid access tokens to maintain your connection</li>
-                    <li>You can disconnect your bank account at any time through your account settings, which will stop all data synchronization</li>
-                    <li>When you disconnect, we retain historical transaction data that was already imported, but no new data will be collected</li>
-                  </ul>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    For more information about how Plaid handles your financial data, please review 
-                    <a href="https://plaid.com/legal/privacy-policy/" target="_blank" rel="noopener noreferrer" className="text-foreground hover:underline ml-1">
-                      Plaid's Privacy Policy
-                    </a>.
-                  </p>
-                </div>
 
                 <div>
                   <h3 className="font-semibold mb-2">OpenAI - AI-Powered Features</h3>
@@ -320,11 +308,11 @@ export default async function PrivacyPolicyPage() {
                 <li>Secure data storage with encryption at rest</li>
                 <li>Row Level Security (RLS) at the database level to ensure data isolation between users and households</li>
                 <li>Secure authentication via Supabase Auth with password hashing and email verification (OTP)</li>
-                <li>Secure storage of sensitive tokens (Plaid access tokens)</li>
+                <li>Secure storage of sensitive tokens (Stripe payment tokens)</li>
                 <li>Regular security audits and vulnerability assessments</li>
                 <li>Access controls and authentication mechanisms</li>
                 <li>Compliance with financial data protection regulations (PIPEDA, GDPR, CCPA)</li>
-                <li>Bank credentials are never stored - all bank authentication is handled by Plaid</li>
+                <li>Bank credentials are never stored - all data is entered manually or imported via CSV</li>
                 <li>Household member data is isolated and only accessible to authorized members</li>
                 <li>Security logging and audit trails for account actions (blocks, suspensions, deletions)</li>
                 <li>Rate limiting to prevent abuse and unauthorized access</li>
@@ -397,7 +385,7 @@ export default async function PrivacyPolicyPage() {
               <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                 <li><strong>Active Accounts:</strong> Data is retained while your account is active and needed for service provision</li>
                 <li><strong>Account Deletion:</strong> Upon account deletion request, all data is permanently deleted immediately</li>
-                <li><strong>Connected Services:</strong> When you disconnect Plaid, we retain historical data but stop collecting new data</li>
+                <li><strong>Imported Data:</strong> When you delete imported CSV data, we remove it from our systems</li>
                 <li><strong>Security Logs:</strong> Security and audit logs (including account blocks and suspensions) may be retained longer for security and compliance purposes</li>
                 <li><strong>Legal Requirements:</strong> Data may be retained longer if required by law, regulation, or legitimate business purposes (e.g., tax records, dispute resolution)</li>
                 <li><strong>Backup Data:</strong> Our database provider (Supabase) maintains automatic backups for disaster recovery. Backup retention is managed by Supabase according to their service terms (typically 7-30 days depending on the service plan). We do not maintain separate backup copies beyond the provider's automatic backup system</li>

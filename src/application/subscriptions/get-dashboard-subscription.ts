@@ -65,7 +65,6 @@ async function getCachedSubscriptionDataInternal(userId: string) {
     const age = Date.now() - cached.timestamp;
     // Only reuse if cache is still fresh (within TTL)
     if (age < CACHE_TTL) {
-      log.debug("Using in-memory cached promise (deduplication)", { userId, age: `${age}ms` });
       try {
         return await cached.promise;
       } catch (error) {
@@ -78,13 +77,6 @@ async function getCachedSubscriptionDataInternal(userId: string) {
       requestCache.delete(userId);
     }
   }
-
-  log.debug("Computing subscription data (cache miss)", {
-    userId,
-    cacheKey: `subscription-${userId}`,
-    reason: "no-cache-hit",
-    store: "nextjs-cache-components",
-  });
 
   // Create new promise and cache it
   const service = makeSubscriptionsService();
@@ -127,7 +119,6 @@ async function getCachedSubscriptionDataInternal(userId: string) {
 export async function getCachedSubscriptionData(userId?: string) {
   const resolvedUserId = userId ?? (await getCurrentUserId());
   if (!resolvedUserId) {
-    log.debug("No user found for subscription cache");
     return {
       subscription: null,
       plan: null,
@@ -146,5 +137,13 @@ export async function getCachedSubscriptionData(userId?: string) {
  */
 export async function getDashboardSubscription(userId?: string) {
   return getCachedSubscriptionData(userId);
+}
+
+/**
+ * Clear in-memory request cache for a specific user
+ * Used after creating/updating subscriptions to ensure fresh data
+ */
+export function clearSubscriptionRequestCache(userId: string): void {
+  requestCache.delete(userId);
 }
 

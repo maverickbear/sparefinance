@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Transaction } from "@/src/domain/transactions/transactions.types";
-import type { Category, Macro } from "@/src/domain/categories/categories.types";
+import type { Category } from "@/src/domain/categories/categories.types";
 
 interface CategorySelectionModalProps {
   transaction: Transaction | null;
@@ -27,29 +27,13 @@ export function CategorySelectionModal({
   onClear,
   clearTrigger,
 }: CategorySelectionModalProps) {
-  const [macros, setMacros] = useState<Macro[]>([]);
-  const [selectedMacroId, setSelectedMacroId] = useState<string>("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>("");
-  const [availableCategories, setAvailableCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Array<{ id: string; name: string }>>([]);
-
-  const loadCategoriesForMacro = useCallback(async (macroId: string) => {
-    try {
-      const response = await fetch(`/api/categories?macroId=${macroId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableCategories(data || []);
-      }
-    } catch (error) {
-      logger.error("Error loading categories:", error);
-      setAvailableCategories([]);
-    }
-  }, []);
 
   const loadSubcategories = useCallback(async (categoryId: string) => {
     try {
-      const response = await fetch(`/api/categories?categoryId=${categoryId}`);
+      const response = await fetch(`/api/v2/categories?categoryId=${categoryId}`);
       if (response.ok) {
         const data = await response.json();
         setSubcategories(data || []);
@@ -60,24 +44,6 @@ export function CategorySelectionModal({
     }
   }, []);
 
-  // Load macros on mount
-  useEffect(() => {
-    async function loadMacros() {
-      try {
-        const response = await fetch("/api/v2/categories");
-        if (!response.ok) {
-          throw new Error("Failed to fetch groups");
-        }
-        const groups = await response.json();
-        setMacros(groups);
-      } catch (error) {
-        logger.error("Error loading macros:", error);
-        setMacros([]);
-      }
-    }
-    loadMacros();
-  }, []);
-
   // Initialize with transaction's current category/subcategory
   useEffect(() => {
     async function initialize() {
@@ -85,17 +51,10 @@ export function CategorySelectionModal({
         setSelectedCategoryId(transaction.categoryId || "");
         setSelectedSubcategoryId(transaction.subcategoryId || "");
         
-        // Find the category and its macro
         if (transaction.categoryId) {
+          // Find the category in the provided categories list
           const category = categories.find(c => c.id === transaction.categoryId);
           if (category) {
-            setSelectedMacroId(category.groupId || "");
-            
-            // Load categories for the macro
-            if (category.groupId) {
-              await loadCategoriesForMacro(category.groupId);
-            }
-            
             // Load subcategories if category is selected
             if (category.subcategories && category.subcategories.length > 0) {
               setSubcategories(category.subcategories);
@@ -104,54 +63,35 @@ export function CategorySelectionModal({
             }
           }
         } else {
-          setSelectedMacroId("");
           setSelectedCategoryId("");
           setSelectedSubcategoryId("");
-          setAvailableCategories([]);
           setSubcategories([]);
         }
       } else {
-        setSelectedMacroId("");
         setSelectedCategoryId("");
         setSelectedSubcategoryId("");
-        setAvailableCategories([]);
         setSubcategories([]);
       }
     }
     initialize();
-  }, [transaction, categories, loadCategoriesForMacro, loadSubcategories]);
+  }, [transaction, categories, loadSubcategories]);
 
   // Handle clear trigger
   useEffect(() => {
     if (clearTrigger !== undefined && clearTrigger > 0) {
-      setSelectedMacroId("");
       setSelectedCategoryId("");
       setSelectedSubcategoryId("");
-      setAvailableCategories([]);
       setSubcategories([]);
       onClear();
     }
   }, [clearTrigger, onClear]);
-
-  function handleMacroChange(macroId: string) {
-    setSelectedMacroId(macroId);
-    setSelectedCategoryId("");
-    setSelectedSubcategoryId("");
-    setSubcategories([]);
-    
-    if (macroId) {
-      loadCategoriesForMacro(macroId);
-    } else {
-      setAvailableCategories([]);
-    }
-  }
 
   function handleCategoryChange(categoryId: string) {
     setSelectedCategoryId(categoryId);
     setSelectedSubcategoryId("");
     
     if (categoryId) {
-      const category = availableCategories.find(c => c.id === categoryId);
+      const category = categories.find(c => c.id === categoryId);
       if (category?.subcategories && category.subcategories.length > 0) {
         setSubcategories(category.subcategories);
       } else {
@@ -160,16 +100,6 @@ export function CategorySelectionModal({
     } else {
       setSubcategories([]);
     }
-  }
-
-
-  function handleClear() {
-    setSelectedMacroId("");
-    setSelectedCategoryId("");
-    setSelectedSubcategoryId("");
-    setAvailableCategories([]);
-    setSubcategories([]);
-    onClear();
   }
 
   // Call onSelect when values change
@@ -183,26 +113,7 @@ export function CategorySelectionModal({
   }, [selectedCategoryId, selectedSubcategoryId, onSelect]);
 
   return (
-    <div className="space-y-4 px-6">
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Group (Macro)</label>
-        <Select
-          value={selectedMacroId || undefined}
-          onValueChange={handleMacroChange}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select group" />
-          </SelectTrigger>
-          <SelectContent>
-            {macros.map((macro) => (
-              <SelectItem key={macro.id} value={macro.id}>
-                {macro.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
+    <div className="space-y-4 px-6 pt-6 pb-6">
       <div className="space-y-2">
         <label className="text-sm font-medium">Category</label>
         <Select
@@ -210,18 +121,18 @@ export function CategorySelectionModal({
           onValueChange={handleCategoryChange}
         >
           <SelectTrigger>
-            <SelectValue placeholder={selectedMacroId ? "Select category" : "Select a group first"} />
+            <SelectValue placeholder="Select category" />
           </SelectTrigger>
           <SelectContent>
-            {availableCategories.length > 0 ? (
-              availableCategories.map((category) => (
+            {categories.length > 0 ? (
+              categories.map((category) => (
                 <SelectItem key={category.id} value={category.id}>
                   {category.name}
                 </SelectItem>
               ))
             ) : (
               <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                {selectedMacroId ? "No categories available" : "Select a group first"}
+                No categories available
               </div>
             )}
           </SelectContent>
@@ -255,5 +166,3 @@ export function CategorySelectionModal({
     </div>
   );
 }
-
-

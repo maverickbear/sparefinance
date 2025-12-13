@@ -36,7 +36,7 @@ export type PlanFeatures = z.infer<typeof planFeaturesSchema>;
  */
 export const planSchema = z.object({
   id: z.string(),
-  name: z.enum(["essential", "pro"]).or(z.string()), // Allow enum for known plans, or string for flexibility
+  name: z.string(), // Simplified: only "pro" plan exists, but allow string for flexibility
   priceMonthly: z.number(),
   priceYearly: z.number(),
   features: planFeaturesSchema,

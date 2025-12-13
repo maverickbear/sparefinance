@@ -6,6 +6,7 @@ import { guardFeatureAccess, getCurrentUserId } from "@/src/application/shared/f
 import { AppError } from "@/src/application/shared/app-error";
 import { makePortfolioService } from "@/src/application/portfolio/portfolio.factory";
 
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

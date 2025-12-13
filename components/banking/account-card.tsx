@@ -4,7 +4,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { Edit, Trash2, Loader2, RefreshCw, Unlink, AlertCircle } from "lucide-react";
 import { formatMoney } from "@/components/common/money";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,10 @@ export interface AccountCardProps {
     lastSyncedAt?: string | null;
     institutionName?: string | null;
     institutionLogo?: string | null;
+    plaidStatus?: string;
+    plaidErrorCode?: string | null;
+    plaidErrorMessage?: string | null;
+    plaidIsSyncing?: boolean;
   };
   onEdit?: (accountId: string) => void;
   onDelete?: (accountId: string) => void;
@@ -79,7 +83,6 @@ export function AccountCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
                     onClick={(e) => {
                       e.stopPropagation();
                       onSync(account.id);
@@ -98,7 +101,7 @@ export function AccountCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
+                    className="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDisconnect(account.id);
@@ -119,7 +122,6 @@ export function AccountCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(account.id);
@@ -133,7 +135,7 @@ export function AccountCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
+                className="text-destructive hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelete(account.id);
@@ -185,8 +187,26 @@ export function AccountCard({
             </div>
           )}
           {account.isConnected && (
-            <Badge variant="default" className="bg-sentiment-positive text-white text-sm px-1.5 py-0.5">
-              Connected
+            <Badge 
+              variant="default" 
+              className={cn(
+                "text-white text-sm px-1.5 py-0.5",
+                account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
+                  ? "bg-red-500 hover:bg-red-600"
+                  : account.plaidStatus === 'pending_expiration'
+                  ? "bg-yellow-500 hover:bg-yellow-600"
+                  : account.plaidIsSyncing
+                  ? "bg-blue-500 hover:bg-blue-600"
+                  : "bg-sentiment-positive hover:bg-sentiment-positive/90"
+              )}
+            >
+              {account.plaidIsSyncing 
+                ? "Syncing..." 
+                : account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
+                ? "Error"
+                : account.plaidStatus === 'pending_expiration'
+                ? "Expiring"
+                : "Connected"}
             </Badge>
           )}
         </div>
@@ -237,23 +257,47 @@ export function AccountCard({
               </div>
             </div>
           )}
-          {account.isConnected && account.lastSyncedAt && (() => {
-            try {
-              const syncDate = new Date(account.lastSyncedAt);
-              // Check if date is valid
-              if (isNaN(syncDate.getTime())) {
-                return null;
-              }
-              return (
-                <div className="text-sm text-muted-foreground pt-2 border-t">
-                  Last synced: {format(syncDate, 'MMM dd, HH:mm')}
+          {account.isConnected && (
+            <div className="space-y-2 pt-2 border-t">
+              {account.lastSyncedAt && (() => {
+                try {
+                  const syncDate = new Date(account.lastSyncedAt);
+                  // Check if date is valid
+                  if (isNaN(syncDate.getTime())) {
+                    return null;
+                  }
+                  return (
+                    <div className="text-sm text-muted-foreground">
+                      Last synced: {format(syncDate, 'MMM dd, HH:mm')}
+                    </div>
+                  );
+                } catch (error) {
+                  console.error("Error formatting lastSyncedAt:", error);
+                  return null;
+                }
+              })()}
+              
+              {/* Error indicator */}
+              {(account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required') && account.plaidErrorMessage && (
+                <div className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <span className="flex-1">
+                    {account.plaidErrorCode === 'ITEM_LOGIN_REQUIRED'
+                      ? 'Reconnection required'
+                      : account.plaidErrorMessage}
+                  </span>
                 </div>
-              );
-            } catch (error) {
-              console.error("Error formatting lastSyncedAt:", error);
-              return null;
-            }
-          })()}
+              )}
+
+              {/* Sync in progress */}
+              {account.plaidIsSyncing && (
+                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Syncing transactions...</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

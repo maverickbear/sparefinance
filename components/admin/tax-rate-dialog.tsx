@@ -124,7 +124,7 @@ export function TaxRateDialog({
                 id="country"
                 value={rate.countryCode}
                 disabled
-                size="small"
+                size="medium"
                 className="bg-muted"
               />
             </div>
@@ -134,7 +134,7 @@ export function TaxRateDialog({
                 id="code"
                 value={rate.stateOrProvinceCode}
                 disabled
-                size="small"
+                size="medium"
                 className="bg-muted"
               />
             </div>
@@ -153,7 +153,7 @@ export function TaxRateDialog({
                 max="100"
                 value={taxRate}
                 onChange={(e) => setTaxRate(e.target.value)}
-                size="small"
+                size="medium"
                 required
               />
             </div>
@@ -163,7 +163,7 @@ export function TaxRateDialog({
                 id="displayName"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                size="small"
+                size="medium"
                 required
               />
             </div>
@@ -173,7 +173,7 @@ export function TaxRateDialog({
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                size="small"
+                size="medium"
                 rows={3}
               />
             </div>
@@ -190,13 +190,13 @@ export function TaxRateDialog({
             <Button
               type="button"
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
               Cancel
             </Button>
-            <Button type="submit" size="small" disabled={loading}>
+            <Button type="submit" size="medium" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Changes
             </Button>

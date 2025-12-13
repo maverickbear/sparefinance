@@ -8,6 +8,7 @@ import { AppError } from "@/src/application/shared/app-error";
  * Get all feedbacks with pagination and metrics
  * Only accessible by super_admin
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

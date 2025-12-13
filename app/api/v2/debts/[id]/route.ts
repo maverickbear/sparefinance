@@ -4,6 +4,7 @@ import { DebtFormData } from "@/src/domain/debts/debts.validations";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { requireDebtOwnership } from "@/src/infrastructure/utils/security";
 import { revalidateTag } from 'next/cache';
 
 export async function GET(
@@ -17,6 +18,9 @@ export async function GET(
     }
 
     const { id } = await params;
+    
+    // Verify debt ownership
+    await requireDebtOwnership(id);
     
     const service = makeDebtsService();
     const debt = await service.getDebtById(id);
@@ -52,6 +56,10 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    
+    // Verify debt ownership
+    await requireDebtOwnership(id);
+    
     const body = await request.json();
     
     // Convert dates if they are strings
@@ -116,6 +124,9 @@ export async function DELETE(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify debt ownership
+    await requireDebtOwnership(id);
     
     const service = makeDebtsService();
     await service.deleteDebt(id);

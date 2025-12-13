@@ -62,10 +62,10 @@ export function CategorySelectionDialog({
           clearTrigger={clearTrigger}
         />
         <DialogFooter>
-          <Button type="button" variant="outline" size="small" onClick={handleClear}>
+          <Button type="button" variant="outline" size="medium" onClick={handleClear}>
             Clear
           </Button>
-          <Button type="button" size="small" onClick={onSave}>
+          <Button type="button" size="medium" onClick={onSave}>
             Save
           </Button>
         </DialogFooter>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { makeOnboardingDecisionService } from "@/src/application/onboarding/onboarding.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
@@ -16,7 +17,11 @@ export async function GET(request: NextRequest) {
     }
 
     const decisionService = makeOnboardingDecisionService();
-    const shouldShow = await decisionService.shouldShowOnboardingDialog(userId);
+    // Get tokens from cookies for authenticated requests
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get("sb-access-token")?.value;
+    const refreshToken = cookieStore.get("sb-refresh-token")?.value;
+    const shouldShow = await decisionService.shouldShowOnboardingDialog(userId, accessToken, refreshToken);
 
     return NextResponse.json({ shouldShow });
   } catch (error) {

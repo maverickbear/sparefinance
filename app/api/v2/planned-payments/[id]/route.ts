@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
-import { PlannedPaymentFormData, plannedPaymentSchema } from "@/src/domain/planned-payments/planned-payments.validations";
+// Use new domain types (with backward compatibility)
+import { PlannedPaymentFormData, plannedPaymentSchema } from "@/src/domain/financial-events/financial-events.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";

@@ -142,7 +142,7 @@ function NavContent({ onLinkClick }: NavContentProps) {
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                       active
                         ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                        : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                     )}
                   >
                     <Icon className="h-4 w-4 flex-shrink-0" />

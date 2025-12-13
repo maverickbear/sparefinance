@@ -131,7 +131,7 @@ export function PlansTable({
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"
-                    size="small"
+                    size="medium"
                     onClick={() => onEdit(plan)}
                   >
                     <Edit className="h-4 w-4 mr-2" />

@@ -33,11 +33,12 @@ export async function POST(request: NextRequest) {
     console.log("[SYNC] User authenticated:", { userId: authUser.id });
 
     // Get user's subscription from Supabase
+    // FIX: Use app_subscriptions table (not system.subscriptions) and snake_case column names
     const { data: existingSub, error: subError } = await supabase
-      .from("Subscription")
-      .select("stripeCustomerId, stripeSubscriptionId, planId, id")
-      .eq("userId", authUser.id)
-      .order("createdAt", { ascending: false })
+      .from("app_subscriptions")
+      .select("stripe_customer_id, stripe_subscription_id, plan_id, id")
+      .eq("user_id", authUser.id)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -47,13 +48,14 @@ export async function POST(request: NextRequest) {
 
     console.log("[SYNC] Existing subscription in Supabase:", {
       exists: !!existingSub,
-      hasStripeCustomerId: !!existingSub?.stripeCustomerId,
-      hasStripeSubscriptionId: !!existingSub?.stripeSubscriptionId,
-      planId: existingSub?.planId
+      hasStripeCustomerId: !!existingSub?.stripe_customer_id,
+      hasStripeSubscriptionId: !!existingSub?.stripe_subscription_id,
+      planId: existingSub?.plan_id
     });
 
     // If no customer ID, try to find customer by email
-    let customerId = existingSub?.stripeCustomerId;
+    // FIX: Map snake_case to camelCase for use
+    let customerId = existingSub?.stripe_customer_id;
     
     if (!customerId) {
       console.log("[SYNC] No customer ID found, searching Stripe by email:", authUser.email);
@@ -159,10 +161,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Find plan by price ID
+    // FIX: Use app_plans table (not system.plans) and snake_case column names
     const { data: plan, error: planError } = await serviceSupabase
-      .from("Plan")
+      .from("app_plans")
       .select("id")
-      .or(`stripePriceIdMonthly.eq.${priceId},stripePriceIdYearly.eq.${priceId}`)
+      .or(`stripe_price_id_monthly.eq.${priceId},stripe_price_id_yearly.eq.${priceId}`)
       .single();
 
     if (planError || !plan) {
@@ -183,27 +186,28 @@ export async function POST(request: NextRequest) {
     // Get active household ID for the user
     let householdId: string | null = null;
     try {
-      // Try to get from UserActiveHousehold first
+      // Try to get from system_user_active_households first
+      // FIX: Use correct table name and snake_case column names
       const { data: activeHousehold } = await serviceSupabase
-        .from("UserActiveHousehold")
-        .select("householdId")
-        .eq("userId", authUser.id)
+        .from("system_user_active_households")
+        .select("household_id")
+        .eq("user_id", authUser.id)
         .maybeSingle();
       
-      if (activeHousehold?.householdId) {
-        householdId = activeHousehold.householdId;
+      if (activeHousehold?.household_id) {
+        householdId = activeHousehold.household_id;
       } else {
         // Fallback to default (personal) household
         const { data: defaultMember } = await serviceSupabase
-          .from("HouseholdMember")
-          .select("householdId")
-          .eq("userId", authUser.id)
-          .eq("isDefault", true)
+          .from("household_members")
+          .select("household_id")
+          .eq("user_id", authUser.id)
+          .eq("is_default", true)
           .eq("status", "active")
           .maybeSingle();
         
-        if (defaultMember?.householdId) {
-          householdId = defaultMember.householdId;
+        if (defaultMember?.household_id) {
+          householdId = defaultMember.household_id;
         }
       }
       
@@ -239,48 +243,50 @@ export async function POST(request: NextRequest) {
 
 
     // Get existing subscription to check if trial should be finalized
+    // FIX: Use app_subscriptions table and snake_case column names
     const { data: existingSubData } = await serviceSupabase
-      .from("Subscription")
-      .select("trialStartDate, trialEndDate, status")
+      .from("app_subscriptions")
+      .select("trial_start_date, trial_end_date, status")
       .eq("id", subscriptionId)
       .maybeSingle();
 
     // Prepare subscription data
+    // FIX: Use snake_case column names for app_subscriptions table
     const subscriptionData: any = {
       id: subscriptionId,
-      userId: authUser.id,
-      householdId: householdId, // Link to active household (null if not found)
-      planId: plan.id,
+      user_id: authUser.id,
+      household_id: householdId, // Link to active household (null if not found)
+      plan_id: plan.id,
       status: status,
-      stripeSubscriptionId: activeSubscription.id,
-      stripeCustomerId: customerId,
-      currentPeriodStart: new Date((activeSubscription as any).current_period_start * 1000),
-      currentPeriodEnd: new Date((activeSubscription as any).current_period_end * 1000),
-      cancelAtPeriodEnd: (activeSubscription as any).cancel_at_period_end,
-      updatedAt: new Date(),
+      stripe_subscription_id: activeSubscription.id,
+      stripe_customer_id: customerId,
+      current_period_start: new Date((activeSubscription as any).current_period_start * 1000).toISOString(),
+      current_period_end: new Date((activeSubscription as any).current_period_end * 1000).toISOString(),
+      cancel_at_period_end: (activeSubscription as any).cancel_at_period_end,
+      updated_at: new Date().toISOString(),
     };
 
     // Preserve trial start date if it exists
-    if (existingSubData?.trialStartDate) {
-      subscriptionData.trialStartDate = existingSubData.trialStartDate;
+    if (existingSubData?.trial_start_date) {
+      subscriptionData.trial_start_date = existingSubData.trial_start_date;
     } else if ((activeSubscription as any).trial_start) {
-      subscriptionData.trialStartDate = new Date((activeSubscription as any).trial_start * 1000);
+      subscriptionData.trial_start_date = new Date((activeSubscription as any).trial_start * 1000).toISOString();
     }
 
     // If subscription status is "active" and was previously "trialing", finalize trial immediately
     const wasTrialing = existingSubData?.status === "trialing";
     const isNowActive = status === "active";
-    const hasTrialEndDate = existingSubData?.trialEndDate || (activeSubscription as any).trial_end;
+    const hasTrialEndDate = existingSubData?.trial_end_date || (activeSubscription as any).trial_end;
 
     if (isNowActive && wasTrialing && hasTrialEndDate) {
       // Payment was made during trial - finalize trial immediately
-      const now = new Date();
-      subscriptionData.trialEndDate = now;
+      const now = new Date().toISOString();
+      subscriptionData.trial_end_date = now;
       console.log("[SYNC] Payment made during trial - finalizing trial immediately:", {
         subscriptionId,
         previousStatus: existingSubData?.status,
         newStatus: status,
-        previousTrialEndDate: existingSubData?.trialEndDate,
+        previousTrialEndDate: existingSubData?.trial_end_date,
         newTrialEndDate: now,
       });
     } else {
@@ -290,38 +296,39 @@ export async function POST(request: NextRequest) {
         subscriptionId,
         stripeTrialEnd,
         stripeTrialEndDate: stripeTrialEnd ? new Date(stripeTrialEnd * 1000).toISOString() : null,
-        existingTrialEndDate: existingSubData?.trialEndDate,
+        existingTrialEndDate: existingSubData?.trial_end_date,
         status,
       });
       
       if (stripeTrialEnd) {
-        subscriptionData.trialEndDate = new Date(stripeTrialEnd * 1000);
+        subscriptionData.trial_end_date = new Date(stripeTrialEnd * 1000).toISOString();
         console.log("[SYNC] Using trial_end from Stripe:", {
           subscriptionId,
-          trialEndDate: subscriptionData.trialEndDate.toISOString(),
-          previousTrialEndDate: existingSubData?.trialEndDate,
-          changed: existingSubData?.trialEndDate !== subscriptionData.trialEndDate.toISOString(),
+          trialEndDate: subscriptionData.trial_end_date,
+          previousTrialEndDate: existingSubData?.trial_end_date,
+          changed: existingSubData?.trial_end_date !== subscriptionData.trial_end_date,
         });
-      } else if (existingSubData?.trialEndDate && status === "trialing") {
+      } else if (existingSubData?.trial_end_date && status === "trialing") {
         // Only preserve existing value if Stripe doesn't have trial_end and status is still trialing
-        subscriptionData.trialEndDate = existingSubData.trialEndDate;
+        subscriptionData.trial_end_date = existingSubData.trial_end_date;
         console.log("[SYNC] Preserving existing trialEndDate (Stripe has no trial_end):", {
           subscriptionId,
-          trialEndDate: subscriptionData.trialEndDate,
+          trialEndDate: subscriptionData.trial_end_date,
         });
       } else {
         console.log("[SYNC] No trial_end to set:", {
           subscriptionId,
           stripeTrialEnd,
-          existingTrialEndDate: existingSubData?.trialEndDate,
+          existingTrialEndDate: existingSubData?.trial_end_date,
           status,
         });
       }
     }
 
     // Upsert the subscription
+    // FIX: Use app_subscriptions table
     const { data: upsertedSub, error: upsertError } = await serviceSupabase
-      .from("Subscription")
+      .from("app_subscriptions")
       .upsert(subscriptionData, {
         onConflict: "id",
       })

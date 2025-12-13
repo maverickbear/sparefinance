@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UnifiedEntitiesTable } from "@/components/admin/unified-entities-table";
-import { GroupDialog } from "@/components/admin/group-dialog";
 import { CategoryDialog } from "@/components/admin/category-dialog";
 import { SubcategoryDialog } from "@/components/admin/subcategory-dialog";
 import { BulkImportDialog } from "@/components/admin/bulk-import-dialog";
@@ -16,56 +15,53 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { SystemGroup, SystemCategory, SystemSubcategory } from "@/src/domain/admin/admin.types";
+import type { SystemCategory, SystemSubcategory } from "@/src/domain/admin/admin.types";
 
 interface SystemEntitiesPageClientProps {
-  initialGroups: SystemGroup[];
+  initialGroups: never[]; // Groups have been removed
   initialCategories: SystemCategory[];
   initialSubcategories: SystemSubcategory[];
 }
 
 export function SystemEntitiesPageClient({
-  initialGroups,
+  initialGroups: _initialGroups, // Unused - groups removed
   initialCategories,
   initialSubcategories,
 }: SystemEntitiesPageClientProps) {
   const router = useRouter();
-  const [groups, setGroups] = useState<SystemGroup[]>(initialGroups);
-  const [categories, setCategories] = useState<SystemCategory[]>(initialCategories);
-  const [subcategories, setSubcategories] = useState<SystemSubcategory[]>(initialSubcategories);
+  
+  // Convert ISO strings back to Date objects for client-side use
+  const categoriesWithDates = React.useMemo(() => {
+    return initialCategories.map(cat => ({
+      ...cat,
+      createdAt: typeof cat.createdAt === 'string' ? new Date(cat.createdAt) : cat.createdAt,
+      updatedAt: typeof cat.updatedAt === 'string' ? new Date(cat.updatedAt) : cat.updatedAt,
+      subcategories: cat.subcategories?.map(sub => ({
+        ...sub,
+        createdAt: typeof sub.createdAt === 'string' ? new Date(sub.createdAt) : sub.createdAt,
+        updatedAt: typeof sub.updatedAt === 'string' ? new Date(sub.updatedAt) : sub.updatedAt,
+      })),
+    }));
+  }, [initialCategories]);
+
+  const subcategoriesWithDates = React.useMemo(() => {
+    return initialSubcategories.map(sub => ({
+      ...sub,
+      createdAt: typeof sub.createdAt === 'string' ? new Date(sub.createdAt) : sub.createdAt,
+      updatedAt: typeof sub.updatedAt === 'string' ? new Date(sub.updatedAt) : sub.updatedAt,
+    }));
+  }, [initialSubcategories]);
+
+  const [categories, setCategories] = useState<SystemCategory[]>(categoriesWithDates);
+  const [subcategories, setSubcategories] = useState<SystemSubcategory[]>(subcategoriesWithDates);
   const [searchTerm, setSearchTerm] = useState("");
   
   // Dialog states
-  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<SystemGroup | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<SystemCategory | null>(null);
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [editingSubcategory, setEditingSubcategory] = useState<SystemSubcategory | null>(null);
   const [isBulkImportDialogOpen, setIsBulkImportDialogOpen] = useState(false);
-
-  function handleCreateGroup() {
-    setEditingGroup(null);
-    setIsGroupDialogOpen(true);
-  }
-
-  function handleEditGroup(group: SystemGroup) {
-    setEditingGroup(group);
-    setIsGroupDialogOpen(true);
-  }
-
-  async function handleDeleteGroup(id: string) {
-    const response = await fetch(`/api/admin/groups?id=${id}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to delete group");
-    }
-
-    router.refresh();
-  }
 
   function handleCreateCategory() {
     setEditingCategory(null);
@@ -113,14 +109,11 @@ export function SystemEntitiesPageClient({
     router.refresh();
   }
 
-  async function handleBulkDelete(items: Array<{ id: string; type: "group" | "category" | "subcategory" }>) {
+  async function handleBulkDelete(items: Array<{ id: string; type: "category" | "subcategory" }>) {
     // Delete all items in parallel, tracking which item each promise corresponds to
     const deletePromises = items.map(async (item) => {
       let endpoint = "";
       switch (item.type) {
-        case "group":
-          endpoint = `/api/admin/groups?id=${item.id}`;
-          break;
         case "category":
           endpoint = `/api/admin/categories?id=${item.id}`;
           break;
@@ -150,13 +143,20 @@ export function SystemEntitiesPageClient({
   }
 
   function handleSuccess() {
+    // Refresh data from server
     router.refresh();
   }
+
+  // Update state when initial data changes (e.g., after refresh)
+  React.useEffect(() => {
+    setCategories(categoriesWithDates);
+    setSubcategories(subcategoriesWithDates);
+  }, [categoriesWithDates, subcategoriesWithDates]);
 
   // Filter system entities based on search term
   const filteredEntities = useMemo(() => {
     if (!searchTerm.trim()) {
-      return { groups, categories, subcategories };
+      return { categories, subcategories };
     }
 
     const searchLower = searchTerm.toLowerCase().trim();
@@ -164,7 +164,6 @@ export function SystemEntitiesPageClient({
     // Find matching subcategories
     const matchingSubcategoryIds = new Set<string>();
     const matchingCategoryIds = new Set<string>();
-    const matchingGroupIds = new Set<string>();
 
     subcategories.forEach((subcategory) => {
       if (subcategory.name.toLowerCase().includes(searchLower)) {
@@ -177,30 +176,12 @@ export function SystemEntitiesPageClient({
     categories.forEach((category) => {
       if (category.name.toLowerCase().includes(searchLower)) {
         matchingCategoryIds.add(category.id);
-        matchingGroupIds.add(category.macroId);
       }
     });
 
-    // Find matching groups
-    groups.forEach((group) => {
-      if (group.name.toLowerCase().includes(searchLower)) {
-        matchingGroupIds.add(group.id);
-      }
-    });
-
-    // If a category matches, include its group
-    categories.forEach((category) => {
-      if (matchingCategoryIds.has(category.id)) {
-        matchingGroupIds.add(category.macroId);
-      }
-    });
-
-    // Filter groups
-    const filteredGroups = groups.filter((group) => matchingGroupIds.has(group.id));
-
-    // Filter categories (include if group matches or category matches)
+    // Filter categories
     const filteredCategories = categories.filter(
-      (category) => matchingGroupIds.has(category.macroId) || matchingCategoryIds.has(category.id)
+      (category) => matchingCategoryIds.has(category.id)
     );
 
     // Filter subcategories (include if category matches or subcategory matches)
@@ -209,11 +190,10 @@ export function SystemEntitiesPageClient({
     );
 
     return {
-      groups: filteredGroups,
       categories: filteredCategories,
       subcategories: filteredSubcategories,
     };
-  }, [searchTerm, groups, categories, subcategories]);
+  }, [searchTerm, categories, subcategories]);
 
   return (
     <div className="w-full p-4 lg:p-8">
@@ -234,10 +214,6 @@ export function SystemEntitiesPageClient({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleCreateGroup}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Group
-                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCreateCategory}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Category
@@ -257,7 +233,7 @@ export function SystemEntitiesPageClient({
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search groups, categories, or subcategories..."
+              placeholder="Search categories or subcategories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -265,12 +241,12 @@ export function SystemEntitiesPageClient({
           </div>
         </div>
         <UnifiedEntitiesTable
-          groups={filteredEntities.groups}
+          groups={[]}
           categories={filteredEntities.categories}
           subcategories={filteredEntities.subcategories}
           loading={false}
-          onEditGroup={handleEditGroup}
-          onDeleteGroup={handleDeleteGroup}
+          onEditGroup={() => {}}
+          onDeleteGroup={() => {}}
           onEditCategory={handleEditCategory}
           onDeleteCategory={handleDeleteCategory}
           onEditSubcategory={handleEditSubcategory}
@@ -278,18 +254,6 @@ export function SystemEntitiesPageClient({
           onBulkDelete={handleBulkDelete}
         />
       </div>
-
-      <GroupDialog
-        open={isGroupDialogOpen}
-        onOpenChange={(open) => {
-          setIsGroupDialogOpen(open);
-          if (!open) {
-            setEditingGroup(null);
-          }
-        }}
-        group={editingGroup}
-        onSuccess={handleSuccess}
-      />
 
       <CategoryDialog
         open={isCategoryDialogOpen}
@@ -300,7 +264,6 @@ export function SystemEntitiesPageClient({
           }
         }}
         category={editingCategory}
-        availableMacros={groups.map((g) => ({ id: g.id, name: g.name }))}
         onSuccess={handleSuccess}
       />
 
@@ -315,8 +278,7 @@ export function SystemEntitiesPageClient({
         subcategory={editingSubcategory}
         availableCategories={categories.map((c) => ({ 
           id: c.id, 
-          name: c.name,
-          group: c.group ? { id: c.group.id, name: c.group.name } : null
+          name: c.name
         }))}
         onSuccess={handleSuccess}
       />

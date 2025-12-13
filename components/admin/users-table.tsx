@@ -336,7 +336,7 @@ export function UsersTable({ users: initialUsers, loading: initialLoading, searc
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     variant="ghost"
-                                    size="small"
+                                    size="medium"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <MoreVertical className="h-4 w-4" />
@@ -444,7 +444,7 @@ export function UsersTable({ users: initialUsers, loading: initialLoading, searc
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     variant="ghost"
-                                    size="small"
+                                    size="medium"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <MoreVertical className="h-4 w-4" />
@@ -593,7 +593,7 @@ export function UsersTable({ users: initialUsers, loading: initialLoading, searc
                             <DropdownMenuTrigger asChild>
                               <Button
                                 variant="ghost"
-                                size="small"
+                                size="medium"
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>

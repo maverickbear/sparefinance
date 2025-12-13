@@ -20,6 +20,6 @@ export interface BaseImportJob {
   completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
 }
 

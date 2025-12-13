@@ -463,7 +463,7 @@ function LoginFormContent() {
 
         <Button 
           type="submit" 
-          size="small"
+          size="medium"
           className="w-full text-base font-medium" 
           disabled={loading || (!!turnstileSiteKey && !turnstileToken)}
         >

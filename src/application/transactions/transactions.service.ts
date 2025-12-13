@@ -3,9 +3,9 @@
  * Business logic for transaction management
  */
 
-import { TransactionsRepository } from "@/src/infrastructure/database/repositories/transactions.repository";
-import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
-import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
+import { ITransactionsRepository } from "@/src/infrastructure/database/repositories/interfaces/transactions.repository.interface";
+import { IAccountsRepository } from "@/src/infrastructure/database/repositories/interfaces/accounts.repository.interface";
+import { ICategoriesRepository } from "@/src/infrastructure/database/repositories/interfaces/categories.repository.interface";
 import { TransactionsMapper } from "./transactions.mapper";
 import { TransactionFormData } from "../../domain/transactions/transactions.validations";
 import { BaseTransaction, TransactionWithRelations, TransactionFilters, TransactionQueryResult } from "../../domain/transactions/transactions.types";
@@ -20,6 +20,7 @@ import { encryptDescription, decryptDescription, normalizeDescription, getTransa
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
 import { AppError } from "../shared/app-error";
 import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-dashboard-subscription";
+import { TRANSACTION_IMPORT_BATCH_SIZE, TRANSACTION_IMPORT_BATCH_DELAY_MS, TRANSACTION_IMPORT_PROGRESS_INTERVAL } from "@/src/domain/shared/constants";
 
 // Helper function to get user subscription data (uses cached function)
 async function getUserSubscriptionData(userId: string) {
@@ -27,12 +28,14 @@ async function getUserSubscriptionData(userId: string) {
 }
 import { suggestCategory } from "@/src/application/shared/category-learning";
 import { TransactionRow } from "@/src/infrastructure/database/repositories/transactions.repository";
+import { detectSubscriptionsFromTransactions } from "./subscription-detection";
+import { DetectedSubscription } from "../../domain/subscriptions/subscriptions.types";
 
 export class TransactionsService {
   constructor(
-    private repository: TransactionsRepository,
-    private accountsRepository: AccountsRepository,
-    private categoriesRepository: CategoriesRepository
+    private repository: ITransactionsRepository,
+    private accountsRepository: IAccountsRepository,
+    private categoriesRepository: ICategoriesRepository
   ) {}
 
   /**
@@ -56,53 +59,77 @@ export class TransactionsService {
     }));
 
     // Fetch related data separately to avoid RLS issues
-    const accountIds = [...new Set(decryptedRows.map(t => t.accountId))];
-    const categoryIds = [...new Set(decryptedRows.map(t => t.categoryId).filter(Boolean) as string[])];
-    const subcategoryIds = [...new Set(decryptedRows.map(t => t.subcategoryId).filter(Boolean) as string[])];
+    // Note: rows are still in snake_case format from repository
+    const accountIds = [...new Set(decryptedRows.map(t => t.account_id))];
+    const categoryIds = [...new Set(decryptedRows.map(t => t.category_id).filter(Boolean) as string[])];
+    const subcategoryIds = [...new Set(decryptedRows.map(t => t.subcategory_id).filter(Boolean) as string[])];
+    const suggestedCategoryIds = [...new Set(decryptedRows.map(t => t.suggested_category_id).filter(Boolean) as string[])];
+    const suggestedSubcategoryIds = [...new Set(decryptedRows.map(t => t.suggested_subcategory_id).filter(Boolean) as string[])];
 
-    // Fetch accounts using repository
+    // Fetch accounts using injected repository
     const accountsMap = new Map<string, { id: string; name: string; type: string }>();
     if (accountIds.length > 0) {
-      const accountsRepository = new AccountsRepository();
-      const accounts = await accountsRepository.findByIds(accountIds, accessToken, refreshToken);
+      const accounts = await this.accountsRepository.findByIds(accountIds, accessToken, refreshToken);
 
       accounts.forEach(account => {
         accountsMap.set(account.id, { id: account.id, name: account.name, type: account.type });
       });
     }
 
-    // Fetch categories using repository
-    const categoriesMap = new Map<string, { id: string; name: string; macroId?: string }>();
+    // Fetch categories using injected repository
+    const categoriesMap = new Map<string, { id: string; name: string }>();
     if (categoryIds.length > 0) {
-      const categoriesRepository = new CategoriesRepository();
-      const categories = await categoriesRepository.findCategoriesByIds(categoryIds, accessToken, refreshToken);
+      const categories = await this.categoriesRepository.findCategoriesByIds(categoryIds, accessToken, refreshToken);
 
       categories.forEach(category => {
-        categoriesMap.set(category.id, { id: category.id, name: category.name, macroId: category.groupId });
+        categoriesMap.set(category.id, { id: category.id, name: category.name });
       });
     }
 
-    // Fetch subcategories using repository
+    // Fetch subcategories using injected repository
     const subcategoriesMap = new Map<string, { id: string; name: string; logo?: string | null }>();
     if (subcategoryIds.length > 0) {
-      const categoriesRepository = new CategoriesRepository();
-      const subcategories = await categoriesRepository.findSubcategoriesByIds(subcategoryIds, accessToken, refreshToken);
+      const subcategories = await this.categoriesRepository.findSubcategoriesByIds(subcategoryIds, accessToken, refreshToken);
 
       subcategories.forEach(subcategory => {
         subcategoriesMap.set(subcategory.id, { id: subcategory.id, name: subcategory.name, logo: subcategory.logo });
       });
     }
 
+    // Fetch suggested categories using injected repository
+    const suggestedCategoriesMap = new Map<string, { id: string; name: string }>();
+    if (suggestedCategoryIds.length > 0) {
+      const suggestedCategories = await this.categoriesRepository.findCategoriesByIds(suggestedCategoryIds, accessToken, refreshToken);
+
+      suggestedCategories.forEach(category => {
+        suggestedCategoriesMap.set(category.id, { id: category.id, name: category.name });
+      });
+    }
+
+    // Fetch suggested subcategories using injected repository
+    const suggestedSubcategoriesMap = new Map<string, { id: string; name: string; logo?: string | null }>();
+    if (suggestedSubcategoryIds.length > 0) {
+      const suggestedSubcategories = await this.categoriesRepository.findSubcategoriesByIds(suggestedSubcategoryIds, accessToken, refreshToken);
+
+      suggestedSubcategories.forEach(subcategory => {
+        suggestedSubcategoriesMap.set(subcategory.id, { id: subcategory.id, name: subcategory.name, logo: subcategory.logo });
+      });
+    }
+
     // Map to domain entities with relations
     const transactions: TransactionWithRelations[] = decryptedRows.map(row => {
-      const account = accountsMap.get(row.accountId);
-      const category = row.categoryId ? categoriesMap.get(row.categoryId) : null;
-      const subcategory = row.subcategoryId ? subcategoriesMap.get(row.subcategoryId) : null;
+      const account = accountsMap.get(row.account_id);
+      const category = row.category_id ? categoriesMap.get(row.category_id) : null;
+      const subcategory = row.subcategory_id ? subcategoriesMap.get(row.subcategory_id) : null;
+      const suggestedCategory = row.suggested_category_id ? suggestedCategoriesMap.get(row.suggested_category_id) : null;
+      const suggestedSubcategory = row.suggested_subcategory_id ? suggestedSubcategoriesMap.get(row.suggested_subcategory_id) : null;
 
       return TransactionsMapper.toDomainWithRelations(row, {
         account: account ? { ...account, balance: undefined } : null,
-        category: category ? { ...category, macro: undefined } : null,
+        category: category ? { id: category.id, name: category.name } : null,
         subcategory: subcategory || null,
+        suggestedCategory: suggestedCategory || null,
+        suggestedSubcategory: suggestedSubcategory || null,
       });
     });
 
@@ -147,16 +174,20 @@ export class TransactionsService {
     };
 
     // Fetch relations
-    const [account, category, subcategory] = await Promise.all([
-      this.accountsRepository.findById(row.accountId, accessToken, refreshToken),
-      row.categoryId ? this.categoriesRepository.findCategoryById(row.categoryId, accessToken, refreshToken) : Promise.resolve(null),
-      row.subcategoryId ? this.categoriesRepository.findSubcategoryById(row.subcategoryId, accessToken, refreshToken) : Promise.resolve(null),
+    const [account, category, subcategory, suggestedCategory, suggestedSubcategory] = await Promise.all([
+      this.accountsRepository.findById(row.account_id, accessToken, refreshToken),
+      row.category_id ? this.categoriesRepository.findCategoryById(row.category_id, accessToken, refreshToken) : Promise.resolve(null),
+      row.subcategory_id ? this.categoriesRepository.findSubcategoryById(row.subcategory_id, accessToken, refreshToken) : Promise.resolve(null),
+      row.suggested_category_id ? this.categoriesRepository.findCategoryById(row.suggested_category_id, accessToken, refreshToken) : Promise.resolve(null),
+      row.suggested_subcategory_id ? this.categoriesRepository.findSubcategoryById(row.suggested_subcategory_id, accessToken, refreshToken) : Promise.resolve(null),
     ]);
 
     return TransactionsMapper.toDomainWithRelations(decryptedRow, {
       account: account ? { ...account, balance: undefined } : null,
-      category: category ? { ...category, macro: undefined } : null,
+      category: category || null,
       subcategory: subcategory || null,
+      suggestedCategory: suggestedCategory || null,
+      suggestedSubcategory: suggestedSubcategory || null,
     });
   }
 
@@ -166,24 +197,29 @@ export class TransactionsService {
   async createTransaction(
     data: TransactionFormData,
     providedUserId?: string
-  ): Promise<BaseTransaction> {
+  ): Promise<TransactionWithRelations> {
     const supabase = await createServerClient();
 
     // Get user ID
     let userId: string;
     if (providedUserId) {
       // Server-side operation - validate account ownership
-      const { data: account } = await supabase
-        .from('Account')
-        .select('userId')
+      const { data: account, error: accountError } = await supabase
+        .from('accounts')
+        .select('user_id, id, name')
         .eq('id', data.accountId)
         .single();
 
-      if (!account) {
-        throw new AppError("Account not found", 404);
+      if (accountError || !account) {
+        logger.error("[TransactionsService] Account lookup failed:", {
+          accountId: data.accountId,
+          error: accountError,
+          userId: providedUserId,
+        });
+        throw new AppError(`Account not found: ${data.accountId}. Please check your account mapping.`, 404);
       }
 
-      if (account.userId !== null && account.userId !== providedUserId) {
+      if (account.user_id !== null && account.user_id !== providedUserId) {
         throw new AppError("Unauthorized: Account does not belong to user", 401);
       }
 
@@ -276,24 +312,25 @@ export class TransactionsService {
           date: transactionDate,
           type: 'transfer' as const,
           amount: data.amount,
-          accountId: data.accountId,
-          categoryId: null,
-          subcategoryId: null,
+          account_id: data.accountId,
+          category_id: null,
+          subcategory_id: null,
           description: encryptedDescription,
-          isRecurring: data.recurring ?? false,
-          expenseType: null,
-          transferToId: data.toAccountId || null,
-          transferFromId: null,
-          createdAt: now,
-          updatedAt: now,
-          suggestedCategoryId: null,
-          suggestedSubcategoryId: null,
-          plaidMetadata: null,
-          userId,
-          householdId,
+          description_search: descriptionSearch,
+          is_recurring: data.recurring ?? false,
+          expense_type: null,
+          transfer_to_id: data.toAccountId || null,
+          transfer_from_id: null,
+          created_at: now,
+          updated_at: now,
+          suggested_category_id: null,
+          suggested_subcategory_id: null,
+          user_id: userId,
+          household_id: householdId,
           tags: null,
-          receiptUrl: null,
-        };
+          receipt_url: null,
+          deleted_at: null,
+        } as TransactionRow;
       }
       
       transactionRow = created;
@@ -307,22 +344,11 @@ export class TransactionsService {
         transactionRow = await this.repository.findById(transactionRow.id) || transactionRow;
       }
 
-      // Handle merchant in plaidMetadata (for transfers)
-      if (data.merchant) {
-        const existingMetadata = (transactionRow.plaidMetadata || {}) as Record<string, unknown>;
-        const updatedMetadata = {
-          ...existingMetadata,
-          merchantName: data.merchant.trim() || null,
-        };
-        await this.repository.update(transactionRow.id, {
-          plaidMetadata: updatedMetadata,
-          updatedAt: now,
-        });
-        transactionRow = await this.repository.findById(transactionRow.id) || transactionRow;
-      }
+      // Merchant information is now stored directly in description or handled separately
+      // No longer using plaidMetadata
     } else {
       // Regular transaction or transfer with transferFromId
-      const result = await this.repository.createTransactionWithLimit({
+      transactionRow = await this.repository.create({
         id,
         userId,
         accountId: data.accountId,
@@ -330,67 +356,16 @@ export class TransactionsService {
         date: transactionDate,
         type: data.type,
         description: encryptedDescription,
-        descriptionSearch,
         categoryId: finalCategoryId,
         subcategoryId: finalSubcategoryId,
         isRecurring: data.recurring ?? false,
         expenseType: data.type === "expense" ? (data.expenseType || null) : null,
-        maxTransactions: limits.maxTransactions,
+        transferToId: data.type === "transfer" && data.toAccountId ? data.toAccountId : null,
+        transferFromId: null, // Will be set below if needed
+        householdId,
         createdAt: now,
         updatedAt: now,
       });
-
-      if (!result || !result.id) {
-        logger.error("[TransactionsService] Failed to create transaction - repository returned null or invalid result", {
-          userId,
-          accountId: data.accountId,
-          type: data.type,
-          amount: data.amount,
-          date: transactionDate,
-          maxTransactions: limits.maxTransactions,
-          result,
-        });
-        throw new AppError("Failed to create transaction. The transaction limit may have been exceeded or an unexpected error occurred.", 500);
-      }
-
-      // Try to fetch the created transaction
-      // If not found (due to RLS or timing), construct it from the data we have
-      let created = await this.repository.findById(result.id);
-      
-      if (!created) {
-        // Transaction was created but not immediately visible (RLS/timing issue)
-        // Construct the transaction row from the data we passed to the function
-        logger.warn("[TransactionsService] Transaction created but not immediately fetchable, constructing from data", {
-          id: result.id,
-          userId,
-        });
-        
-        created = {
-          id: result.id,
-          date: transactionDate,
-          type: data.type as 'income' | 'expense' | 'transfer',
-          amount: data.amount,
-          accountId: data.accountId,
-          categoryId: finalCategoryId,
-          subcategoryId: finalSubcategoryId,
-          description: encryptedDescription,
-          isRecurring: data.recurring ?? false,
-          expenseType: data.type === "expense" ? (data.expenseType || null) : null,
-          transferToId: data.type === "transfer" && data.toAccountId ? data.toAccountId : null,
-          transferFromId: null, // Will be set below if needed
-          createdAt: now,
-          updatedAt: now,
-          suggestedCategoryId: null,
-          suggestedSubcategoryId: null,
-          plaidMetadata: null,
-          userId,
-          householdId,
-          tags: null,
-          receiptUrl: null,
-        };
-      }
-      
-      transactionRow = created;
 
       // Handle transferFromId for incoming transfers (e.g., credit card payments)
       if (data.type === "transfer" && data.transferFromId) {
@@ -410,34 +385,68 @@ export class TransactionsService {
         transactionRow = await this.repository.findById(transactionRow.id) || transactionRow;
       }
 
-      // Handle merchant in plaidMetadata
-      if (data.merchant !== undefined) {
-        const existingMetadata = (transactionRow.plaidMetadata || {}) as Record<string, unknown>;
-        const updatedMetadata = {
-          ...existingMetadata,
-          merchantName: data.merchant?.trim() || null,
-        };
-        await this.repository.update(transactionRow.id, {
-          plaidMetadata: updatedMetadata,
-          updatedAt: now,
-        });
-        transactionRow = await this.repository.findById(transactionRow.id) || transactionRow;
-      }
+      // Merchant information is now stored directly in description or handled separately
+      // No longer using plaidMetadata
     }
 
+    // Fetch related data (account, category, subcategory) to return complete transaction
+    const accountIds = [transactionRow.account_id];
+    const categoryIds = transactionRow.category_id ? [transactionRow.category_id] : [];
+    const subcategoryIds = transactionRow.subcategory_id ? [transactionRow.subcategory_id] : [];
 
-    return TransactionsMapper.toDomain(transactionRow);
+    // Fetch account
+    const accountsMap = new Map<string, { id: string; name: string; type: string }>();
+    if (accountIds.length > 0) {
+      const accounts = await this.accountsRepository.findByIds(accountIds);
+      accounts.forEach(account => {
+        accountsMap.set(account.id, { id: account.id, name: account.name, type: account.type });
+      });
+    }
+
+    // Fetch category
+    const categoriesMap = new Map<string, { id: string; name: string }>();
+    if (categoryIds.length > 0) {
+      const categories = await this.categoriesRepository.findCategoriesByIds(categoryIds);
+      categories.forEach(category => {
+        categoriesMap.set(category.id, { id: category.id, name: category.name });
+      });
+    }
+
+    // Fetch subcategory
+    const subcategoriesMap = new Map<string, { id: string; name: string; logo?: string | null }>();
+    if (subcategoryIds.length > 0) {
+      const subcategories = await this.categoriesRepository.findSubcategoriesByIds(subcategoryIds);
+      subcategories.forEach(subcategory => {
+        subcategoriesMap.set(subcategory.id, { id: subcategory.id, name: subcategory.name, logo: subcategory.logo });
+      });
+    }
+
+    const account = accountsMap.get(transactionRow.account_id);
+    const category = transactionRow.category_id ? categoriesMap.get(transactionRow.category_id) : null;
+    const subcategory = transactionRow.subcategory_id ? subcategoriesMap.get(transactionRow.subcategory_id) : null;
+
+    // Decrypt description before returning
+    const decryptedRow = {
+      ...transactionRow,
+      description: transactionRow.description ? decryptDescription(transactionRow.description) : null,
+    };
+
+    return TransactionsMapper.toDomainWithRelations(decryptedRow, {
+      account: account ? { ...account, balance: undefined } : null,
+      category: category || null,
+      subcategory: subcategory || null,
+    });
   }
 
   /**
    * Update a transaction
    */
-  async updateTransaction(id: string, data: Partial<TransactionFormData>): Promise<BaseTransaction> {
+  async updateTransaction(id: string, data: Partial<TransactionFormData>): Promise<TransactionWithRelations> {
     // Verify ownership
     await requireTransactionOwnership(id);
 
     const now = formatTimestamp(new Date());
-    const updateData: Partial<TransactionRow> = { updatedAt: now };
+    const updateData: Parameters<ITransactionsRepository['update']>[1] = { updatedAt: now };
 
     // Handle date
     if (data.date !== undefined) {
@@ -466,46 +475,116 @@ export class TransactionsService {
     if (data.transferFromId !== undefined) updateData.transferFromId = data.transferFromId || null;
     if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl || null;
 
-    // Handle merchant in plaidMetadata
-    if (data.merchant !== undefined) {
-      // Get existing transaction to merge plaidMetadata
-      const existing = await this.repository.findById(id);
-      const existingMetadata = (existing?.plaidMetadata || {}) as Record<string, unknown>;
-      const updatedMetadata = {
-        ...existingMetadata,
-        merchantName: data.merchant?.trim() || null,
-      };
-      updateData.plaidMetadata = updatedMetadata as Record<string, unknown> | null;
-    }
+    // Merchant information is now stored directly in description or handled separately
+    // No longer using plaidMetadata
 
     const row = await this.repository.update(id, updateData);
 
+    // Fetch related data (account, category, subcategory) to return complete transaction
+    const accountIds = [row.account_id];
+    const categoryIds = row.category_id ? [row.category_id] : [];
+    const subcategoryIds = row.subcategory_id ? [row.subcategory_id] : [];
 
-    return TransactionsMapper.toDomain(row);
+    // Fetch account
+    const accountsMap = new Map<string, { id: string; name: string; type: string }>();
+    if (accountIds.length > 0) {
+      const accounts = await this.accountsRepository.findByIds(accountIds);
+      accounts.forEach(account => {
+        accountsMap.set(account.id, { id: account.id, name: account.name, type: account.type });
+      });
+    }
+
+    // Fetch category
+    const categoriesMap = new Map<string, { id: string; name: string }>();
+    if (categoryIds.length > 0) {
+      const categories = await this.categoriesRepository.findCategoriesByIds(categoryIds);
+      categories.forEach(category => {
+        categoriesMap.set(category.id, { id: category.id, name: category.name });
+      });
+    }
+
+    // Fetch subcategory
+    const subcategoriesMap = new Map<string, { id: string; name: string; logo?: string | null }>();
+    if (subcategoryIds.length > 0) {
+      const subcategories = await this.categoriesRepository.findSubcategoriesByIds(subcategoryIds);
+      subcategories.forEach(subcategory => {
+        subcategoriesMap.set(subcategory.id, { id: subcategory.id, name: subcategory.name, logo: subcategory.logo });
+      });
+    }
+
+    const account = accountsMap.get(row.account_id);
+    const category = row.category_id ? categoriesMap.get(row.category_id) : null;
+    const subcategory = row.subcategory_id ? subcategoriesMap.get(row.subcategory_id) : null;
+
+    // Decrypt description before returning
+    const decryptedRow = {
+      ...row,
+      description: row.description ? decryptDescription(row.description) : null,
+    };
+
+    return TransactionsMapper.toDomainWithRelations(decryptedRow, {
+      account: account ? { ...account, balance: undefined } : null,
+      category: category || null,
+      subcategory: subcategory || null,
+    });
   }
 
   /**
-   * Delete a transaction
+   * Soft delete a transaction (temporary, for undo functionality)
    */
-  async deleteTransaction(id: string): Promise<void> {
+  async softDeleteTransaction(id: string): Promise<void> {
     // Verify ownership
     await requireTransactionOwnership(id);
 
-    await this.repository.delete(id);
-
+    await this.repository.softDelete(id);
   }
 
   /**
-   * Delete multiple transactions
+   * Delete a transaction (hard delete - permanent)
+   * Note: includeDeleted=true because transaction may be soft-deleted
    */
-  async deleteMultipleTransactions(ids: string[]): Promise<void> {
+  async deleteTransaction(id: string): Promise<void> {
+    // Verify ownership (include deleted transactions since they may be soft-deleted)
+    await requireTransactionOwnership(id, true);
+
+    await this.repository.delete(id);
+  }
+
+  /**
+   * Soft delete multiple transactions (temporary, for undo functionality)
+   */
+  async softDeleteMultipleTransactions(ids: string[]): Promise<void> {
     // Verify ownership of all transactions
     for (const id of ids) {
       await requireTransactionOwnership(id);
     }
 
-    await this.repository.deleteMultiple(ids);
+    await this.repository.softDeleteMultiple(ids);
+  }
 
+  /**
+   * Delete multiple transactions (hard delete - permanent)
+   * Note: includeDeleted=true because transactions may be soft-deleted
+   */
+  async deleteMultipleTransactions(ids: string[]): Promise<void> {
+    // Verify ownership of all transactions (include deleted since they may be soft-deleted)
+    for (const id of ids) {
+      await requireTransactionOwnership(id, true);
+    }
+
+    await this.repository.deleteMultiple(ids);
+  }
+
+  /**
+   * Restore transactions (undo soft delete)
+   */
+  async restoreTransactions(ids: string[]): Promise<void> {
+    // Verify ownership of all transactions
+    for (const id of ids) {
+      await requireTransactionOwnership(id);
+    }
+
+    await this.repository.restore(ids);
   }
 
   /**
@@ -516,7 +595,7 @@ export class TransactionsService {
 
     // Get account data (need name and type for AccountWithBalance type)
     const { data: account } = await supabase
-      .from("Account")
+      .from("accounts")
       .select("initialBalance, name, type")
       .eq("id", accountId)
       .single();
@@ -642,7 +721,7 @@ export class TransactionsService {
     const now = formatTimestamp(new Date());
 
     const { error: jobError } = await supabase
-      .from('ImportJob')
+      .from('system_jobs_imports')
       .insert({
         id: jobId,
         userId: userId,
@@ -680,6 +759,8 @@ export class TransactionsService {
 
   /**
    * Import multiple transactions (for CSV import)
+   * CRITICAL: Validates limit BEFORE creating any transactions to prevent partial creation
+   * Supports progress tracking via jobId (optional)
    */
   async importTransactions(
     userId: string,
@@ -694,7 +775,8 @@ export class TransactionsService {
       description?: string | null;
       recurring?: boolean;
       expenseType?: "fixed" | "variable" | null;
-    }>
+    }>,
+    jobId?: string
   ): Promise<{
     imported: number;
     errors: number;
@@ -704,19 +786,56 @@ export class TransactionsService {
       throw new AppError("No transactions provided", 400);
     }
 
+    // CRITICAL: Validate limit BEFORE creating any transactions
+    // Group transactions by month to check limits per month
+    const transactionsByMonth = new Map<string, Array<{ date: Date; index: number }>>();
+    
+    transactions.forEach((tx, index) => {
+      const date = tx.date instanceof Date ? tx.date : new Date(tx.date);
+      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+      
+      if (!transactionsByMonth.has(monthKey)) {
+        transactionsByMonth.set(monthKey, []);
+      }
+      transactionsByMonth.get(monthKey)!.push({ date, index });
+    });
+
+    // Check limit for each month
+    for (const [monthKey, monthTransactions] of transactionsByMonth.entries()) {
+      const firstTransaction = monthTransactions[0];
+      const { guardBulkTransactionLimit, throwIfNotAllowed } = await import("@/src/application/shared/feature-guard");
+      
+      const limitGuard = await guardBulkTransactionLimit(
+        userId,
+        monthTransactions.length,
+        firstTransaction.date
+      );
+      await throwIfNotAllowed(limitGuard);
+    }
+
+    // Initialize progress tracking if jobId provided
+    if (jobId) {
+      const { progressTracker } = await import("@/src/infrastructure/utils/progress-tracker");
+      progressTracker.create(jobId, transactions.length, `Importing ${transactions.length} transactions...`);
+    }
+
     let successCount = 0;
     let errorCount = 0;
     const errors: Array<{ rowIndex: number; fileName?: string; error: string }> = [];
 
     // Process transactions in batches to avoid rate limiting
-    const batchSize = 20;
-    for (let i = 0; i < transactions.length; i += batchSize) {
-      const batch = transactions.slice(i, i + batchSize);
+    for (let i = 0; i < transactions.length; i += TRANSACTION_IMPORT_BATCH_SIZE) {
+      const batch = transactions.slice(i, i + TRANSACTION_IMPORT_BATCH_SIZE);
       
       // Process batch with a small delay between batches to avoid rate limiting
       await Promise.allSettled(
         batch.map(async (tx, index) => {
           try {
+            // Validate accountId exists before attempting to create transaction
+            if (!tx.accountId) {
+              throw new AppError("Account ID is required", 400);
+            }
+
             // Convert date string to Date object if needed
             const data: TransactionFormData = {
               date: tx.date instanceof Date ? tx.date : new Date(tx.date),
@@ -743,19 +862,39 @@ export class TransactionsService {
               errorMessage = error.message;
             }
             
+            const globalIndex = i + index;
             errors.push({
-              rowIndex: i + index,
+              rowIndex: (tx as any).rowIndex || globalIndex + 1,
+              fileName: (tx as any).fileName,
               error: errorMessage,
             });
-            logger.error("[TransactionsService] Error importing transaction:", error);
+            logger.error("[TransactionsService] Error importing transaction:", {
+              error,
+              accountId: tx.accountId,
+              rowIndex: (tx as any).rowIndex || globalIndex + 1,
+              fileName: (tx as any).fileName,
+            });
           }
         })
       );
 
-      // Add a small delay between batches to avoid rate limiting
-      if (i + batchSize < transactions.length) {
-        await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay between batches
+      // Update progress if jobId provided (simplified: update every N transactions, not every batch)
+      if (jobId && (i + TRANSACTION_IMPORT_BATCH_SIZE) % TRANSACTION_IMPORT_PROGRESS_INTERVAL === 0) {
+        const { progressTracker } = await import("@/src/infrastructure/utils/progress-tracker");
+        const processed = Math.min(i + TRANSACTION_IMPORT_BATCH_SIZE, transactions.length);
+        progressTracker.update(jobId, processed, `Processed ${processed} of ${transactions.length} transactions...`);
       }
+
+      // Add a small delay between batches to avoid rate limiting
+      if (i + TRANSACTION_IMPORT_BATCH_SIZE < transactions.length) {
+        await new Promise(resolve => setTimeout(resolve, TRANSACTION_IMPORT_BATCH_DELAY_MS));
+      }
+    }
+
+    // Mark as completed if jobId provided
+    if (jobId) {
+      const { progressTracker } = await import("@/src/infrastructure/utils/progress-tracker");
+      progressTracker.complete(jobId, `Import completed: ${successCount} imported, ${errorCount} errors`);
     }
 
     return {
@@ -773,10 +912,13 @@ export class TransactionsService {
     await requireTransactionOwnership(id);
 
     // Get transaction with suggestions
-    const transaction = await this.repository.findByIdWithSuggestions(id);
-    if (!transaction) {
+    const transactionRow = await this.repository.findByIdWithSuggestions(id);
+    if (!transactionRow) {
       throw new AppError("Transaction not found", 404);
     }
+
+    // Map to domain entity to access camelCase fields
+    const transaction = TransactionsMapper.toDomain(transactionRow);
 
     if (!transaction.suggestedCategoryId) {
       throw new AppError("No suggested category found for this transaction", 400);
@@ -802,10 +944,13 @@ export class TransactionsService {
     await requireTransactionOwnership(id);
 
     // Get transaction with suggestions
-    const transaction = await this.repository.findByIdWithSuggestions(id);
-    if (!transaction) {
+    const transactionRow = await this.repository.findByIdWithSuggestions(id);
+    if (!transactionRow) {
       throw new AppError("Transaction not found", 404);
     }
+
+    // Map to domain entity to access camelCase fields
+    const transaction = TransactionsMapper.toDomain(transactionRow);
 
     if (!transaction.suggestedCategoryId) {
       throw new AppError("No suggested category found for this transaction", 400);
@@ -893,7 +1038,7 @@ export class TransactionsService {
     amount: number;
     description?: string;
     account: { id: string; name: string; type?: string; balance?: number } | null;
-    category: { id: string; name: string; macroId?: string } | null;
+      category: { id: string; name: string } | null;
     subcategory: { id: string; name: string; logo?: string | null } | null;
     originalDate: Date;
     isDebtPayment: boolean;
@@ -939,14 +1084,14 @@ export class TransactionsService {
     // Also get recurring transactions and generate planned payments for them
     const supabase = await createServerClient(accessToken, refreshToken);
     const { data: recurringTransactions, error: recurringError } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .select(`
         *,
-        account:Account(*),
-        category:Category!Transaction_categoryId_fkey(*),
-        subcategory:Subcategory!Transaction_subcategoryId_fkey(id, name, logo)
+        account:accounts(*),
+        category:categories!transactions_categoryid_fkey(*),
+        subcategory:subcategories!transactions_subcategoryid_fkey(id, name, logo)
       `)
-      .eq("isRecurring", true)
+      .eq("is_recurring", true)
       .order("date", { ascending: true });
 
     if (recurringError) {
@@ -1017,6 +1162,95 @@ export class TransactionsService {
       }
     }
 
+    // Also get regular transactions (non-recurring) and transfers with future dates
+    const { data: futureTransactions, error: futureError } = await supabase
+      .from("transactions")
+      .select(`
+        *,
+        account:accounts(*),
+        category:categories!transactions_categoryid_fkey(*),
+        subcategory:subcategories!transactions_subcategoryid_fkey(id, name, logo)
+      `)
+      .gte("date", today.toISOString().split('T')[0])
+      .lte("date", endDate.toISOString().split('T')[0])
+      .eq("is_recurring", false) // Only non-recurring
+      .in("type", ["expense", "income", "transfer"])
+      .is("deleted_at", null)
+      .order("date", { ascending: true });
+
+    if (futureError) {
+      logger.error("[TransactionsService] Error fetching future transactions:", futureError);
+    }
+
+    // Add future transactions to upcoming list (avoid duplicates)
+    for (const tx of futureTransactions || []) {
+      const txDate = new Date(tx.date);
+      txDate.setHours(0, 0, 0, 0);
+
+      // Check if this transaction is already in the upcoming list
+      // (could be a planned payment or recurring transaction)
+      const alreadyExists = upcoming.some(
+        (up) => {
+          const upDate = up.date instanceof Date ? up.date : new Date(up.date);
+          upDate.setHours(0, 0, 0, 0);
+          return (
+            upDate.getTime() === txDate.getTime() &&
+            up.account?.id === tx.accountId &&
+            Math.abs(up.amount - (getTransactionAmount(tx.amount) ?? 0)) < 0.01 // Allow small floating point differences
+          );
+        }
+      );
+
+      if (!alreadyExists) {
+        let account = null;
+        if (tx.account) {
+          const accountData = Array.isArray(tx.account) ? (tx.account.length > 0 ? tx.account[0] : null) : tx.account;
+          if (accountData) {
+            account = {
+              id: accountData.id,
+              name: accountData.name,
+            };
+          }
+        }
+
+        let category = null;
+        if (tx.category) {
+          const categoryData = Array.isArray(tx.category) ? (tx.category.length > 0 ? tx.category[0] : null) : tx.category;
+          if (categoryData) {
+            category = {
+              id: categoryData.id,
+              name: categoryData.name,
+            };
+          }
+        }
+
+        let subcategory = null;
+        if (tx.subcategory) {
+          const subcategoryData = Array.isArray(tx.subcategory) ? (tx.subcategory.length > 0 ? tx.subcategory[0] : null) : tx.subcategory;
+          if (subcategoryData) {
+            subcategory = {
+              id: subcategoryData.id,
+              name: subcategoryData.name,
+              logo: subcategoryData.logo ?? null,
+            };
+          }
+        }
+
+        upcoming.push({
+          id: tx.id,
+          date: txDate,
+          type: tx.type,
+          amount: getTransactionAmount(tx.amount) ?? 0,
+          description: decryptDescription(tx.description) ?? undefined,
+          account: account,
+          category: category,
+          subcategory: subcategory,
+          originalDate: txDate,
+          isDebtPayment: false,
+        });
+      }
+    }
+
     // Sort by date and limit
     upcoming.sort((a, b) => a.date.getTime() - b.date.getTime());
     
@@ -1035,6 +1269,23 @@ export class TransactionsService {
     refreshToken?: string
   ): Promise<Array<{ month: string; income: number; expenses: number }>> {
     return await this.repository.findMonthlyAggregates(startDate, endDate, accessToken, refreshToken);
+  }
+
+  /**
+   * Detect subscriptions from user transactions
+   * SIMPLIFIED: Integrated into TransactionsService instead of separate service
+   * Uses repository for data access, making it more maintainable
+   */
+  async detectSubscriptions(
+    userId: string,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<DetectedSubscription[]> {
+    return detectSubscriptionsFromTransactions(
+      userId,
+      this.repository,
+      this.accountsRepository
+    );
   }
 }
 

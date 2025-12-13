@@ -115,7 +115,7 @@ export const HoldingsTable = memo(function HoldingsTable({ holdings }: HoldingsT
   const SortButton = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <Button
       variant="ghost"
-      size="small"
+      size="medium"
       className="-ml-3 hover:bg-transparent"
       onClick={() => handleSort(field)}
     >
@@ -142,7 +142,7 @@ export const HoldingsTable = memo(function HoldingsTable({ holdings }: HoldingsT
               value={assetTypeFilter || "all"}
               onValueChange={(value) => setAssetTypeFilter(value === "all" ? null : value)}
             >
-              <SelectTrigger size="small" className="w-[140px]">
+              <SelectTrigger size="medium" className="w-[140px]">
                 <SelectValue placeholder="Asset Type" />
               </SelectTrigger>
               <SelectContent>
@@ -158,7 +158,7 @@ export const HoldingsTable = memo(function HoldingsTable({ holdings }: HoldingsT
               value={sectorFilter || "all"}
               onValueChange={(value) => setSectorFilter(value === "all" ? null : value)}
             >
-              <SelectTrigger size="small" className="w-[140px]">
+              <SelectTrigger size="medium" className="w-[140px]">
                 <SelectValue placeholder="Sector" />
               </SelectTrigger>
               <SelectContent>

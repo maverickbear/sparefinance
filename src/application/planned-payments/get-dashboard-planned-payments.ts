@@ -11,7 +11,8 @@ import { cacheLife, cacheTag } from "next/cache";
 import { makePlannedPaymentsService } from "./planned-payments.factory";
 import { getCurrentUserId } from "../shared/feature-guard";
 import { logger } from "@/src/infrastructure/utils/logger";
-import { BasePlannedPayment } from "../../domain/planned-payments/planned-payments.types";
+// Use new domain types (with backward compatibility)
+import { BasePlannedPayment } from "../../domain/financial-events/financial-events.types";
 
 const log = logger.withPrefix("PlannedPaymentsCache");
 
@@ -135,8 +136,9 @@ async function getPlannedPaymentsCachedInternal(
   log.debug("Computing planned payments (cache miss)", { userId, cacheKey });
 
   // Create new promise and cache it
+  // Pass userId to avoid calling getCurrentUserId() inside cached function (which would try to access cookies())
   const service = makePlannedPaymentsService();
-  const dataPromise = service.getPlannedPayments(filters, accessToken, refreshToken);
+  const dataPromise = service.getPlannedPayments(filters, accessToken, refreshToken, userId);
   
   // Cache the promise with timestamp to deduplicate concurrent calls
   requestCache.set(cacheKey, { promise: dataPromise, timestamp: Date.now() });

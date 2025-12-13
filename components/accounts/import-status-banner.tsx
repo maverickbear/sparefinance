@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Database, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -26,6 +26,7 @@ export function ImportStatusBanner() {
   const [activeJobs, setActiveJobs] = useState<ImportJob[]>([]);
   const [accounts, setAccounts] = useState<Map<string, AccountInfo>>(new Map());
   const [loading, setLoading] = useState(true);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Initial fetch
@@ -37,6 +38,11 @@ export function ImportStatusBanner() {
             // User not authenticated, no jobs to show
             setActiveJobs([]);
             setLoading(false);
+            // Stop polling if no auth
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
             return;
           }
           console.error('Error fetching import jobs:', response.statusText);
@@ -48,8 +54,13 @@ export function ImportStatusBanner() {
         const jobs = data.jobs || [];
         const accountsData = data.accounts || [];
 
-        if (jobs.length > 0) {
-          setActiveJobs(jobs as ImportJob[]);
+        // Filter only active jobs (pending or processing)
+        const activeJobsOnly = jobs.filter((job: ImportJob) => 
+          job.status === 'pending' || job.status === 'processing'
+        ) as ImportJob[];
+
+        if (activeJobsOnly.length > 0) {
+          setActiveJobs(activeJobsOnly);
 
           // Map accounts
           const accountMap = new Map<string, AccountInfo>();
@@ -57,8 +68,20 @@ export function ImportStatusBanner() {
             accountMap.set(acc.id, acc);
           });
           setAccounts(accountMap);
+
+          // Only start polling if there are active jobs and polling isn't already running
+          if (!pollIntervalRef.current) {
+            pollIntervalRef.current = setInterval(() => {
+              fetchActiveJobs();
+            }, 5000);
+          }
         } else {
+          // No active jobs - stop polling and clear state
           setActiveJobs([]);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
         }
       } catch (error) {
         console.error('Error in fetchActiveJobs:', error);
@@ -69,14 +92,12 @@ export function ImportStatusBanner() {
 
     fetchActiveJobs();
 
-    // Poll every 5 seconds to check for updates
-    const pollInterval = setInterval(() => {
-      fetchActiveJobs();
-    }, 5000);
-
     // Cleanup
     return () => {
-      clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
     };
   }, []);
 

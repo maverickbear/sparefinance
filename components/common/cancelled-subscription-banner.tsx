@@ -117,7 +117,7 @@ export function CancelledSubscriptionBanner({ isSidebarCollapsed = false }: Canc
           onClick={handleReactivate}
           disabled={loading}
           variant="default"
-          size="small"
+          size="medium"
           className="shrink-0 w-full lg:w-auto"
         >
           {loading ? (

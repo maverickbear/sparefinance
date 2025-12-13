@@ -42,7 +42,7 @@ export class PortfolioService {
 
     // Get investment account balances
     const { data: investmentAccounts } = await supabase
-      .from("InvestmentAccount")
+      .from("investment_accounts")
       .select("totalEquity, marketValue, cash, id");
 
     // Calculate total value
@@ -78,7 +78,7 @@ export class PortfolioService {
       
       if (securityIds.length > 0) {
         const { data: yesterdayPrices } = await supabase
-          .from("SecurityPrice")
+          .from("security_prices")
           .select("securityId, price, date")
           .in("securityId", securityIds)
           .eq("date", formatDateStart(yesterday));
@@ -156,7 +156,7 @@ export class PortfolioService {
 
     // Get investment account balances
     const { data: investmentAccountsFull } = await supabase
-      .from("InvestmentAccount")
+      .from("investment_accounts")
       .select("*");
 
     const investmentAccountValues = new Map<string, number>();
@@ -260,7 +260,7 @@ export class PortfolioService {
 
     // Get historical prices
     const { data: historicalPrices } = await supabase
-      .from("SecurityPrice")
+      .from("security_prices")
       .select("securityId, price, date")
       .in("securityId", securityIds)
       .gte("date", formatDateStart(startDate))
@@ -278,7 +278,7 @@ export class PortfolioService {
         if (!pricesByDate.has(dateKey)) {
           pricesByDate.set(dateKey, new Map());
         }
-        pricesByDate.get(dateKey)!.set(price.securityId, price.price);
+        pricesByDate.get(dateKey)!.set((price as any).security_id, price.price);
       }
     }
 

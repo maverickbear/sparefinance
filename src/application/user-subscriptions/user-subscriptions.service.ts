@@ -3,7 +3,7 @@
  * Business logic for user service subscriptions (Netflix, Spotify, etc.)
  */
 
-import { UserSubscriptionsRepository } from "@/src/infrastructure/database/repositories/user-subscriptions.repository";
+import { UserSubscriptionsRepository, UserServiceSubscriptionRow } from "@/src/infrastructure/database/repositories/user-subscriptions.repository";
 import { UserServiceSubscription, UserServiceSubscriptionFormData } from "../../domain/subscriptions/subscriptions.types";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateOnly } from "@/src/infrastructure/utils/timestamp";
@@ -20,6 +20,9 @@ export class UserSubscriptionsService {
 
   /**
    * Get all user service subscriptions (e.g., Netflix, Spotify, etc.)
+   * 
+   * ⚠️ IMPORTANT: This returns EXTERNAL service subscriptions, NOT Spare Finance app subscriptions.
+   * For app subscriptions, use SubscriptionsService.
    * 
    * Note: This method returns user service subscriptions, NOT Stripe subscription plans.
    * User service subscriptions are recurring payments for external services that the user
@@ -123,7 +126,7 @@ export class UserSubscriptionsService {
       const row = await this.repository.create(subscriptionData);
 
       // Create planned payments for this subscription
-      if (row.isActive) {
+      if (row.is_active) {
         try {
           await this.createSubscriptionPlannedPayments(row);
         } catch (error) {
@@ -149,64 +152,81 @@ export class UserSubscriptionsService {
   /**
    * Enrich subscription with related data
    */
-  private async enrichSubscription(row: any): Promise<UserServiceSubscription> {
+  private async enrichSubscription(row: UserServiceSubscriptionRow): Promise<UserServiceSubscription> {
     const supabase = await createServerClient();
 
     const [subcategoryResult, accountResult, serviceResult, planResult] = await Promise.all([
-      row.subcategoryId
+      row.subcategory_id
         ? supabase
-            .from("Subcategory")
+            .from("subcategories")
             .select("id, name, logo")
-            .eq("id", row.subcategoryId)
+            .eq("id", row.subcategory_id)
             .single()
         : Promise.resolve({ data: null, error: null }),
       supabase
-        .from("Account")
+        .from("accounts")
         .select("id, name")
-        .eq("id", row.accountId)
+        .eq("id", row.account_id)
         .single(),
-      row.serviceName
+      row.service_name
         ? supabase
-            .from("SubscriptionService")
+            .from("external_services")
             .select("name, logo")
-            .eq("name", row.serviceName)
+            .eq("name", row.service_name)
             .single()
         : Promise.resolve({ data: null, error: null }),
-      row.planId
+      row.plan_id
         ? supabase
-            .from("SubscriptionServicePlan")
-            .select("id, planName")
-            .eq("id", row.planId)
+            .from("subscription_service_plans")
+            .select("id, plan_name")
+            .eq("id", row.plan_id)
             .single()
         : Promise.resolve({ data: null, error: null }),
     ]);
 
+    // Map snake_case database fields to camelCase domain fields
     return {
-      ...row,
+      id: row.id,
+      userId: row.user_id,
+      serviceName: row.service_name,
+      subcategoryId: row.subcategory_id || null,
+      planId: row.plan_id || null,
       amount: Number(row.amount),
+      description: row.description || null,
+      billingFrequency: row.billing_frequency as "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily",
+      billingDay: row.billing_day || null,
+      accountId: row.account_id,
+      isActive: row.is_active,
+      firstBillingDate: row.first_billing_date,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      // Relations
       subcategory: subcategoryResult.data || null,
       account: accountResult.data || null,
       serviceLogo: serviceResult.data?.logo || null,
-      plan: planResult.data || null,
+      plan: planResult.data ? {
+        id: planResult.data.id,
+        planName: planResult.data.plan_name,
+      } : null,
     };
   }
 
   /**
    * Create planned payments for a subscription
    */
-  private async createSubscriptionPlannedPayments(subscription: any): Promise<void> {
-    if (!subscription.accountId || !subscription.isActive) {
+  private async createSubscriptionPlannedPayments(subscription: UserServiceSubscriptionRow): Promise<void> {
+    if (!subscription.account_id || !subscription.is_active) {
       return;
     }
 
     const { addMonths, startOfMonth, setDate } = await import("date-fns");
     const plannedPaymentsService = makePlannedPaymentsService();
 
-    const firstBillingDate = new Date(subscription.firstBillingDate);
-    const amount = subscription.amount;
-    const billingFrequency = subscription.billingFrequency || "monthly";
+    const firstBillingDate = new Date(subscription.first_billing_date);
+    const amount: number = typeof subscription.amount === 'string' ? parseFloat(subscription.amount) : subscription.amount;
+    const billingFrequency = subscription.billing_frequency || "monthly";
 
-    if (amount <= 0) {
+    if (amount <= 0 || isNaN(amount)) {
       return;
     }
 
@@ -230,10 +250,10 @@ export class UserSubscriptionsService {
           date: new Date(currentDate),
           type: "expense" as const,
           amount: amount,
-          accountId: subscription.accountId,
+          accountId: subscription.account_id,
           categoryId: null,
-          subcategoryId: subscription.subcategoryId || null,
-          description: subscription.serviceName,
+          subcategoryId: subscription.subcategory_id || null,
+          description: subscription.service_name,
           source: "subscription" as const,
           subscriptionId: subscription.id,
         });
@@ -288,7 +308,7 @@ export class UserSubscriptionsService {
     try {
       // Verify ownership
       const existing = await this.repository.findById(id);
-      if (!existing || existing.userId !== userId) {
+      if (!existing || existing.user_id !== userId) {
         throw new AppError("Subscription not found", 404);
       }
 
@@ -304,7 +324,20 @@ export class UserSubscriptionsService {
         subcategoryId = newSubcategory.id;
       }
 
-      const updateData: any = {
+      // Map camelCase to pass to repository (repository maps to snake_case internally)
+      const updateData: {
+        serviceName?: string;
+        subcategoryId?: string | null;
+        planId?: string | null;
+        amount?: number;
+        description?: string | null;
+        billingFrequency?: string;
+        billingDay?: number | null;
+        accountId?: string;
+        isActive?: boolean;
+        firstBillingDate?: string;
+        updatedAt: string;
+      } = {
         updatedAt: formatTimestamp(new Date()),
       };
 
@@ -332,13 +365,19 @@ export class UserSubscriptionsService {
       if (data.firstBillingDate !== undefined) {
         updateData.firstBillingDate = formatDateOnly(new Date(data.firstBillingDate));
       }
+      if (data.billingDay !== undefined) {
+        updateData.billingDay = data.billingDay || null;
+      }
+      if (data.isActive !== undefined) {
+        updateData.isActive = data.isActive;
+      }
 
       const updated = await this.repository.update(id, updateData);
 
       // Delete existing planned payments and recreate if active
       await this.deleteSubscriptionPlannedPayments(id);
 
-      if (updated.isActive) {
+      if (updated.is_active) {
         try {
           await this.createSubscriptionPlannedPayments(updated);
         } catch (error) {
@@ -367,7 +406,7 @@ export class UserSubscriptionsService {
     try {
       // Verify ownership
       const existing = await this.repository.findById(id);
-      if (!existing || existing.userId !== userId) {
+      if (!existing || existing.user_id !== userId) {
         throw new AppError("Subscription not found", 404);
       }
 
@@ -392,11 +431,11 @@ export class UserSubscriptionsService {
     try {
       // Verify ownership
       const existing = await this.repository.findById(id);
-      if (!existing || existing.userId !== userId) {
+      if (!existing || existing.user_id !== userId) {
         throw new AppError("Subscription not found", 404);
       }
 
-      if (!existing.isActive) {
+      if (!existing.is_active) {
         throw new AppError("Subscription is already paused", 400);
       }
 
@@ -429,11 +468,11 @@ export class UserSubscriptionsService {
     try {
       // Verify ownership
       const existing = await this.repository.findById(id);
-      if (!existing || existing.userId !== userId) {
+      if (!existing || existing.user_id !== userId) {
         throw new AppError("Subscription not found", 404);
       }
 
-      if (existing.isActive) {
+      if (existing.is_active) {
         throw new AppError("Subscription is already active", 400);
       }
 
@@ -469,9 +508,9 @@ export class UserSubscriptionsService {
   private async deleteSubscriptionPlannedPayments(subscriptionId: string): Promise<void> {
     const supabase = await createServerClient();
     const { error } = await supabase
-      .from("PlannedPayment")
+      .from("planned_payments")
       .delete()
-      .eq("subscriptionId", subscriptionId);
+        .eq("subscription_id", subscriptionId);
 
     if (error) {
       logger.error(

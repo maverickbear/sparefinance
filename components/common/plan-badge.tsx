@@ -3,24 +3,17 @@
 import { Badge } from "@/components/ui/badge";
 
 interface PlanBadgeProps {
-  plan: "essential" | "pro";
+  plan: string; // Simplified: only "pro" exists, but allow string for flexibility
   className?: string;
 }
 
 export function PlanBadge({ plan, className }: PlanBadgeProps) {
-  const variants = {
-    essential: "default",
-    pro: "default",
-  } as const;
-
-  const labels = {
-    essential: "Essential",
-    pro: "Pro",
-  };
+  // Only Pro plan exists now
+  const label = plan === "pro" ? "Pro" : plan.charAt(0).toUpperCase() + plan.slice(1);
 
   return (
-    <Badge variant={variants[plan]} className={className}>
-      {labels[plan]}
+    <Badge variant="default" className={className}>
+      {label}
     </Badge>
   );
 }

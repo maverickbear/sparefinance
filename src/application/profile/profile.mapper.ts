@@ -14,10 +14,10 @@ export class ProfileMapper {
     return {
       name: row.name || "",
       email: row.email,
-      avatarUrl: row.avatarUrl,
-      phoneNumber: row.phoneNumber,
-      dateOfBirth: row.dateOfBirth,
-      temporaryExpectedIncome: (row.temporaryExpectedIncome as import("../../domain/onboarding/onboarding.types").ExpectedIncomeRange) || null,
+      avatarUrl: row.avatar_url,
+      phoneNumber: row.phone_number,
+      dateOfBirth: row.date_of_birth,
+      temporaryExpectedIncome: (row.temporary_expected_income as import("../../domain/onboarding/onboarding.types").ExpectedIncomeRange) || null,
     };
   }
 
@@ -27,8 +27,8 @@ export class ProfileMapper {
   static toRepository(domain: Partial<BaseProfile>): Partial<UserRow> {
     return {
       name: domain.name || null,
-      avatarUrl: domain.avatarUrl ?? null,
-      phoneNumber: domain.phoneNumber ?? null,
+      avatar_url: domain.avatarUrl ?? null,
+      phone_number: domain.phoneNumber ?? null,
     };
   }
 }

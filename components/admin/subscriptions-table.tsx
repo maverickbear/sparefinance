@@ -157,7 +157,7 @@ export function SubscriptionsTable({
                   {isTrialing && (
                     <Button
                       variant="ghost"
-                      size="small"
+                      size="medium"
                       onClick={() => onEditTrial(subscription)}
                     >
                       <Calendar className="h-4 w-4 mr-2" />

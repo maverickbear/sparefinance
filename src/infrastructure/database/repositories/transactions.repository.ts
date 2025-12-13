@@ -7,29 +7,32 @@
 import { createServerClient } from "../supabase-server";
 import { BaseTransaction } from "../../../domain/transactions/transactions.types";
 import { logger } from "@/lib/utils/logger";
+import { ITransactionsRepository } from "./interfaces/transactions.repository.interface";
 
 export interface TransactionRow {
   id: string;
   date: string;
   type: 'income' | 'expense' | 'transfer';
   amount: number;
-  accountId: string;
-  categoryId: string | null;
-  subcategoryId: string | null;
+  account_id: string;
+  category_id: string | null;
+  subcategory_id: string | null;
   description: string | null;
-  isRecurring: boolean;
-  expenseType: string | null;
-  transferToId: string | null;
-  transferFromId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  suggestedCategoryId: string | null;
-  suggestedSubcategoryId: string | null;
-  plaidMetadata: Record<string, unknown> | null;
-  userId: string | null;
-  householdId: string | null;
+  description_search: string | null;
+  is_recurring: boolean;
+  expense_type: string | null;
+  transfer_to_id: string | null;
+  transfer_from_id: string | null;
+  created_at: string;
+  updated_at: string;
+  suggested_category_id: string | null;
+  suggested_subcategory_id: string | null;
+  user_id: string | null;
+  household_id: string | null;
   tags: string | null;
-  receiptUrl: string | null;
+  receipt_url: string | null;
+  deleted_at: string | null;
+  plaid_transaction_id: string | null;
 }
 
 export interface TransactionFilters {
@@ -43,7 +46,7 @@ export interface TransactionFilters {
   limit?: number;
 }
 
-export class TransactionsRepository {
+export class TransactionsRepository implements ITransactionsRepository {
   /**
    * Find all transactions with filters
    */
@@ -55,8 +58,9 @@ export class TransactionsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     let query = supabase
-      .from("Transaction")
-      .select("id, date, amount, type, description, categoryId, subcategoryId, accountId, isRecurring, createdAt, updatedAt, transferToId, transferFromId, tags, suggestedCategoryId, suggestedSubcategoryId, expenseType, userId, householdId, receiptUrl")
+      .from("transactions")
+      .select("id, date, amount, type, description, category_id, subcategory_id, account_id, is_recurring, created_at, updated_at, transfer_to_id, transfer_from_id, tags, suggested_category_id, suggested_subcategory_id, expense_type, user_id, household_id, receipt_url, deleted_at, description_search")
+      .is("deleted_at", null) // Exclude soft-deleted records
       .order("date", { ascending: false });
 
     // Apply filters
@@ -71,23 +75,23 @@ export class TransactionsRepository {
     }
 
     if (filters?.categoryId) {
-      query = query.eq("categoryId", filters.categoryId);
+      query = query.eq("category_id", filters.categoryId);
     }
 
     if (filters?.accountId) {
-      query = query.eq("accountId", filters.accountId);
+      query = query.eq("account_id", filters.accountId);
     }
 
     if (filters?.type) {
       if (filters.type === "transfer") {
-        query = query.or("type.eq.transfer,transferToId.not.is.null,transferFromId.not.is.null");
+        query = query.or("type.eq.transfer,transfer_to_id.not.is.null,transfer_from_id.not.is.null");
       } else {
         query = query.eq("type", filters.type);
       }
     }
 
     if (filters?.isRecurring !== undefined) {
-      query = query.eq("isRecurring", filters.isRecurring);
+      query = query.eq("is_recurring", filters.isRecurring);
     }
 
     // Pagination
@@ -102,6 +106,18 @@ export class TransactionsRepository {
     const { data: transactions, error } = await query;
 
     if (error) {
+      // Handle RLS permission denied errors more gracefully
+      if (error.code === '42501' || error.message?.includes('permission denied')) {
+        logger.warn("[TransactionsRepository] Permission denied - user may not be authenticated or tokens may be invalid:", {
+          code: error.code,
+          message: error.message,
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+        });
+        // Return empty array instead of throwing - allows the app to continue
+        // The calling code should handle authentication separately
+        return [];
+      }
       logger.error("[TransactionsRepository] Error fetching transactions:", error);
       throw new Error(`Failed to fetch transactions: ${error.message}`);
     }
@@ -116,8 +132,9 @@ export class TransactionsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     let query = supabase
-      .from("Transaction")
-      .select("*", { count: 'exact', head: true });
+      .from("transactions")
+      .select("*", { count: 'exact', head: true })
+      .is("deleted_at", null); // Exclude soft-deleted records
 
     // Apply same filters as findAll
     if (filters?.startDate) {
@@ -131,28 +148,36 @@ export class TransactionsRepository {
     }
 
     if (filters?.categoryId) {
-      query = query.eq("categoryId", filters.categoryId);
+      query = query.eq("category_id", filters.categoryId);
     }
 
     if (filters?.accountId) {
-      query = query.eq("accountId", filters.accountId);
+      query = query.eq("account_id", filters.accountId);
     }
 
     if (filters?.type) {
       if (filters.type === "transfer") {
-        query = query.or("type.eq.transfer,transferToId.not.is.null,transferFromId.not.is.null");
+        query = query.or("type.eq.transfer,transfer_to_id.not.is.null,transfer_from_id.not.is.null");
       } else {
         query = query.eq("type", filters.type);
       }
     }
 
     if (filters?.isRecurring !== undefined) {
-      query = query.eq("isRecurring", filters.isRecurring);
+      query = query.eq("is_recurring", filters.isRecurring);
     }
 
     const { count, error } = await query;
 
     if (error) {
+      // Handle RLS permission denied errors more gracefully
+      if (error.code === '42501' || error.message?.includes('permission denied')) {
+        logger.warn("[TransactionsRepository] Permission denied counting transactions - user may not be authenticated:", {
+          code: error.code,
+          message: error.message,
+        });
+        return 0;
+      }
       logger.error("[TransactionsRepository] Error counting transactions:", error);
       return 0;
     }
@@ -167,9 +192,10 @@ export class TransactionsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: transaction, error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .select("*")
       .eq("id", id)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .single();
 
     if (error) {
@@ -195,17 +221,18 @@ export class TransactionsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: transactions, error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .select(`
         id,
         date,
         amount,
         description,
-        accountId,
-        account:Account(id, name)
+        account_id,
+        account:accounts(id, name)
       `)
       .in("id", ids)
-      .eq("userId", userId)
+      .eq("user_id", userId)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .order("date", { ascending: false });
 
     if (error) {
@@ -228,6 +255,8 @@ export class TransactionsRepository {
     categoryId?: string | null;
     subcategoryId?: string | null;
     description?: string | null;
+    descriptionSearch?: string | null;
+    tags?: string | null;
     isRecurring?: boolean;
     expenseType?: string | null;
     transferToId?: string | null;
@@ -236,40 +265,38 @@ export class TransactionsRepository {
     householdId: string | null;
     suggestedCategoryId?: string | null;
     suggestedSubcategoryId?: string | null;
-    plaidMetadata?: Record<string, unknown> | null;
     receiptUrl?: string | null;
+    plaidTransactionId?: string | null;
     createdAt: string;
     updatedAt: string;
   }): Promise<TransactionRow> {
     const supabase = await createServerClient();
 
-    // Filter out plaidMetadata if the column doesn't exist in the database
-    // This prevents errors when the column is not in the schema
-    const { plaidMetadata, ...insertData } = data;
-
     const { data: transaction, error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .insert({
-        id: insertData.id,
-        date: insertData.date,
-        type: insertData.type,
-        amount: insertData.amount,
-        accountId: insertData.accountId,
-        categoryId: insertData.categoryId ?? null,
-        subcategoryId: insertData.subcategoryId ?? null,
-        description: insertData.description ?? null,
-        isRecurring: insertData.isRecurring ?? false,
-        expenseType: insertData.expenseType ?? null,
-        transferToId: insertData.transferToId ?? null,
-        transferFromId: insertData.transferFromId ?? null,
-        userId: insertData.userId,
-        householdId: insertData.householdId,
-        suggestedCategoryId: insertData.suggestedCategoryId ?? null,
-        suggestedSubcategoryId: insertData.suggestedSubcategoryId ?? null,
-        // plaidMetadata column doesn't exist in database, so we skip it
-        receiptUrl: insertData.receiptUrl ?? null,
-        createdAt: insertData.createdAt,
-        updatedAt: insertData.updatedAt,
+        id: data.id,
+        date: data.date,
+        type: data.type,
+        amount: data.amount,
+        account_id: data.accountId,
+        category_id: data.categoryId ?? null,
+        subcategory_id: data.subcategoryId ?? null,
+        description: data.description ?? null,
+        description_search: data.descriptionSearch ?? null,
+        tags: data.tags ?? null,
+        is_recurring: data.isRecurring ?? false,
+        expense_type: data.expenseType ?? null,
+        transfer_to_id: data.transferToId ?? null,
+        transfer_from_id: data.transferFromId ?? null,
+        user_id: data.userId,
+        household_id: data.householdId,
+        suggested_category_id: data.suggestedCategoryId ?? null,
+        suggested_subcategory_id: data.suggestedSubcategoryId ?? null,
+        receipt_url: data.receiptUrl ?? null,
+        plaid_transaction_id: data.plaidTransactionId ?? null,
+        created_at: data.createdAt,
+        updated_at: data.updatedAt,
       })
       .select()
       .single();
@@ -295,30 +322,42 @@ export class TransactionsRepository {
       categoryId: string | null;
       subcategoryId: string | null;
       description: string | null;
+      descriptionSearch: string | null;
+      tags: string | null;
       isRecurring: boolean;
       expenseType: string | null;
       transferToId: string | null;
       transferFromId: string | null;
       updatedAt: string;
-      plaidMetadata: Record<string, unknown> | null;
       receiptUrl: string | null;
     }>
   ): Promise<TransactionRow> {
     const supabase = await createServerClient();
-
-    // Filter out plaidMetadata if the column doesn't exist in the database
-    // This prevents errors when the column is not in the schema
-    const { plaidMetadata, ...updateData } = data;
+    
+    // Map camelCase to snake_case for database
+    const updateData: any = {};
+    if (data.date !== undefined) updateData.date = data.date;
+    if (data.type !== undefined) updateData.type = data.type;
+    if (data.amount !== undefined) updateData.amount = data.amount;
+    if (data.accountId !== undefined) updateData.account_id = data.accountId;
+    if (data.categoryId !== undefined) updateData.category_id = data.categoryId;
+    if (data.subcategoryId !== undefined) updateData.subcategory_id = data.subcategoryId;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.descriptionSearch !== undefined) updateData.description_search = data.descriptionSearch;
+    if (data.tags !== undefined) updateData.tags = data.tags;
+    if (data.isRecurring !== undefined) updateData.is_recurring = data.isRecurring;
+    if (data.expenseType !== undefined) updateData.expense_type = data.expenseType;
+    if (data.transferToId !== undefined) updateData.transfer_to_id = data.transferToId;
+    if (data.transferFromId !== undefined) updateData.transfer_from_id = data.transferFromId;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+    if (data.receiptUrl !== undefined) updateData.receipt_url = data.receiptUrl;
     
     const { data: transaction, error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .update(updateData)
       .eq("id", id)
       .select()
       .single();
-    
-    // Note: plaidMetadata is intentionally excluded from updates
-    // as the column doesn't exist in the database schema
 
     if (error) {
       logger.error("[TransactionsRepository] Error updating transaction:", error);
@@ -329,13 +368,34 @@ export class TransactionsRepository {
   }
 
   /**
-   * Delete a transaction
+   * Soft delete a transaction (temporary, for undo functionality)
+   */
+  async softDelete(id: string): Promise<void> {
+    const supabase = await createServerClient();
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", id)
+      .is("deleted_at", null);
+
+    if (error) {
+      logger.error("[TransactionsRepository] Error soft-deleting transaction:", error);
+      throw new Error(`Failed to soft-delete transaction: ${error.message}`);
+    }
+
+    logger.debug("[TransactionsRepository] Transaction soft-deleted successfully:", { id });
+  }
+
+  /**
+   * Hard delete a transaction (permanent)
    */
   async delete(id: string): Promise<void> {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .delete()
       .eq("id", id);
 
@@ -343,16 +403,74 @@ export class TransactionsRepository {
       logger.error("[TransactionsRepository] Error deleting transaction:", error);
       throw new Error(`Failed to delete transaction: ${error.message}`);
     }
+
+    logger.debug("[TransactionsRepository] Transaction hard-deleted successfully:", { id });
   }
 
   /**
-   * Delete multiple transactions
+   * Restore transactions (clear deleted_at flag)
+   * Used for undo functionality - restores soft-deleted transactions
    */
-  async deleteMultiple(ids: string[]): Promise<void> {
+  async restore(ids: string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("Transaction")
+      .from("transactions")
+      .update({ deleted_at: null, updated_at: new Date().toISOString() })
+      .in("id", ids)
+      .not("deleted_at", "is", null); // Only restore if already soft-deleted
+
+    if (error) {
+      logger.error("[TransactionsRepository] Error restoring transactions:", error);
+      throw new Error(`Failed to restore transactions: ${error.message}`);
+    }
+
+    logger.debug("[TransactionsRepository] Transactions restored successfully:", { count: ids.length });
+  }
+
+  /**
+   * Soft delete multiple transactions (temporary, for undo functionality)
+   */
+  async softDeleteMultiple(ids: string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+
+    const supabase = await createServerClient();
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ deleted_at: now, updated_at: now })
+      .in("id", ids)
+      .is("deleted_at", null);
+
+    if (error) {
+      logger.error("[TransactionsRepository] Error soft-deleting transactions:", error);
+      throw new Error(`Failed to soft-delete transactions: ${error.message}`);
+    }
+
+    logger.debug("[TransactionsRepository] Transactions soft-deleted successfully:", {
+      count: ids.length,
+    });
+  }
+
+  /**
+   * Hard delete multiple transactions (permanent)
+   */
+  async deleteMultiple(ids: string[]): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("transactions")
       .delete()
       .in("id", ids);
 
@@ -360,6 +478,10 @@ export class TransactionsRepository {
       logger.error("[TransactionsRepository] Error deleting transactions:", error);
       throw new Error(`Failed to delete transactions: ${error.message}`);
     }
+
+    logger.debug("[TransactionsRepository] Transactions hard-deleted successfully:", {
+      count: ids.length,
+    });
   }
 
   /**
@@ -374,22 +496,23 @@ export class TransactionsRepository {
     const supabase = await createServerClient();
 
     const { data: transactions, error } = await supabase
-      .from("Transaction")
-      .select("accountId, type, amount, date")
-      .eq("accountId", accountId)
-      .lte("date", endDate.toISOString());
+      .from("transactions")
+      .select("account_id, type, amount, date")
+      .eq("account_id", accountId)
+      .lte("date", endDate.toISOString())
+      .is("deleted_at", null); // Exclude soft-deleted records
 
     if (error) {
       logger.error("[TransactionsRepository] Error fetching transactions for balance:", error);
       return [];
     }
 
-    return (transactions || []) as Array<{
-      accountId: string;
-      type: string;
-      amount: number;
-      date: string;
-    }>;
+    return (transactions || []).map(tx => ({
+      accountId: tx.account_id,
+      type: tx.type,
+      amount: tx.amount,
+      date: tx.date,
+    }));
   }
 
   /**
@@ -601,9 +724,10 @@ export class TransactionsRepository {
     const supabase = await createServerClient();
 
     const { data: transaction, error } = await supabase
-      .from("Transaction")
-      .select("id, suggestedCategoryId, suggestedSubcategoryId, userId")
+      .from("transactions")
+      .select("id, suggested_category_id, suggested_subcategory_id, user_id")
       .eq("id", id)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .single();
 
     if (error) {
@@ -633,11 +757,12 @@ export class TransactionsRepository {
     const supabase = await createServerClient();
 
     const { data: transactions, error } = await supabase
-      .from("Transaction")
-      .select("id, description, amount, type, userId")
-      .eq("userId", userId)
-      .is("categoryId", null)
-      .is("suggestedCategoryId", null)
+      .from("transactions")
+      .select("id, description, amount, type, user_id")
+      .eq("user_id", userId)
+      .is("category_id", null)
+      .is("suggested_category_id", null)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .not("description", "is", null)
       .order("date", { ascending: false })
       .limit(limit);
@@ -647,13 +772,13 @@ export class TransactionsRepository {
       throw new Error(`Failed to fetch transactions: ${error.message}`);
     }
 
-    return (transactions || []) as Array<{
-      id: string;
-      description: string | null;
-      amount: number;
-      type: 'income' | 'expense' | 'transfer';
-      userId: string | null;
-    }>;
+    return (transactions || []).map(tx => ({
+      id: tx.id,
+      description: tx.description,
+      amount: tx.amount,
+      type: tx.type as 'income' | 'expense' | 'transfer',
+      userId: tx.user_id,
+    }));
   }
 
   /**
@@ -669,8 +794,11 @@ export class TransactionsRepository {
     const supabase = await createServerClient();
 
     const { data: transaction, error } = await supabase
-      .from("Transaction")
-      .update(data)
+      .from("transactions")
+      .update({
+        suggested_category_id: data.suggestedCategoryId ?? null,
+        suggested_subcategory_id: data.suggestedSubcategoryId ?? null,
+      })
       .eq("id", id)
       .select()
       .single();
@@ -729,12 +857,13 @@ export class TransactionsRepository {
   ): Promise<Array<{ month: string; income: number; expenses: number }>> {
     // Load transactions for the date range (only date, amount, type - minimal data)
     const { data: transactions, error } = await supabase
-      .from("Transaction")
+      .from("transactions")
       .select("date, amount, type")
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .gte("date", startDateStr)
       .lte("date", endDateStr)
       .neq("type", "transfer") // Exclude transfers
+      .is("deleted_at", null) // Exclude soft-deleted records
       .order("date", { ascending: true });
 
     if (error) {

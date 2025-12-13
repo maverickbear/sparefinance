@@ -624,8 +624,8 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
         </Alert>
       )}
 
-      <div className="space-y-4">
-        <div className="space-y-2">
+      <div className="flex flex-col items-center justify-start space-y-4">
+        <div className="flex flex-col items-center justify-start space-y-2">
           <label className="text-sm font-medium text-foreground">
             Verification Code
           </label>
@@ -670,8 +670,8 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
         )}
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-start gap-2">
+      <div className="flex flex-col justify-start items-center space-y-4">
+        <div className="flex items-center justify-center gap-2">
           <Checkbox
             id="trust-browser"
             checked={trustBrowser}
@@ -679,7 +679,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
             disabled={loading}
             className="mt-0.5"
           />
-          <div className="flex items-center gap-1.5 flex-1">
+          <div className="flex items-center gap-1.5 w-fit">
             <label
               htmlFor="trust-browser"
               className="text-sm text-foreground cursor-pointer select-none"

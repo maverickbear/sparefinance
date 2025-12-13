@@ -1,309 +1,653 @@
 import { createServerClient } from "./supabase-server";
 
-// Tipos para as tabelas do Supabase
-// Baseado em schema_reference.sql - todas as tabelas e colunas do schema
-// Atualizado após migração 20241201000000_fix_database_issues.sql
+// Database types for Supabase tables
+// Updated to use new schema structure: core, system, audit, analytics
+// All tables and columns use camelCase naming convention
 export interface Database {
-  Account: {
-    id: string;
-    name: string;
-    type: 'cash' | 'checking' | 'savings' | 'credit' | 'investment' | 'other';
-    createdAt: string;
-    updatedAt: string;
-    creditLimit: number | null;
-    userId: string | null;
-    initialBalance: number | null;
-    plaidItemId: string | null;
-    plaidAccountId: string | null;
-    isConnected: boolean | null;
-    lastSyncedAt: string | null;
-    syncEnabled: boolean | null;
-    plaidMask: string | null;
-    plaidOfficialName: string | null;
-    plaidVerificationStatus: string | null;
-    plaidSubtype: string | null;
-    currencyCode: string | null;
-    plaidUnofficialCurrencyCode: string | null;
-    plaidAvailableBalance: number | null;
-    plaidPersistentAccountId: string | null;
-    plaidHolderCategory: string | null;
-    plaidVerificationName: string | null;
-    dueDayOfMonth: number | null;
-    extraCredit: number;
+  // Core Schema - Business entities
+  core: {
+    users: {
+      id: string;
+      email: string;
+      name: string | null;
+      avatarUrl: string | null;
+      createdAt: string;
+      updatedAt: string;
+      role: string;
+      phoneNumber: string | null;
+      dateOfBirth: string | null;
+      effectivePlanId: string | null;
+      effectiveSubscriptionStatus: string | null;
+      effectiveSubscriptionId: string | null;
+      subscriptionUpdatedAt: string | null;
+      isBlocked: boolean;
+      temporaryExpectedIncome: string | null;
+      temporaryExpectedIncomeAmount: number | null;
+    };
+    households: {
+      id: string;
+      name: string;
+      type: 'personal' | 'household';
+      createdAt: string;
+      updatedAt: string;
+      createdBy: string;
+      settings: Record<string, unknown> | null;
+    };
+    householdMembers: {
+      id: string;
+      householdId: string;
+      userId: string | null;
+      role: 'owner' | 'admin' | 'member';
+      status: 'active' | 'pending' | 'inactive';
+      isDefault: boolean;
+      joinedAt: string;
+      invitedBy: string | null;
+      createdAt: string;
+      updatedAt: string;
+      email: string | null;
+      name: string | null;
+      invitationToken: string | null;
+      invitedAt: string | null;
+      acceptedAt: string | null;
+    };
+    accounts: {
+      id: string;
+      name: string;
+      type: 'cash' | 'checking' | 'savings' | 'credit' | 'investment' | 'other';
+      createdAt: string;
+      updatedAt: string;
+      creditLimit: number | null;
+      userId: string | null;
+      initialBalance: number | null;
+      dueDayOfMonth: number | null;
+      extraCredit: number;
+      householdId: string | null;
+      currencyCode: string | null;
+      deletedAt: string | null;
+    };
+    accountIntegrations: {
+      id: string;
+      accountId: string;
+      plaidItemId: string | null;
+      plaidAccountId: string | null;
+      plaidMask: string | null;
+      plaidOfficialName: string | null;
+      plaidSubtype: string | null;
+      plaidVerificationStatus: string | null;
+      plaidVerificationName: string | null;
+      plaidAvailableBalance: number | null;
+      plaidPersistentAccountId: string | null;
+      plaidHolderCategory: string | null;
+      plaidUnofficialCurrencyCode: string | null;
+      isConnected: boolean | null;
+      syncEnabled: boolean | null;
+      lastSyncedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+    accountOwners: {
+      id: string;
+      accountId: string;
+      ownerId: string;
+      createdAt: string;
+      updatedAt: string;
+      deletedAt: string | null;
+    };
+    transactions: {
+      id: string;
+      type: string;
+      accountId: string;
+      categoryId: string | null;
+      subcategoryId: string | null;
+      description: string | null;
+      tags: string;
+      transferToId: string | null;
+      transferFromId: string | null;
+      createdAt: string;
+      updatedAt: string;
+      isRecurring: boolean;
+      userId: string;
+      suggestedCategoryId: string | null;
+      suggestedSubcategoryId: string | null;
+      expenseType: string | null;
+      descriptionSearch: string | null;
+      date: string;
+      householdId: string | null;
+      amount: number;
+      receiptUrl: string | null;
+      deletedAt: string | null;
+    };
+    transactionSyncs: {
+      id: string;
+      accountId: string;
+      transactionId: string | null;
+      syncDate: string;
+      status: string | null;
+      householdId: string | null;
+    };
+    categories: {
+      id: string;
+      name: string;
+      type: 'income' | 'expense';
+      createdAt: string;
+      updatedAt: string;
+      userId: string | null;
+      deletedAt: string | null;
+    };
+    subcategories: {
+      id: string;
+      name: string;
+      categoryId: string;
+      createdAt: string;
+      updatedAt: string;
+      userId: string | null;
+      logo: string | null;
+      deletedAt: string | null;
+    };
+    budgets: {
+      id: string;
+      period: string;
+      categoryId: string | null;
+      amount: number;
+      note: string | null;
+      createdAt: string;
+      updatedAt: string;
+      userId: string;
+      subcategoryId: string | null;
+      isRecurring: boolean;
+      householdId: string | null;
+      deletedAt: string | null;
+    };
+    budgetCategories: {
+      id: string;
+      budgetId: string;
+      categoryId: string;
+      createdAt: string;
+    };
+    goals: {
+      id: string;
+      name: string;
+      targetAmount: number;
+      incomePercentage: number;
+      isCompleted: boolean;
+      completedAt: string | null;
+      description: string | null;
+      createdAt: string;
+      updatedAt: string;
+      currentBalance: number;
+      priority: string;
+      isPaused: boolean;
+      expectedIncome: number | null;
+      targetMonths: number | null;
+      userId: string;
+      accountId: string | null;
+      holdingId: string | null;
+      householdId: string | null;
+      isSystemGoal: boolean;
+      deletedAt: string | null;
+    };
+    debts: {
+      id: string;
+      name: string;
+      loanType: string;
+      initialAmount: number;
+      downPayment: number | null;
+      currentBalance: number;
+      interestRate: number;
+      totalMonths: number | null;
+      firstPaymentDate: string;
+      monthlyPayment: number;
+      principalPaid: number;
+      interestPaid: number;
+      additionalContributions: boolean;
+      additionalContributionAmount: number | null;
+      priority: string;
+      description: string | null;
+      isPaidOff: boolean;
+      isPaused: boolean;
+      paidOffAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+      paymentFrequency: string;
+      paymentAmount: number | null;
+      accountId: string | null;
+      userId: string;
+      startDate: string | null;
+      status: string;
+      nextDueDate: string | null;
+      householdId: string | null;
+      deletedAt: string | null;
+    };
+    plannedPayments: {
+      id: string;
+      date: string;
+      type: string;
+      amount: number;
+      accountId: string;
+      categoryId: string | null;
+      subcategoryId: string | null;
+      description: string | null;
+      source: string;
+      status: string;
+      linkedTransactionId: string | null;
+      debtId: string | null;
+      userId: string;
+      createdAt: string;
+      updatedAt: string;
+      toAccountId: string | null;
+      subscriptionId: string | null;
+      householdId: string | null;
+      deletedAt: string | null;
+    };
+    investmentAccounts: {
+      id: string;
+      name: string;
+      type: string;
+      accountId: string | null;
+      createdAt: string;
+      updatedAt: string;
+      userId: string;
+      cash: number | null;
+      marketValue: number | null;
+      totalEquity: number | null;
+      buyingPower: number | null;
+      maintenanceExcess: number | null;
+      currency: string | null;
+      balanceLastUpdatedAt: string | null;
+      householdId: string | null;
+    };
+    investmentTransactions: {
+      id: string;
+      date: string;
+      accountId: string;
+      securityId: string | null;
+      type: string;
+      quantity: number | null;
+      price: number | null;
+      fees: number;
+      notes: string | null;
+      transferToId: string | null;
+      transferFromId: string | null;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+      plaidInvestmentTransactionId: string | null;
+      plaidSubtype: string | null;
+      currencyCode: string | null;
+    };
+    securities: {
+      id: string;
+      symbol: string;
+      name: string;
+      class: string;
+      createdAt: string;
+      updatedAt: string;
+      sector: string | null;
+      closePrice: number | null;
+      closePriceAsOf: string | null;
+      currencyCode: string | null;
+    };
+    securityPrices: {
+      id: string;
+      securityId: string;
+      date: string;
+      price: number;
+      createdAt: string;
+    };
+    positions: {
+      id: string;
+      accountId: string;
+      securityId: string;
+      openQuantity: number;
+      closedQuantity: number;
+      currentMarketValue: number;
+      currentPrice: number;
+      averageEntryPrice: number;
+      closedPnl: number;
+      openPnl: number;
+      totalCost: number;
+      isRealTime: boolean | null;
+      isUnderReorg: boolean | null;
+      lastUpdatedAt: string;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+    };
+    orders: {
+      id: string;
+      accountId: string;
+      symbolId: number;
+      symbol: string;
+      totalQuantity: number;
+      openQuantity: number;
+      filledQuantity: number;
+      canceledQuantity: number;
+      side: string;
+      orderType: string;
+      limitPrice: number | null;
+      stopPrice: number | null;
+      isAllOrNone: boolean | null;
+      isAnonymous: boolean | null;
+      icebergQuantity: number | null;
+      minQuantity: number | null;
+      avgExecPrice: number | null;
+      lastExecPrice: number | null;
+      source: string | null;
+      timeInForce: string;
+      gtdDate: string | null;
+      state: string;
+      clientReasonStr: string | null;
+      chainId: number;
+      creationTime: string;
+      updateTime: string;
+      notes: string | null;
+      primaryRoute: string | null;
+      secondaryRoute: string | null;
+      orderRoute: string | null;
+      venueHoldingOrder: string | null;
+      comissionCharged: number | null;
+      exchangeOrderId: string | null;
+      isSignificantShareHolder: boolean | null;
+      isInsider: boolean | null;
+      isLimitOffsetInTicks: boolean | null;
+      userId: number | null;
+      placementCommission: number | null;
+      strategyType: string | null;
+      triggerStopPrice: number | null;
+      lastSyncedAt: string;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+    };
+    executions: {
+      id: string;
+      accountId: string;
+      symbolId: number;
+      symbol: string;
+      quantity: number;
+      side: string;
+      price: number;
+      orderId: number;
+      orderChainId: number;
+      exchangeExecId: string | null;
+      timestamp: string;
+      notes: string | null;
+      venue: string | null;
+      totalCost: number;
+      orderPlacementCommission: number | null;
+      commission: number | null;
+      executionFee: number | null;
+      secFee: number | null;
+      canadianExecutionFee: number | null;
+      parentId: number | null;
+      lastSyncedAt: string;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+    };
+    candles: {
+      id: string;
+      securityId: string;
+      symbolId: number;
+      start: string;
+      end: string;
+      low: number;
+      high: number;
+      open: number;
+      close: number;
+      volume: number;
+      vwap: number | null;
+      interval: string;
+      createdAt: string;
+      updatedAt: string;
+    };
+    accountInvestmentValues: {
+      id: string;
+      accountId: string;
+      totalValue: number;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+    };
+    simpleInvestmentEntries: {
+      id: string;
+      accountId: string;
+      date: string;
+      type: string;
+      amount: number;
+      description: string | null;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+    };
+    userSubscriptions: {
+      id: string;
+      userId: string;
+      serviceName: string;
+      subcategoryId: string | null;
+      amount: number;
+      description: string | null;
+      billingFrequency: string;
+      billingDay: number | null;
+      accountId: string;
+      isActive: boolean;
+      firstBillingDate: string;
+      createdAt: string;
+      updatedAt: string;
+      householdId: string | null;
+      planId: string | null;
+      deletedAt: string | null;
+    };
+    subscriptionServices: {
+      id: string;
+      categoryId: string;
+      name: string;
+      logo: string | null;
+      displayOrder: number;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+    subscriptionServiceCategories: {
+      id: string;
+      name: string;
+      displayOrder: number;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+    subscriptionServicePlans: {
+      id: string;
+      serviceId: string;
+      planName: string;
+      price: number;
+      currency: string;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
   };
-  AccountInvestmentValue: {
-    id: string;
-    accountId: string;
-    totalValue: number;
-    createdAt: string;
-    updatedAt: string;
+  // System Schema - Configuration and operations
+  system: {
+    subscriptions: {
+      id: string;
+      userId: string | null;
+      planId: string;
+      status: string;
+      stripeSubscriptionId: string | null;
+      stripeCustomerId: string | null;
+      currentPeriodStart: string | null;
+      currentPeriodEnd: string | null;
+      cancelAtPeriodEnd: boolean;
+      createdAt: string;
+      updatedAt: string;
+      trialStartDate: string | null;
+      trialEndDate: string | null;
+      gracePeriodDays: number | null;
+      lastUpgradePrompt: string | null;
+      expiredAt: string | null;
+      pendingEmail: string | null;
+      householdId: string | null;
+    };
+    plans: {
+      id: string;
+      name: string;
+      priceMonthly: number;
+      priceYearly: number;
+      features: Record<string, unknown>;
+      stripePriceIdMonthly: string | null;
+      stripePriceIdYearly: string | null;
+      stripeProductId: string | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+    promoCodes: {
+      id: string;
+      code: string;
+      discountType: string;
+      discountValue: number;
+      duration: string;
+      durationInMonths: number | null;
+      maxRedemptions: number | null;
+      expiresAt: string | null;
+      isActive: boolean;
+      stripeCouponId: string | null;
+      planIds: Record<string, unknown> | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+    importJobs: {
+      id: string;
+      userId: string;
+      accountId: string | null;
+      type: string;
+      status: string;
+      progress: number | null;
+      totalItems: number | null;
+      processedItems: number | null;
+      syncedItems: number | null;
+      skippedItems: number | null;
+      errorItems: number | null;
+      errorMessage: string | null;
+      metadata: Record<string, unknown> | null;
+      createdAt: string;
+      updatedAt: string;
+      completedAt: string | null;
+      retryCount: number | null;
+      nextRetryAt: string | null;
+    };
+    settings: {
+      id: string;
+      maintenanceMode: boolean;
+      createdAt: string;
+      updatedAt: string;
+      seoSettings: Record<string, unknown> | null;
+    };
+    errorCodes: {
+      code: string;
+      message: string;
+      userMessage: string;
+      category: string;
+      createdAt: string;
+    };
+    taxRates: {
+      id: string;
+      countryCode: string;
+      stateOrProvinceCode: string;
+      taxRate: number;
+      displayName: string;
+      description: string | null;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+    federalTaxBrackets: {
+      id: string;
+      countryCode: string;
+      taxYear: number;
+      bracketOrder: number;
+      minIncome: number;
+      maxIncome: number | null;
+      taxRate: number;
+      isActive: boolean;
+      createdAt: string;
+      updatedAt: string;
+    };
+    userMonthlyUsage: {
+      userId: string;
+      monthDate: string;
+      transactionsCount: number;
+    };
+    contactForms: {
+      id: string;
+      userId: string | null;
+      name: string;
+      email: string;
+      subject: string;
+      message: string;
+      status: string;
+      adminNotes: string | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+    feedback: {
+      id: string;
+      userId: string;
+      rating: number;
+      feedback: string | null;
+      createdAt: string;
+      updatedAt: string;
+    };
+    userActiveHouseholds: {
+      userId: string;
+      householdId: string;
+      updatedAt: string;
+    };
+    userBlockHistory: {
+      id: string;
+      userId: string;
+      action: string;
+      reason: string | null;
+      blockedBy: string;
+      createdAt: string;
+    };
   };
-  AccountOwner: {
-    id: string;
-    accountId: string;
-    ownerId: string;
-    createdAt: string;
-    updatedAt: string;
+  // Audit Schema - Audit logs and webhook events
+  audit: {
+    auditLogs: {
+      id: string;
+      tableName: string;
+      recordId: string;
+      action: 'INSERT' | 'UPDATE' | 'DELETE';
+      userId: string | null;
+      oldData: Record<string, unknown> | null;
+      newData: Record<string, unknown> | null;
+      createdAt: string;
+    };
+    webhookEvents: {
+      id: string;
+      eventId: string;
+      eventType: string;
+      processedAt: string;
+      result: string;
+      errorMessage: string | null;
+      metadata: Record<string, unknown> | null;
+      createdAt: string;
+      updatedAt: string;
+    };
   };
-  Budget: {
-    id: string;
-    period: string;
-    categoryId: string | null;
-    amount: number;
-    note: string | null;
-    createdAt: string;
-    updatedAt: string;
-    groupId: string | null;
-    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
-    subcategoryId: string | null;
-    isRecurring: boolean;
-  };
-  BudgetCategory: {
-    id: string;
-    budgetId: string;
-    categoryId: string;
-    createdAt: string;
-  };
-  Category: {
-    id: string;
-    name: string;
-    groupId: string;
-    createdAt: string;
-    updatedAt: string;
-    userId: string | null;
-  };
-  Debt: {
-    id: string;
-    name: string;
-    loanType: string;
-    initialAmount: number;
-    downPayment: number;
-    currentBalance: number;
-    interestRate: number;
-    totalMonths: number;
-    firstPaymentDate: string;
-    monthlyPayment: number;
-    principalPaid: number;
-    interestPaid: number;
-    additionalContributions: boolean;
-    additionalContributionAmount: number | null;
-    priority: string;
-    description: string | null;
-    isPaidOff: boolean;
-    isPaused: boolean;
-    paidOffAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    paymentFrequency: string;
-    paymentAmount: number | null;
-    accountId: string | null;
-    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
-    status: string;
-    nextDueDate: string | null;
-  };
-  Goal: {
-    id: string;
-    name: string;
-    targetAmount: number;
-    incomePercentage: number;
-    isCompleted: boolean;
-    completedAt: string | null;
-    description: string | null;
-    createdAt: string;
-    updatedAt: string;
-    currentBalance: number;
-    priority: string;
-    isPaused: boolean;
-    expectedIncome: number | null;
-    targetMonths: number | null;
-    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
-  };
-  HouseholdMember: {
-    id: string;
-    ownerId: string;
-    memberId: string | null;
-    email: string;
-    name: string | null;
-    status: string;
-    invitationToken: string;
-    invitedAt: string;
-    acceptedAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    role: string;
-  };
-  InvestmentAccount: {
-    id: string;
-    name: string;
-    type: string;
-    accountId: string | null;
-    createdAt: string;
-    updatedAt: string;
-    userId: string; // NOT NULL após migração 20241201000000_fix_database_issues.sql
-  };
-  InvestmentTransaction: {
-    id: string;
-    date: string;
-    accountId: string;
-    securityId: string | null;
-    type: string;
-    quantity: number | null;
-    price: number | null;
-    fees: number;
-    notes: string | null;
-    transferToId: string | null;
-    transferFromId: string | null;
-    plaidInvestmentTransactionId: string | null;
-    plaidSubtype: string | null;
-    currencyCode: string | null;
-    createdAt: string;
-    updatedAt: string;
-  };
-  Group: {
-    id: string;
-    name: string;
-    type: "income" | "expense" | null;
-    createdAt: string;
-    updatedAt: string;
-    userId: string | null;
-  };
-  Plan: {
-    id: string;
-    name: string;
-    priceMonthly: number;
-    priceYearly: number;
-    features: Record<string, unknown>;
-    stripePriceIdMonthly: string | null;
-    stripePriceIdYearly: string | null;
-    stripeProductId: string | null;
-    createdAt: string;
-    updatedAt: string;
-  };
-  Security: {
-    id: string;
-    symbol: string;
-    name: string;
-    class: string;
-    sector: string | null;
-    closePrice: number | null;
-    closePriceAsOf: string | null;
-    currencyCode: string | null;
-    createdAt: string;
-    updatedAt: string;
-  };
-  SecurityPrice: {
-    id: string;
-    securityId: string;
-    date: string;
-    price: number;
-    createdAt: string;
-  };
-  SimpleInvestmentEntry: {
-    id: string;
-    accountId: string;
-    date: string;
-    type: string;
-    amount: number;
-    description: string | null;
-    createdAt: string;
-    updatedAt: string;
-  };
-  Subcategory: {
-    id: string;
-    name: string;
-    categoryId: string;
-    createdAt: string;
-    updatedAt: string;
-    userId: string | null;
-    logo: string | null;
-  };
-  Subscription: {
-    id: string;
-    userId: string;
-    planId: string;
-    status: string;
-    stripeSubscriptionId: string | null;
-    stripeCustomerId: string | null;
-    currentPeriodStart: string | null;
-    currentPeriodEnd: string | null;
-    trialStartDate: string | null;
-    trialEndDate: string | null;
-    cancelAtPeriodEnd: boolean;
-    createdAt: string;
-    updatedAt: string;
-  };
-  Transaction: {
-    id: string;
-    date: string;
-    type: string;
-    amount: number;
-    accountId: string;
-    categoryId: string | null;
-    subcategoryId: string | null;
-    description: string | null;
-    tags: string;
-    transferToId: string | null;
-    transferFromId: string | null;
-    createdAt: string;
-    updatedAt: string;
-    isRecurring: boolean;
-    expenseType: string | null;
-    suggestedCategoryId: string | null;
-    suggestedSubcategoryId: string | null;
-    plaidMetadata: Record<string, unknown> | null;
-  };
-  User: {
-    id: string;
-    email: string;
-    name: string | null;
-    avatarUrl: string | null;
-    createdAt: string;
-    updatedAt: string;
-    role: string;
-    phoneNumber: string | null;
-    dateOfBirth: string | null;
-  };
-  PlaidConnection: {
-    id: string;
-    userId: string;
-    itemId: string;
-    accessToken: string;
-    institutionId: string | null;
-    institutionName: string | null;
-    institutionLogo: string | null;
-    createdAt: string;
-    updatedAt: string;
-    errorCode: string | null;
-    errorMessage: string | null;
-    transactionsCursor: string | null;
-  };
-  TransactionSync: {
-    id: string;
-    accountId: string;
-    plaidTransactionId: string;
-    transactionId: string | null;
-    syncDate: string;
-    status: string;
-  };
-  PlaidLiability: {
-    id: string;
-    accountId: string;
-    liabilityType: string;
-    apr: number | null;
-    interestRate: number | null;
-    minimumPayment: number | null;
-    lastPaymentAmount: number | null;
-    lastPaymentDate: string | null;
-    nextPaymentDueDate: string | null;
-    lastStatementBalance: number | null;
-    lastStatementDate: string | null;
-    creditLimit: number | null;
-    currentBalance: number | null;
-    availableCredit: number | null;
-    plaidAccountId: string | null;
-    plaidItemId: string | null;
-    createdAt: string;
-    updatedAt: string;
+  // Analytics Schema - Analytics and materialized views
+  analytics: {
+    categoryLearning: {
+      userId: string;
+      normalizedDescription: string;
+      type: 'expense' | 'income';
+      categoryId: string;
+      subcategoryId: string | null;
+      descriptionAndAmountCount: number;
+      descriptionOnlyCount: number;
+      lastUsedAt: string;
+    };
   };
 }
 
@@ -311,4 +655,3 @@ export interface Database {
 export function getSupabaseClient() {
   return createServerClient();
 }
-

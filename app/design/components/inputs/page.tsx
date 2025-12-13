@@ -28,11 +28,11 @@ export default function InputsPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Tiny (h-8)</Label>
-                  <Input size="tiny" placeholder="Tiny input" />
+                  <Input size="medium" placeholder="Tiny input" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Small (h-9)</Label>
-                  <Input size="small" placeholder="Small input" />
+                  <Input size="medium" placeholder="Small input" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Medium (h-10) - Default</Label>
@@ -40,12 +40,12 @@ export default function InputsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Large (h-11)</Label>
-                  <Input size="large" placeholder="Large input" />
+                  <Input size="medium" placeholder="Large input" />
                 </div>
               </div>
               <div className="bg-muted p-4 rounded-lg">
                 <code className="text-sm">
-                  {`<Input size="small" placeholder="Small input" />`}
+                  {`<Input size="medium" placeholder="Small input" />`}
                 </code>
               </div>
             </CardContent>
@@ -64,7 +64,7 @@ export default function InputsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="small-input">Email</Label>
-                  <Input id="small-input" size="small" type="email" placeholder="name@example.com" />
+                  <Input id="small-input" size="medium" type="email" placeholder="name@example.com" />
                   <p className="text-xs text-muted-foreground">Enter your email address</p>
                 </div>
               </CardContent>
@@ -92,7 +92,7 @@ export default function InputsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="large-input">Email</Label>
-                  <Input id="large-input" size="large" type="email" placeholder="name@example.com" />
+                  <Input id="large-input" size="medium" type="email" placeholder="name@example.com" />
                   <p className="text-xs text-muted-foreground">Enter your email address</p>
                 </div>
               </CardContent>
@@ -206,7 +206,7 @@ export default function InputsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Small</Label>
-                  <Input size="small" placeholder="Small input" />
+                  <Input size="medium" placeholder="Small input" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Medium</Label>
@@ -214,7 +214,7 @@ export default function InputsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Large</Label>
-                  <Input size="large" placeholder="Large input" />
+                  <Input size="medium" placeholder="Large input" />
                 </div>
               </div>
             </CardContent>

@@ -4,8 +4,8 @@
  */
 
 import { makePlannedPaymentsService } from "./planned-payments.factory";
-import { PlannedPaymentFormData } from "../../domain/planned-payments/planned-payments.validations";
-import { PLANNED_HORIZON_DAYS } from "../../domain/planned-payments/planned-payments.types";
+// Use new domain types (with backward compatibility)
+import { PlannedPaymentFormData, PLANNED_HORIZON_DAYS } from "../../domain/financial-events/financial-events.types";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { calculateProgress } from "@/lib/utils/goals";
 import { addMonths, startOfMonth, setDate } from "date-fns";

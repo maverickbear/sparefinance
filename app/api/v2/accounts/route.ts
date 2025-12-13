@@ -7,6 +7,7 @@ import { AppError } from "@/src/application/shared/app-error";
 import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 import { revalidateTag } from 'next/cache';
 
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -20,10 +21,44 @@ export async function GET(request: NextRequest) {
     const service = makeAccountsService();
     const accounts = await service.getAccounts(undefined, undefined, { includeHoldings });
     
+    // Enrich accounts with Plaid status information
+    const accountsWithPlaidStatus = await Promise.all(
+      accounts.map(async (account) => {
+        // Only fetch Plaid status for connected accounts
+        // plaidItemId may exist on the account even if not in the type definition
+        const plaidItemId = (account as any).plaidItemId;
+        if (!account.isConnected || !plaidItemId) {
+          return account;
+        }
+
+        try {
+          // Get Plaid item status
+          const { PlaidItemsRepository } = await import("@/src/infrastructure/database/repositories/plaid-items.repository");
+          const plaidItemsRepository = new PlaidItemsRepository();
+          const item = await plaidItemsRepository.findByItemId(plaidItemId);
+
+          if (item && item.user_id === userId) {
+            return {
+              ...account,
+              plaidStatus: item.status,
+              plaidErrorCode: item.error_code,
+              plaidErrorMessage: item.error_message,
+              plaidIsSyncing: item.is_syncing,
+            };
+          }
+        } catch (error) {
+          // Silently fail - don't break the accounts list if Plaid status fetch fails
+          console.error(`Error fetching Plaid status for account ${account.id}:`, error);
+        }
+
+        return account;
+      })
+    );
+    
     // Account list changes occasionally, use semi-static cache
     const cacheHeaders = getCacheHeaders('semi-static');
     
-    return NextResponse.json(accounts, { 
+    return NextResponse.json(accountsWithPlaidStatus, { 
       status: 200,
       headers: cacheHeaders,
     });

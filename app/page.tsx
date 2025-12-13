@@ -14,6 +14,7 @@ const LandingFeaturesSection = nextDynamic(() => import("@/components/landing/la
 const BenefitsSection = nextDynamic(() => import("@/components/landing/benefits-section").then(m => ({ default: m.BenefitsSection })), { ssr: true });
 // const LandingTestimonialsSection = nextDynamic(() => import("@/components/landing/landing-testimonials-section").then(m => ({ default: m.LandingTestimonialsSection })), { ssr: true });
 const PricingSection = nextDynamic(() => import("@/components/landing/pricing-section").then(m => ({ default: m.PricingSection })), { ssr: true });
+const FAQSection = nextDynamic(() => import("@/components/landing/faq-section").then(m => ({ default: m.FAQSection })), { ssr: true });
 
 // Get base URL from environment variable, ensuring it's just the URL value
 const envUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.sparefinance.com';
@@ -291,6 +292,11 @@ async function LandingPageContent() {
         {/* Pricing Section - wrapped in Suspense to check maintenance mode */}
         <Suspense fallback={<PricingSection />}>
           <PricingSectionWrapper />
+        </Suspense>
+        
+        {/* FAQ Section */}
+        <Suspense fallback={<div className="py-20" />}>
+          <FAQSection />
         </Suspense>
       </main>
       <LandingMainFooter />

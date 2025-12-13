@@ -5,6 +5,7 @@
  */
 
 import { logger } from '@/lib/utils/logger';
+import { UserFacingError } from '@/src/application/shared/user-facing-error';
 
 /**
  * Standard error response format
@@ -143,13 +144,19 @@ export class ExternalServiceError extends AppError {
  * Format error response
  */
 export function formatErrorResponse(error: unknown): ErrorResponse {
+  // Use UserFacingError if available, otherwise map to user-friendly message
+  const userFacingError = error instanceof UserFacingError 
+    ? error 
+    : UserFacingError.fromError(error);
+  
+  const userMessage = userFacingError.userMessage;
   const timestamp = new Date().toISOString();
 
-  // Handle AppError instances
+  // Handle AppError instances (use user message)
   if (error instanceof AppError) {
     return {
       error: {
-        message: error.message,
+        message: userMessage,
         code: error.code,
         statusCode: error.statusCode,
         details: error.details,
@@ -158,11 +165,11 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
     };
   }
 
-  // Handle standard Error instances
+  // Handle standard Error instances (use user message)
   if (error instanceof Error) {
     return {
       error: {
-        message: error.message,
+        message: userMessage,
         code: ERROR_CODES.INTERNAL_ERROR,
         statusCode: 500,
         timestamp,
@@ -170,10 +177,10 @@ export function formatErrorResponse(error: unknown): ErrorResponse {
     };
   }
 
-  // Handle unknown error types
+  // Handle unknown error types (use user message)
   return {
     error: {
-      message: 'An unexpected error occurred',
+      message: userMessage,
       code: ERROR_CODES.UNKNOWN_ERROR,
       statusCode: 500,
       details: error,
@@ -221,6 +228,7 @@ export function logError(error: unknown, context?: Record<string, unknown>): voi
 /**
  * Handle error and return formatted response
  * Use this in API routes for consistent error handling
+ * Automatically uses user-friendly messages from UserFacingError
  */
 export function handleError(error: unknown, context?: Record<string, unknown>): ErrorResponse {
   // Log the error
@@ -289,7 +297,8 @@ export function convertStripeError(error: any): AppError {
 }
 
 /**
- * Convert Plaid errors to AppError
+ * Convert banking service errors to AppError (legacy - Plaid removed)
+ * @deprecated Plaid integration removed - kept for backward compatibility
  */
 export function convertPlaidError(error: any): AppError {
   const message = error.message || 'Banking service error';

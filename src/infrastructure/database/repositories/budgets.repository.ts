@@ -5,24 +5,61 @@
  */
 
 import { createServerClient } from "../supabase-server";
-import { BaseBudget } from "../../../domain/budgets/budgets.types";
 import { logger } from "@/lib/utils/logger";
+import { IBudgetsRepository } from "./interfaces/budgets.repository.interface";
 
 export interface BudgetRow {
   id: string;
   period: string;
   amount: number;
-  categoryId: string | null;
-  subcategoryId: string | null;
-  groupId: string | null;
-  userId: string;
+  category_id: string | null;
+  subcategory_id: string | null;
+  user_id: string;
   note: string | null;
-  isRecurring: boolean;
-  createdAt: string;
-  updatedAt: string;
+  is_recurring: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
-export class BudgetsRepository {
+export interface BudgetSpendingRow {
+  categoryId: string | null;
+  subcategoryId: string | null;
+  actualSpend: number;
+  transactionCount: number;
+}
+
+export interface AnalyticsBudgetSpendingRow {
+  category_id: string | null;
+  subcategory_id: string | null;
+  actual_spend: number | null;
+  transaction_count: number | null;
+}
+
+export interface BudgetInsertData {
+  id: string;
+  period: string;
+  amount: number;
+  category_id: string | null;
+  subcategory_id: string | null;
+  user_id: string;
+  note: string | null;
+  is_recurring: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BudgetUpdateData {
+  period?: string;
+  amount?: number;
+  category_id?: string | null;
+  subcategory_id?: string | null;
+  note?: string | null;
+  is_recurring?: boolean;
+  updated_at?: string;
+}
+
+export class BudgetsRepository implements IBudgetsRepository {
   /**
    * Find all budgets for a period
    */
@@ -38,9 +75,10 @@ export class BudgetsRepository {
     const periodStr = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, '0')}-${String(periodStart.getDate()).padStart(2, '0')} 00:00:00`;
 
     const { data: budgets, error } = await supabase
-      .from("Budget")
+      .from("budgets")
       .select("*")
       .eq("period", periodStr)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .order("amount", { ascending: false });
 
     if (error) {
@@ -49,6 +87,61 @@ export class BudgetsRepository {
     }
 
     return (budgets || []) as BudgetRow[];
+  }
+
+  /**
+   * Get budget spending from materialized view
+   * OPTIMIZATION: Uses pre-calculated materialized view instead of scanning transactions
+   */
+  async getBudgetSpendingByPeriod(
+    period: Date,
+    userId: string,
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<Map<string, BudgetSpendingRow>> {
+    const supabase = await createServerClient(accessToken, refreshToken);
+
+    // Format period as first day of month
+    const periodStart = new Date(period.getFullYear(), period.getMonth(), 1);
+    const periodDateStr = periodStart.toISOString().split('T')[0];
+
+    // Query the materialized view
+    const { data: spending, error } = await supabase
+      .from("analytics_budget_spending_by_period")
+      .select("category_id, subcategory_id, actual_spend, transaction_count")
+      .eq("period", periodDateStr)
+      .eq("user_id", userId);
+
+    if (error) {
+      logger.warn("[BudgetsRepository] Error fetching budget spending from materialized view, falling back to runtime calculation:", error);
+      // Return empty map - service will fall back to runtime calculation
+      return new Map();
+    }
+
+    // Create a map for quick lookups
+    // Key format: "category:{id}" | "subcategory:{id}"
+    const spendingMap = new Map<string, BudgetSpendingRow>();
+
+    (spending || []).forEach((row: AnalyticsBudgetSpendingRow) => {
+      if (row.category_id) {
+        spendingMap.set(`category:${row.category_id}`, {
+          categoryId: row.category_id,
+          subcategoryId: row.subcategory_id,
+          actualSpend: row.actual_spend || 0,
+          transactionCount: row.transaction_count || 0,
+        });
+      }
+      if (row.subcategory_id) {
+        spendingMap.set(`subcategory:${row.subcategory_id}`, {
+          categoryId: row.category_id,
+          subcategoryId: row.subcategory_id,
+          actualSpend: row.actual_spend || 0,
+          transactionCount: row.transaction_count || 0,
+        });
+      }
+    });
+
+    return spendingMap;
   }
 
   /**
@@ -62,9 +155,10 @@ export class BudgetsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: budget, error } = await supabase
-      .from("Budget")
+      .from("budgets")
       .select("*")
       .eq("id", id)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .single();
 
     if (error) {
@@ -87,7 +181,6 @@ export class BudgetsRepository {
     amount: number;
     categoryId: string | null;
     subcategoryId: string | null;
-    groupId: string | null;
     userId: string;
     note: string | null;
     isRecurring: boolean;
@@ -96,21 +189,23 @@ export class BudgetsRepository {
   }): Promise<BudgetRow> {
     const supabase = await createServerClient();
 
+    // Build insert object
+    const insertData: BudgetInsertData = {
+      id: data.id,
+      period: data.period,
+      amount: data.amount,
+      category_id: data.categoryId,
+      subcategory_id: data.subcategoryId,
+      user_id: data.userId,
+      note: data.note,
+      is_recurring: data.isRecurring,
+      created_at: data.createdAt,
+      updated_at: data.updatedAt,
+    };
+
     const { data: budget, error } = await supabase
-      .from("Budget")
-      .insert({
-        id: data.id,
-        period: data.period,
-        amount: data.amount,
-        categoryId: data.categoryId,
-        subcategoryId: data.subcategoryId,
-        groupId: data.groupId,
-        userId: data.userId,
-        note: data.note,
-        isRecurring: data.isRecurring,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-      })
+      .from("budgets")
+      .insert(insertData)
       .select()
       .single();
 
@@ -128,7 +223,10 @@ export class BudgetsRepository {
   async update(
     id: string,
     data: Partial<{
+      period: string;
       amount: number;
+      categoryId: string | null;
+      subcategoryId: string | null;
       note: string | null;
       isRecurring: boolean;
       updatedAt: string;
@@ -136,9 +234,18 @@ export class BudgetsRepository {
   ): Promise<BudgetRow> {
     const supabase = await createServerClient();
 
+    const updateData: BudgetUpdateData = {};
+    if (data.period !== undefined) updateData.period = data.period;
+    if (data.amount !== undefined) updateData.amount = data.amount;
+    if (data.categoryId !== undefined) updateData.category_id = data.categoryId;
+    if (data.subcategoryId !== undefined) updateData.subcategory_id = data.subcategoryId;
+    if (data.note !== undefined) updateData.note = data.note;
+    if (data.isRecurring !== undefined) updateData.is_recurring = data.isRecurring;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+
     const { data: budget, error } = await supabase
-      .from("Budget")
-      .update(data)
+      .from("budgets")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -152,20 +259,45 @@ export class BudgetsRepository {
   }
 
   /**
-   * Delete a budget
+   * Soft delete a budget
    */
   async delete(id: string): Promise<void> {
     const supabase = await createServerClient();
+    const now = new Date().toISOString();
 
     const { error } = await supabase
-      .from("Budget")
-      .delete()
-      .eq("id", id);
+      .from("budgets")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", id)
+      .is("deleted_at", null); // Only soft-delete if not already deleted
 
     if (error) {
-      logger.error("[BudgetsRepository] Error deleting budget:", error);
+      logger.error("[BudgetsRepository] Error soft-deleting budget:", error);
       throw new Error(`Failed to delete budget: ${error.message}`);
     }
+  }
+
+  /**
+   * Find all recurring budgets for a user
+   */
+  async findAllRecurring(
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<BudgetRow[]> {
+    const supabase = await createServerClient(accessToken, refreshToken);
+
+    const { data: budgets, error } = await supabase
+      .from("budgets")
+      .select("*")
+      .eq("is_recurring", true)
+      .order("period", { ascending: false });
+
+    if (error) {
+      logger.error("[BudgetsRepository] Error fetching recurring budgets:", error);
+      throw new Error(`Failed to fetch recurring budgets: ${error.message}`);
+    }
+
+    return (budgets || []) as BudgetRow[];
   }
 
   /**
@@ -182,10 +314,10 @@ export class BudgetsRepository {
     const periodStr = `${period.getFullYear()}-${String(period.getMonth() + 1).padStart(2, '0')}-01 00:00:00`;
 
     const { data: budgets, error } = await supabase
-      .from("Budget")
+      .from("budgets")
       .select("*")
-      .eq("userId", userId)
-      .eq("isRecurring", true)
+      .eq("user_id", userId)
+      .eq("is_recurring", true)
       .lt("period", periodStr)
       .order("period", { ascending: false });
 
@@ -204,24 +336,21 @@ export class BudgetsRepository {
     period: string,
     categoryId: string | null,
     subcategoryId: string | null,
-    groupId: string | null,
     userId: string
   ): Promise<boolean> {
     const supabase = await createServerClient();
 
     let query = supabase
-      .from("Budget")
+      .from("budgets")
       .select("id")
       .eq("period", period)
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .limit(1);
 
-    if (groupId) {
-      query = query.eq("groupId", groupId);
-    } else if (subcategoryId) {
-      query = query.eq("subcategoryId", subcategoryId);
+    if (subcategoryId) {
+      query = query.eq("subcategory_id", subcategoryId);
     } else if (categoryId) {
-      query = query.eq("categoryId", categoryId);
+      query = query.eq("category_id", categoryId);
     }
 
     const { data, error } = await query;
@@ -234,4 +363,3 @@ export class BudgetsRepository {
     return (data?.length || 0) > 0;
   }
 }
-

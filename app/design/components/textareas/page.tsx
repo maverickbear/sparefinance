@@ -28,11 +28,11 @@ export default function TextareasPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Tiny (min-h-[60px])</Label>
-                  <Textarea size="tiny" placeholder="Tiny textarea..." />
+                  <Textarea size="medium" placeholder="Tiny textarea..." />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Small (min-h-[80px])</Label>
-                  <Textarea size="small" placeholder="Small textarea..." />
+                  <Textarea size="medium" placeholder="Small textarea..." />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Medium (min-h-[100px]) - Default</Label>
@@ -40,12 +40,12 @@ export default function TextareasPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Large (min-h-[120px])</Label>
-                  <Textarea size="large" placeholder="Large textarea..." />
+                  <Textarea size="medium" placeholder="Large textarea..." />
                 </div>
               </div>
               <div className="bg-muted p-4 rounded-lg">
                 <code className="text-sm">
-                  {`<Textarea size="small" placeholder="Small textarea..." />`}
+                  {`<Textarea size="medium" placeholder="Small textarea..." />`}
                 </code>
               </div>
             </CardContent>
@@ -64,7 +64,7 @@ export default function TextareasPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="small-textarea">Description</Label>
-                  <Textarea id="small-textarea" size="small" placeholder="Enter a short description..." />
+                  <Textarea id="small-textarea" size="medium" placeholder="Enter a short description..." />
                   <p className="text-xs text-muted-foreground">Brief description of the item</p>
                 </div>
               </CardContent>
@@ -92,7 +92,7 @@ export default function TextareasPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="large-textarea">Description</Label>
-                  <Textarea id="large-textarea" size="large" placeholder="Enter a detailed description..." />
+                  <Textarea id="large-textarea" size="medium" placeholder="Enter a detailed description..." />
                   <p className="text-xs text-muted-foreground">Comprehensive description of the item</p>
                 </div>
               </CardContent>
@@ -148,7 +148,7 @@ export default function TextareasPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Small</Label>
-                  <Textarea size="small" placeholder="Small textarea..." />
+                  <Textarea size="medium" placeholder="Small textarea..." />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Medium</Label>
@@ -156,7 +156,7 @@ export default function TextareasPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Large</Label>
-                  <Textarea size="large" placeholder="Large textarea..." />
+                  <Textarea size="medium" placeholder="Large textarea..." />
                 </div>
               </div>
             </CardContent>

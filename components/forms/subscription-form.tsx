@@ -66,16 +66,13 @@ export function SubscriptionForm({
   // New subscription services state
   const [subscriptionServiceCategories, setSubscriptionServiceCategories] = useState<any[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [loadingPlans, setLoadingPlans] = useState(false);
 
-  // Get all subcategories from Subscriptions group for Select
+  // Get all subcategories from Subscriptions category for Select
   const getSubscriptionsSubcategories = () => {
-    // Filter categories to only include those from "Subscriptions" group
+    // Filter categories to only include those with "subscription" in the name (groups removed)
     const subscriptionsCategories = allCategories.filter((category) => {
-      const groupName = category.group?.name?.toLowerCase() || "";
-      return groupName === "subscriptions" || groupName === "subscription";
+      const categoryName = category.name?.toLowerCase() || "";
+      return categoryName.includes("subscription");
     });
     
     const allSubcategories: Array<{ id: string; name: string; categoryId: string; categoryName: string }> = [];
@@ -98,10 +95,10 @@ export function SubscriptionForm({
 
   // Get categories with subcategories grouped for Select
   const getSubscriptionsCategoriesGrouped = () => {
-    // Filter categories to only include those from "Subscriptions" group
+    // Filter categories to only include those with "subscription" in the name (groups removed)
     const subscriptionsCategories = allCategories.filter((category) => {
-      const groupName = category.group?.name?.toLowerCase() || "";
-      return groupName === "subscriptions" || groupName === "subscription";
+      const categoryName = category.name?.toLowerCase() || "";
+      return categoryName.includes("subscription");
     });
     
     return subscriptionsCategories
@@ -137,10 +134,10 @@ export function SubscriptionForm({
   const getAllSubcategoriesGrouped = () => {
     const grouped: Record<string, { categoryName: string; subcategories: Array<{ id: string; name: string; categoryId: string }> }> = {};
     
-    // Filter categories to only include those from "Subscriptions" group
+    // Filter categories to only include those with "subscription" in the name (groups removed)
     const subscriptionsCategories = allCategories.filter((category) => {
-      const groupName = category.group?.name?.toLowerCase() || "";
-      return groupName === "subscriptions" || groupName === "subscription";
+      const categoryName = category.name?.toLowerCase() || "";
+      return categoryName.includes("subscription");
     });
     
     subscriptionsCategories.forEach((category) => {
@@ -213,7 +210,6 @@ export function SubscriptionForm({
           .find((s: any) => s.name === subscription.serviceName);
         if (service) {
           setSelectedServiceId(service.id);
-          loadPlansForService(service.id);
         }
       }
     } catch (error) {
@@ -221,34 +217,13 @@ export function SubscriptionForm({
     }
   }
 
-  async function loadPlansForService(serviceId: string) {
-    setLoadingPlans(true);
-    setSelectedPlanId(null);
-    try {
-      const plansResponse = await fetch(
-        `/api/subscription-services/plans?serviceId=${encodeURIComponent(serviceId)}`
-      );
-      if (!plansResponse.ok) {
-        throw new Error("Failed to fetch subscription service plans");
-      }
-      const plansData = await plansResponse.json();
-      const plans = plansData.plans || [];
-      setAvailablePlans(plans);
-      // Default to none selected - user must explicitly choose a plan
-    } catch (error) {
-      console.error("Error loading plans:", error);
-      setAvailablePlans([]);
-    } finally {
-      setLoadingPlans(false);
-    }
-  }
 
   // Find or create subcategory for a service
   async function findOrCreateSubcategoryForService(serviceName: string, serviceLogo?: string | null) {
-    // Find all Subscriptions categories
+    // Find all Subscriptions categories (groups removed)
     const subscriptionsCategories = allCategories.filter((category) => {
-      const groupName = category.group?.name?.toLowerCase() || "";
-      return groupName === "subscriptions" || groupName === "subscription";
+      const categoryName = category.name?.toLowerCase() || "";
+      return categoryName.includes("subscription");
     });
 
     if (subscriptionsCategories.length === 0) {
@@ -302,10 +277,10 @@ export function SubscriptionForm({
   // Set category filter when editing and categories are loaded
   useEffect(() => {
     if (open && subscription && subscription.subcategoryId && allCategories.length > 0) {
-      // Find the subcategory in the loaded categories
+      // Find the subcategory in the loaded categories (groups removed)
       const subscriptionsCategories = allCategories.filter((category) => {
-        const groupName = category.group?.name?.toLowerCase() || "";
-        return groupName === "subscriptions" || groupName === "subscription";
+        const categoryName = category.name?.toLowerCase() || "";
+        return categoryName.includes("subscription");
       });
       
       for (const category of subscriptionsCategories) {
@@ -328,7 +303,7 @@ export function SubscriptionForm({
       form.reset({
         serviceName: subscription.serviceName,
         subcategoryId: subscription.subcategoryId || null,
-        planId: subscription.planId || null,
+        planId: null, // Plans are no longer used - users enter amounts manually
         amount: subscription.amount,
         description: subscription.description || "",
         billingFrequency: subscription.billingFrequency,
@@ -338,7 +313,6 @@ export function SubscriptionForm({
         newSubcategoryName: null,
       });
       setBillingFrequency(subscription.billingFrequency);
-      setSelectedPlanId(subscription.planId || null);
       
       // Try to find the service by name and load plans
       // This will be handled in loadSubscriptionServices after categories are loaded
@@ -367,8 +341,6 @@ export function SubscriptionForm({
       setIsAddingNewSubcategory(false);
       setNewSubcategoryName("");
       setSelectedServiceId(null);
-      setAvailablePlans([]);
-      setSelectedPlanId(null);
     }
   }, [open, subscription, accounts.length]);
 
@@ -476,8 +448,6 @@ export function SubscriptionForm({
       form.setValue("serviceName", "");
       form.setValue("subcategoryId", null);
       setIsAddingNewSubcategory(false);
-      setAvailablePlans([]);
-      setSelectedPlanId(null);
       return;
     }
     
@@ -502,8 +472,6 @@ export function SubscriptionForm({
       if (!service) {
         setSelectedServiceId(null);
         form.setValue("serviceName", "");
-        setAvailablePlans([]);
-        setSelectedPlanId(null);
       }
     }
   }
@@ -704,8 +672,6 @@ export function SubscriptionForm({
                   form.setValue("serviceName", "");
                   form.setValue("subcategoryId", null);
                   setIsAddingNewSubcategory(true);
-                    setAvailablePlans([]);
-                    setSelectedPlanId(null);
                   }}
                 >
                   <CardContent className="p-2 flex flex-col items-center justify-center h-full">
@@ -753,8 +719,8 @@ export function SubscriptionForm({
                             form.setValue("subcategoryId", null);
                           }
                           
-                          // Load plans for this service
-                          loadPlansForService(service.id);
+                          // Ensure planId is null - users enter amounts manually
+                          form.setValue("planId", null);
                         }}
                       >
                         <CardContent className="p-2 flex flex-col items-center justify-center h-full">
@@ -798,8 +764,8 @@ export function SubscriptionForm({
                   <SelectContent>
                     {allCategories
                       .filter((category) => {
-                        const groupName = category.group?.name?.toLowerCase() || "";
-                        return groupName === "subscriptions" || groupName === "subscription";
+                        const categoryName = category.name?.toLowerCase() || "";
+                        return categoryName.includes("subscription");
                       })
                       .map((category) => (
                         <SelectItem key={category.id} value={category.id}>
@@ -825,86 +791,6 @@ export function SubscriptionForm({
               </div>
             )}
 
-            {/* Show available plans when a service is selected */}
-            {selectedServiceId && !isAddingNewSubcategory && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Select Plan (Optional)</label>
-                {loadingPlans ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Loading plans...</span>
-                  </div>
-                ) : availablePlans.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Card
-                      className={`cursor-pointer transition-all hover:border-primary w-[100px] h-[100px] flex items-center justify-center ${
-                        selectedPlanId === null
-                          ? "border-primary border-2 bg-primary/5"
-                          : "border-border"
-                      }`}
-                      onClick={() => {
-                        setSelectedPlanId(null);
-                        form.setValue("planId", null);
-                        // Don't change the amount, let user keep their custom value
-                      }}
-                    >
-                      <CardContent className="p-2 flex flex-col items-center justify-center h-full">
-                        <div className="flex flex-col items-center gap-1 text-center">
-                          {selectedPlanId === null && (
-                            <Check className="h-4 w-4 text-primary mb-1" />
-                          )}
-                          <span className="font-medium text-xs leading-tight text-muted-foreground">
-                            Custom
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            Manual
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    {availablePlans.map((plan) => {
-                      const isSelected = selectedPlanId === plan.id;
-                      return (
-                        <Card
-                          key={plan.id}
-                          className={`cursor-pointer transition-all hover:border-primary w-[100px] h-[100px] flex items-center justify-center ${
-                            isSelected
-                              ? "border-primary border-2 bg-primary/5"
-                              : "border-border"
-                          }`}
-                          onClick={() => {
-                            setSelectedPlanId(plan.id);
-                            form.setValue("amount", plan.price);
-                            form.setValue("planId", plan.id);
-                          }}
-                        >
-                          <CardContent className="p-2 flex flex-col items-center justify-center h-full">
-                            <div className="flex flex-col items-center gap-1 text-center">
-                              {isSelected && (
-                                <Check className="h-4 w-4 text-primary mb-1" />
-                              )}
-                              <span className="font-medium text-xs leading-tight">
-                                {plan.planName}
-                              </span>
-                              <span className="text-sm font-semibold">
-                                {formatMoney(plan.price)}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {plan.currency}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No plans available for this service. Enter amount manually.
-                  </p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Amount and Account */}

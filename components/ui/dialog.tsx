@@ -90,7 +90,7 @@ const DialogContent = React.forwardRef<
       >
         {header}
         {content.length > 0 && (
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto px-0">
             {content}
           </div>
         )}

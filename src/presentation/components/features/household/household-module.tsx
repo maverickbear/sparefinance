@@ -143,13 +143,7 @@ export function HouseholdModule() {
       headerTitle="Household Members"
     >
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold">Household</h2>
-            <p className="text-xs sm:text-sm md:text-base text-muted-foreground mt-1">
-              Manage your household members and invitations
-            </p>
-          </div>
+        <div className="flex items-center justify-end mb-4">
           {(currentUserRole === "admin" || currentUserRole === "super_admin" || currentUserRole === null) && members.length > 0 && canWrite && (
             <Button
               size="medium"
@@ -333,7 +327,7 @@ export function HouseholdModule() {
         {(currentUserRole === "admin" || currentUserRole === "super_admin" || currentUserRole === null) && canWrite && (
           <div className="fixed bottom-20 right-4 z-[60] lg:hidden">
             <Button
-              size="large"
+              size="medium"
               className="h-14 w-14 rounded-full shadow-lg"
               onClick={() => {
                 if (!checkWriteAccess()) return;

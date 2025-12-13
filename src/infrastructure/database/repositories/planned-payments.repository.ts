@@ -2,37 +2,51 @@
  * Planned Payments Repository
  * Data access layer for planned payments - only handles database operations
  * No business logic here
+ * 
+ * SIMPLIFIED: Renamed to Financial Events (domain types updated)
+ * This repository maintains backward compatibility with old names
+ * Database table remains `planned_payments` for now (no migration needed)
  */
 
 import { createServerClient } from "../supabase-server";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { formatDateOnly } from "@/src/infrastructure/utils/timestamp";
 
+/**
+ * Planned Payment Row (database representation)
+ * Maps to `planned_payments` table in database
+ * Note: Table name remains `planned_payments` for backward compatibility
+ */
 export interface PlannedPaymentRow {
   id: string;
   date: string;
   type: "expense" | "income" | "transfer";
   amount: number;
-  accountId: string;
-  toAccountId: string | null;
-  categoryId: string | null;
-  subcategoryId: string | null;
+  account_id: string;
+  to_account_id: string | null;
+  category_id: string | null;
+  subcategory_id: string | null;
   description: string | null; // Encrypted
   source: "recurring" | "debt" | "manual" | "subscription" | "goal";
   status: "scheduled" | "paid" | "skipped" | "cancelled";
-  linkedTransactionId: string | null;
-  debtId: string | null;
-  subscriptionId: string | null;
-  goalId: string | null;
-  userId: string;
-  householdId: string;
-  createdAt: string;
-  updatedAt: string;
+  linked_transaction_id: string | null;
+  debt_id: string | null;
+  subscription_id: string | null;
+  goal_id: string | null;
+  user_id: string;
+  household_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
+/**
+ * Planned Payments Repository
+ * SIMPLIFIED: Works with Financial Events (domain types updated)
+ * Maintains backward compatibility with old class name
+ */
 export class PlannedPaymentsRepository {
   /**
-   * Find all planned payments for a user with optional filters
+   * Find all planned payments (financial events) for a user with optional filters
    */
   async findAll(
     userId: string,
@@ -55,9 +69,9 @@ export class PlannedPaymentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     let query = supabase
-      .from("PlannedPayment")
-      .select("id, date, type, amount, accountId, toAccountId, categoryId, subcategoryId, description, source, status, linkedTransactionId, debtId, subscriptionId, userId, createdAt, updatedAt, householdId", { count: "exact" })
-      .eq("userId", userId)
+      .from("planned_payments")
+      .select("id, date, type, amount, account_id, to_account_id, category_id, subcategory_id, description, source, status, linked_transaction_id, debt_id, subscription_id, goal_id, user_id, created_at, updated_at, household_id", { count: "exact" })
+      .eq("user_id", userId)
       .order("date", { ascending: true });
 
     if (filters?.startDate) {
@@ -77,18 +91,19 @@ export class PlannedPaymentsRepository {
     }
 
     if (filters?.debtId) {
-      query = query.eq("debtId", filters.debtId);
+      query = query.eq("debt_id", filters.debtId);
     }
 
     if (filters?.subscriptionId) {
-      query = query.eq("subscriptionId", filters.subscriptionId);
+      query = query.eq("subscription_id", filters.subscriptionId);
     }
 
-    // Note: goalId column does not exist in PlannedPayment table
-    // If goalId filter is provided, it will be ignored
+    if (filters?.goalId) {
+      query = query.eq("goal_id", filters.goalId);
+    }
 
     if (filters?.accountId) {
-      query = query.eq("accountId", filters.accountId);
+      query = query.eq("account_id", filters.accountId);
     }
 
     if (filters?.type) {
@@ -152,7 +167,7 @@ export class PlannedPaymentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: plannedPayment, error } = await supabase
-      .from("PlannedPayment")
+      .from("planned_payments")
       .select("*")
       .eq("id", id)
       .single();
@@ -177,14 +192,29 @@ export class PlannedPaymentsRepository {
     const id = data.id || crypto.randomUUID();
     const now = new Date().toISOString();
 
+    const insertData: any = {
+      ...data,
+      id,
+      created_at: now,
+      updated_at: now,
+    };
+    // Remove any camelCase properties that might have been passed
+    delete (insertData as any).accountId;
+    delete (insertData as any).toAccountId;
+    delete (insertData as any).categoryId;
+    delete (insertData as any).subcategoryId;
+    delete (insertData as any).linkedTransactionId;
+    delete (insertData as any).debtId;
+    delete (insertData as any).subscriptionId;
+    delete (insertData as any).goalId;
+    delete (insertData as any).userId;
+    delete (insertData as any).householdId;
+    delete (insertData as any).createdAt;
+    delete (insertData as any).updatedAt;
+
     const { data: plannedPayment, error } = await supabase
-      .from("PlannedPayment")
-      .insert({
-        ...data,
-        id,
-        createdAt: now,
-        updatedAt: now,
-      })
+      .from("planned_payments")
+      .insert(insertData)
       .select()
       .single();
 
@@ -205,12 +235,16 @@ export class PlannedPaymentsRepository {
   ): Promise<PlannedPaymentRow> {
     const supabase = await createServerClient();
 
+    const updateData: any = { ...data };
+    if (data.linked_transaction_id !== undefined) { updateData.linked_transaction_id = data.linked_transaction_id; }
+    if (data.debt_id !== undefined) { updateData.debt_id = data.debt_id; }
+    if (data.subscription_id !== undefined) { updateData.subscription_id = data.subscription_id; }
+    if (data.goal_id !== undefined) { updateData.goal_id = data.goal_id; }
+    updateData.updated_at = new Date().toISOString();
+
     const { data: plannedPayment, error } = await supabase
-      .from("PlannedPayment")
-      .update({
-        ...data,
-        updatedAt: new Date().toISOString(),
-      })
+      .from("planned_payments")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -230,7 +264,7 @@ export class PlannedPaymentsRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("PlannedPayment")
+      .from("planned_payments")
       .delete()
       .eq("id", id);
 
@@ -258,9 +292,9 @@ export class PlannedPaymentsRepository {
 
     // Build base query with filters (excluding type filter)
     let query = supabase
-      .from("PlannedPayment")
+      .from("planned_payments")
       .select("type", { count: "exact" })
-      .eq("userId", userId);
+      .eq("user_id", userId);
 
     if (filters?.startDate) {
       query = query.gte("date", formatDateOnly(filters.startDate));

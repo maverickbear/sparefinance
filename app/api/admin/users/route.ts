@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { makeAdminService } from "@/src/application/admin/admin.factory";
 import { AppError } from "@/src/application/shared/app-error";
 
+
 export async function GET(request: NextRequest) {
   try {
     const service = makeAdminService();

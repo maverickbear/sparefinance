@@ -134,7 +134,7 @@ export function PWAInstallPrompt() {
         <div className="mt-4 flex gap-2">
           <Button
             onClick={handleInstall}
-            size="small"
+            size="medium"
             className="flex-1"
           >
             <Download className="h-4 w-4 mr-2" />
@@ -143,7 +143,7 @@ export function PWAInstallPrompt() {
           <Button
             onClick={handleDismiss}
             variant="outline"
-            size="small"
+            size="medium"
           >
             Not Now
           </Button>

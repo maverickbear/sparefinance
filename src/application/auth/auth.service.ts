@@ -3,7 +3,7 @@
  * Business logic for authentication
  */
 
-import { AuthRepository } from "@/src/infrastructure/database/repositories/auth.repository";
+import { IAuthRepository } from "@/src/infrastructure/database/repositories/interfaces/auth.repository.interface";
 import { AuthMapper } from "./auth.mapper";
 import { SignUpFormData, SignInFormData, ForgotPasswordFormData, ResetPasswordFormData, ChangePasswordFormData } from "../../domain/auth/auth.validations";
 import { BaseUser, AuthResult } from "../../domain/auth/auth.types";
@@ -12,9 +12,10 @@ import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import { validatePasswordAgainstHIBP } from "@/lib/utils/hibp";
 import { formatTimestamp } from "@/src/infrastructure/utils/timestamp";
 import { logger } from "@/src/infrastructure/utils/logger";
+import { PASSWORD_RESET_TOKEN_TTL_MS } from "@/src/domain/shared/constants";
 
 export class AuthService {
-  constructor(private repository: AuthRepository) {}
+  constructor(private repository: IAuthRepository) {}
 
   /**
    * Sign up a new user
@@ -58,67 +59,134 @@ export class AuthService {
         return { user: null, error: errorMessage };
       }
 
-      // Create user profile
-      // First check if user already exists (might have been created in a previous attempt)
       let userData: any = await this.repository.findById(authData.user.id);
       
       if (!userData) {
-        // User doesn't exist yet, try to create it
-        // Note: If email confirmation is required, the user might not be immediately available
-        // in auth.users, causing a foreign key constraint error. This is OK - the user will be
-        // created after OTP verification in the verify-otp flow.
         try {
           userData = await this.repository.createUser({
             id: authData.user.id,
             email: authData.user.email!,
             name: data.name || null,
-            role: "admin", // Owners who sign up directly are admins
+            role: "admin",
           });
           logger.info(`[AuthService] User profile created for ${authData.user.id}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Unknown error";
-          // Check if it's a foreign key constraint error (user not in auth.users yet)
-          if (errorMessage.includes("not available in auth.users") || errorMessage.includes("23503")) {
-            logger.info("[AuthService] User profile will be created after email confirmation");
-          } else {
-            logger.error("Error creating user profile:", error);
+          const errorCode = (error as any)?.code;
+          
+          // If user is not available in auth.users yet (timing issue or email confirmation required)
+          if (errorMessage.includes("not available in auth.users") || 
+              errorMessage.includes("23503") ||
+              errorCode === '23503') {
+            logger.info("[AuthService] User profile will be created after email confirmation or when user is available in auth.users");
+            
+            // Check if email confirmation is required
+            // If the user was just created but not confirmed, we should still return success
+            // The profile will be created when they confirm their email
+            if (!authData.user.email_confirmed_at) {
+              logger.info("[AuthService] Email confirmation required - profile will be created after confirmation");
+              // Return success but without userData - the profile will be created later
+              return { 
+                user: null, 
+                error: null,
+                requiresEmailConfirmation: true 
+              };
+            }
+            
+            // If email is confirmed but user still not in auth.users, this is a real error
+            logger.error("[AuthService] User email is confirmed but profile creation failed:", error);
+            return {
+              user: null,
+              error: "Account created but profile setup failed. Please try signing in or contact support if the issue persists."
+            };
           }
-          // User is created in auth but not in User table - this is OK, will be created after OTP verification
+          
+          // For other errors (like duplicate email), return the error
+          logger.error("Error creating user profile:", error);
+          
+          // Check if it's a duplicate email error
+          if (errorCode === '23505' || errorMessage.includes("duplicate") || errorMessage.includes("unique")) {
+            return {
+              user: null,
+              error: "An account with this email already exists. Please sign in instead."
+            };
+          }
+          
+          return {
+            user: null,
+            error: "Failed to create user profile. Please try again or contact support."
+          };
         }
       } else {
         logger.info(`[AuthService] User profile already exists for ${authData.user.id}`);
       }
 
-      // Create personal household automatically for new user
-      // This allows users to immediately create accounts, transactions, budgets, and goals
       if (userData) {
         try {
-          await this.createPersonalHousehold(authData.user.id, data.name ?? null);
-          logger.info(`[AuthService] Personal household created for user ${authData.user.id}`);
+          // Create Stripe Customer immediately after signup (new flow)
+          try {
+            const { makeStripeService } = await import("../stripe/stripe.factory");
+            const stripeService = makeStripeService();
+            const { customerId } = await stripeService.createOrGetStripeCustomer(
+              authData.user.id,
+              authData.user.email!,
+              data.name || null,
+              null // householdId will be set after household creation
+            );
+            logger.info(`[AuthService] Stripe customer created/retrieved for user ${authData.user.id}:`, customerId);
+          } catch (stripeError) {
+            // Don't fail signup if Stripe customer creation fails - it can be created later
+            logger.error("[AuthService] Error creating Stripe customer during signup (non-critical):", stripeError);
+          }
+
+          // Publish UserCreated event to create household
+          const { getEventBus } = await import("../events/events.factory");
+          const eventBus = getEventBus();
+          
+          const userCreatedEvent: import("@/src/domain/events/domain-events.types").UserCreatedEvent = {
+            eventType: 'UserCreated',
+            occurredAt: new Date(),
+            aggregateId: authData.user.id,
+            userId: authData.user.id,
+            email: authData.user.email!,
+            name: data.name || null,
+          };
+          
+          await eventBus.publish(userCreatedEvent);
+          logger.info(`[AuthService] UserCreated event published and processed for user ${authData.user.id}`);
         } catch (householdError) {
-          logger.error("Error creating personal household during signup:", householdError);
-          // Don't fail signup if household creation fails - it can be created later
+          logger.error("Error processing UserCreated event during signup:", householdError);
+          return {
+            user: null,
+            error: `Failed to complete signup: ${householdError instanceof Error ? householdError.message : "Unknown error"}. Please contact support.`,
+          };
         }
       }
 
       return { user: userData ? AuthMapper.toDomain(userData) : null, error: null };
     } catch (error) {
       logger.error("Error in signUp:", error);
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = (error as any)?.code;
+      
+      if (errorCode === '23505' || errorMessage.includes('unique constraint') || errorMessage.includes('duplicate key')) {
+        return { 
+          user: null, 
+          error: "An account with this email already exists. Please sign in instead." 
+        };
+      }
+      
       return { user: null, error: error instanceof Error ? error.message : "Failed to sign up" };
     }
   }
 
-  /**
-   * Create account and setup (user profile + household)
-   * Used when creating account from Stripe checkout
-   */
   async createAccountAndSetup(data: {
     userId: string;
     email: string;
     name?: string | null;
   }): Promise<{ success: boolean; user?: any; householdId?: string }> {
     try {
-      // Create user profile
       const userResult = await this.createUserProfile({
         userId: data.userId,
         email: data.email,
@@ -129,10 +197,15 @@ export class AuthService {
         throw new Error("Failed to create user profile");
       }
 
-      // Create personal household automatically (same as signup)
-      await this.createPersonalHousehold(data.userId, data.name ?? null);
+      try {
+        await this.createPersonalHouseholdAtomic(data.userId, data.name ?? null);
+      } catch (householdError) {
+        logger.error("Error creating personal household during account setup:", householdError);
+        throw new Error(
+          `Failed to create personal household: ${householdError instanceof Error ? householdError.message : "Unknown error"}`
+        );
+      }
 
-      // Get household ID
       const { getActiveHouseholdId } = await import("@/lib/utils/household");
       const householdId = await getActiveHouseholdId(data.userId);
       
@@ -329,23 +402,65 @@ export class AuthService {
 
   /**
    * Reset password
+   * Validates token TTL and password strength before resetting
    */
   async resetPassword(data: ResetPasswordFormData): Promise<{ error: string | null }> {
     try {
+      const supabase = await createServerClient();
+
+      // Get current session to validate token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        return { error: "Invalid or expired password reset token. Please request a new password reset." };
+      }
+
+      // Validate token TTL (Supabase tokens expire after 1 hour by default)
+      // Check if token was issued more than 1 hour ago
+      const tokenIssuedAt = session.expires_at ? new Date(session.expires_at * 1000 - PASSWORD_RESET_TOKEN_TTL_MS) : null;
+      const now = new Date();
+
+      if (tokenIssuedAt) {
+        const tokenAge = now.getTime() - tokenIssuedAt.getTime();
+        if (tokenAge > PASSWORD_RESET_TOKEN_TTL_MS) {
+          logger.warn("[AuthService] Password reset token expired:", { 
+            tokenAge: tokenAge, 
+            maxAge: PASSWORD_RESET_TOKEN_TTL_MS 
+          });
+          return { error: "Password reset token has expired. Please request a new password reset." };
+        }
+      }
+
       // Check password against HIBP
       const passwordValidation = await validatePasswordAgainstHIBP(data.password);
       if (!passwordValidation.isValid) {
         return { error: passwordValidation.error || "Invalid password" };
       }
 
-      const supabase = await createServerClient();
+      // Update password (Supabase will also validate token expiration)
       const { error } = await supabase.auth.updateUser({
         password: data.password,
       });
 
-      return { error: error ? getAuthErrorMessage(error, "Failed to reset password") : null };
+      if (error) {
+        // Check if error is due to expired token
+        const errorMessage = error.message?.toLowerCase() || "";
+        if (errorMessage.includes("expired") || errorMessage.includes("invalid") || errorMessage.includes("token")) {
+          return { error: "Password reset token has expired. Please request a new password reset." };
+        }
+        return { error: getAuthErrorMessage(error, "Failed to reset password") };
+      }
+
+      return { error: null };
     } catch (error) {
       logger.error("Error in resetPassword:", error);
+      
+      // Check if error is related to token expiration
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : "";
+      if (errorMessage.includes("expired") || errorMessage.includes("invalid") || errorMessage.includes("token")) {
+        return { error: "Password reset token has expired. Please request a new password reset." };
+      }
+      
       return { error: error instanceof Error ? error.message : "Failed to reset password" };
     }
   }
@@ -430,8 +545,59 @@ export class AuthService {
   }
 
   /**
+   * Helper: Publish UserCreated event to trigger household and goal creation
+   * This decouples AuthService from Household and Goal domains
+   * @deprecated Use publishUserCreatedEvent instead for better decoupling
+   */
+  private async createPersonalHouseholdAtomic(userId: string, name: string | null): Promise<string> {
+    return this.publishUserCreatedEvent(userId, userId, name);
+  }
+
+  /**
+   * Helper: Publish UserCreated event to trigger household and goal creation
+   * Uses event bus to decouple AuthService from Household and Goal domains
+   * This ensures all operations (Household, HouseholdMember, UserActiveHousehold, Goal) succeed or fail together
+   */
+  private async publishUserCreatedEvent(userId: string, email: string, name: string | null): Promise<string> {
+    const { getEventBus } = await import("../events/events.factory");
+    const eventBus = getEventBus();
+    
+    const userCreatedEvent: import("@/src/domain/events/domain-events.types").UserCreatedEvent = {
+      eventType: 'UserCreated',
+      occurredAt: new Date(),
+      aggregateId: userId,
+      userId: userId,
+      email: email,
+      name: name,
+    };
+    
+    // Publish event and wait for handlers to complete
+    // If handler fails, this throws (ensures data consistency)
+    await eventBus.publish(userCreatedEvent);
+    
+    // Get household ID from the result (handler returns it via the SQL function)
+    // For now, we'll query it - in a more sophisticated system, the event could include it
+    const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
+    const serviceRoleClient = createServiceRoleClient();
+    const { data: household } = await serviceRoleClient
+      .from("households")
+      .select("id")
+      .eq("created_by", userId)
+      .eq("type", "personal")
+      .maybeSingle();
+    
+    if (!household) {
+      throw new Error("Failed to create personal household: household not found after event processing");
+    }
+    
+    logger.info(`[AuthService] UserCreated event processed for user ${userId}, household ID: ${household.id}`);
+    return household.id;
+  }
+
+  /**
    * Helper: Create personal household for new user
    * Uses service role client to bypass RLS during signup
+   * @deprecated Use createPersonalHouseholdAtomic instead for atomic transactions
    */
   private async createPersonalHousehold(userId: string, name: string | null): Promise<void> {
     const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
@@ -440,9 +606,9 @@ export class AuthService {
 
     // Check if personal household already exists
     const { data: existingHousehold } = await serviceRoleClient
-      .from("Household")
+      .from("households")
       .select("id")
-      .eq("createdBy", userId)
+      .eq("created_by", userId)
       .eq("type", "personal")
       .maybeSingle();
 
@@ -452,7 +618,7 @@ export class AuthService {
 
     // Create personal household using service role (bypasses RLS)
     const { data: household, error: householdError } = await serviceRoleClient
-      .from("Household")
+      .from("households")
       .insert({
         name: name || "Minha Conta",
         type: "personal",
@@ -471,7 +637,7 @@ export class AuthService {
 
     // Create HouseholdMember using service role (bypasses RLS)
     const { error: memberError } = await serviceRoleClient
-      .from("HouseholdMember")
+      .from("household_members")
       .insert({
         householdId: household.id,
         userId: userId,
@@ -490,7 +656,7 @@ export class AuthService {
 
     // Set as active household using service role (bypasses RLS)
     const { error: activeError } = await serviceRoleClient
-      .from("UserActiveHousehold")
+      .from("system_user_active_households")
       .insert({
         userId: userId,
         householdId: household.id,
@@ -499,63 +665,6 @@ export class AuthService {
 
     if (activeError) {
       logger.error("Error setting active household:", activeError);
-    }
-
-    // Create emergency fund goal for new user using service role (bypasses RLS)
-    // Note: Target amount is set to 0 initially and will be calculated automatically when:
-    // 1. User fetches goals (getAll tries calculateAndUpdateEmergencyFund first)
-    // 2. User calls /api/goals/ensure-emergency-fund endpoint
-    // This is acceptable since new users typically don't have income/expense data yet
-    try {
-      const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
-      const serviceRoleClient = createServiceRoleClient();
-      const goalNow = formatTimestamp(new Date());
-      
-      // Check if emergency fund goal already exists
-      const { data: existingGoals } = await serviceRoleClient
-        .from("Goal")
-        .select("*")
-        .eq("householdId", household.id)
-        .eq("name", "Emergency Funds")
-        .eq("isSystemGoal", true)
-        .limit(1);
-
-      if (!existingGoals || existingGoals.length === 0) {
-        // Create emergency fund goal using service role (bypasses RLS)
-        const { randomUUID } = await import("crypto");
-        const goalId = randomUUID();
-        
-        const { error: goalError } = await serviceRoleClient
-          .from("Goal")
-          .insert({
-            id: goalId,
-            name: "Emergency Funds",
-            targetAmount: 0.00, // Will be calculated when user has income/expense data
-            currentBalance: 0.00,
-            incomePercentage: 0.00,
-            priority: "High",
-            description: "Emergency fund for unexpected expenses",
-            isPaused: false,
-            isCompleted: false,
-            completedAt: null,
-            expectedIncome: null,
-            targetMonths: null,
-            accountId: null,
-            holdingId: null,
-            isSystemGoal: true,
-            userId: userId,
-            householdId: household.id,
-            createdAt: goalNow,
-            updatedAt: goalNow,
-          });
-
-        if (goalError) {
-          logger.error("Error creating emergency fund goal:", goalError);
-        }
-      }
-    } catch (goalError) {
-      logger.error("Error creating emergency fund goal:", goalError);
-      // Don't fail if goal creation fails
     }
   }
 
@@ -648,8 +757,8 @@ export class AuthService {
           });
           logger.info(`[AuthService] Avatar URL updated for user ${data.userId}`);
           
-          // Update userData to include avatarUrl for return value
-          userData.avatarUrl = finalAvatarUrl;
+          // Update userData to include avatar_url for return value
+          userData.avatar_url = finalAvatarUrl;
         } catch (avatarUpdateError) {
           // Log error but don't fail - avatar can be updated later
           logger.error("[AuthService] Error updating avatar URL:", avatarUpdateError);
@@ -657,12 +766,14 @@ export class AuthService {
       }
 
       // Create personal household automatically (same as signup/signin)
+      // Use atomic method to ensure consistency
       try {
-        await this.createPersonalHousehold(data.userId, data.name ?? null);
-        logger.info(`[AuthService] Personal household created for user ${data.userId} during profile creation`);
+        await this.createPersonalHouseholdAtomic(data.userId, data.name ?? null);
+        logger.info(`[AuthService] Personal household created atomically for user ${data.userId} during profile creation`);
       } catch (householdError) {
         logger.error("Error creating personal household during profile creation:", householdError);
-        // Don't fail profile creation if household creation fails - it can be created later
+        // For profile creation, we allow it to continue - household can be created later
+        // This is less critical than signup since profile creation happens in various contexts
       }
 
       return {
@@ -728,7 +839,7 @@ export class AuthService {
         const { createServiceRoleClient } = await import("@/src/infrastructure/database/supabase-server");
         const serviceRoleClient = createServiceRoleClient();
         const { data: userCheck } = await serviceRoleClient
-          .from("User")
+          .from("users")
           .select("isBlocked, role")
           .eq("id", authData.user.id)
           .single();

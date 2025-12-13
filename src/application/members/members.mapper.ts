@@ -20,16 +20,16 @@ export class MembersMapper {
     return {
       id: row.id,
       ownerId,
-      memberId: row.userId,
+      memberId: row.user_id,
       email: user?.email || row.email || "",
       name: user?.name || row.name || null,
       role: isOwner ? 'admin' : (row.role === 'admin' ? 'admin' : 'member'),
       status: row.status,
-      invitationToken: row.invitationToken || "",
-      invitedAt: row.invitedAt,
-      acceptedAt: row.acceptedAt,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      invitationToken: row.invitation_token || "",
+      invitedAt: row.invited_at,
+      acceptedAt: row.accepted_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
       isOwner,
       avatarUrl: user?.avatarUrl || null,
     };
@@ -44,15 +44,15 @@ export class MembersMapper {
     
     return {
       id: domain.id,
-      userId: domain.memberId ?? null,
+      user_id: domain.memberId ?? null,
       email: domain.email ? domain.email.toLowerCase() : null,
       name: domain.name ?? null,
       role: role as "owner" | "admin" | "member",
       status: domain.status,
-      invitationToken: domain.invitationToken || null,
-      invitedAt: typeof domain.invitedAt === 'string' ? domain.invitedAt : domain.invitedAt?.toISOString() || new Date().toISOString(),
-      acceptedAt: domain.acceptedAt ? (typeof domain.acceptedAt === 'string' ? domain.acceptedAt : domain.acceptedAt.toISOString()) : null,
-      updatedAt: typeof domain.updatedAt === 'string' ? domain.updatedAt : domain.updatedAt?.toISOString() || new Date().toISOString(),
+      invitation_token: domain.invitationToken || null,
+      invited_at: typeof domain.invitedAt === 'string' ? domain.invitedAt : domain.invitedAt?.toISOString() || new Date().toISOString(),
+      accepted_at: domain.acceptedAt ? (typeof domain.acceptedAt === 'string' ? domain.acceptedAt : domain.acceptedAt.toISOString()) : null,
+      updated_at: typeof domain.updatedAt === 'string' ? domain.updatedAt : domain.updatedAt?.toISOString() || new Date().toISOString(),
     };
   }
 }

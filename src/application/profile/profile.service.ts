@@ -72,8 +72,8 @@ async function getUserWithSubscriptionCached(
   
   // Validate and sanitize avatarUrl
   let avatarUrl: string | null = null;
-  if (userRow.avatarUrl && typeof userRow.avatarUrl === "string") {
-    const trimmed = userRow.avatarUrl.trim();
+  if (userRow.avatar_url && typeof userRow.avatar_url === "string") {
+    const trimmed = userRow.avatar_url.trim();
     // Filter out invalid values
     if (trimmed !== "" && 
         trimmed.toLowerCase() !== "na" && 
@@ -106,10 +106,10 @@ async function getUserWithSubscriptionCached(
 
   const subscription = subscriptionData.subscription ? {
     status: subscriptionData.subscription.status as "active" | "trialing" | "cancelled" | "past_due",
-    trialEndDate: subscriptionData.subscription.trialEndDate 
-      ? (typeof subscriptionData.subscription.trialEndDate === 'string' 
-          ? subscriptionData.subscription.trialEndDate 
-          : subscriptionData.subscription.trialEndDate.toISOString())
+    trialEndDate: subscriptionData.subscription.trial_end_date 
+      ? (typeof subscriptionData.subscription.trial_end_date === 'string' 
+          ? subscriptionData.subscription.trial_end_date 
+          : subscriptionData.subscription.trial_end_date.toISOString())
       : null,
   } : null;
 
@@ -490,9 +490,9 @@ export class ProfileService {
           logger.warn("[ProfileService] Warning: Could not delete user data via function:", functionError);
           // Try manual deletion as fallback
           const { error: deleteSubsError } = await serviceSupabase
-            .from("Subscription")
+            .from("app_subscriptions")
             .delete()
-            .eq("userId", userId);
+            .eq("user_id", userId);
           
           if (deleteSubsError) {
             logger.warn("[ProfileService] Warning: Could not delete subscriptions manually:", deleteSubsError);
@@ -506,9 +506,9 @@ export class ProfileService {
         logger.warn("[ProfileService] Warning: Exception calling delete_user_data function:", funcErr);
         // Continue with manual deletion
         const { error: deleteSubsError } = await serviceSupabase
-          .from("Subscription")
+          .from("subscriptions")
           .delete()
-          .eq("userId", userId);
+          .eq("user_id", userId);
         
         if (!deleteSubsError) {
           logger.debug("[ProfileService] Deleted user subscriptions manually (fallback)");
@@ -573,7 +573,7 @@ export class ProfileService {
           try {
             // Step 1: Block the user to prevent access
             const { error: blockError } = await serviceSupabase
-              .from("User")
+              .from("users")
               .update({ isBlocked: true })
               .eq("id", userId);
             
@@ -586,6 +586,10 @@ export class ProfileService {
             }
             
             logger.debug("[ProfileService] User marked as blocked - access is now disabled");
+            
+            // Clear user verification cache since user was blocked (workaround for deletion)
+            const { clearUserVerificationCache } = await import("@/lib/utils/verify-user-exists");
+            await clearUserVerificationCache(userId);
             
             // Return success since account is effectively deleted (blocked + data cleaned)
             return { 
@@ -611,6 +615,10 @@ export class ProfileService {
 
         return { success: false, error: errorMessage };
       }
+
+      // Clear user verification cache since user was deleted
+      const { clearUserVerificationCache } = await import("@/lib/utils/verify-user-exists");
+      await clearUserVerificationCache(userId);
 
       logger.debug("[ProfileService] Successfully deleted user:", userId, "Data:", data);
       return { success: true };

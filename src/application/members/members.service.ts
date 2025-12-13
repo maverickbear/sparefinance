@@ -82,9 +82,9 @@ export class MembersService {
       id: household.id,
       name: household.name,
       type: household.type,
-      createdAt: new Date(household.createdAt),
-      updatedAt: new Date(household.updatedAt),
-      createdBy: household.createdBy,
+      createdAt: new Date(household.created_at),
+      updatedAt: new Date(household.updated_at),
+      createdBy: household.created_by,
       settings: household.settings || {},
     };
   }
@@ -118,8 +118,8 @@ export class MembersService {
 
       // Get owner information
       const { data: ownerData } = await supabase
-        .from("User")
-        .select("id, email, name, role, createdAt, updatedAt")
+        .from("users")
+        .select("id, email, name, role, created_at, updated_at")
         .eq("id", ownerId)
         .single();
 
@@ -130,6 +130,7 @@ export class MembersService {
         logger.error("No household found for owner:", ownerId);
         // Fallback: return owner as only member
         if (ownerData) {
+          // FIX: ownerData comes from Supabase in snake_case, not camelCase
           return [{
             id: ownerData.id,
             ownerId: ownerData.id,
@@ -139,10 +140,10 @@ export class MembersService {
             role: "admin",
             status: "active",
             invitationToken: "",
-            invitedAt: ownerData.createdAt,
-            acceptedAt: ownerData.createdAt,
-            createdAt: ownerData.createdAt,
-            updatedAt: ownerData.updatedAt,
+            invitedAt: ownerData.created_at,
+            acceptedAt: ownerData.created_at,
+            createdAt: ownerData.created_at,
+            updatedAt: ownerData.updated_at,
             isOwner: true,
           }];
         }
@@ -154,25 +155,32 @@ export class MembersService {
 
       // Fetch user data for members
       const userIds = memberRows
-        .map(m => m.userId)
+        .map(m => m.user_id)
         .filter((id): id is string => id !== null);
 
       const usersMap = new Map<string, { id: string; email: string; name: string | null; avatarUrl: string | null }>();
       
       if (userIds.length > 0) {
+        // FIX: Database uses snake_case, select avatar_url not avatarUrl
         const { data: users } = await supabase
-          .from("User")
-          .select("id, email, name, avatarUrl")
+          .from("users")
+          .select("id, email, name, avatar_url")
           .in("id", userIds);
 
         users?.forEach(user => {
-          usersMap.set(user.id, user);
+          // Map snake_case to camelCase
+          usersMap.set(user.id, {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            avatarUrl: user.avatar_url || null,
+          });
         });
       }
 
       // Map to domain entities
       const members: BaseHouseholdMember[] = memberRows.map(row => {
-        const user = row.userId ? usersMap.get(row.userId) : null;
+        const user = row.user_id ? usersMap.get(row.user_id) : null;
         return MembersMapper.toDomain(row, ownerId, user);
       });
 
@@ -208,7 +216,7 @@ export class MembersService {
 
     // Check if user already exists
     const { data: existingUser } = await supabase
-      .from("User")
+      .from("users")
       .select("id")
       .eq("email", data.email.toLowerCase())
       .maybeSingle();
@@ -259,11 +267,20 @@ export class MembersService {
 
     // If user already exists, return immediately
     if (existingUser) {
-      const { data: user } = await supabase
-        .from("User")
-        .select("id, email, name, avatarUrl")
+      const { data: userData } = await supabase
+        .from("users")
+        // FIX: Database uses snake_case, select avatar_url not avatarUrl
+        .select("id, email, name, avatar_url")
         .eq("id", existingUser.id)
         .single();
+
+      // Map snake_case to camelCase for mapper
+      const user = userData ? {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        avatarUrl: userData.avatar_url || null,
+      } : null;
 
       return MembersMapper.toDomain(memberRow, ownerId, user);
     }
@@ -271,7 +288,7 @@ export class MembersService {
     // Send invitation email
     try {
       const { data: owner } = await supabase
-        .from("User")
+        .from("users")
         .select("name, email")
         .eq("id", ownerId)
         .single();
@@ -316,12 +333,12 @@ export class MembersService {
     if (data.name !== undefined) {
       if (currentMember.status === 'pending') {
         updateData.name = data.name || null;
-      } else if (currentMember.userId) {
+      } else if (currentMember.user_id) {
         // Update User table for active members
         await supabase
-          .from("User")
-          .update({ name: data.name || null, updatedAt: now })
-          .eq("id", currentMember.userId);
+          .from("users")
+          .update({ name: data.name || null, updated_at: now })
+          .eq("id", currentMember.user_id);
       }
     }
 
@@ -331,7 +348,7 @@ export class MembersService {
       if (data.email.toLowerCase() !== currentEmail.toLowerCase()) {
         // Check if email is already used
         const { data: existingUser } = await supabase
-          .from("User")
+          .from("users")
           .select("id")
           .eq("email", data.email.toLowerCase())
           .maybeSingle();
@@ -339,7 +356,7 @@ export class MembersService {
         if (existingUser) {
           const existingMember = await this.repository.findByUserIdAndHousehold(
             existingUser.id,
-            currentMember.householdId
+            currentMember.household_id
           );
           if (existingMember && existingMember.id !== memberId) {
             throw new AppError("Email is already used by another member", 400);
@@ -352,12 +369,12 @@ export class MembersService {
           const newToken = crypto.randomUUID();
           updateData.invitationToken = newToken;
           updateData.invitedAt = now;
-        } else if (currentMember.userId) {
+        } else if (currentMember.user_id) {
           // Update User table
           await supabase
-            .from("User")
-            .update({ email: data.email.toLowerCase(), updatedAt: now })
-            .eq("id", currentMember.userId);
+            .from("users")
+            .update({ email: data.email.toLowerCase(), updated_at: now })
+            .eq("id", currentMember.user_id);
         }
       }
     }
@@ -371,20 +388,29 @@ export class MembersService {
 
     // Get household owner
     const { data: household } = await supabase
-      .from("Household")
-      .select("createdBy")
-      .eq("id", currentMember.householdId)
+      .from("households")
+      .select("created_by")
+      .eq("id", currentMember.household_id)
       .single();
 
     // Get user data
-    const user = updatedMember.userId ? await supabase
-      .from("User")
-      .select("id, email, name, avatarUrl")
-      .eq("id", updatedMember.userId)
+    const userData = updatedMember.user_id ? await supabase
+      .from("users")
+      // FIX: Database uses snake_case, select avatar_url not avatarUrl
+      .select("id, email, name, avatar_url")
+      .eq("id", updatedMember.user_id)
       .single()
       .then(r => r.data) : null;
 
-    return MembersMapper.toDomain(updatedMember, household?.createdBy || "", user);
+    // Map snake_case to camelCase for mapper
+    const user = userData ? {
+      id: userData.id,
+      email: userData.email,
+      name: userData.name,
+      avatarUrl: userData.avatar_url || null,
+    } : null;
+
+    return MembersMapper.toDomain(updatedMember, household?.created_by || "", user);
   }
 
   /**
@@ -400,24 +426,25 @@ export class MembersService {
     }
 
     // If member has userId, create personal household if needed
-    if (member.userId) {
+    if (member.user_id) {
       const { data: existingPersonalHousehold } = await supabase
-        .from("HouseholdMember")
-        .select("householdId, Household(type)")
-        .eq("userId", member.userId)
-        .eq("isDefault", true)
+        .from("household_members")
+        // FIX: Schema is public, not core
+        .select("household_id, household:households(type)")
+        .eq("user_id", member.user_id)
+        .eq("is_default", true)
         .maybeSingle();
 
       if (!existingPersonalHousehold) {
         try {
           const { data: user } = await supabase
-            .from("User")
+            .from("users")
             .select("name, email")
-            .eq("id", member.userId)
+            .eq("id", member.user_id)
             .single();
 
           await this.createHousehold(
-            member.userId,
+            member.user_id,
             user?.name || user?.email || "Minha Conta",
             'personal'
           );
@@ -445,21 +472,21 @@ export class MembersService {
       throw new AppError("Can only resend invitation for pending members", 400);
     }
 
-    if (!member.invitationToken || !member.email) {
+    if (!member.invitation_token || !member.email) {
       throw new AppError("Invalid invitation: missing token or email", 400);
     }
 
     // Get household owner
     const { data: household } = await supabase
-      .from("Household")
-      .select("createdBy")
-      .eq("id", member.householdId)
+      .from("households")
+      .select("created_by")
+      .eq("id", member.household_id)
       .single();
 
     const { data: owner } = await supabase
-      .from("User")
+      .from("users")
       .select("name, email")
-      .eq("id", household?.createdBy)
+      .eq("id", household?.created_by)
       .single();
 
     if (!owner) {
@@ -472,7 +499,7 @@ export class MembersService {
       memberName: member.name || member.email,
       ownerName: owner.name || owner.email || "A user",
       ownerEmail: owner.email,
-      invitationToken: member.invitationToken,
+      invitationToken: member.invitation_token,
       appUrl: process.env.NEXT_PUBLIC_APP_URL,
     });
   }
@@ -514,10 +541,10 @@ export class MembersService {
 
     // Set active household
     await supabase
-      .from("UserActiveHousehold")
+      .from("system_user_active_households")
       .upsert({
         userId,
-        householdId: invitation.householdId,
+        householdId: invitation.household_id,
         updatedAt: now,
       }, {
         onConflict: "userId"
@@ -528,7 +555,7 @@ export class MembersService {
     try {
       const { makeSubscriptionsService } = await import("../subscriptions/subscriptions.factory");
       const subscriptionsService = makeSubscriptionsService();
-      logger.debug("[MembersService] Invalidated subscription cache for new household member", { userId, householdId: invitation.householdId });
+      logger.debug("[MembersService] Invalidated subscription cache for new household member", { userId, householdId: invitation.household_id });
       
       // Check if member has personal subscription and household has subscription
       // If both exist, pause member's personal subscription
@@ -541,7 +568,7 @@ export class MembersService {
         const memberPersonalSubscription = await subscriptionsRepository.findByUserId(userId);
         
         // Check if household has subscription
-        const householdSubscription = await subscriptionsRepository.findByHouseholdId(invitation.householdId);
+        const householdSubscription = await subscriptionsRepository.findByHouseholdId(invitation.household_id);
         
         if (memberPersonalSubscription && 
             (memberPersonalSubscription.status === "active" || memberPersonalSubscription.status === "trialing") &&
@@ -550,7 +577,7 @@ export class MembersService {
           // Both have active subscriptions - pause member's personal subscription
           logger.log("[MembersService] Both member and household have active subscriptions, pausing member's subscription", {
             userId,
-            householdId: invitation.householdId,
+            householdId: invitation.household_id,
             memberSubscriptionId: memberPersonalSubscription.id,
             householdSubscriptionId: householdSubscription.id,
           });
@@ -559,19 +586,19 @@ export class MembersService {
             userId,
             "household_member",
             {
-              pausedByHouseholdId: invitation.householdId,
+              pausedByHouseholdId: invitation.household_id,
             }
           );
           
           if (pauseResult.paused) {
             logger.log("[MembersService] Successfully paused member's personal subscription", {
               userId,
-              householdId: invitation.householdId,
+              householdId: invitation.household_id,
             });
           } else {
             logger.warn("[MembersService] Failed to pause member's personal subscription", {
               userId,
-              householdId: invitation.householdId,
+              householdId: invitation.household_id,
               error: pauseResult.error,
             });
             // Don't fail invitation acceptance if pause fails
@@ -588,19 +615,29 @@ export class MembersService {
 
     // Get household owner
     const { data: household } = await supabase
-      .from("Household")
-      .select("createdBy")
-      .eq("id", invitation.householdId)
+      .from("households")
+      // FIX: Database uses snake_case, select created_by not createdBy
+      .select("created_by")
+      .eq("id", invitation.household_id)
       .single();
 
     // Get user data
-    const { data: user } = await supabase
-      .from("User")
-      .select("id, email, name, avatarUrl")
+    const { data: userData } = await supabase
+      .from("users")
+      // FIX: Database uses snake_case, select avatar_url not avatarUrl
+      .select("id, email, name, avatar_url")
       .eq("id", userId)
       .single();
 
-    return MembersMapper.toDomain(updatedMember, household?.createdBy || "", user);
+    // Map snake_case to camelCase for mapper
+    const user = userData ? {
+      id: userData.id,
+      email: userData.email,
+      name: userData.name,
+      avatarUrl: userData.avatar_url || null,
+    } : null;
+
+    return MembersMapper.toDomain(updatedMember, household?.created_by || "", user);
   }
 
   /**
@@ -612,9 +649,9 @@ export class MembersService {
       
       // Check if user is an owner
       const { data: ownedHousehold } = await supabase
-        .from("Household")
+        .from("households")
         .select("id, type")
-        .eq("createdBy", userId)
+        .eq("created_by", userId)
         .limit(1)
         .maybeSingle();
 
@@ -624,7 +661,7 @@ export class MembersService {
       const memberships = await this.repository.findActiveMembershipsByUserId(userId);
       const isMember = memberships.some(m => {
         const household = m.household;
-        return household && household.type !== 'personal' && household.createdBy !== userId;
+        return household && household.type !== 'personal' && household.created_by !== userId;
       });
 
       if (!isOwner && !isMember) {
@@ -644,13 +681,13 @@ export class MembersService {
       // User is a member, get owner info
       const membership = memberships.find(m => {
         const household = m.household;
-        return household && household.type !== 'personal' && household.createdBy !== userId;
+        return household && household.type !== 'personal' && household.created_by !== userId;
       });
 
       if (membership?.household) {
-        const ownerId = membership.household.createdBy;
+        const ownerId = membership.household.created_by;
         const { data: owner } = await supabase
-          .from("User")
+          .from("users")
           .select("name, email")
           .eq("id", ownerId)
           .maybeSingle();
@@ -687,15 +724,16 @@ export class MembersService {
       // Fetch User role and HouseholdMember in parallel
       const [userResult, householdResult] = await Promise.all([
         supabase
-          .from("User")
+          .from("users")
           .select("role")
           .eq("id", userId)
           .single(),
         // Get user's household memberships
         supabase
-          .from("HouseholdMember")
-          .select("role, userId, status, Household(type, createdBy)")
-          .eq("userId", userId)
+          .from("household_members")
+          // FIX: Schema is public, not core
+          .select("role, user_id, status, household:households(type, created_by)")
+          .eq("user_id", userId)
           .eq("status", "active")
       ]);
 
@@ -712,8 +750,8 @@ export class MembersService {
       // Check if user is owner of a household
       const ownedHousehold = memberships.find(
         (m: any) => {
-          const household = m.Household as any;
-          return household?.createdBy === userId && household?.type !== 'personal';
+          const household = m.household as any;
+          return household?.created_by === userId && household?.type !== 'personal';
         }
       );
       
@@ -725,8 +763,8 @@ export class MembersService {
       // Check if user is an active member (not owner)
       const activeMember = memberships.find(
         (m: any) => {
-          const household = m.Household as any;
-          return household?.createdBy !== userId;
+          const household = m.household as any;
+          return household?.created_by !== userId;
         }
       );
       
@@ -829,10 +867,10 @@ export class MembersService {
     const serviceRoleClient = createServiceRoleClient();
     
     const { data: fullInvitation, error: findError } = await serviceRoleClient
-      .from("HouseholdMember")
+      .from("household_members")
       .select(`
         *,
-        Household(createdBy, id)
+        household:households(created_by, id)
       `)
       .eq("id", invitationData.id)
       .eq("status", "pending")
@@ -892,7 +930,7 @@ export class MembersService {
 
     // Create User in User table using service role (bypasses RLS during account creation)
     const { error: createUserError } = await serviceRoleClient
-      .from("User")
+      .from("users")
       .insert({
         id: userId,
         email: fullInvitation.email,
@@ -930,10 +968,10 @@ export class MembersService {
 
     // Get the invitation to verify it's still pending
     const { data: invitation, error: findError } = await serviceRoleClient
-      .from("HouseholdMember")
+      .from("household_members")
       .select(`
         *,
-        Household(createdBy, id)
+        household:households(created_by, id)
       `)
       .eq("id", invitationId)
       .eq("status", "pending")
@@ -945,7 +983,7 @@ export class MembersService {
 
     // Verify the userId matches the invitation email
     const { data: userData } = await serviceRoleClient
-      .from("User")
+      .from("users")
       .select("email")
       .eq("id", userId)
       .single();
@@ -957,7 +995,7 @@ export class MembersService {
     // Update the invitation to active status and link the member
     // Use service role client to bypass RLS during invitation acceptance
     const { data: updatedMemberRow, error: updateError } = await serviceRoleClient
-      .from("HouseholdMember")
+      .from("household_members")
       .update({
         userId: userId,
         status: "active",
@@ -981,30 +1019,30 @@ export class MembersService {
       );
     }
 
-    const household = invitation.Household as any;
+    const household = invitation.household as any;
     logger.log("[MembersService] completeInvitationAfterOtp - Member accepted invitation:", {
-      memberId: updatedMemberRow.userId,
+      memberId: updatedMemberRow.user_id,
       userId,
-      householdId: updatedMemberRow.householdId,
+      householdId: updatedMemberRow.household_id,
       status: updatedMemberRow.status,
     });
 
     // Set the household as active for the new member
     try {
       const { error: activeError } = await serviceRoleClient
-        .from("UserActiveHousehold")
+        .from("system_user_active_households")
         .upsert({
-          userId: userId,
-          householdId: updatedMemberRow.householdId,
-          updatedAt: now,
+          user_id: userId,
+          household_id: updatedMemberRow.household_id,
+          updated_at: now,
         }, {
-          onConflict: "userId"
+          onConflict: "user_id"
         });
       
       if (activeError) {
         logger.warn("[MembersService] Could not set active household for new member:", activeError);
       } else {
-        logger.log("[MembersService] Set active household for new member:", { userId, householdId: updatedMemberRow.householdId });
+        logger.log("[MembersService] Set active household for new member:", { userId, householdId: updatedMemberRow.household_id });
       }
     } catch (activeError) {
       logger.warn("[MembersService] Error setting active household:", activeError);
@@ -1050,12 +1088,13 @@ export class MembersService {
 
     // Get user data
     const { data: user } = await supabase
-      .from("User")
-      .select("id, email, name, avatarUrl")
+      .from("users")
+      // FIX: Database uses snake_case, select avatar_url not avatarUrl
+      .select("id, email, name, avatar_url")
       .eq("id", userId)
       .single();
 
-    const member = MembersMapper.toDomain(updatedMemberRow, household?.createdBy || "", user);
+    const member = MembersMapper.toDomain(updatedMemberRow, household?.created_by || "", user);
 
     return {
       member,

@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       // Create import job
       const jobId = crypto.randomUUID();
       const { error: jobError } = await supabase
-        .from('ImportJob')
+        .from('system.importJobs')
         .insert({
           id: jobId,
           userId: userId,

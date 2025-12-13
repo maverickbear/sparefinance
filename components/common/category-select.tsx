@@ -8,76 +8,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { BaseGroup, BaseCategory, BaseSubcategory } from "@/src/domain/categories/categories.types";
+import type { BaseCategory, BaseSubcategory } from "@/src/domain/categories/categories.types";
 
 type Category = BaseCategory & { subcategories?: Subcategory[] };
 type Subcategory = BaseSubcategory;
-type Macro = BaseGroup;
 
 interface CategorySelectProps {
-  macroId?: string;
   categoryId?: string;
   subcategoryId?: string;
-  onMacroChange?: (macroId: string) => void;
+  type?: "income" | "expense"; // Transaction type to filter categories
   onCategoryChange?: (categoryId: string) => void;
   onSubcategoryChange?: (subcategoryId: string) => void;
   includeSubcategory?: boolean;
 }
 
 export function CategorySelect({
-  macroId,
   categoryId,
   subcategoryId,
-  onMacroChange,
+  type = "expense", // Default to expense
   onCategoryChange,
   onSubcategoryChange,
   includeSubcategory = true,
 }: CategorySelectProps) {
-  const [macros, setMacros] = useState<Macro[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [selectedMacroId, setSelectedMacroId] = useState<string>(macroId || "");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryId || "");
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>(subcategoryId || "");
 
   useEffect(() => {
-    async function loadMacros() {
+    async function loadCategories() {
       try {
-        const response = await fetch("/api/v2/categories?consolidated=true");
+        const response = await fetch("/api/v2/categories?all=true");
         if (!response.ok) {
           throw new Error("Failed to fetch categories");
         }
-        const { groups } = await response.json();
-        setMacros(groups || []);
+        const categories = await response.json();
+        // Filter categories by type
+        const filteredCategories = categories.filter((cat: Category) => cat.type === type);
+        setCategories(filteredCategories || []);
       } catch (error) {
-        console.error("Error loading macros:", error);
+        console.error("Error loading categories:", error);
+        setCategories([]);
       }
     }
-    loadMacros();
-  }, []);
-
-  useEffect(() => {
-    if (selectedMacroId) {
-      async function loadCategories() {
-        try {
-          const response = await fetch(`/api/v2/categories?macroId=${selectedMacroId}`);
-          if (!response.ok) {
-            throw new Error("Failed to fetch categories");
-          }
-          const categories = await response.json();
-          setCategories(categories || []);
-          setSubcategories([]);
-          setSelectedCategoryId("");
-          setSelectedSubcategoryId("");
-          onCategoryChange?.("");
-          onSubcategoryChange?.("");
-        } catch (error) {
-          console.error("Error loading categories:", error);
-        }
-      }
-      loadCategories();
-    }
-  }, [selectedMacroId, onCategoryChange, onSubcategoryChange]);
+    loadCategories();
+  }, [type]);
 
   useEffect(() => {
     if (selectedCategoryId) {
@@ -93,6 +68,7 @@ export function CategorySelect({
           onSubcategoryChange?.("");
         } catch (error) {
           console.error("Error loading subcategories:", error);
+          setSubcategories([]);
         }
       }
       loadSubcategories();
@@ -100,11 +76,6 @@ export function CategorySelect({
       setSubcategories([]);
     }
   }, [selectedCategoryId, onSubcategoryChange]);
-
-  const handleMacroChange = (value: string) => {
-    setSelectedMacroId(value);
-    onMacroChange?.(value);
-  };
 
   const handleCategoryChange = (value: string) => {
     setSelectedCategoryId(value);
@@ -117,31 +88,14 @@ export function CategorySelect({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
-        <label className="text-sm font-medium mb-2 block">Group</label>
-        <Select value={selectedMacroId} onValueChange={handleMacroChange}>
-          <SelectTrigger size="small">
-            <SelectValue placeholder="Select group" />
-          </SelectTrigger>
-          <SelectContent>
-            {macros.map((macro) => (
-              <SelectItem key={macro.id} value={macro.id}>
-                {macro.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label className="text-sm font-medium mb-2 block">Category</label>
         <Select
           value={selectedCategoryId}
           onValueChange={handleCategoryChange}
-          disabled={!selectedMacroId}
         >
-          <SelectTrigger size="small">
+          <SelectTrigger size="medium">
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
           <SelectContent>
@@ -162,7 +116,7 @@ export function CategorySelect({
             onValueChange={handleSubcategoryChange}
             disabled={!selectedCategoryId}
           >
-            <SelectTrigger size="small">
+            <SelectTrigger size="medium">
               <SelectValue placeholder="Select subcategory" />
             </SelectTrigger>
             <SelectContent>

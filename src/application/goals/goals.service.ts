@@ -80,7 +80,7 @@ export class GoalsService {
         const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59);
 
         const { data: transactions } = await supabase
-          .from("Transaction")
+          .from("transactions")
           .select("amount")
           .eq("type", "income")
           .gte("date", formatDateStart(monthStart))
@@ -134,8 +134,8 @@ export class GoalsService {
 
     // Sum up all income percentages (excluding paused goals)
     const totalAllocation = otherGoals
-      .filter(g => !g.isPaused)
-      .reduce((sum, goal) => sum + goal.incomePercentage, 0);
+      .filter(g => !g.is_paused)
+      .reduce((sum, goal) => sum + goal.income_percentage, 0);
 
     const newTotal = totalAllocation + newIncomePercentage;
 
@@ -162,73 +162,13 @@ export class GoalsService {
   ): Promise<GoalWithCalculations[]> {
     const rows = await this.repository.findAll(accessToken, refreshToken);
 
-    // OPTIMIZATION: Ensure emergency fund goal exists even if no other goals
-    // This ensures users always have at least the emergency fund goal
-    const hasEmergencyFund = rows.some(g => g.isSystemGoal && g.name?.toLowerCase().includes('emergency'));
-    
-    if (!hasEmergencyFund) {
-      // Try to create emergency fund goal
-      // First try calculateAndUpdateEmergencyFund (which calculates values)
-      // If that fails, try to create a basic emergency fund goal
-      try {
-        const createdGoal = await this.calculateAndUpdateEmergencyFund(accessToken, refreshToken);
-        if (createdGoal) {
-          // Re-fetch goals after creating emergency fund
-          const updatedRows = await this.repository.findAll(accessToken, refreshToken);
-          if (updatedRows.length > rows.length) {
-            // Emergency fund was created, use updated rows
-            rows.length = 0;
-            rows.push(...updatedRows);
-          }
-        }
-      } catch (error) {
-        // If calculateAndUpdateEmergencyFund fails, try to create basic emergency fund
-        // This can happen if user doesn't have household or insufficient data
-        logger.warn("[GoalsService] Could not calculate emergency fund, trying to create basic goal:", error);
-        
-        try {
-          const supabase = await createServerClient(accessToken, refreshToken);
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          if (user) {
-            const householdId = await getActiveHouseholdId(user.id, accessToken, refreshToken);
-            if (householdId) {
-              // Create basic emergency fund goal
-              const basicGoal = await this.createGoal({
-                name: "Emergency Funds",
-                targetAmount: 0,
-                currentBalance: 0,
-                incomePercentage: 0,
-                priority: "High",
-                targetMonths: 0,
-                description: "Emergency fund for unexpected expenses",
-                isPaused: false,
-                isSystemGoal: true,
-              });
-              
-              if (basicGoal) {
-                // Re-fetch goals after creating emergency fund
-                const updatedRows = await this.repository.findAll(accessToken, refreshToken);
-                if (updatedRows.length > rows.length) {
-                  rows.length = 0;
-                  rows.push(...updatedRows);
-                }
-              }
-            }
-          }
-        } catch (basicError) {
-          logger.warn("[GoalsService] Could not create basic emergency fund goal:", basicError);
-        }
-      }
-    }
-
-    // Early return if still no goals after trying to create emergency fund
+    // Early return if no goals
     if (rows.length === 0) {
       return [];
     }
 
     // OPTIMIZATION: Fetch income basis and accounts in parallel
-    const goalsWithAccount = rows.filter(g => g.accountId);
+    const goalsWithAccount = rows.filter(g => g.account_id);
     
     // OPTIMIZED: Use provided accounts if available, otherwise fetch only if needed
     const [incomeBasis, fetchedAccounts] = await Promise.all([
@@ -254,11 +194,11 @@ export class GoalsService {
     // For now, just read the balance without updating
     const goalsWithCalculations: GoalWithCalculations[] = await Promise.all(
       rows.map(async (goal) => {
-        let currentBalance = goal.currentBalance;
+        let currentBalance = goal.current_balance;
 
         // If goal has accountId, sync balance from account (read-only, no DB update)
-        if (goal.accountId) {
-          const account = accountsMap.get(goal.accountId);
+        if (goal.account_id) {
+          const account = accountsMap.get(goal.account_id);
           
           if (account) {
             // Use account balance for display, but don't update DB here (too slow)
@@ -268,14 +208,27 @@ export class GoalsService {
         }
 
         // Check if goal is completed
-        const isCompleted = currentBalance >= goal.targetAmount;
+        const isCompleted = currentBalance >= goal.target_amount;
         
         // Use goal's expectedIncome if available, otherwise use calculated incomeBasis
-        const goalIncomeBasis = goal.expectedIncome && goal.expectedIncome > 0
-          ? goal.expectedIncome
+        const goalIncomeBasis = goal.expected_income && goal.expected_income > 0
+          ? goal.expected_income
           : incomeBasis;
 
-        const progress = calculateProgress({ ...goal, currentBalance }, goalIncomeBasis);
+        // Map GoalRow to domain format for calculateProgress
+        const goalForCalc = {
+          id: goal.id,
+          name: goal.name,
+          targetAmount: goal.target_amount,
+          currentBalance: currentBalance,
+          incomePercentage: goal.income_percentage,
+          priority: goal.priority,
+          isPaused: goal.is_paused,
+          isCompleted: goal.is_completed,
+          createdAt: goal.created_at,
+          updatedAt: goal.updated_at,
+        };
+        const progress = calculateProgress(goalForCalc, goalIncomeBasis);
 
         return GoalsMapper.toDomainWithCalculations(goal, {
           ...progress,
@@ -301,8 +254,25 @@ export class GoalsService {
       return null;
     }
 
-    const incomeBasis = await this.calculateIncomeBasis(row.expectedIncome, accessToken, refreshToken);
-    const progress = calculateProgress(row, incomeBasis);
+    const incomeBasis = await this.calculateIncomeBasis(row.expected_income, accessToken, refreshToken);
+    // Map GoalRow to domain format for calculateProgress
+    const goalForCalc = {
+      id: row.id,
+      name: row.name,
+      targetAmount: row.target_amount,
+      currentBalance: row.current_balance,
+      incomePercentage: row.income_percentage,
+      priority: row.priority,
+      isPaused: row.is_paused,
+      isCompleted: row.is_completed,
+      completedAt: row.completed_at,
+      description: row.description,
+      expectedIncome: row.expected_income,
+      targetMonths: row.target_months,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+    const progress = calculateProgress(goalForCalc, incomeBasis);
 
     return GoalsMapper.toDomainWithCalculations(row, {
       ...progress,
@@ -428,20 +398,20 @@ export class GoalsService {
     }
 
     // Validate targetAmount
-    const targetAmount = data.targetAmount ?? currentGoal.targetAmount;
-    const isSystemGoal = currentGoal.isSystemGoal;
+    const targetAmount = data.targetAmount ?? currentGoal.target_amount;
+    const isSystemGoal = currentGoal.is_system_goal;
     if (data.targetAmount !== undefined && data.targetAmount <= 0 && !isSystemGoal) {
       throw new AppError("Target amount must be greater than 0", 400);
     }
 
     const effectiveCurrentBalance = data.currentBalance !== undefined 
       ? data.currentBalance 
-      : currentGoal.currentBalance;
+      : currentGoal.current_balance;
 
     // Calculate incomePercentage if targetMonths is provided
     let incomePercentage = data.incomePercentage;
     if (data.targetMonths && data.targetMonths > 0 && data.incomePercentage === undefined) {
-      const expectedIncome = data.expectedIncome ?? currentGoal.expectedIncome;
+      const expectedIncome = data.expectedIncome ?? currentGoal.expected_income;
       const incomeBasis = await this.calculateIncomeBasis(expectedIncome);
       if (incomeBasis > 0) {
         const { calculateIncomePercentageFromTargetMonths } = await import("@/lib/utils/goals");
@@ -483,9 +453,9 @@ export class GoalsService {
 
     // Update completion status
     updateData.isCompleted = isCompleted;
-    if (isCompleted && !currentGoal.completedAt) {
+    if (isCompleted && !currentGoal.completed_at) {
       updateData.completedAt = formatTimestamp(new Date());
-    } else if (!isCompleted && currentGoal.completedAt) {
+    } else if (!isCompleted && currentGoal.completed_at) {
       updateData.completedAt = null;
     }
 
@@ -541,13 +511,13 @@ export class GoalsService {
       throw new AppError("Goal not found", 404);
     }
 
-    const newBalance = goal.currentBalance + amount;
-    const isCompleted = newBalance >= goal.targetAmount;
+    const newBalance = goal.current_balance + amount;
+    const isCompleted = newBalance >= goal.target_amount;
 
     const goalRow = await this.repository.update(id, {
       currentBalance: newBalance,
       isCompleted,
-      completedAt: isCompleted && !goal.completedAt ? formatTimestamp(new Date()) : goal.completedAt,
+      completedAt: isCompleted && !goal.completed_at ? formatTimestamp(new Date()) : goal.completed_at,
       updatedAt: formatTimestamp(new Date()),
     });
 
@@ -571,13 +541,13 @@ export class GoalsService {
       throw new AppError("Goal not found", 404);
     }
 
-    const newBalance = Math.max(0, goal.currentBalance - amount);
-    const isCompleted = newBalance >= goal.targetAmount;
+    const newBalance = Math.max(0, goal.current_balance - amount);
+    const isCompleted = newBalance >= goal.target_amount;
 
     const goalRow = await this.repository.update(id, {
       currentBalance: newBalance,
       isCompleted,
-      completedAt: isCompleted && !goal.completedAt ? formatTimestamp(new Date()) : (isCompleted ? goal.completedAt : null),
+      completedAt: isCompleted && !goal.completed_at ? formatTimestamp(new Date()) : (isCompleted ? goal.completed_at : null),
       updatedAt: formatTimestamp(new Date()),
     });
 
@@ -610,7 +580,7 @@ export class GoalsService {
         const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0, 23, 59, 59);
 
         const { data: transactions } = await supabase
-          .from("Transaction")
+          .from("transactions")
           .select("amount")
           .eq("type", "expense")
           .gte("date", formatDateStart(monthStart))
@@ -736,7 +706,7 @@ export class GoalsService {
     
     if (monthlyIncome > 0) {
       // Calculate how much we need to save per month to reach target in reasonable time
-      const remainingAmount = Math.max(0, targetAmount - (emergencyFundGoal.currentBalance || 0));
+      const remainingAmount = Math.max(0, targetAmount - (emergencyFundGoal.current_balance || 0));
       
       // Target: reach goal in 2-3 years (24-36 months) if not already reached
       const targetMonths = remainingAmount > 0 ? 30 : 0; // 30 months average
@@ -752,20 +722,20 @@ export class GoalsService {
       incomePercentage = Math.max(5, Math.min(20, calculatedPercentage));
       
       // If the goal is already reached or very close, set to 0 or minimal amount
-      if (remainingAmount <= 0 || (emergencyFundGoal.currentBalance || 0) >= targetAmount * 0.95) {
+      if (remainingAmount <= 0 || (emergencyFundGoal.current_balance || 0) >= targetAmount * 0.95) {
         incomePercentage = 0;
       }
     }
 
     // Update the goal
-    const isCompleted = (emergencyFundGoal.currentBalance || 0) >= targetAmount;
+    const isCompleted = (emergencyFundGoal.current_balance || 0) >= targetAmount;
     
     const updatedGoal = await this.repository.update(emergencyFundGoal.id, {
       targetAmount,
       incomePercentage,
       targetMonths: 6, // 6 months target
       isCompleted,
-      completedAt: isCompleted && !emergencyFundGoal.completedAt ? formatTimestamp(new Date()) : emergencyFundGoal.completedAt,
+      completedAt: isCompleted && !emergencyFundGoal.completed_at ? formatTimestamp(new Date()) : emergencyFundGoal.completed_at,
       updatedAt: formatTimestamp(new Date()),
     });
 
@@ -789,11 +759,11 @@ export class GoalsService {
         // Check for duplicates
         const supabase = await createServerClient();
         const { data: allEmergencyGoals, error: checkError } = await supabase
-          .from("Goal")
+          .from("goals")
           .select("id")
-          .eq("householdId", householdId)
+          .eq("household_id", householdId)
           .eq("name", "Emergency Funds")
-          .eq("isSystemGoal", true);
+          .eq("is_system_goal", true);
 
         if (checkError) {
           logger.error("[GoalsService] Error checking for duplicate emergency fund goals:", checkError);

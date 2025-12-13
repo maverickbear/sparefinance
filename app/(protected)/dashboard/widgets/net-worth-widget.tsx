@@ -2,11 +2,12 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { formatMoney, formatMoneyCompact } from "@/components/common/money";
+import { formatMoney } from "@/components/common/money";
 import { AnimatedNumber } from "@/components/common/animated-number";
-import { cn } from "@/lib/utils";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, TooltipProps } from "recharts";
 import { subMonths, format } from "date-fns";
+
+import { sentiment } from "@/lib/design-system/colors";
 
 interface NetWorthWidgetProps {
   netWorth: number;
@@ -14,22 +15,39 @@ interface NetWorthWidgetProps {
   totalDebts: number;
 }
 
-import { sentiment } from "@/lib/design-system/colors";
+interface ChartDataPoint {
+  month: string;
+  assets: number;
+  debts: number;
+}
+
+interface TooltipPayload {
+  name: string;
+  value: number;
+  color: string;
+  payload: ChartDataPoint;
+}
+
+interface LegendPayload {
+  value: string;
+  color: string;
+}
 
 // Colors for the chart - use design system colors
 const ASSETS_COLOR = sentiment.positive; // #2F5711 - positive sentiment for assets
 const DEBTS_COLOR = sentiment.negative; // #A8200D - negative sentiment for debts
 
 // Custom tooltip component
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
   if (active && payload && payload.length) {
+    const typedPayload = payload as TooltipPayload[];
     return (
       <div className="rounded-lg bg-card border border-border p-3 shadow-lg">
         <p className="mb-2 text-sm font-medium text-foreground">
-          {payload[0].payload.month}
+          {typedPayload[0].payload.month}
         </p>
         <div className="space-y-1">
-          {payload.map((entry: any, index: number) => (
+          {typedPayload.map((entry, index: number) => (
             <div key={index} className="flex items-center gap-2">
               <div
                 className="h-3 w-3 rounded-full"
@@ -51,10 +69,10 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 // Custom legend component
-const CustomLegend = ({ payload }: any) => {
+const CustomLegend = ({ payload }: { payload?: LegendPayload[] }) => {
   return (
     <div className="flex items-center justify-center gap-4 pt-2">
-      {payload?.map((entry: any, index: number) => (
+      {payload?.map((entry, index: number) => (
         <div key={index} className="flex items-center gap-1.5">
           <div
             className="h-2.5 w-2.5 rounded-full"
@@ -86,7 +104,6 @@ export function NetWorthWidget({
       // Create a trend: start lower and gradually increase to current values
       // For assets: start at ~85% of current and grow to 100%
       // For debts: start at ~90% of current and grow to 100%
-      const progress = i === 5 ? 0.85 : i === 0 ? 1.0 : 0.85 + (5 - i) * 0.03;
       const assetsProgress = i === 5 ? 0.85 : i === 0 ? 1.0 : 0.85 + (5 - i) * 0.03;
       const debtsProgress = i === 5 ? 0.90 : i === 0 ? 1.0 : 0.90 + (5 - i) * 0.02;
       

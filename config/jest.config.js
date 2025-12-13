@@ -7,6 +7,7 @@ const createJestConfig = nextJest({
 
 // Add any custom config to be passed to Jest
 const customJestConfig = {
+  rootDir: '../',
   setupFilesAfterEnv: ['<rootDir>/config/jest.setup.js'],
   testEnvironment: 'jest-environment-node',
   moduleNameMapper: {
@@ -15,6 +16,7 @@ const customJestConfig = {
   testMatch: [
     '**/__tests__/**/*.test.[jt]s?(x)',
     '**/?(*.)+(spec|test).[jt]s?(x)',
+    '**/*.test.[jt]s?(x)',
   ],
   testPathIgnorePatterns: [
     '/node_modules/',
@@ -25,9 +27,13 @@ const customJestConfig = {
     'lib/**/*.{js,ts,tsx}',
     'components/**/*.{js,ts,tsx}',
     'app/**/*.{js,ts,tsx}',
+    'src/application/**/*.{js,ts,tsx}',
     '!**/*.d.ts',
     '!**/node_modules/**',
     '!**/.next/**',
+    '!**/__mocks__/**',
+    '!**/*.test.{js,ts,tsx}',
+    '!**/*.spec.{js,ts,tsx}',
   ],
   testTimeout: 30000, // 30 seconds for integration tests
 }

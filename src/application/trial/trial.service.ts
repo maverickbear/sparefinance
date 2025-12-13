@@ -32,7 +32,7 @@ export class TrialService {
 
       // Verify plan exists
       const { data: plan, error: planError } = await supabase
-        .from("Plan")
+        .from("app_plans")
         .select("*")
         .eq("id", planId)
         .single();
@@ -43,11 +43,11 @@ export class TrialService {
 
       // Check if user already has an active subscription or trial
       const { data: existingSubscriptions, error: subError } = await supabase
-        .from("Subscription")
+        .from("app_subscriptions")
         .select("*")
-        .eq("userId", authUser.id)
+        .eq("user_id", authUser.id)
         .in("status", ["active", "trialing"])
-        .order("createdAt", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (subError) {
         logger.error("[TrialService] Error checking existing subscriptions:", subError);
@@ -61,12 +61,12 @@ export class TrialService {
 
       // Check if user already had a trial before (cancelled subscription with trialEndDate)
       const { data: cancelledSubscriptions, error: cancelledError } = await supabase
-        .from("Subscription")
-        .select("trialEndDate")
-        .eq("userId", authUser.id)
+        .from("app_subscriptions")
+        .select("trial_end_date")
+        .eq("user_id", authUser.id)
         .eq("status", "cancelled")
-        .not("trialEndDate", "is", null)
-        .order("createdAt", { ascending: false })
+        .not("trial_end_date", "is", null)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -74,8 +74,8 @@ export class TrialService {
         logger.error("[TrialService] Error checking cancelled subscriptions:", cancelledError);
       }
 
-      // If user already had a trial (cancelled subscription with trialEndDate), don't allow another trial
-      if (cancelledSubscriptions && cancelledSubscriptions.trialEndDate) {
+      // If user already had a trial (cancelled subscription with trial_end_date), don't allow another trial
+      if (cancelledSubscriptions && cancelledSubscriptions.trial_end_date) {
         return { success: false, error: "You have already used your trial period. Please subscribe to a plan." };
       }
 
@@ -87,17 +87,17 @@ export class TrialService {
       // Get or create Stripe customer
       let customerId: string;
       const { data: existingSubscription } = await supabase
-        .from("Subscription")
-        .select("stripeCustomerId")
-        .eq("userId", authUser.id)
-        .not("stripeCustomerId", "is", null)
-        .order("createdAt", { ascending: false })
+        .from("app_subscriptions")
+        .select("stripe_customer_id")
+        .eq("user_id", authUser.id)
+        .not("stripe_customer_id", "is", null)
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       // Get user name from User table
       const { data: userData } = await supabase
-        .from("User")
+        .from("users")
         .select("name")
         .eq("id", authUser.id)
         .single();
@@ -131,8 +131,8 @@ export class TrialService {
         }
       }
 
-      if (existingSubscription?.stripeCustomerId) {
-        customerId = existingSubscription.stripeCustomerId;
+      if (existingSubscription?.stripe_customer_id) {
+        customerId = existingSubscription.stripe_customer_id;
         logger.info("[TrialService] Using existing Stripe customer:", customerId);
         
         // Update existing customer with current email and name
@@ -170,7 +170,7 @@ export class TrialService {
       }
 
       // Get price ID (default to monthly)
-      const priceId = plan.stripePriceIdMonthly;
+      const priceId = plan.stripe_price_id_monthly;
       if (!priceId) {
         return { success: false, error: "Stripe price ID not configured for this plan" };
       }
@@ -213,24 +213,24 @@ export class TrialService {
       const serviceRoleClient = createServiceRoleClient();
       
       const { data: newSubscription, error: insertError } = await serviceRoleClient
-        .from("Subscription")
+        .from("app_subscriptions")
         .insert({
           id: subscriptionId,
-          userId: authUser.id,
-          householdId: householdId, // Link to active household
-          planId: planId,
+          user_id: authUser.id,
+          household_id: householdId, // Link to active household
+          plan_id: planId,
           status: "trialing",
-          stripeSubscriptionId: stripeSubscription.id,
-          stripeCustomerId: customerId,
-          trialStartDate: trialStartDate.toISOString(),
-          trialEndDate: trialEndDate.toISOString(),
-          currentPeriodStart: stripeSubscription.trial_start 
+          stripe_subscription_id: stripeSubscription.id,
+          stripe_customer_id: customerId,
+          trial_start_date: trialStartDate.toISOString(),
+          trial_end_date: trialEndDate.toISOString(),
+          current_period_start: stripeSubscription.trial_start 
             ? new Date(stripeSubscription.trial_start * 1000).toISOString()
             : trialStartDate.toISOString(),
-          currentPeriodEnd: stripeSubscription.trial_end 
+          current_period_end: stripeSubscription.trial_end 
             ? new Date(stripeSubscription.trial_end * 1000).toISOString()
             : trialEndDate.toISOString(),
-          cancelAtPeriodEnd: false,
+          cancel_at_period_end: false,
         })
         .select()
         .single();
@@ -268,40 +268,6 @@ export class TrialService {
           incomeAmount
         );
         
-        // Generate initial budgets with suggested rule
-        // NOTE: This is OK because user provided temporaryExpectedIncome during signup
-        // We suggest a rule automatically in this case to improve onboarding experience
-        try {
-          const { makeBudgetRulesService } = await import("@/src/application/budgets/budget-rules.factory");
-          const budgetRulesService = makeBudgetRulesService();
-          const monthlyIncome = onboardingService.getMonthlyIncomeFromRange(incomeRange, incomeAmount);
-          const suggestion = budgetRulesService.suggestRule(monthlyIncome);
-          
-          await onboardingService.generateInitialBudgets(
-            userId,
-            incomeRange,
-            undefined,
-            undefined,
-            suggestion.rule.id,
-            incomeAmount
-          );
-          logger.info("[TrialService] Generated initial budgets");
-        } catch (error) {
-          logger.error("[TrialService] Error generating budgets:", error);
-          // Don't fail if budget generation fails
-        }
-        
-        // Create emergency fund goal
-        try {
-          const { makeGoalsService } = await import("@/src/application/goals/goals.factory");
-          const goalsService = makeGoalsService();
-          await goalsService.calculateAndUpdateEmergencyFund();
-          logger.info("[TrialService] Created emergency fund goal");
-        } catch (error) {
-          logger.error("[TrialService] Error creating emergency fund:", error);
-          // Don't fail if emergency fund creation fails
-        }
-        
         // Clear temporary income from profile
         await profileService.updateProfile({ 
           temporaryExpectedIncome: null,
@@ -314,8 +280,8 @@ export class TrialService {
       // This helps catch RLS permission issues early
       try {
         const { data: verifySubscription, error: verifyError } = await supabase
-          .from("Subscription")
-          .select("id, status, planId, householdId")
+          .from("app_subscriptions")
+          .select("id, status, plan_id, household_id")
           .eq("id", subscriptionId)
           .single();
         
@@ -330,8 +296,8 @@ export class TrialService {
           logger.debug("[TrialService] Subscription verified and accessible after creation:", {
             subscriptionId: verifySubscription.id,
             status: verifySubscription.status,
-            planId: verifySubscription.planId,
-            householdId: verifySubscription.householdId,
+            plan_id: verifySubscription.plan_id,
+            household_id: verifySubscription.household_id,
           });
         }
       } catch (verifyErr) {

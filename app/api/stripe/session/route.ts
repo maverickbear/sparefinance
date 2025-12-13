@@ -15,10 +15,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
  * GET /api/stripe/session?session_id=xxx
  * Returns customer email from Stripe checkout session
  * Used to pre-fill signup form for new users
- * 
- * Note: This route uses searchParams which causes prerendering warnings during build.
- * These warnings are expected and do not affect functionality.
  */
+
 export async function GET(request: NextRequest) {
   noStore();
   try {

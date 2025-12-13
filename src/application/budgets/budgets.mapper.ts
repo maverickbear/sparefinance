@@ -15,14 +15,13 @@ export class BudgetsMapper {
       id: row.id,
       period: row.period,
       amount: row.amount,
-      categoryId: row.categoryId,
-      subcategoryId: row.subcategoryId,
-      groupId: row.groupId,
-      userId: row.userId,
+      categoryId: row.category_id,
+      subcategoryId: row.subcategory_id,
+      userId: row.user_id,
       note: row.note,
-      isRecurring: row.isRecurring,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
+      isRecurring: row.is_recurring,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   }
 
@@ -34,14 +33,13 @@ export class BudgetsMapper {
       id: domain.id,
       period: domain.period,
       amount: domain.amount,
-      categoryId: domain.categoryId ?? null,
-      subcategoryId: domain.subcategoryId ?? null,
-      groupId: domain.groupId ?? null,
-      userId: domain.userId!,
+      category_id: domain.categoryId ?? null,
+      subcategory_id: domain.subcategoryId ?? null,
+      user_id: domain.userId!,
       note: domain.note ?? null,
-      isRecurring: domain.isRecurring ?? false,
-      createdAt: domain.createdAt,
-      updatedAt: domain.updatedAt,
+      is_recurring: domain.isRecurring ?? false,
+      created_at: domain.createdAt,
+      updated_at: domain.updatedAt,
     };
   }
 
@@ -51,8 +49,9 @@ export class BudgetsMapper {
   static toDomainWithRelations(
     row: BudgetRow,
     relations?: {
-      category?: { id: string; name: string; groupId?: string; group?: { id: string; name: string } | null } | null;
+      category?: { id: string; name: string; type?: "income" | "expense" } | null;
       subcategory?: { id: string; name: string } | null;
+      /** @deprecated Groups have been removed. This field is kept for backward compatibility. */
       group?: { id: string; name: string } | null;
       actualSpend?: number;
       percentage?: number;
@@ -64,7 +63,6 @@ export class BudgetsMapper {
       ...this.toDomain(row),
       category: relations?.category ?? null,
       subcategory: relations?.subcategory ?? null,
-      group: relations?.group ?? null,
       actualSpend: relations?.actualSpend,
       percentage: relations?.percentage,
       status: relations?.status,

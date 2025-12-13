@@ -38,7 +38,6 @@
 
 ### 💳 Account Management
 - **Multiple Account Types**: Checking, savings, credit, investments
-- **Bank Integration**: Connect via Plaid
 - **Balance Tracking**: Automatic balance calculations
 - **Multi-user Support**: Household member management
 
@@ -103,7 +102,6 @@
 - **Authentication**: Supabase Auth
 - **ORM**: Supabase Client
 - **Payments**: Stripe 19.2
-- **Banking**: Plaid 39.1
 - **Emails**: Resend 6.4
 - **AI**: OpenAI 4.28
 
@@ -125,7 +123,6 @@
 - npm or yarn
 - Supabase account
 - Stripe account (for billing)
-- Plaid account (for bank connections)
 ```
 
 ### Installation
@@ -164,11 +161,6 @@
    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
    STRIPE_SECRET_KEY=your_stripe_secret_key
    STRIPE_WEBHOOK_SECRET=your_webhook_secret
-   
-   # Plaid
-   PLAID_CLIENT_ID=your_plaid_client_id
-   PLAID_SECRET=your_plaid_secret
-   PLAID_ENV=sandbox # or development/production
    
    # OpenAI (optional)
    OPENAI_API_KEY=your_openai_key
@@ -237,7 +229,7 @@ spare-finance/
 │   ├── infrastructure/           # Infrastructure Layer - Data access, external services
 │   │   ├── database/
 │   │   │   └── repositories/    # Database repositories
-│   │   ├── external/            # Plaid, Stripe, OpenAI
+│   │   ├── external/            # Stripe, OpenAI
 │   │   └── utils/               # Utilities, cache, security
 │   │
 │   └── presentation/            # Presentation Layer - UI, hooks, API routes
@@ -330,7 +322,7 @@ export class AccountsService {
 #### 3. Infrastructure Layer (`src/infrastructure/`)
 **Purpose**: Data access and external services
 - ✅ Database repositories (data access only)
-- ✅ External service integrations (Plaid, Stripe, OpenAI)
+- ✅ External service integrations (Stripe, OpenAI)
 - ✅ Cache, security, utilities
 - ❌ No business logic (must be in Application layer)
 
@@ -572,7 +564,6 @@ npm run start
 Ensure all environment variables are set:
 - Supabase credentials
 - Stripe keys
-- Plaid credentials
 - OpenAI API key (optional)
 - Encryption key
 
@@ -610,7 +601,6 @@ API routes are organized by feature. **All routes follow the `/api/v2/` pattern*
 **Legacy Routes (Deprecated):**
 - `/api/transactions` - ⚠️ Deprecated, use `/api/v2/transactions`
 - `/api/accounts` - ⚠️ Deprecated, use `/api/v2/accounts`
-- `/api/plaid` - Still in use (will be migrated to v2)
 - `/api/stripe` - Still in use (will be migrated to v2)
 
 > 📖 **Note**: All new API routes must use the `/api/v2/` pattern and Application Services. See [`.cursorrules`](.cursorrules) for detailed patterns.

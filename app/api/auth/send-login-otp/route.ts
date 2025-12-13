@@ -70,12 +70,12 @@ export async function POST(request: NextRequest) {
 
     // Check if user is blocked
     const { data: userData, error: userError } = await serviceRoleClient
-      .from("User")
-      .select("isBlocked, role")
+      .from("users")
+      .select("is_blocked, role")
       .eq("id", authData.user.id)
       .single();
 
-    if (!userError && userData?.isBlocked && userData?.role !== "super_admin") {
+    if (!userError && userData?.is_blocked && userData?.role !== "super_admin") {
       console.log("[SEND-LOGIN-OTP] User is blocked:", authData.user.id);
       return NextResponse.json(
         { error: "Your account has been blocked. Please contact support@sparefinance.com for assistance." },

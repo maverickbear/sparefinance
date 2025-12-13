@@ -67,3 +67,80 @@ export interface BaseInvestmentAccount {
   updatedAt: Date | string;
 }
 
+// Investment Refresh System Types
+
+export interface InvestmentAccount {
+  id: string;
+  userId: string;
+  provider: string | null;
+  name: string;
+  balance: number;
+  lastSyncedAt: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface InvestmentHolding {
+  id: string;
+  accountId: string;
+  symbol: string;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  lastPriceUpdateAt: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface ManualInvestment {
+  id: string;
+  userId: string;
+  title: string;
+  currentValue: number;
+  estimatedGrowth: number | null;
+  lastUpdatedAt: Date | string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface PortfolioSnapshot {
+  totalValue: number;
+  dailyChange: number;
+  dailyChangePercent: number;
+  monthlyChange: number;
+  monthlyChangePercent: number;
+  allocation: {
+    equities: number;
+    etfs: number;
+    crypto: number;
+    cash: number;
+    other: number;
+  };
+  recentActivity: Array<{
+    type: "dividend" | "contribution" | "trade";
+    date: Date | string;
+    amount: number;
+    description: string;
+  }>;
+  lastUpdatedAt: Date | string;
+}
+
+export interface PlaidInvestmentAccount {
+  accountId: string;
+  name: string;
+  balance: number;
+  holdings: Array<{
+    symbol: string;
+    quantity: number;
+    averagePrice: number;
+    currentPrice: number | null;
+  }>;
+  cash: number;
+  recentActivity: Array<{
+    type: "dividend" | "contribution" | "trade";
+    date: Date | string;
+    amount: number;
+    description: string;
+  }>;
+}
+

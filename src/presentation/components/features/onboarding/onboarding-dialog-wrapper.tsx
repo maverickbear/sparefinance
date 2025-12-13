@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MultiStepOnboardingDialog } from "./multi-step-onboarding-dialog";
+import { SimplifiedOnboardingDialog } from "./simplified-onboarding-dialog";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
 
 interface OnboardingDialogWrapperProps {
@@ -53,10 +53,11 @@ export function OnboardingDialogWrapper({ shouldShow, initialStatus }: Onboardin
     }
     // Refetch subscription from Context to ensure state is updated
     refetch();
+    // Note: Onboarding completion is now stored in household settings, so no complex cache invalidation needed
   }
 
   return (
-    <MultiStepOnboardingDialog
+    <SimplifiedOnboardingDialog
       open={open}
       onOpenChange={setOpen}
       onComplete={handleComplete}

@@ -9,20 +9,20 @@ import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface HouseholdMemberRow {
   id: string;
-  householdId: string;
-  userId: string | null;
+  household_id: string;
+  user_id: string | null;
   email: string | null;
   name: string | null;
   role: "owner" | "admin" | "member";
   status: "pending" | "active" | "declined";
-  invitationToken: string | null;
-  invitedAt: string;
-  acceptedAt: string | null;
-  joinedAt: string;
-  invitedBy: string;
-  isDefault: boolean;
-  createdAt: string;
-  updatedAt: string;
+  invitation_token: string | null;
+  invited_at: string;
+  accepted_at: string | null;
+  joined_at: string;
+  invited_by: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export class MembersRepository {
@@ -37,11 +37,11 @@ export class MembersRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: members, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select("*")
-      .eq("householdId", householdId)
+      .eq("household_id", householdId)
       .order("role", { ascending: false })
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       logger.error("[MembersRepository] Error fetching members:", error);
@@ -62,7 +62,7 @@ export class MembersRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: member, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select("*")
       .eq("id", id)
       .single();
@@ -87,9 +87,9 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select("*")
-      .eq("invitationToken", token)
+      .eq("invitation_token", token)
       .eq("status", "pending")
       .single();
 
@@ -114,10 +114,10 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select("*")
       .eq("email", email.toLowerCase())
-      .eq("householdId", householdId)
+      .eq("household_id", householdId)
       .maybeSingle();
 
     if (error) {
@@ -138,10 +138,10 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select("*")
-      .eq("userId", userId)
-      .eq("householdId", householdId)
+      .eq("user_id", userId)
+      .eq("household_id", householdId)
       .maybeSingle();
 
     if (error) {
@@ -175,23 +175,23 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: member, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .insert({
         id: data.id,
-        householdId: data.householdId,
-        userId: data.userId,
+        household_id: data.householdId,
+        user_id: data.userId,
         email: data.email,
         name: data.name,
         role: data.role,
         status: data.status,
-        invitationToken: data.invitationToken,
-        invitedAt: data.invitedAt,
-        acceptedAt: data.acceptedAt,
-        joinedAt: data.joinedAt,
-        invitedBy: data.invitedBy,
-        isDefault: data.isDefault,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
+        invitation_token: data.invitationToken,
+        invited_at: data.invitedAt,
+        accepted_at: data.acceptedAt,
+        joined_at: data.joinedAt,
+        invited_by: data.invitedBy,
+        is_default: data.isDefault,
+        created_at: data.createdAt,
+        updated_at: data.updatedAt,
       })
       .select()
       .single();
@@ -222,9 +222,19 @@ export class MembersRepository {
   ): Promise<HouseholdMemberRow> {
     const supabase = await createServerClient();
 
+    const updateData: any = {};
+    if (data.userId !== undefined) updateData.user_id = data.userId;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.role !== undefined) updateData.role = data.role;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.invitationToken !== undefined) updateData.invitation_token = data.invitationToken;
+    if (data.acceptedAt !== undefined) updateData.accepted_at = data.acceptedAt;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+
     const { data: member, error } = await supabase
-      .from("HouseholdMember")
-      .update(data)
+      .from("household_members")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -244,7 +254,7 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .delete()
       .eq("id", id);
 
@@ -259,16 +269,16 @@ export class MembersRepository {
    */
   async findActiveMembershipsByUserId(
     userId: string
-  ): Promise<Array<HouseholdMemberRow & { household?: { type: string; createdBy: string } }>> {
+  ): Promise<Array<HouseholdMemberRow & { household?: { type: string; created_by: string } }>> {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMember")
+      .from("household_members")
       .select(`
         *,
-        Household(type, createdBy)
+        household:households(type, created_by)
       `)
-      .eq("userId", userId)
+      .eq("user_id", userId)
       .eq("status", "active");
 
     if (error) {
@@ -276,18 +286,18 @@ export class MembersRepository {
       return [];
     }
 
-    return (members || []) as Array<HouseholdMemberRow & { household?: { type: string; createdBy: string } }>;
+    return (members || []) as Array<HouseholdMemberRow & { household?: { type: string; created_by: string } }>;
   }
 
   /**
    * Find pending invitation by email
    */
-  async findPendingInvitationByEmail(email: string): Promise<(HouseholdMemberRow & { Household?: { createdBy: string } | null }) | null> {
+  async findPendingInvitationByEmail(email: string): Promise<(HouseholdMemberRow & { household?: { created_by: string } | null }) | null> {
     const supabase = await createServerClient();
 
     const { data: pendingInvitation, error } = await supabase
-      .from("HouseholdMember")
-      .select("id, householdId, email, Household(createdBy)")
+      .from("household_members")
+      .select("id, household_id, email, household:households(created_by)")
       .eq("email", email.toLowerCase())
       .eq("status", "pending")
       .maybeSingle();
@@ -300,7 +310,7 @@ export class MembersRepository {
       throw new Error(`Failed to find pending invitation: ${error.message}`);
     }
 
-    return pendingInvitation as (HouseholdMemberRow & { Household?: { createdBy: string } | null }) | null;
+    return pendingInvitation as (HouseholdMemberRow & { household?: { created_by: string } | null }) | null;
   }
 
   /**
@@ -310,16 +320,21 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: households, error } = await supabase
-      .from("Household")
-      .select("id, name, type, createdBy")
-      .eq("createdBy", userId);
+      .from("households")
+      .select("id, name, type, created_by")
+      .eq("created_by", userId);
 
     if (error) {
       logger.error("[MembersRepository] Error fetching households by owner:", error);
       return [];
     }
 
-    return (households || []) as Array<{ id: string; name: string; type: string; createdBy: string }>;
+    return (households || []).map(h => ({
+      id: h.id,
+      name: h.name,
+      type: h.type,
+      createdBy: h.created_by,
+    }));
   }
 
   /**
@@ -329,11 +344,11 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMember")
-      .select("userId")
-      .eq("householdId", householdId)
+      .from("household_members")
+      .select("user_id")
+      .eq("household_id", householdId)
       .eq("status", "active")
-      .neq("userId", excludeUserId);
+      .neq("user_id", excludeUserId);
 
     if (error) {
       logger.error("[MembersRepository] Error counting members:", error);
@@ -350,9 +365,9 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: members, error } = await supabase
-      .from("HouseholdMember")
-      .select("userId")
-      .eq("householdId", householdId)
+      .from("household_members")
+      .select("user_id")
+      .eq("household_id", householdId)
       .eq("status", "active");
 
     if (error) {
@@ -370,25 +385,25 @@ export class MembersRepository {
     const supabase = await createServerClient();
 
     const { data: activeHousehold } = await supabase
-      .from("UserActiveHousehold")
-      .select("householdId")
-      .eq("userId", userId)
+      .from("system_user_active_households")
+      .select("household_id")
+      .eq("user_id", userId)
       .maybeSingle();
 
-    if (activeHousehold?.householdId) {
-      return activeHousehold.householdId;
+    if (activeHousehold?.household_id) {
+      return activeHousehold.household_id;
     }
 
     // Fallback to default household
     const { data: defaultMember } = await supabase
-      .from("HouseholdMember")
-      .select("householdId")
-      .eq("userId", userId)
-      .eq("isDefault", true)
+      .from("household_members")
+      .select("household_id")
+      .eq("user_id", userId)
+      .eq("is_default", true)
       .eq("status", "active")
       .maybeSingle();
 
-    return defaultMember?.householdId || null;
+    return defaultMember?.household_id || null;
   }
 }
 

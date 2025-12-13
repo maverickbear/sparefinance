@@ -29,9 +29,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="default">Default</Button>
-                  <Button variant="default" size="small">Small</Button>
+                  <Button variant="default" size="medium">Small</Button>
                   <Button variant="default" size="medium">Medium</Button>
-                  <Button variant="default" size="large">Large</Button>
+                  <Button variant="default" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -50,9 +50,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="destructive">Delete</Button>
-                  <Button variant="destructive" size="small">Small</Button>
+                  <Button variant="destructive" size="medium">Small</Button>
                   <Button variant="destructive" size="medium">Medium</Button>
-                  <Button variant="destructive" size="large">Large</Button>
+                  <Button variant="destructive" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -71,9 +71,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="destructive-light">Remove</Button>
-                  <Button variant="destructive-light" size="small">Small</Button>
+                  <Button variant="destructive-light" size="medium">Small</Button>
                   <Button variant="destructive-light" size="medium">Medium</Button>
-                  <Button variant="destructive-light" size="large">Large</Button>
+                  <Button variant="destructive-light" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -92,9 +92,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="outline">Outline</Button>
-                  <Button variant="outline" size="small">Small</Button>
+                  <Button variant="outline" size="medium">Small</Button>
                   <Button variant="outline" size="medium">Medium</Button>
-                  <Button variant="outline" size="large">Large</Button>
+                  <Button variant="outline" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -113,9 +113,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="secondary">Secondary</Button>
-                  <Button variant="secondary" size="small">Small</Button>
+                  <Button variant="secondary" size="medium">Small</Button>
                   <Button variant="secondary" size="medium">Medium</Button>
-                  <Button variant="secondary" size="large">Large</Button>
+                  <Button variant="secondary" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -134,9 +134,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="ghost">Ghost</Button>
-                  <Button variant="ghost" size="small">Small</Button>
+                  <Button variant="ghost" size="medium">Small</Button>
                   <Button variant="ghost" size="medium">Medium</Button>
-                  <Button variant="ghost" size="large">Large</Button>
+                  <Button variant="ghost" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -155,9 +155,9 @@ export default function ButtonsPage() {
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-3">
                   <Button variant="link">Link</Button>
-                  <Button variant="link" size="small">Small</Button>
+                  <Button variant="link" size="medium">Small</Button>
                   <Button variant="link" size="medium">Medium</Button>
-                  <Button variant="link" size="large">Large</Button>
+                  <Button variant="link" size="medium">Large</Button>
                 </div>
                 <div className="bg-muted p-4 rounded-lg">
                   <code className="text-sm">
@@ -181,11 +181,11 @@ export default function ButtonsPage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium w-20">Tiny:</span>
-                  <Button variant="default" size="tiny">Tiny Button</Button>
+                  <Button variant="default" size="medium">Tiny Button</Button>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium w-20">Small:</span>
-                  <Button variant="default" size="small">Small Button</Button>
+                  <Button variant="default" size="medium">Small Button</Button>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium w-20">Medium:</span>
@@ -193,7 +193,7 @@ export default function ButtonsPage() {
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium w-20">Large:</span>
-                  <Button variant="default" size="large">Large Button</Button>
+                  <Button variant="default" size="medium">Large Button</Button>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-medium w-20">Icon:</span>
@@ -390,7 +390,7 @@ export default function ButtonsPage() {
                   <Button
                     asChild
                     variant="ghost"
-                    size="small"
+                    size="medium"
                     className="text-foreground hover:text-foreground/80 hover:bg-black/20 dark:hover:bg-black/20 border border-transparent hover:border-foreground/20 text-sm"
                   >
                     <Link href="#">Sign In</Link>
@@ -401,7 +401,7 @@ export default function ButtonsPage() {
 {`<Button
   asChild
   variant="ghost"
-  size="small"
+  size="medium"
   className="text-foreground hover:text-foreground/80 
     hover:bg-black/20 dark:hover:bg-black/20 
     border border-transparent hover:border-foreground/20 text-sm"

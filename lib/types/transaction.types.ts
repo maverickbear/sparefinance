@@ -38,11 +38,7 @@ export interface TransactionWithRelations extends BaseTransaction {
   category?: {
     id: string;
     name: string;
-    macroId?: string;
-    macro?: {
-      id: string;
-      name: string;
-    } | null;
+    type?: "income" | "expense";
   } | null;
   subcategory?: {
     id: string;

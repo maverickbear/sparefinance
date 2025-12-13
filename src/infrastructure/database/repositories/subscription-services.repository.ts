@@ -14,32 +14,31 @@ import {
 export interface SubscriptionServiceCategoryRow {
   id: string;
   name: string;
-  displayOrder: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SubscriptionServiceRow {
   id: string;
   name: string;
-  categoryId: string;
+  category_id: string;
   logo: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SubscriptionServicePlanRow {
   id: string;
-  serviceId: string;
-  planName: string;
+  service_id: string;
+  plan_name: string;
   price: number;
   currency: string;
-  billingCycle: "monthly" | "yearly";
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export class SubscriptionServicesRepository {
@@ -50,10 +49,10 @@ export class SubscriptionServicesRepository {
     const supabase = await createServerClient();
 
     const { data: categories, error } = await supabase
-      .from("SubscriptionServiceCategory")
+      .from("external_service_categories")
       .select("*")
-      .eq("isActive", true)
-      .order("displayOrder", { ascending: true });
+      .eq("is_active", true)
+      .order("display_order", { ascending: true });
 
     if (error) {
       logger.error("[SubscriptionServicesRepository] Error fetching categories:", error);
@@ -70,9 +69,9 @@ export class SubscriptionServicesRepository {
     const supabase = await createServerClient();
 
     const { data: services, error } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .select("*")
-      .eq("isActive", true)
+      .eq("is_active", true)
       .order("name", { ascending: true });
 
     if (error) {
@@ -90,11 +89,11 @@ export class SubscriptionServicesRepository {
     const supabase = await createServerClient();
 
     const { data: plans, error } = await supabase
-      .from("SubscriptionServicePlan")
+      .from("external_service_plans")
       .select("*")
-      .eq("serviceId", serviceId)
-      .eq("isActive", true)
-      .order("planName", { ascending: true });
+      .eq("service_id", serviceId)
+      .eq("is_active", true)
+      .order("plan_name", { ascending: true });
 
     if (error) {
       logger.error("[SubscriptionServicesRepository] Error fetching plans:", error);
@@ -115,7 +114,7 @@ export class SubscriptionServicesRepository {
     const supabase = await createServerClient();
 
     const { data: services, error } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .select("name, logo")
       .in("name", names);
 

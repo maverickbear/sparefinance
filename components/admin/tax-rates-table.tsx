@@ -97,7 +97,7 @@ export function TaxRatesTable({
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
-                        size="small"
+                        size="medium"
                         onClick={() => onEdit(rate)}
                       >
                         <Edit className="h-4 w-4" />
@@ -150,7 +150,7 @@ export function TaxRatesTable({
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
-                        size="small"
+                        size="medium"
                         onClick={() => onEdit(rate)}
                       >
                         <Edit className="h-4 w-4" />

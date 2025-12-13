@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // Get all planned payments for user (no filters)
     const { data: allPayments, error: allError } = await supabase
-      .from("PlannedPayment")
+      .from("core.plannedPayments")
       .select("*")
       .eq("userId", userId)
       .order("date", { ascending: true });
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     // Get scheduled payments
     const { data: scheduledPayments, error: scheduledError } = await supabase
-      .from("PlannedPayment")
+      .from("core.plannedPayments")
       .select("*")
       .eq("userId", userId)
       .eq("status", "scheduled")
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
     const horizonStr = horizonDate.toISOString().split('T')[0];
 
     const { data: dateRangePayments, error: dateRangeError } = await supabase
-      .from("PlannedPayment")
+      .from("core.plannedPayments")
       .select("*")
       .eq("userId", userId)
       .eq("status", "scheduled")

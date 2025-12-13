@@ -4,8 +4,209 @@
  */
 
 import { createServerClient, createServiceRoleClient } from "../supabase-server";
-import { AdminUser, PromoCode, SystemGroup, SystemCategory, SystemSubcategory } from "../../../domain/admin/admin.types";
+import { AdminUser, PromoCode, SystemCategory, SystemSubcategory } from "../../../domain/admin/admin.types";
 import { logger } from "@/src/infrastructure/utils/logger";
+
+// Database row types (snake_case from Supabase)
+type SubscriptionRow = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: string;
+  trial_end_date: string | null;
+  trial_start_date: string | null;
+  stripe_subscription_id: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+};
+
+type PlanRow = {
+  id: string;
+  name: string;
+  price_monthly: number;
+  price_yearly: number;
+  features: Record<string, unknown>;
+  stripe_price_id_monthly: string | null;
+  stripe_price_id_yearly: string | null;
+  stripe_product_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type HouseholdMemberRow = {
+  user_id: string;
+  household_id: string;
+  status: string;
+  email: string | null;
+  name: string | null;
+  household: {
+    created_by: string;
+    type: string;
+  } | null;
+};
+
+type SubcategoryRow = {
+  id: string;
+  name: string;
+  category_id: string;
+  created_at: string;
+  updated_at: string;
+  is_system: boolean;
+  logo: string | null;
+};
+
+type SubscriptionWithPlanRow = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: string;
+  trial_start_date: string | null;
+  trial_end_date: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  stripe_subscription_id: string | null;
+  plan: {
+    id: string;
+    name: string;
+    price_monthly: number;
+    price_yearly: number;
+    stripe_price_id_monthly: string | null;
+    stripe_price_id_yearly: string | null;
+  } | null;
+};
+
+type FeedbackRow = {
+  id: string;
+  user_id: string;
+  rating: number;
+  feedback: string | null;
+  created_at: string;
+  updated_at: string;
+  User: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+type ContactFormRow = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+  User: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+};
+
+type SubscriptionServiceCategoryRow = {
+  id: string;
+  name: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type SubscriptionServiceRow = {
+  id: string;
+  category_id: string;
+  name: string;
+  logo: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type SubscriptionServicePlanRow = {
+  id: string;
+  service_id: string;
+  plan_name: string;
+  price: number;
+  currency: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type PromoCodeUpdateData = {
+  updated_at: string;
+  code?: string;
+  discount_type?: string;
+  discount_value?: number;
+  duration?: string;
+  duration_in_months?: number | null;
+  max_redemptions?: number | null;
+  expires_at?: string | null;
+  is_active?: boolean;
+  plan_ids?: string[];
+};
+
+type CategoryUpdateData = {
+  updated_at: string;
+  name?: string;
+  type?: string;
+};
+
+type SubcategoryUpdateData = {
+  updated_at: string;
+  name?: string;
+  logo?: string | null;
+};
+
+type SystemSettingsUpdateData = {
+  updated_at: string;
+  maintenance_mode?: boolean;
+  seo_settings?: Record<string, unknown>;
+};
+
+type PlanUpdateData = {
+  updated_at: string;
+  name?: string;
+  features?: Record<string, unknown>;
+  price_monthly?: number;
+  price_yearly?: number;
+};
+
+type ContactFormUpdateData = {
+  updated_at: string;
+  status?: string;
+  admin_notes?: string;
+};
+
+type SubscriptionServiceCategoryUpdateData = {
+  updated_at: string;
+  name?: string;
+  display_order?: number;
+  is_active?: boolean;
+};
+
+type SubscriptionServiceUpdateData = {
+  updated_at: string;
+  category_id?: string;
+  name?: string;
+  logo?: string | null;
+  is_active?: boolean;
+};
+
+type SubscriptionServicePlanUpdateData = {
+  updated_at: string;
+  plan_name?: string;
+  price?: number;
+  currency?: string;
+  is_active?: boolean;
+};
+
+type SeoSettings = Record<string, unknown>;
 
 export class AdminRepository {
   /**
@@ -14,7 +215,7 @@ export class AdminRepository {
   async isSuperAdmin(userId: string): Promise<boolean> {
     const supabase = await createServerClient();
     const { data: userData } = await supabase
-      .from("User")
+      .from("users")
       .select("role")
       .eq("id", userId)
       .single();
@@ -30,9 +231,9 @@ export class AdminRepository {
 
     // Get all users
     const { data: users, error: usersError } = await supabase
-      .from("User")
-      .select("id, email, name, createdAt, isBlocked")
-      .order("createdAt", { ascending: false });
+      .from("users")
+      .select("id, email, name, created_at, is_blocked")
+      .order("created_at", { ascending: false });
 
     if (usersError) {
       logger.error("[AdminRepository] Error fetching users:", usersError);
@@ -47,45 +248,45 @@ export class AdminRepository {
 
     // Get all subscriptions
     const { data: subscriptions } = await supabase
-      .from("Subscription")
-      .select("id, userId, planId, status, trialEndDate, trialStartDate, stripeSubscriptionId, currentPeriodEnd, cancelAtPeriodEnd")
-      .in("userId", userIds)
-      .order("createdAt", { ascending: false });
+      .from("app_subscriptions")
+      .select("id, user_id, plan_id, status, trial_end_date, trial_start_date, stripe_subscription_id, current_period_end, cancel_at_period_end")
+      .in("user_id", userIds)
+      .order("created_at", { ascending: false });
 
     // Get all plans
     const { data: plans } = await supabase
-      .from("Plan")
+      .from("app_plans")
       .select("id, name");
 
     const planMap = new Map((plans || []).map((p) => [p.id, p]));
     
     // Create subscription map (most recent per user)
-    const subscriptionMap = new Map<string, any>();
+    const subscriptionMap = new Map<string, SubscriptionRow>();
     (subscriptions || []).forEach((s) => {
-      if (!subscriptionMap.has(s.userId)) {
-        subscriptionMap.set(s.userId, s);
+      if (!subscriptionMap.has(s.user_id)) {
+        subscriptionMap.set(s.user_id, s);
       }
     });
 
     // Get household information
     const { data: ownedHouseholds } = await supabase
-      .from("Household")
-      .select("id, createdBy, type")
-      .in("createdBy", userIds);
+      .from("households")
+      .select("id, created_by, type")
+      .in("created_by", userIds);
 
     const allOwnedHouseholdIds = (ownedHouseholds || []).map(h => h.id);
     
     const { data: householdMembers } = await supabase
-      .from("HouseholdMember")
-      .select("userId, householdId, status, email, name, Household(createdBy, type)")
+      .from("household_members")
+      .select("user_id, household_id, status, email, name, household:households(created_by, type)")
       .in("status", ["active", "pending"])
       .or(
         userIds.length > 0 && allOwnedHouseholdIds.length > 0
-          ? `userId.in.(${userIds.join(',')}),householdId.in.(${allOwnedHouseholdIds.join(',')})`
+          ? `user_id.in.(${userIds.join(',')}),household_id.in.(${allOwnedHouseholdIds.join(',')})`
           : userIds.length > 0
-          ? `userId.in.(${userIds.join(',')})`
+          ? `user_id.in.(${userIds.join(',')})`
           : allOwnedHouseholdIds.length > 0
-          ? `householdId.in.(${allOwnedHouseholdIds.join(',')})`
+          ? `household_id.in.(${allOwnedHouseholdIds.join(',')})`
           : "id.eq.null"
       );
 
@@ -93,15 +294,15 @@ export class AdminRepository {
     const householdInfoMap = new Map<string, { hasHousehold: boolean; isOwner: boolean; memberCount: number; householdId: string | null; ownerId: string | null }>();
     
     userIds.forEach((userId) => {
-      const ownedHousehold = (ownedHouseholds || []).find((h) => h.createdBy === userId);
+      const ownedHousehold = (ownedHouseholds || []).find((h) => h.created_by === userId);
       const isOwner = !!ownedHousehold;
       
-      const memberHousehold = (householdMembers || []).find((hm: any) => {
-        const household = hm.Household as any;
-        return hm.userId === userId && 
+      const memberHousehold = (householdMembers || []).find((hm) => {
+        const household = Array.isArray(hm.household) ? hm.household[0] : hm.household;
+        return hm.user_id === userId && 
                hm.status === "active" && 
-               household?.createdBy !== userId;
-      });
+               household?.created_by !== userId;
+      }) as HouseholdMemberRow | undefined;
       const isMember = !!memberHousehold;
       
       let householdId: string | null = null;
@@ -111,9 +312,9 @@ export class AdminRepository {
         householdId = ownedHousehold.id;
         ownerId = userId;
       } else if (isMember && memberHousehold) {
-        householdId = memberHousehold.householdId;
-        const household = memberHousehold.Household as any;
-        ownerId = household?.createdBy || null;
+        householdId = memberHousehold.household_id;
+        const household = Array.isArray(memberHousehold.household) ? memberHousehold.household[0] : memberHousehold.household;
+        ownerId = household?.created_by || null;
       }
       
       householdInfoMap.set(userId, {
@@ -128,7 +329,8 @@ export class AdminRepository {
     // Map users with their data
     return users.map((user) => {
       const subscription = subscriptionMap.get(user.id);
-      const plan = subscription ? planMap.get(subscription.planId) : null;
+      // FIX: subscription comes from database in snake_case, use plan_id not planId
+      const plan = subscription ? planMap.get(subscription.plan_id) : null;
       const household = householdInfoMap.get(user.id) || {
         hasHousehold: false,
         isOwner: false,
@@ -141,18 +343,18 @@ export class AdminRepository {
         id: user.id,
         email: user.email,
         name: user.name,
-        createdAt: new Date(user.createdAt),
-        isBlocked: user.isBlocked || false,
+        createdAt: new Date(user.created_at),
+        isBlocked: user.is_blocked || false,
         plan: plan ? { id: plan.id, name: plan.name } : null,
         subscription: subscription ? {
           id: subscription.id,
           status: subscription.status,
-          planId: subscription.planId,
-          trialEndDate: subscription.trialEndDate || null,
-          trialStartDate: subscription.trialStartDate || null,
-          stripeSubscriptionId: subscription.stripeSubscriptionId || null,
-          currentPeriodEnd: subscription.currentPeriodEnd || null,
-          cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || false,
+          planId: subscription.plan_id,
+          trialEndDate: subscription.trial_end_date || null,
+          trialStartDate: subscription.trial_start_date || null,
+          stripeSubscriptionId: subscription.stripe_subscription_id || null,
+          currentPeriodEnd: subscription.current_period_end || null,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end || false,
         } : null,
         household,
       };
@@ -165,7 +367,7 @@ export class AdminRepository {
   async userExists(userId: string): Promise<boolean> {
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase
-      .from("User")
+      .from("users")
       .select("id")
       .eq("id", userId)
       .maybeSingle();
@@ -183,8 +385,8 @@ export class AdminRepository {
   async getUserById(userId: string): Promise<{ id: string; email: string; isBlocked: boolean } | null> {
     const supabase = createServiceRoleClient();
     const { data, error } = await supabase
-      .from("User")
-      .select("id, email, isBlocked")
+      .from("users")
+      .select("id, email, is_blocked")
       .eq("id", userId)
       .maybeSingle();
 
@@ -195,7 +397,7 @@ export class AdminRepository {
     return {
       id: data.id,
       email: data.email,
-      isBlocked: data.isBlocked || false,
+      isBlocked: data.is_blocked || false,
     };
   }
 
@@ -206,10 +408,10 @@ export class AdminRepository {
     const supabase = createServiceRoleClient();
 
     const { error: updateError } = await supabase
-      .from("User")
+      .from("users")
       .update({
-        isBlocked,
-        updatedAt: new Date().toISOString(),
+        is_blocked: isBlocked,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", userId);
 
@@ -221,12 +423,12 @@ export class AdminRepository {
     // Save to block history if blocking or unblocking
     if (reason && blockedBy) {
       await supabase
-        .from("UserBlockHistory")
+        .from("system_user_block_history")
         .insert({
-          userId,
+          user_id: userId,
           action: isBlocked ? "block" : "unblock",
           reason: reason.trim(),
-          blockedBy,
+          blocked_by: blockedBy,
         });
     }
   }
@@ -235,12 +437,14 @@ export class AdminRepository {
    * Get all promo codes
    */
   async getAllPromoCodes(): Promise<PromoCode[]> {
-    const supabase = await createServerClient();
+    // FIX: Use service role client to bypass RLS for admin operations
+    const supabase = createServiceRoleClient();
 
+    // FIX: Table name is app_promo_codes, not system_promo_codes
     const { data: promoCodes, error } = await supabase
-      .from("PromoCode")
+      .from("app_promo_codes")
       .select("*")
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       logger.error("[AdminRepository] Error fetching promo codes:", error);
@@ -250,17 +454,17 @@ export class AdminRepository {
     return (promoCodes || []).map((pc) => ({
       id: pc.id,
       code: pc.code,
-      discountType: pc.discountType,
-      discountValue: parseFloat(pc.discountValue),
+      discountType: pc.discount_type,
+      discountValue: parseFloat(pc.discount_value),
       duration: pc.duration,
-      durationInMonths: pc.durationInMonths,
-      maxRedemptions: pc.maxRedemptions,
-      expiresAt: pc.expiresAt ? new Date(pc.expiresAt) : null,
-      isActive: pc.isActive,
-      stripeCouponId: pc.stripeCouponId,
-      planIds: (pc.planIds || []) as string[],
-      createdAt: new Date(pc.createdAt),
-      updatedAt: new Date(pc.updatedAt),
+      durationInMonths: pc.duration_in_months,
+      maxRedemptions: pc.max_redemptions,
+      expiresAt: pc.expires_at ? new Date(pc.expires_at) : null,
+      isActive: pc.is_active,
+      stripeCouponId: pc.stripe_coupon_id,
+      planIds: (pc.plan_ids || []) as string[],
+      createdAt: new Date(pc.created_at),
+      updatedAt: new Date(pc.updated_at),
     }));
   }
 
@@ -280,22 +484,24 @@ export class AdminRepository {
     stripeCouponId: string;
     planIds: string[];
   }): Promise<PromoCode> {
-    const supabase = await createServerClient();
+    // FIX: Use service role client to bypass RLS for admin operations
+    const supabase = createServiceRoleClient();
 
+    // FIX: Table name is app_promo_codes, not system_promo_codes
     const { data: promoCode, error } = await supabase
-      .from("PromoCode")
+      .from("app_promo_codes")
       .insert({
         id: data.id,
         code: data.code.toUpperCase(),
-        discountType: data.discountType,
-        discountValue: data.discountValue,
+        discount_type: data.discountType,
+        discount_value: data.discountValue,
         duration: data.duration,
-        durationInMonths: data.durationInMonths || null,
-        maxRedemptions: data.maxRedemptions || null,
-        expiresAt: data.expiresAt?.toISOString() || null,
-        isActive: data.isActive,
-        stripeCouponId: data.stripeCouponId,
-        planIds: data.planIds || [],
+        duration_in_months: data.durationInMonths || null,
+        max_redemptions: data.maxRedemptions || null,
+        expires_at: data.expiresAt?.toISOString() || null,
+        is_active: data.isActive,
+        stripe_coupon_id: data.stripeCouponId,
+        plan_ids: data.planIds || [],
       })
       .select()
       .single();
@@ -305,20 +511,21 @@ export class AdminRepository {
       throw new Error(`Failed to create promo code: ${error.message}`);
     }
 
+    // FIX: Database returns snake_case, map to camelCase
     return {
       id: promoCode.id,
       code: promoCode.code,
-      discountType: promoCode.discountType,
-      discountValue: parseFloat(promoCode.discountValue),
+      discountType: promoCode.discount_type,
+      discountValue: typeof promoCode.discount_value === 'string' ? parseFloat(promoCode.discount_value) : promoCode.discount_value,
       duration: promoCode.duration,
-      durationInMonths: promoCode.durationInMonths,
-      maxRedemptions: promoCode.maxRedemptions,
-      expiresAt: promoCode.expiresAt ? new Date(promoCode.expiresAt) : null,
-      isActive: promoCode.isActive,
-      stripeCouponId: promoCode.stripeCouponId,
-      planIds: (promoCode.planIds || []) as string[],
-      createdAt: new Date(promoCode.createdAt),
-      updatedAt: new Date(promoCode.updatedAt),
+      durationInMonths: promoCode.duration_in_months,
+      maxRedemptions: promoCode.max_redemptions,
+      expiresAt: promoCode.expires_at ? new Date(promoCode.expires_at) : null,
+      isActive: promoCode.is_active,
+      stripeCouponId: promoCode.stripe_coupon_id,
+      planIds: (promoCode.plan_ids || []) as string[],
+      createdAt: new Date(promoCode.created_at),
+      updatedAt: new Date(promoCode.updated_at),
     };
   }
 
@@ -326,23 +533,25 @@ export class AdminRepository {
    * Update a promo code
    */
   async updatePromoCode(id: string, data: Partial<PromoCode>): Promise<PromoCode> {
-    const supabase = await createServerClient();
+    // FIX: Use service role client to bypass RLS for admin operations
+    const supabase = createServiceRoleClient();
 
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: PromoCodeUpdateData = {
+      updated_at: new Date().toISOString(),
     };
     if (data.code !== undefined) updateData.code = data.code.toUpperCase();
-    if (data.discountType !== undefined) updateData.discountType = data.discountType;
-    if (data.discountValue !== undefined) updateData.discountValue = data.discountValue;
+    if (data.discountType !== undefined) updateData.discount_type = data.discountType;
+    if (data.discountValue !== undefined) updateData.discount_value = data.discountValue;
     if (data.duration !== undefined) updateData.duration = data.duration;
-    if (data.durationInMonths !== undefined) updateData.durationInMonths = data.durationInMonths;
-    if (data.maxRedemptions !== undefined) updateData.maxRedemptions = data.maxRedemptions;
-    if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt?.toISOString() || null;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
-    if (data.planIds !== undefined) updateData.planIds = data.planIds;
+    if (data.durationInMonths !== undefined) updateData.duration_in_months = data.durationInMonths;
+    if (data.maxRedemptions !== undefined) updateData.max_redemptions = data.maxRedemptions;
+    if (data.expiresAt !== undefined) updateData.expires_at = data.expiresAt?.toISOString() || null;
+    if (data.isActive !== undefined) updateData.is_active = data.isActive;
+    if (data.planIds !== undefined) updateData.plan_ids = data.planIds;
 
+    // FIX: Table name is app_promo_codes, not system_promo_codes
     const { data: promoCode, error } = await supabase
-      .from("PromoCode")
+      .from("app_promo_codes")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -356,17 +565,17 @@ export class AdminRepository {
     return {
       id: promoCode.id,
       code: promoCode.code,
-      discountType: promoCode.discountType,
-      discountValue: parseFloat(promoCode.discountValue),
+      discountType: promoCode.discount_type,
+      discountValue: parseFloat(promoCode.discount_value),
       duration: promoCode.duration,
-      durationInMonths: promoCode.durationInMonths,
-      maxRedemptions: promoCode.maxRedemptions,
-      expiresAt: promoCode.expiresAt ? new Date(promoCode.expiresAt) : null,
-      isActive: promoCode.isActive,
-      stripeCouponId: promoCode.stripeCouponId,
-      planIds: (promoCode.planIds || []) as string[],
-      createdAt: new Date(promoCode.createdAt),
-      updatedAt: new Date(promoCode.updatedAt),
+      durationInMonths: promoCode.duration_in_months,
+      maxRedemptions: promoCode.max_redemptions,
+      expiresAt: promoCode.expires_at ? new Date(promoCode.expires_at) : null,
+      isActive: promoCode.is_active,
+      stripeCouponId: promoCode.stripe_coupon_id,
+      planIds: (promoCode.plan_ids || []) as string[],
+      createdAt: new Date(promoCode.created_at),
+      updatedAt: new Date(promoCode.updated_at),
     };
   }
 
@@ -374,10 +583,12 @@ export class AdminRepository {
    * Delete a promo code
    */
   async deletePromoCode(id: string): Promise<void> {
-    const supabase = await createServerClient();
+    // FIX: Use service role client to bypass RLS for admin operations
+    const supabase = createServiceRoleClient();
 
+    // FIX: Table name is app_promo_codes, not system_promo_codes
     const { error } = await supabase
-      .from("PromoCode")
+      .from("app_promo_codes")
       .delete()
       .eq("id", id);
 
@@ -387,135 +598,22 @@ export class AdminRepository {
     }
   }
 
-  /**
-   * Get all system groups
-   */
-  async getAllSystemGroups(): Promise<SystemGroup[]> {
-    const supabase = await createServerClient();
-
-    const { data: groups, error } = await supabase
-      .from("Group")
-      .select("*")
-      .is("userId", null)
-      .order("name", { ascending: true });
-
-    if (error) {
-      logger.error("[AdminRepository] Error fetching system groups:", error);
-      throw new Error(`Failed to fetch system groups: ${error.message}`);
-    }
-
-    return (groups || []).map((g) => ({
-      id: g.id,
-      name: g.name,
-      type: g.type as "income" | "expense" | null,
-      createdAt: new Date(g.createdAt),
-      updatedAt: new Date(g.updatedAt),
-      userId: null,
-    }));
-  }
-
-  /**
-   * Create a system group
-   */
-  async createSystemGroup(data: { id: string; name: string; type?: "income" | "expense" }): Promise<SystemGroup> {
-    const supabase = await createServerClient();
-
-    const now = new Date().toISOString();
-    const { data: group, error } = await supabase
-      .from("Group")
-      .insert({
-        id: data.id,
-        name: data.name,
-        type: data.type || "expense",
-        userId: null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      logger.error("[AdminRepository] Error creating system group:", error);
-      throw new Error(`Failed to create system group: ${error.message}`);
-    }
-
-    return {
-      id: group.id,
-      name: group.name,
-      type: group.type as "income" | "expense" | null,
-      createdAt: new Date(group.createdAt),
-      updatedAt: new Date(group.updatedAt),
-      userId: null,
-    };
-  }
-
-  /**
-   * Update a system group
-   */
-  async updateSystemGroup(id: string, data: { name?: string; type?: "income" | "expense" }): Promise<SystemGroup> {
-    const supabase = await createServerClient();
-
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
-    };
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.type !== undefined) updateData.type = data.type;
-
-    const { data: group, error } = await supabase
-      .from("Group")
-      .update(updateData)
-      .eq("id", id)
-      .is("userId", null)
-      .select()
-      .single();
-
-    if (error) {
-      logger.error("[AdminRepository] Error updating system group:", error);
-      throw new Error(`Failed to update system group: ${error.message}`);
-    }
-
-    return {
-      id: group.id,
-      name: group.name,
-      type: group.type as "income" | "expense" | null,
-      createdAt: new Date(group.createdAt),
-      updatedAt: new Date(group.updatedAt),
-      userId: null,
-    };
-  }
-
-  /**
-   * Delete a system group
-   */
-  async deleteSystemGroup(id: string): Promise<void> {
-    const supabase = await createServerClient();
-
-    const { error } = await supabase
-      .from("Group")
-      .delete()
-      .eq("id", id)
-      .is("userId", null);
-
-    if (error) {
-      logger.error("[AdminRepository] Error deleting system group:", error);
-      throw new Error(`Failed to delete system group: ${error.message}`);
-    }
-  }
+  // NOTE: All group-related methods have been completely removed. Groups are no longer part of the system.
+  // Categories now have a direct type property ("income" | "expense") instead of being grouped.
 
   /**
    * Get all system categories
    */
   async getAllSystemCategories(): Promise<SystemCategory[]> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: categories, error } = await supabase
-      .from("Category")
+      .from("categories")
       .select(`
         *,
-        group:Group(*),
-        subcategories:Subcategory(*)
+        subcategories:subcategories(*)
       `)
-      .is("userId", null)
+      .eq("is_system", true)
       .order("name", { ascending: true });
 
     if (error) {
@@ -526,25 +624,21 @@ export class AdminRepository {
     return (categories || []).map((cat) => ({
       id: cat.id,
       name: cat.name,
-      macroId: cat.groupId,
-      createdAt: new Date(cat.createdAt),
-      updatedAt: new Date(cat.updatedAt),
+      type: cat.type as "income" | "expense",
+      createdAt: new Date(cat.created_at),
+      updatedAt: new Date(cat.updated_at),
       userId: null,
-      group: cat.group ? {
-        id: cat.group.id,
-        name: cat.group.name,
-        type: (cat.group as any).type ?? null,
-        createdAt: new Date(cat.group.createdAt),
-        updatedAt: new Date(cat.group.updatedAt),
-        userId: null,
-      } : undefined,
-      subcategories: (cat.subcategories || []).map((sub: any) => ({
+      isSystem: true as const,
+      subcategories: (cat.subcategories || [])
+        .filter((sub: SubcategoryRow) => sub.is_system === true) // Filter to only system subcategories
+        .map((sub: SubcategoryRow) => ({
         id: sub.id,
         name: sub.name,
-        categoryId: sub.categoryId,
-        createdAt: new Date(sub.createdAt),
-        updatedAt: new Date(sub.updatedAt),
+        categoryId: sub.category_id,
+        createdAt: new Date(sub.created_at),
+        updatedAt: new Date(sub.updated_at),
         userId: null,
+          isSystem: true as const,
         logo: sub.logo || null,
       })),
     }));
@@ -553,24 +647,24 @@ export class AdminRepository {
   /**
    * Create a system category
    */
-  async createSystemCategory(data: { id: string; name: string; macroId: string }): Promise<SystemCategory> {
-    const supabase = await createServerClient();
+  async createSystemCategory(data: { id: string; name: string; type: "income" | "expense" }): Promise<SystemCategory> {
+    const supabase = createServiceRoleClient();
 
     const now = new Date().toISOString();
     const { data: category, error } = await supabase
-      .from("Category")
+      .from("categories")
       .insert({
         id: data.id,
         name: data.name,
-        groupId: data.macroId,
-        userId: null,
-        createdAt: now,
-        updatedAt: now,
+        type: data.type,
+        user_id: null,
+        is_system: true,
+        created_at: now,
+        updated_at: now,
       })
       .select(`
         *,
-        group:Group(*),
-        subcategories:Subcategory(*)
+        subcategories:subcategories(*)
       `)
       .single();
 
@@ -582,18 +676,11 @@ export class AdminRepository {
     return {
       id: category.id,
       name: category.name,
-      macroId: category.groupId,
-      createdAt: new Date(category.createdAt),
-      updatedAt: new Date(category.updatedAt),
+      type: category.type as "income" | "expense",
+      createdAt: new Date(category.created_at),
+      updatedAt: new Date(category.updated_at),
       userId: null,
-      group: category.group ? {
-        id: category.group.id,
-        name: category.group.name,
-        type: (category.group as any).type ?? null,
-        createdAt: new Date(category.group.createdAt),
-        updatedAt: new Date(category.group.updatedAt),
-        userId: null,
-      } : undefined,
+      isSystem: true as const,
       subcategories: [],
     };
   }
@@ -601,24 +688,23 @@ export class AdminRepository {
   /**
    * Update a system category
    */
-  async updateSystemCategory(id: string, data: { name?: string; macroId?: string }): Promise<SystemCategory> {
-    const supabase = await createServerClient();
+  async updateSystemCategory(id: string, data: { name?: string; type?: "income" | "expense" }): Promise<SystemCategory> {
+    const supabase = createServiceRoleClient();
 
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: CategoryUpdateData = {
+      updated_at: new Date().toISOString(),
     };
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.macroId !== undefined) updateData.groupId = data.macroId;
+    if (data.type !== undefined) updateData.type = data.type;
 
     const { data: category, error } = await supabase
-      .from("Category")
+      .from("categories")
       .update(updateData)
       .eq("id", id)
-      .is("userId", null)
+      .eq("is_system", true)
       .select(`
         *,
-        group:Group(*),
-        subcategories:Subcategory(*)
+        subcategories:subcategories(*)
       `)
       .single();
 
@@ -630,25 +716,19 @@ export class AdminRepository {
     return {
       id: category.id,
       name: category.name,
-      macroId: category.groupId,
-      createdAt: new Date(category.createdAt),
-      updatedAt: new Date(category.updatedAt),
+      type: category.type as "income" | "expense",
+      createdAt: new Date(category.created_at),
+      updatedAt: new Date(category.updated_at),
       userId: null,
-      group: category.group ? {
-        id: category.group.id,
-        name: category.group.name,
-        type: (category.group as any).type ?? null,
-        createdAt: new Date(category.group.createdAt),
-        updatedAt: new Date(category.group.updatedAt),
-        userId: null,
-      } : undefined,
-      subcategories: (category.subcategories || []).map((sub: any) => ({
+      isSystem: true as const,
+      subcategories: (category.subcategories || []).map((sub: SubcategoryRow) => ({
         id: sub.id,
         name: sub.name,
-        categoryId: sub.categoryId,
-        createdAt: new Date(sub.createdAt),
-        updatedAt: new Date(sub.updatedAt),
+        categoryId: sub.category_id,
+        createdAt: new Date(sub.created_at),
+        updatedAt: new Date(sub.updated_at),
         userId: null,
+        isSystem: true as const,
         logo: sub.logo || null,
       })),
     };
@@ -658,13 +738,13 @@ export class AdminRepository {
    * Delete a system category
    */
   async deleteSystemCategory(id: string): Promise<void> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { error } = await supabase
-      .from("Category")
+      .from("categories")
       .delete()
       .eq("id", id)
-      .is("userId", null);
+      .eq("is_system", true);
 
     if (error) {
       logger.error("[AdminRepository] Error deleting system category:", error);
@@ -676,12 +756,12 @@ export class AdminRepository {
    * Get all system subcategories
    */
   async getAllSystemSubcategories(): Promise<SystemSubcategory[]> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: subcategories, error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .select("*")
-      .is("userId", null)
+      .eq("is_system", true)
       .order("name", { ascending: true });
 
     if (error) {
@@ -692,10 +772,11 @@ export class AdminRepository {
     return (subcategories || []).map((sub) => ({
       id: sub.id,
       name: sub.name,
-      categoryId: sub.categoryId,
-      createdAt: new Date(sub.createdAt),
-      updatedAt: new Date(sub.updatedAt),
+      categoryId: sub.category_id,
+      createdAt: new Date(sub.created_at),
+      updatedAt: new Date(sub.updated_at),
       userId: null,
+      isSystem: true as const,
       logo: sub.logo || null,
     }));
   }
@@ -704,19 +785,20 @@ export class AdminRepository {
    * Create a system subcategory
    */
   async createSystemSubcategory(data: { id: string; name: string; categoryId: string; logo?: string | null }): Promise<SystemSubcategory> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const now = new Date().toISOString();
     const { data: subcategory, error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .insert({
         id: data.id,
         name: data.name,
-        categoryId: data.categoryId,
-        userId: null,
+        category_id: data.categoryId,
+        user_id: null,
+        is_system: true,
         logo: data.logo || null,
-        createdAt: now,
-        updatedAt: now,
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();
@@ -729,10 +811,11 @@ export class AdminRepository {
     return {
       id: subcategory.id,
       name: subcategory.name,
-      categoryId: subcategory.categoryId,
-      createdAt: new Date(subcategory.createdAt),
-      updatedAt: new Date(subcategory.updatedAt),
+      categoryId: subcategory.category_id,
+      createdAt: new Date(subcategory.created_at),
+      updatedAt: new Date(subcategory.updated_at),
       userId: null,
+      isSystem: true,
       logo: subcategory.logo || null,
     };
   }
@@ -741,19 +824,19 @@ export class AdminRepository {
    * Update a system subcategory
    */
   async updateSystemSubcategory(id: string, data: { name?: string; logo?: string | null }): Promise<SystemSubcategory> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: SubcategoryUpdateData = {
+      updated_at: new Date().toISOString(),
     };
     if (data.name !== undefined) updateData.name = data.name;
     if (data.logo !== undefined) updateData.logo = data.logo;
 
     const { data: subcategory, error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .update(updateData)
       .eq("id", id)
-      .is("userId", null)
+      .eq("is_system", true)
       .select()
       .single();
 
@@ -765,10 +848,11 @@ export class AdminRepository {
     return {
       id: subcategory.id,
       name: subcategory.name,
-      categoryId: subcategory.categoryId,
-      createdAt: new Date(subcategory.createdAt),
-      updatedAt: new Date(subcategory.updatedAt),
+      categoryId: subcategory.category_id,
+      createdAt: new Date(subcategory.created_at),
+      updatedAt: new Date(subcategory.updated_at),
       userId: null,
+      isSystem: true as const,
       logo: subcategory.logo || null,
     };
   }
@@ -777,13 +861,13 @@ export class AdminRepository {
    * Delete a system subcategory
    */
   async deleteSystemSubcategory(id: string): Promise<void> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { error } = await supabase
-      .from("Subcategory")
+      .from("subcategories")
       .delete()
       .eq("id", id)
-      .is("userId", null);
+      .eq("is_system", true);
 
     if (error) {
       logger.error("[AdminRepository] Error deleting system subcategory:", error);
@@ -796,14 +880,14 @@ export class AdminRepository {
    */
   async getDashboardData(): Promise<{
     totalUsers: number;
-    subscriptions: any[];
-    plans: any[];
+    subscriptions: SubscriptionWithPlanRow[];
+    plans: PlanRow[];
   }> {
     const supabase = createServiceRoleClient();
 
     // Get all users count
     const { count: totalUsers, error: usersError } = await supabase
-      .from("User")
+      .from("users")
       .select("*", { count: "exact", head: true });
 
     if (usersError) {
@@ -813,28 +897,28 @@ export class AdminRepository {
 
     // Get all subscriptions with their plans
     const { data: subscriptions, error: subsError } = await supabase
-      .from("Subscription")
+      .from("app_subscriptions")
       .select(`
         id,
-        userId,
-        planId,
+        user_id,
+        plan_id,
         status,
-        trialStartDate,
-        trialEndDate,
-        currentPeriodStart,
-        currentPeriodEnd,
-        cancelAtPeriodEnd,
-        stripeSubscriptionId,
-        plan:Plan(
+        trial_start_date,
+        trial_end_date,
+        current_period_start,
+        current_period_end,
+        cancel_at_period_end,
+        stripe_subscription_id,
+        plan:app_plans(
           id,
           name,
-          priceMonthly,
-          priceYearly,
-          stripePriceIdMonthly,
-          stripePriceIdYearly
+          price_monthly,
+          price_yearly,
+          stripe_price_id_monthly,
+          stripe_price_id_yearly
         )
       `)
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (subsError) {
       logger.error("[AdminRepository] Error fetching subscriptions:", subsError);
@@ -843,9 +927,9 @@ export class AdminRepository {
 
     // Get all plans
     const { data: plans, error: plansError } = await supabase
-      .from("Plan")
-      .select("id, name, priceMonthly, priceYearly")
-      .order("priceMonthly", { ascending: true });
+      .from("app_plans")
+      .select("id, name, price_monthly, price_yearly")
+      .order("price_monthly", { ascending: true });
 
     if (plansError) {
       logger.error("[AdminRepository] Error fetching plans:", plansError);
@@ -854,19 +938,20 @@ export class AdminRepository {
 
     return {
       totalUsers: totalUsers || 0,
-      subscriptions: subscriptions || [],
-      plans: plans || [],
+      subscriptions: (subscriptions || []) as unknown as SubscriptionWithPlanRow[],
+      plans: (plans || []) as PlanRow[],
     };
   }
 
   /**
    * Get system settings
    */
-  async getSystemSettings(): Promise<{ maintenanceMode: boolean; seoSettings?: any }> {
+  async getSystemSettings(): Promise<{ maintenanceMode: boolean; seoSettings?: SeoSettings }> {
     const supabase = createServiceRoleClient();
 
+    // Use system_settings table
     const { data: settings, error } = await supabase
-      .from("SystemSettings")
+      .from("system_config_settings")
       .select("*")
       .eq("id", "default")
       .single();
@@ -907,30 +992,31 @@ export class AdminRepository {
     }
 
     return {
-      maintenanceMode: settings.maintenanceMode || false,
-      seoSettings: settings.seoSettings || undefined,
+      maintenanceMode: settings.maintenance_mode || false,
+      seoSettings: settings.seo_settings || undefined,
     };
   }
 
   /**
    * Update system settings
    */
-  async updateSystemSettings(data: { maintenanceMode?: boolean; seoSettings?: any }): Promise<{ maintenanceMode: boolean; seoSettings?: any }> {
+  async updateSystemSettings(data: { maintenanceMode?: boolean; seoSettings?: SeoSettings }): Promise<{ maintenanceMode: boolean; seoSettings?: SeoSettings }> {
     const supabase = createServiceRoleClient();
 
     // Try to update existing settings
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: SystemSettingsUpdateData = {
+      updated_at: new Date().toISOString(),
     };
     if (data.maintenanceMode !== undefined) {
-      updateData.maintenanceMode = data.maintenanceMode;
+      updateData.maintenance_mode = data.maintenanceMode;
     }
     if (data.seoSettings !== undefined) {
-      updateData.seoSettings = data.seoSettings;
+      updateData.seo_settings = data.seoSettings;
     }
 
+    // Use system_settings table
     const { data: updatedSettings, error: updateError } = await supabase
-      .from("SystemSettings")
+      .from("system_config_settings")
       .update(updateData)
       .eq("id", "default")
       .select()
@@ -939,12 +1025,12 @@ export class AdminRepository {
     // If update failed because row doesn't exist, create it
     if (updateError && updateError.code === "PGRST116") {
       const { data: newSettings, error: insertError } = await supabase
-        .from("SystemSettings")
+        .from("system_config_settings")
         .insert({
           id: "default",
-          maintenanceMode: data.maintenanceMode,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          maintenance_mode: data.maintenanceMode,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -955,7 +1041,7 @@ export class AdminRepository {
       }
 
       return {
-        maintenanceMode: newSettings.maintenanceMode,
+        maintenanceMode: newSettings.maintenance_mode,
       };
     }
 
@@ -965,20 +1051,20 @@ export class AdminRepository {
     }
 
     return {
-      maintenanceMode: updatedSettings?.maintenanceMode || false,
+      maintenanceMode: updatedSettings?.maintenance_mode || false,
     };
   }
 
   /**
    * Get all plans
    */
-  async getAllPlans(): Promise<any[]> {
+  async getAllPlans(): Promise<PlanRow[]> {
     const supabase = createServiceRoleClient();
 
     const { data: plans, error } = await supabase
-      .from("Plan")
+      .from("app_plans")
       .select("*")
-      .order("priceMonthly", { ascending: true });
+      .order("price_monthly", { ascending: true });
 
     if (error) {
       logger.error("[AdminRepository] Error fetching plans:", error);
@@ -995,24 +1081,25 @@ export class AdminRepository {
     planId: string,
     data: {
       name?: string;
-      features?: any;
+      features?: Record<string, unknown>;
       priceMonthly?: number;
       priceYearly?: number;
     }
-  ): Promise<any> {
+  ): Promise<PlanRow> {
     const supabase = createServiceRoleClient();
 
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    // FIX: Database uses snake_case, not camelCase
+    const updateData: PlanUpdateData = {
+      updated_at: new Date().toISOString(),
     };
 
     if (data.name !== undefined) updateData.name = data.name;
     if (data.features !== undefined) updateData.features = data.features;
-    if (data.priceMonthly !== undefined) updateData.priceMonthly = data.priceMonthly;
-    if (data.priceYearly !== undefined) updateData.priceYearly = data.priceYearly;
+    if (data.priceMonthly !== undefined) updateData.price_monthly = data.priceMonthly;
+    if (data.priceYearly !== undefined) updateData.price_yearly = data.priceYearly;
 
     const { data: updatedPlan, error } = await supabase
-      .from("Plan")
+      .from("app_plans")
       .update(updateData)
       .eq("id", planId)
       .select()
@@ -1034,7 +1121,7 @@ export class AdminRepository {
    * Get all feedbacks with pagination and metrics
    */
   async getFeedbacks(options?: { limit?: number; offset?: number }): Promise<{
-    feedbacks: any[];
+    feedbacks: FeedbackRow[];
     total: number;
     metrics: {
       total: number;
@@ -1054,21 +1141,21 @@ export class AdminRepository {
 
     // Get feedbacks with user info
     const { data: feedbacks, error: feedbacksError } = await supabase
-      .from("Feedback")
+      .from("system_support_feedback")
       .select(`
         id,
-        userId,
+        user_id,
         rating,
         feedback,
-        createdAt,
-        updatedAt,
-        User:userId (
+        created_at,
+        updated_at,
+        User:user_id (
           id,
           name,
           email
         )
       `)
-      .order("createdAt", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (feedbacksError) {
@@ -1078,7 +1165,7 @@ export class AdminRepository {
 
     // Get total count
     const { count, error: countError } = await supabase
-      .from("Feedback")
+      .from("system_support_feedback")
       .select("*", { count: "exact", head: true });
 
     if (countError) {
@@ -1087,7 +1174,7 @@ export class AdminRepository {
 
     // Get all feedbacks for metrics
     const { data: allFeedbacks, error: allFeedbacksError } = await supabase
-      .from("Feedback")
+      .from("system_support_feedback")
       .select("rating");
 
     if (allFeedbacksError) {
@@ -1118,7 +1205,7 @@ export class AdminRepository {
     }
 
     return {
-      feedbacks: feedbacks || [],
+      feedbacks: (feedbacks || []) as unknown as FeedbackRow[],
       total: count || 0,
       metrics,
     };
@@ -1128,7 +1215,7 @@ export class AdminRepository {
    * Get all contact forms with pagination
    */
   async getContactForms(options?: { status?: string; limit?: number; offset?: number }): Promise<{
-    contactForms: any[];
+    contactForms: ContactFormRow[];
     total: number;
   }> {
     const supabase = createServiceRoleClient();
@@ -1137,25 +1224,25 @@ export class AdminRepository {
 
     // Build query
     let query = supabase
-      .from("ContactForm")
+      .from("system_support_contact_forms")
       .select(`
         id,
-        userId,
+        user_id,
         name,
         email,
         subject,
         message,
         status,
-        adminNotes,
-        createdAt,
-        updatedAt,
-        User:userId (
+        admin_notes,
+        created_at,
+        updated_at,
+        User:user_id (
           id,
           name,
           email
         )
       `)
-      .order("createdAt", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
     // Filter by status if provided
@@ -1171,7 +1258,7 @@ export class AdminRepository {
     }
 
     // Get total count
-    let countQuery = supabase.from("ContactForm").select("*", { count: "exact", head: true });
+    let countQuery = supabase.from("system_contact_forms").select("*", { count: "exact", head: true });
     if (options?.status) {
       countQuery = countQuery.eq("status", options.status);
     }
@@ -1182,7 +1269,7 @@ export class AdminRepository {
     }
 
     return {
-      contactForms: data || [],
+      contactForms: (data || []) as unknown as ContactFormRow[],
       total: count || 0,
     };
   }
@@ -1196,18 +1283,18 @@ export class AdminRepository {
       status?: string;
       adminNotes?: string;
     }
-  ): Promise<any> {
+  ): Promise<ContactFormRow> {
     const supabase = createServiceRoleClient();
 
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: ContactFormUpdateData = {
+      updated_at: new Date().toISOString(),
     };
 
     if (data.status !== undefined) updateData.status = data.status;
-    if (data.adminNotes !== undefined) updateData.adminNotes = data.adminNotes;
+    if (data.adminNotes !== undefined) updateData.admin_notes = data.adminNotes;
 
     const { data: updatedContactForm, error } = await supabase
-      .from("ContactForm")
+      .from("system_support_contact_forms")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -1230,14 +1317,14 @@ export class AdminRepository {
    */
   async getDashboardRawData(): Promise<{
     totalUsers: number | null;
-    subscriptions: any[];
-    plans: any[];
+    subscriptions: SubscriptionWithPlanRow[];
+    plans: PlanRow[];
   }> {
     const supabase = createServiceRoleClient();
 
     // Get all users count
     const { count: totalUsers, error: usersError } = await supabase
-      .from("User")
+      .from("users")
       .select("*", { count: "exact", head: true });
 
     if (usersError) {
@@ -1246,28 +1333,28 @@ export class AdminRepository {
 
     // Get all subscriptions with their plans
     const { data: subscriptions, error: subsError } = await supabase
-      .from("Subscription")
+      .from("app_subscriptions")
       .select(`
         id,
-        userId,
-        planId,
+        user_id,
+        plan_id,
         status,
-        trialStartDate,
-        trialEndDate,
-        currentPeriodStart,
-        currentPeriodEnd,
-        cancelAtPeriodEnd,
-        stripeSubscriptionId,
-        plan:Plan(
+        trial_start_date,
+        trial_end_date,
+        current_period_start,
+        current_period_end,
+        cancel_at_period_end,
+        stripe_subscription_id,
+        plan:app_plans(
           id,
           name,
-          priceMonthly,
-          priceYearly,
-          stripePriceIdMonthly,
-          stripePriceIdYearly
+          price_monthly,
+          price_yearly,
+          stripe_price_id_monthly,
+          stripe_price_id_yearly
         )
       `)
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (subsError) {
       logger.error("[AdminRepository] Error fetching subscriptions:", subsError);
@@ -1275,9 +1362,9 @@ export class AdminRepository {
 
     // Get all plans
     const { data: plans, error: plansError } = await supabase
-      .from("Plan")
-      .select("id, name, priceMonthly, priceYearly")
-      .order("priceMonthly", { ascending: true });
+      .from("app_plans")
+      .select("id, name, price_monthly, price_yearly")
+      .order("price_monthly", { ascending: true });
 
     if (plansError) {
       logger.error("[AdminRepository] Error fetching plans:", plansError);
@@ -1285,8 +1372,8 @@ export class AdminRepository {
 
     return {
       totalUsers: totalUsers || null,
-      subscriptions: subscriptions || [],
-      plans: plans || [],
+      subscriptions: (subscriptions || []) as unknown as SubscriptionWithPlanRow[],
+      plans: (plans || []) as PlanRow[],
     };
   }
 
@@ -1298,19 +1385,19 @@ export class AdminRepository {
     name: string;
     displayOrder: number;
     isActive: boolean;
-  }): Promise<any> {
+  }): Promise<SubscriptionServiceCategoryRow> {
     const supabase = createServiceRoleClient();
     const now = new Date().toISOString();
 
     const { data: category, error } = await supabase
-      .from("SubscriptionServiceCategory")
+      .from("external_service_categories")
       .insert({
         id: data.id,
         name: data.name.trim(),
-        displayOrder: data.displayOrder,
-        isActive: data.isActive,
-        createdAt: now,
-        updatedAt: now,
+        display_order: data.displayOrder,
+        is_active: data.isActive,
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();
@@ -1330,18 +1417,18 @@ export class AdminRepository {
     name?: string;
     displayOrder?: number;
     isActive?: boolean;
-  }): Promise<any> {
+  }): Promise<SubscriptionServiceCategoryRow> {
     const supabase = createServiceRoleClient();
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: SubscriptionServiceCategoryUpdateData = {
+      updated_at: new Date().toISOString(),
     };
 
     if (data.name !== undefined) updateData.name = data.name.trim();
-    if (data.displayOrder !== undefined) updateData.displayOrder = data.displayOrder;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.displayOrder !== undefined) updateData.display_order = data.displayOrder;
+    if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
     const { data: category, error } = await supabase
-      .from("SubscriptionServiceCategory")
+      .from("external_service_categories")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -1363,9 +1450,9 @@ export class AdminRepository {
 
     // Check if category has services
     const { data: services, error: servicesError } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .select("id")
-      .eq("categoryId", id)
+      .eq("category_id", id)
       .limit(1);
 
     if (servicesError) {
@@ -1378,7 +1465,7 @@ export class AdminRepository {
     }
 
     const { error } = await supabase
-      .from("SubscriptionServiceCategory")
+      .from("external_service_categories")
       .delete()
       .eq("id", id);
 
@@ -1397,21 +1484,20 @@ export class AdminRepository {
     name: string;
     logo?: string | null;
     isActive: boolean;
-  }): Promise<any> {
+  }): Promise<SubscriptionServiceRow> {
     const supabase = createServiceRoleClient();
     const now = new Date().toISOString();
 
     const { data: service, error } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .insert({
         id: data.id,
-        categoryId: data.categoryId,
+        category_id: data.categoryId,
         name: data.name.trim(),
         logo: data.logo || null,
-        displayOrder: 0, // Not used anymore, services are sorted alphabetically
-        isActive: data.isActive,
-        createdAt: now,
-        updatedAt: now,
+        is_active: data.isActive,
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();
@@ -1432,19 +1518,19 @@ export class AdminRepository {
     name?: string;
     logo?: string | null;
     isActive?: boolean;
-  }): Promise<any> {
+  }): Promise<SubscriptionServiceRow> {
     const supabase = createServiceRoleClient();
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: SubscriptionServiceUpdateData = {
+      updated_at: new Date().toISOString(),
     };
 
-    if (data.categoryId !== undefined) updateData.categoryId = data.categoryId;
+    if (data.categoryId !== undefined) updateData.category_id = data.categoryId;
     if (data.name !== undefined) updateData.name = data.name.trim();
     if (data.logo !== undefined) updateData.logo = data.logo || null;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
     const { data: service, error } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -1466,7 +1552,7 @@ export class AdminRepository {
 
     // Get service name to check if it's used in user subscriptions
     const { data: service, error: serviceError } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .select("name")
       .eq("id", id)
       .single();
@@ -1478,10 +1564,10 @@ export class AdminRepository {
 
     if (service) {
       // Check if service is used in any user subscriptions
-      const { data: userSubscriptions, error: checkError } = await supabase
-        .from("UserServiceSubscription")
+      const { error: checkError } = await supabase
+        .from("user_subscriptions")
         .select("id")
-        .eq("serviceName", service.name)
+        .eq("service_name", service.name)
         .limit(1);
 
       if (checkError) {
@@ -1493,7 +1579,7 @@ export class AdminRepository {
     }
 
     const { error } = await supabase
-      .from("SubscriptionService")
+      .from("external_services")
       .delete()
       .eq("id", id);
 
@@ -1506,14 +1592,14 @@ export class AdminRepository {
   /**
    * Get all plans for a subscription service
    */
-  async getAllSubscriptionServicePlans(serviceId: string): Promise<any[]> {
+  async getAllSubscriptionServicePlans(serviceId: string): Promise<SubscriptionServicePlanRow[]> {
     const supabase = createServiceRoleClient();
 
     const { data: plans, error } = await supabase
-      .from("SubscriptionServicePlan")
+      .from("subscription_service_plans")
       .select("*")
-      .eq("serviceId", serviceId)
-      .order("planName", { ascending: true });
+      .eq("service_id", serviceId)
+      .order("plan_name", { ascending: true });
 
     if (error) {
       logger.error("[AdminRepository] Error fetching subscription service plans:", error);
@@ -1533,21 +1619,21 @@ export class AdminRepository {
     price: number;
     currency: string;
     isActive: boolean;
-  }): Promise<any> {
+  }): Promise<SubscriptionServicePlanRow> {
     const supabase = createServiceRoleClient();
     const now = new Date().toISOString();
 
     const { data: plan, error } = await supabase
-      .from("SubscriptionServicePlan")
+      .from("subscription_service_plans")
       .insert({
         id: data.id,
-        serviceId: data.serviceId,
-        planName: data.planName.trim(),
+        service_id: data.serviceId,
+        plan_name: data.planName.trim(),
         price: parseFloat(data.price.toString()),
         currency: data.currency,
-        isActive: data.isActive,
-        createdAt: now,
-        updatedAt: now,
+        is_active: data.isActive,
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();
@@ -1568,19 +1654,19 @@ export class AdminRepository {
     price?: number;
     currency?: string;
     isActive?: boolean;
-  }): Promise<any> {
+  }): Promise<SubscriptionServicePlanRow> {
     const supabase = createServiceRoleClient();
-    const updateData: any = {
-      updatedAt: new Date().toISOString(),
+    const updateData: SubscriptionServicePlanUpdateData = {
+      updated_at: new Date().toISOString(),
     };
 
-    if (data.planName !== undefined) updateData.planName = data.planName.trim();
+    if (data.planName !== undefined) updateData.plan_name = data.planName.trim();
     if (data.price !== undefined) updateData.price = parseFloat(data.price.toString());
     if (data.currency !== undefined) updateData.currency = data.currency;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
     const { data: plan, error } = await supabase
-      .from("SubscriptionServicePlan")
+      .from("subscription_service_plans")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -1601,7 +1687,7 @@ export class AdminRepository {
     const supabase = createServiceRoleClient();
 
     const { error } = await supabase
-      .from("SubscriptionServicePlan")
+      .from("subscription_service_plans")
       .delete()
       .eq("id", id);
 
@@ -1623,7 +1709,7 @@ export class AdminRepository {
     const { createServiceRoleClient } = await import("../supabase-server");
     const supabase = createServiceRoleClient();
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from(data.bucket)
       .upload(data.fileName, data.file, {
         contentType: data.contentType,
@@ -1649,13 +1735,13 @@ export class AdminRepository {
   /**
    * End trial immediately or cancel subscription
    */
-  async endTrialOrCancel(subscriptionId: string, action: "end_trial" | "cancel"): Promise<{ success: boolean; message: string; subscription: any; warning?: string; stripeSubscriptionId: string; userId: string }> {
+  async endTrialOrCancel(subscriptionId: string, action: "end_trial" | "cancel"): Promise<{ success: boolean; message: string; subscription: SubscriptionRow; warning?: string; stripeSubscriptionId: string; userId: string }> {
     const supabase = createServiceRoleClient();
 
     // Get subscription to verify it exists and get userId/stripeSubscriptionId
     const { data: subscription, error: subError } = await supabase
-      .from("Subscription")
-      .select("id, userId, stripeSubscriptionId, status, trialEndDate")
+      .from("app_subscriptions")
+      .select("id, user_id, stripe_subscription_id, status, trial_end_date")
       .eq("id", subscriptionId)
       .maybeSingle();
 
@@ -1664,7 +1750,7 @@ export class AdminRepository {
       throw new Error("Subscription not found");
     }
 
-    if (!subscription.stripeSubscriptionId) {
+    if (!subscription.stripe_subscription_id) {
       throw new Error("Subscription does not have a Stripe subscription ID");
     }
 
@@ -1678,10 +1764,10 @@ export class AdminRepository {
 
       // Update in Supabase
       const { data: updated, error: updateError } = await supabase
-        .from("Subscription")
+        .from("app_subscriptions")
         .update({
-          trialEndDate: now,
-          updatedAt: now,
+          trial_end_date: now,
+          updated_at: now,
         })
         .eq("id", subscriptionId)
         .select()
@@ -1696,11 +1782,11 @@ export class AdminRepository {
     } else if (action === "cancel") {
       // Update in Supabase
       const { data: updated, error: updateError } = await supabase
-        .from("Subscription")
+        .from("app_subscriptions")
         .update({
           status: "cancelled",
-          cancelAtPeriodEnd: false,
-          updatedAt: now,
+          cancel_at_period_end: false,
+          updated_at: now,
         })
         .eq("id", subscriptionId)
         .select()
@@ -1718,21 +1804,21 @@ export class AdminRepository {
       success: true,
       message: action === "end_trial" ? "Trial ended successfully" : "Subscription cancelled successfully",
       subscription: updatedSubscription,
-      stripeSubscriptionId: subscription.stripeSubscriptionId,
-      userId: subscription.userId,
-    } as { success: boolean; message: string; subscription: any; warning?: string; stripeSubscriptionId: string; userId: string };
+      stripeSubscriptionId: subscription.stripe_subscription_id,
+      userId: subscription.user_id,
+    };
   }
 
   /**
    * Update subscription trial end date
    */
-  async updateSubscriptionTrial(subscriptionId: string, trialEndDate: Date): Promise<{ success: boolean; message: string; subscription: any; warning?: string; stripeSubscriptionId: string; userId: string }> {
+  async updateSubscriptionTrial(subscriptionId: string, trialEndDate: Date): Promise<{ success: boolean; message: string; subscription: SubscriptionRow; warning?: string; stripeSubscriptionId: string; userId: string }> {
     const supabase = createServiceRoleClient();
 
     // Get subscription to verify it exists and get userId/stripeSubscriptionId
     const { data: subscription, error: subError } = await supabase
-      .from("Subscription")
-      .select("id, userId, stripeSubscriptionId, status, trialEndDate")
+      .from("app_subscriptions")
+      .select("id, user_id, stripe_subscription_id, status, trial_end_date")
       .eq("id", subscriptionId)
       .maybeSingle();
 
@@ -1741,16 +1827,16 @@ export class AdminRepository {
       throw new Error("Subscription not found");
     }
 
-    if (!subscription.stripeSubscriptionId) {
+    if (!subscription.stripe_subscription_id) {
       throw new Error("Subscription does not have a Stripe subscription ID");
     }
 
     // Update in Supabase
     const { data: updatedSub, error: updateError } = await supabase
-      .from("Subscription")
+      .from("app_subscriptions")
       .update({
-        trialEndDate: trialEndDate.toISOString(),
-        updatedAt: new Date().toISOString(),
+        trial_end_date: trialEndDate.toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq("id", subscriptionId)
       .select()
@@ -1765,9 +1851,9 @@ export class AdminRepository {
       success: true,
       message: "Trial end date updated successfully in both Supabase and Stripe",
       subscription: updatedSub,
-      stripeSubscriptionId: subscription.stripeSubscriptionId,
-      userId: subscription.userId,
-    } as { success: boolean; message: string; subscription: any; warning?: string; stripeSubscriptionId: string; userId: string };
+      stripeSubscriptionId: subscription.stripe_subscription_id,
+      userId: subscription.user_id,
+    };
   }
 
   /**
@@ -1776,15 +1862,14 @@ export class AdminRepository {
   async cancelSubscription(
     subscriptionId: string,
     cancelOption: "immediately" | "end_of_period" | "specific_date",
-    cancelAt?: Date,
-    refundOption?: string
-  ): Promise<{ success: boolean; message: string; subscription: any; warning?: string; stripeSubscriptionId: string; userId: string }> {
+    cancelAt?: Date
+  ): Promise<{ success: boolean; message: string; subscription: SubscriptionRow; warning?: string; stripeSubscriptionId: string; userId: string; cancelOption: string; cancelAt?: string }> {
     const supabase = createServiceRoleClient();
 
     // Get subscription
     const { data: subscription, error: subError } = await supabase
-      .from("Subscription")
-      .select("id, userId, stripeSubscriptionId, status, currentPeriodEnd")
+      .from("app_subscriptions")
+      .select("id, user_id, stripe_subscription_id, status, current_period_end")
       .eq("id", subscriptionId)
       .maybeSingle();
 
@@ -1793,7 +1878,7 @@ export class AdminRepository {
       throw new Error("Subscription not found");
     }
 
-    if (!subscription.stripeSubscriptionId) {
+    if (!subscription.stripe_subscription_id) {
       throw new Error("Subscription does not have a Stripe subscription ID");
     }
 
@@ -1803,11 +1888,11 @@ export class AdminRepository {
     if (cancelOption === "immediately") {
       // Update in Supabase
       const { data: updated, error: updateError } = await supabase
-        .from("Subscription")
+        .from("app_subscriptions")
         .update({
           status: "cancelled",
-          cancelAtPeriodEnd: false,
-          updatedAt: now,
+          cancel_at_period_end: false,
+          updated_at: now,
         })
         .eq("id", subscriptionId)
         .select()
@@ -1822,10 +1907,10 @@ export class AdminRepository {
     } else if (cancelOption === "end_of_period") {
       // Update in Supabase
       const { data: updated, error: updateError } = await supabase
-        .from("Subscription")
+        .from("app_subscriptions")
         .update({
-          cancelAtPeriodEnd: true,
-          updatedAt: now,
+          cancel_at_period_end: true,
+          updated_at: now,
         })
         .eq("id", subscriptionId)
         .select()
@@ -1844,10 +1929,10 @@ export class AdminRepository {
 
       // Update in Supabase
       const { data: updated, error: updateError } = await supabase
-        .from("Subscription")
+        .from("app_subscriptions")
         .update({
-          cancelAtPeriodEnd: false,
-          updatedAt: now,
+          cancel_at_period_end: false,
+          updated_at: now,
         })
         .eq("id", subscriptionId)
         .select()
@@ -1865,11 +1950,11 @@ export class AdminRepository {
       success: true,
       message: "Subscription cancellation processed successfully",
       subscription: updatedSubscription,
-      stripeSubscriptionId: subscription.stripeSubscriptionId,
-      userId: subscription.userId,
+      stripeSubscriptionId: subscription.stripe_subscription_id,
+      userId: subscription.user_id,
       cancelOption,
       cancelAt: cancelAt?.toISOString(),
-    } as { success: boolean; message: string; subscription: any; warning?: string; stripeSubscriptionId: string; userId: string };
+    };
   }
 }
 

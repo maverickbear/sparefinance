@@ -30,7 +30,6 @@ export async function PATCH(
     
     // Invalidate cache
     revalidateTag('categories', 'max');
-    revalidateTag('groups', 'max');
     
     return NextResponse.json(subcategory, { status: 200 });
   } catch (error) {
@@ -63,7 +62,6 @@ export async function DELETE(
     
     // Invalidate cache
     revalidateTag('categories', 'max');
-    revalidateTag('groups', 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

@@ -69,7 +69,7 @@ export function PlanCard({ subscription, plan, onManage }: PlanCardProps) {
                 <p className="text-sm font-medium">
                   {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} Plan
                 </p>
-                <PlanBadge plan={plan.name as "essential" | "pro"} />
+                <PlanBadge plan={plan.name} />
               </div>
               <p className="text-xs text-muted-foreground">{billingText}</p>
             </div>

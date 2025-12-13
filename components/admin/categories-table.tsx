@@ -17,7 +17,6 @@ import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 
 interface CategoriesTableProps {
   categories: SystemCategory[];
-  macros: { id: string; name: string }[];
   loading?: boolean;
   onEdit: (category: SystemCategory) => void;
   onDelete: (id: string) => void;
@@ -25,26 +24,20 @@ interface CategoriesTableProps {
 
 export function CategoriesTable({
   categories: initialCategories,
-  macros,
   loading: initialLoading,
   onEdit,
   onDelete,
 }: CategoriesTableProps) {
   const { openDialog, ConfirmDialog } = useConfirmDialog();
   const [categories, setCategories] = useState<SystemCategory[]>(initialCategories);
-  const [loading, setLoading] = useState(initialLoading);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string) => {
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-  };
-
-  const getMacroName = (macroId: string) => {
-    return macros.find((m) => m.id === macroId)?.name || macroId;
   };
 
   const handleDelete = (id: string) => {
@@ -70,7 +63,7 @@ export function CategoriesTable({
     );
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -84,7 +77,7 @@ export function CategoriesTable({
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Group</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Subcategories</TableHead>
             <TableHead>Created</TableHead>
             <TableHead>Updated</TableHead>
@@ -106,7 +99,7 @@ export function CategoriesTable({
               <TableRow key={category.id}>
                 <TableCell className="font-medium">{category.name}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{getMacroName(category.macroId)}</Badge>
+                  <Badge variant="outline" className="capitalize">{category.type}</Badge>
                 </TableCell>
                 <TableCell>
                   {category.subcategories?.length || 0}

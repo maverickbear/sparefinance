@@ -2,17 +2,17 @@ import { NextResponse } from "next/server";
 import { unstable_noStore as noStore } from "next/cache";
 import { makeDashboardService } from "@/src/application/dashboard/dashboard.factory";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 /**
  * API route to silently check if there are new data updates
- * Returns a hash/timestamp that changes when any relevant data is updated
+ * Returns a timestamp that changes when any relevant data is updated
  * This allows the frontend to poll silently without fetching all data
  * 
- * OPTIMIZED: Uses Redis cache (5s TTL) + RPC function for better performance
- * 
- * Note: This route uses request.url which causes prerendering warnings during build.
- * These warnings are expected and do not affect functionality.
+ * SIMPLIFIED: Uses simple timestamp-based checking (MAX(updated_at) from transactions)
+ * Much simpler and faster than previous hash/RPC approach
  */
+
 export async function GET(request: Request) {
   // Opt out of static generation - this route uses request.url
   noStore();
@@ -23,8 +23,16 @@ export async function GET(request: Request) {
     const searchParams = url.searchParams;
     const lastCheck = searchParams.get("lastCheck"); // ISO timestamp from client
 
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const service = makeDashboardService();
-    const result = await service.checkUpdates(lastCheck || undefined);
+    const result = await service.checkUpdates(userId, lastCheck || undefined);
 
     // Log de performance (apenas em desenvolvimento)
     if (process.env.NODE_ENV === "development" && result.executionTime) {

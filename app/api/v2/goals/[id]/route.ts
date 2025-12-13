@@ -4,6 +4,7 @@ import { GoalFormData } from "@/src/domain/goals/goals.validations";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { requireGoalOwnership } from "@/src/infrastructure/utils/security";
 import { revalidateTag } from 'next/cache';
 
 export async function GET(
@@ -17,6 +18,9 @@ export async function GET(
     }
 
     const { id } = await params;
+    
+    // Verify goal ownership
+    await requireGoalOwnership(id);
     
     const service = makeGoalsService();
     const goal = await service.getGoalById(id);
@@ -58,6 +62,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify goal ownership
+    await requireGoalOwnership(id);
     
     const service = makeGoalsService();
     const goal = await service.updateGoal(id, body);
@@ -105,6 +112,9 @@ export async function DELETE(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify goal ownership
+    await requireGoalOwnership(id);
     
     const service = makeGoalsService();
     await service.deleteGoal(id);

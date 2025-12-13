@@ -42,14 +42,6 @@ interface SubscriptionService {
   isActive: boolean;
 }
 
-interface SubscriptionServicePlan {
-  id: string;
-  serviceId: string;
-  planName: string;
-  price: number;
-  currency: "USD" | "CAD";
-  isActive: boolean;
-}
 
 interface SubscriptionServicesManagerProps {
   loading?: boolean;
@@ -79,15 +71,6 @@ export function SubscriptionServicesManager({
   const [serviceCategoryId, setServiceCategoryId] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  
-  // Plans state
-  const [servicePlans, setServicePlans] = useState<SubscriptionServicePlan[]>([]);
-  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
-  const [isAddingPlan, setIsAddingPlan] = useState(false);
-  const [planName, setPlanName] = useState("");
-  const [planPrice, setPlanPrice] = useState("");
-  const [planCurrency, setPlanCurrency] = useState<"USD" | "CAD">("USD");
-  const [planIsActive, setPlanIsActive] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -226,7 +209,6 @@ export function SubscriptionServicesManager({
     setServiceCategoryId(categoryId);
     setSelectedCategoryId(categoryId);
     setUploadingLogo(false);
-    setServicePlans([]);
     setIsServiceDialogOpen(true);
   }
 
@@ -238,19 +220,6 @@ export function SubscriptionServicesManager({
     setServiceCategoryId(service.categoryId);
     setSelectedCategoryId(service.categoryId);
     setUploadingLogo(false);
-    
-    // Load plans for this service
-    try {
-      const response = await fetch(`/api/admin/subscription-services/plans?serviceId=${service.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setServicePlans(data.plans || []);
-      }
-    } catch (error) {
-      console.error("Error loading plans:", error);
-      setServicePlans([]);
-    }
-    
     setIsServiceDialogOpen(true);
   }
 
@@ -361,23 +330,7 @@ export function SubscriptionServicesManager({
         variant: "success",
       });
 
-      // If creating a new service, set it as editing to allow plan management
-      if (!editingService && savedService.service) {
-        setEditingService(savedService.service);
-        setServicePlans([]);
-      } else if (editingService) {
-        // Reload plans for existing service
-        try {
-          const plansResponse = await fetch(`/api/admin/subscription-services/plans?serviceId=${editingService.id}`);
-          if (plansResponse.ok) {
-            const plansData = await plansResponse.json();
-            setServicePlans(plansData.plans || []);
-          }
-        } catch (error) {
-          console.error("Error loading plans:", error);
-        }
-      }
-
+      setIsServiceDialogOpen(false);
       loadData();
     } catch (error) {
       toast({
@@ -388,151 +341,6 @@ export function SubscriptionServicesManager({
     }
   }
 
-  function handleCreatePlan() {
-    setIsAddingPlan(true);
-    setEditingPlanId(null);
-    setPlanName("");
-    setPlanPrice("");
-    setPlanCurrency("USD");
-    setPlanIsActive(true);
-  }
-
-  function handleEditPlan(plan: SubscriptionServicePlan) {
-    setEditingPlanId(plan.id);
-    setIsAddingPlan(false);
-    setPlanName(plan.planName);
-    setPlanPrice(plan.price.toString());
-    setPlanCurrency(plan.currency);
-    setPlanIsActive(plan.isActive);
-  }
-
-  function handleCancelPlan() {
-    setIsAddingPlan(false);
-    setEditingPlanId(null);
-    setPlanName("");
-    setPlanPrice("");
-    setPlanCurrency("USD");
-    setPlanIsActive(true);
-  }
-
-  async function handleSavePlan() {
-    if (!editingService) {
-      toast({
-        title: "Error",
-        description: "Please save the service first before adding plans",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!planName.trim()) {
-      toast({
-        title: "Error",
-        description: "Plan name is required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!planPrice || parseFloat(planPrice) < 0) {
-      toast({
-        title: "Error",
-        description: "Valid price is required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const url = "/api/admin/subscription-services/plans";
-      const method = editingPlanId ? "PUT" : "POST";
-      const body = editingPlanId
-        ? {
-            id: editingPlanId,
-            planName,
-            price: parseFloat(planPrice) || 0,
-            currency: planCurrency,
-            isActive: planIsActive,
-          }
-        : {
-            serviceId: editingService.id,
-            planName,
-            price: parseFloat(planPrice) || 0,
-            currency: planCurrency,
-            isActive: planIsActive,
-          };
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save plan");
-      }
-
-      toast({
-        title: "Success",
-        description: `Plan ${editingPlanId ? "updated" : "created"} successfully`,
-        variant: "success",
-      });
-
-      handleCancelPlan();
-      
-      // Reload plans
-      const plansResponse = await fetch(`/api/admin/subscription-services/plans?serviceId=${editingService.id}`);
-      if (plansResponse.ok) {
-        const data = await plansResponse.json();
-        setServicePlans(data.plans || []);
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save plan",
-        variant: "destructive",
-      });
-    }
-  }
-
-  async function handleDeletePlan(id: string) {
-    if (!confirm("Are you sure you want to delete this plan?")) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/admin/subscription-services/plans?id=${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to delete plan");
-      }
-
-      toast({
-        title: "Success",
-        description: "Plan deleted successfully",
-        variant: "success",
-      });
-
-      // Reload plans
-      if (editingService) {
-        const plansResponse = await fetch(`/api/admin/subscription-services/plans?serviceId=${editingService.id}`);
-        if (plansResponse.ok) {
-          const data = await plansResponse.json();
-          setServicePlans(data.plans || []);
-        }
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete plan",
-        variant: "destructive",
-      });
-    }
-  }
 
   async function handleDeleteService(id: string) {
     if (!confirm("Are you sure you want to delete this service?")) {
@@ -617,7 +425,7 @@ export function SubscriptionServicesManager({
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
-                    size="small"
+                    size="medium"
                     onClick={() => handleEditCategory(category)}
                   >
                     <Edit className="h-4 w-4 mr-2" />
@@ -633,7 +441,7 @@ export function SubscriptionServicesManager({
                   </Button>
                   <Button
                     variant="outline"
-                    size="small"
+                    size="medium"
                     onClick={() => handleCreateService(category.id)}
                   >
                     <Plus className="h-4 w-4 mr-2" />
@@ -827,7 +635,7 @@ export function SubscriptionServicesManager({
                     <Button
                       type="button"
                       variant="outline"
-                      size="small"
+                      size="medium"
                       onClick={() => setServiceLogo("")}
                     >
                       Remove Logo
@@ -844,152 +652,6 @@ export function SubscriptionServicesManager({
                 onCheckedChange={setServiceIsActive}
               />
             </div>
-
-            {editingService && (
-              <div className="space-y-2 border-t pt-4">
-                <div className="flex items-center justify-between">
-                  <Label>Plans</Label>
-                  {!isAddingPlan && !editingPlanId && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="small"
-                      onClick={handleCreatePlan}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Plan
-                    </Button>
-                  )}
-                </div>
-
-                {/* Add/Edit Plan Form */}
-                {(isAddingPlan || editingPlanId) && (
-                  <div className="p-3 border rounded-lg bg-muted/50 space-y-3">
-                    {editingPlanId && (
-                      <div className="text-xs font-medium text-muted-foreground">
-                        Editing plan
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="inlinePlanName" className="text-xs">Plan Name *</Label>
-                        <Input
-                          id="inlinePlanName"
-                          value={planName}
-                          onChange={(e) => setPlanName(e.target.value)}
-                          placeholder="e.g., Basic, Pro"
-                          className="h-8"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="inlinePlanCurrency" className="text-xs">Currency *</Label>
-                        <select
-                          id="inlinePlanCurrency"
-                          value={planCurrency}
-                          onChange={(e) => setPlanCurrency(e.target.value as "USD" | "CAD")}
-                          className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm h-8"
-                        >
-                          <option value="USD">USD</option>
-                          <option value="CAD">CAD</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="inlinePlanPrice" className="text-xs">Price *</Label>
-                        <Input
-                          id="inlinePlanPrice"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={planPrice}
-                          onChange={(e) => setPlanPrice(e.target.value)}
-                          placeholder="0.00"
-                          className="h-8"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="inlinePlanActive" className="text-xs">Active</Label>
-                        <div className="flex items-center h-8">
-                          <Switch
-                            id="inlinePlanActive"
-                            checked={planIsActive}
-                            onCheckedChange={setPlanIsActive}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="small"
-                        onClick={handleSavePlan}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="small"
-                        onClick={handleCancelPlan}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Plans List */}
-                {servicePlans.length > 0 && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {servicePlans.map((plan) => {
-                      // Skip if this plan is being edited (it will be shown in the edit form above)
-                      if (editingPlanId === plan.id) {
-                        return null;
-                      }
-                      
-                      return (
-                        <div
-                          key={plan.id}
-                          className="flex items-center justify-between p-2 border rounded"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{plan.planName}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {plan.currency} ${plan.price.toFixed(2)}
-                            </span>
-                            <Badge variant={plan.isActive ? "default" : "secondary"}>
-                              {plan.isActive ? "Active" : "Inactive"}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleEditPlan(plan)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDeletePlan(plan.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {!isAddingPlan && !editingPlanId && servicePlans.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No plans added yet</p>
-                )}
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsServiceDialogOpen(false)}>

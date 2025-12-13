@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeBudgetsService } from "@/src/application/budgets/budgets.factory";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+import { requireBudgetOwnership } from "@/src/infrastructure/utils/security";
 import { AppError } from "@/src/application/shared/app-error";
 import { ZodError } from "zod";
 import { revalidateTag } from 'next/cache';
@@ -17,6 +18,9 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify budget ownership
+    await requireBudgetOwnership(id);
     
     const service = makeBudgetsService();
     const budget = await service.updateBudget(id, data);
@@ -61,6 +65,9 @@ export async function DELETE(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    
+    // Verify budget ownership
+    await requireBudgetOwnership(id);
     
     const service = makeBudgetsService();
     await service.deleteBudget(id);

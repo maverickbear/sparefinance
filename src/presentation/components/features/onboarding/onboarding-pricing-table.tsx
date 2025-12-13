@@ -46,7 +46,9 @@ export function OnboardingPricingTable({
         
         if (response.ok) {
           const data = await response.json();
-          setPlans((data.plans || []).sort((a: Plan, b: Plan) => a.priceMonthly - b.priceMonthly));
+          // Only show Pro plan (single plan system)
+          const proPlans = (data.plans || []).filter((plan: Plan) => plan.name === 'pro');
+          setPlans(proPlans.sort((a: Plan, b: Plan) => a.priceMonthly - b.priceMonthly));
         }
       } catch (error) {
         console.error("Error loading plans:", error);
@@ -128,7 +130,7 @@ export function OnboardingPricingTable({
           <Button
             type="button"
             variant={interval === "month" ? "default" : "ghost"}
-            size="small"
+            size="medium"
             onClick={() => setInterval("month")}
             className={interval === "month" ? "shadow-sm" : ""}
           >
@@ -137,7 +139,7 @@ export function OnboardingPricingTable({
           <Button
             type="button"
             variant={interval === "year" ? "default" : "ghost"}
-            size="small"
+            size="medium"
             onClick={() => setInterval("year")}
             className={interval === "year" ? "shadow-sm" : ""}
           >

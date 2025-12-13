@@ -4,6 +4,7 @@ import { PLANNED_HORIZON_DAYS } from "@/src/domain/planned-payments/planned-paym
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

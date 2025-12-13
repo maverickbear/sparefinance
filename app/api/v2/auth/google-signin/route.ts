@@ -9,6 +9,7 @@ import { AppError } from "@/src/application/shared/app-error";
  * Note: OAuth flows typically need to happen client-side due to redirects.
  * This endpoint returns the OAuth URL for the client to redirect to.
  */
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));

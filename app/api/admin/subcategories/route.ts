@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeAdminService } from "@/src/application/admin/admin.factory";
 import { AppError } from "@/src/application/shared/app-error";
+import { getCurrentUserId } from "@/src/application/shared/feature-guard";
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,6 +38,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify user is authenticated and is super_admin
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const service = makeAdminService();
+    const isSuperAdmin = await service.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only super_admin can create system subcategories" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, categoryId, logo } = body;
 
@@ -52,8 +69,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const service = makeAdminService();
     const subcategory = await service.createSystemSubcategory({ name: name.trim(), categoryId, logo });
     return NextResponse.json(subcategory, { status: 201 });
   } catch (error) {
@@ -75,6 +90,21 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    // Verify user is authenticated and is super_admin
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const service = makeAdminService();
+    const isSuperAdmin = await service.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only super_admin can update system subcategories" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { id, name, logo } = body;
 
@@ -91,8 +121,6 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const service = makeAdminService();
     const subcategory = await service.updateSystemSubcategory(id, { name: name.trim(), logo });
     return NextResponse.json(subcategory, { status: 200 });
   } catch (error) {
@@ -114,6 +142,21 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Verify user is authenticated and is super_admin
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const service = makeAdminService();
+    const isSuperAdmin = await service.isSuperAdmin(userId);
+    if (!isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Forbidden: Only super_admin can delete system subcategories" },
+        { status: 403 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
 
@@ -123,8 +166,6 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const service = makeAdminService();
     await service.deleteSystemSubcategory(id);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

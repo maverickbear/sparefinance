@@ -116,7 +116,7 @@ export function BudgetPlanSettings() {
           <Button
             onClick={handleSave}
             disabled={saving || !selectedBudgetRule}
-            size="small"
+            size="medium"
           >
             {saving ? (
               <>

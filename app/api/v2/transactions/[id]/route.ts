@@ -3,6 +3,7 @@ import { makeTransactionsService } from "@/src/application/transactions/transact
 import { TransactionFormData } from "@/src/domain/transactions/transactions.validations";
 import { ZodError } from "zod";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
+import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
 import { AppError } from "@/src/application/shared/app-error";
 import { revalidateTag } from 'next/cache';
 
@@ -17,6 +18,9 @@ export async function GET(
     }
 
     const { id } = await params;
+    
+    // Verify transaction ownership
+    await requireTransactionOwnership(id);
     
     const service = makeTransactionsService();
     const transaction = await service.getTransactionById(id);
@@ -61,6 +65,10 @@ export async function PATCH(
     await throwIfNotAllowed(writeGuard);
 
     const { id } = await params;
+    
+    // Verify transaction ownership
+    await requireTransactionOwnership(id);
+    
     const body = await request.json();
     
     // Handle date conversion
@@ -123,7 +131,11 @@ export async function DELETE(
 
     const { id } = await params;
     
+    // Verify transaction ownership
+    await requireTransactionOwnership(id);
+    
     const service = makeTransactionsService();
+    // Hard delete directly (no soft delete)
     await service.deleteTransaction(id);
     
     // Invalidate cache

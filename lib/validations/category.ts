@@ -1,17 +1,13 @@
 import { z } from "zod";
 
+// NOTE: Groups have been completely removed. Categories now have a direct type property.
 export const categorySchema = z.object({
   name: z.string().min(1, "Name is required"),
-  groupId: z.string().min(1, "Group is required"),
-  // Deprecated: Use groupId instead
-  macroId: z.string().min(1, "Group is required").optional(),
-}).refine(
-  (data) => data.groupId || data.macroId,
-  {
-    message: "Group is required",
-    path: ["groupId"],
-  }
-);
+  type: z.enum(["income", "expense"], {
+    required_error: "Type is required",
+    invalid_type_error: "Type must be either 'income' or 'expense'",
+  }),
+});
 
 export type CategoryFormData = z.infer<typeof categorySchema>;
 

@@ -3,10 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { makeMembersService } from "@/src/application/members/members.factory";
 import { AppError } from "@/src/application/shared/app-error";
 
-/**
- * Note: This route uses request.url which causes prerendering warnings during build.
- * These warnings are expected and do not affect functionality.
- */
+
 export async function GET(request: Request) {
   // Opt out of static generation - this route uses request.url
   noStore();

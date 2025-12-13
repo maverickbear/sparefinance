@@ -10,14 +10,14 @@ import { BaseContact } from "@/src/domain/contact/contact.types";
 
 export interface ContactRow {
   id: string;
-  userId: string | null;
+  user_id: string | null;
   name: string;
   email: string;
   subject: string;
   message: string;
   status: "pending" | "read" | "replied" | "resolved";
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export class ContactRepository {
@@ -37,16 +37,16 @@ export class ContactRepository {
     const now = formatTimestamp(new Date());
 
     const { data: contact, error } = await supabase
-      .from("ContactForm")
+      .from("system_contact_forms")
       .insert({
-        userId: userId || null,
+        user_id: userId || null,
         name: data.name,
         email: data.email,
         subject: data.subject,
         message: data.message,
         status: "pending",
-        createdAt: now,
-        updatedAt: now,
+        created_at: now,
+        updated_at: now,
       })
       .select()
       .single();

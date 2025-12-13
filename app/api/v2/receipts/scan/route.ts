@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { makeReceiptsService } from "@/src/application/receipts/receipts.factory";
 import { getCurrentUserId, guardFeatureAccess } from "@/src/application/shared/feature-guard";
 
+/**
+ * POST /api/v2/receipts/scan
+ * Upload receipt and optionally extract data using AI
+ * 
+ * SIMPLIFIED: Now uses feature flag for AI extraction.
+ * Upload always works, AI extraction is optional.
+ * 
+ * @deprecated Consider using /api/v2/receipts/upload + /api/v2/receipts/[id]/extract separately
+ * Kept for backward compatibility.
+ */
 export async function POST(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -22,13 +32,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "OpenAI API key not configured. Receipt scanning requires AI." },
-        { status: 500 }
-      );
-    }
+    // SIMPLIFIED: AI extraction is now optional (feature flag)
+    // Upload will work even if AI is disabled
 
     // Get file from FormData
     const formData = await request.formData();

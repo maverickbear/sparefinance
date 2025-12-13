@@ -3,17 +3,18 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Button } from "@/components/ui/button";
-import { Plus, CreditCard, Edit, Trash2, Loader2 } from "lucide-react";
+import { Plus, CreditCard, Edit, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { AccountForm } from "@/components/forms/account-form";
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
-import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
-import { DeleteAccountWithTransferDialog } from "@/components/accounts/delete-account-with-transfer-dialog";
+import { ImportStatusBanner } from "@/src/presentation/components/features/accounts/import-status-banner";
+import { DeleteAccountWithTransferDialog } from "@/src/presentation/components/features/accounts/delete-account-with-transfer-dialog";
 import { AccountCard } from "@/components/banking/account-card";
-import { AddAccountSheet } from "@/components/accounts/add-account-sheet";
+import { AddAccountDropdown } from "@/src/presentation/components/features/accounts/add-account-dropdown";
+import { PlaidConnectionsDashboard } from "@/src/presentation/components/features/accounts/plaid-connections-dashboard";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
 import {
   Select,
@@ -50,6 +51,10 @@ interface Account {
   lastSyncedAt?: string | null;
   institutionName?: string | null;
   institutionLogo?: string | null;
+  plaidStatus?: string;
+  plaidErrorCode?: string | null;
+  plaidErrorMessage?: string | null;
+  plaidIsSyncing?: boolean;
 }
 
 
@@ -74,7 +79,8 @@ export default function AccountsPage() {
   const [checkingTransactions, setCheckingTransactions] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
-  const [isAddAccountSheetOpen, setIsAddAccountSheetOpen] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   // Update ref when perf changes (but don't trigger re-renders)
   useEffect(() => {
@@ -126,6 +132,83 @@ export default function AccountsPage() {
     loadAccounts();
   }, [loadAccounts]);
 
+  async function handleSync(accountId: string) {
+    try {
+      setSyncingId(accountId);
+      const response = await fetch('/api/v2/plaid/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Sync completed',
+          description: `Created ${data.transactionsCreated || 0} transactions, skipped ${data.transactionsSkipped || 0} duplicates.`,
+          variant: 'success',
+        });
+        // Reload accounts to update lastSyncedAt
+        await loadAccounts(true);
+      } else {
+        throw new Error(data.error || 'Failed to sync');
+      }
+    } catch (error: any) {
+      console.error('Error syncing account:', error);
+      toast({
+        title: 'Sync failed',
+        description: error.message || 'Failed to sync transactions',
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncingId(null);
+    }
+  }
+
+  async function handleDisconnect(accountId: string) {
+    try {
+      // First, get the Plaid item ID for this account
+      const statusResponse = await fetch(`/api/v2/plaid/accounts/${accountId}/status`);
+      if (!statusResponse.ok) {
+        throw new Error('Account is not connected to Plaid');
+      }
+      const statusData = await statusResponse.json();
+      
+      if (!statusData.itemId) {
+        throw new Error('Account is not connected to Plaid');
+      }
+
+      setDisconnectingId(accountId);
+      const response = await fetch(`/api/v2/plaid/items/${statusData.itemId}/disconnect`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: 'Account disconnected',
+          description: 'The bank account has been disconnected successfully.',
+          variant: 'success',
+        });
+        // Reload accounts to update connection status
+        await loadAccounts(true);
+      } else {
+        throw new Error(data.error || 'Failed to disconnect');
+      }
+    } catch (error: any) {
+      console.error('Error disconnecting account:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to disconnect account',
+        variant: 'destructive',
+      });
+    } finally {
+      setDisconnectingId(null);
+    }
+  }
+
   async function loadAccountLimit() {
     try {
       const { getBillingLimitsAction } = await import("@/lib/actions/billing");
@@ -145,15 +228,7 @@ export default function AccountsPage() {
     if (!checkWriteAccess()) return;
     // Load limit before opening form/sheet for immediate display
     await loadAccountLimit();
-    
-    // Desktop: Open form directly
-    // Mobile: Open sheet with options
-    if (isDesktop) {
-      setSelectedAccount(null);
-      setIsFormOpen(true);
-    } else {
-      setIsAddAccountSheetOpen(true);
-    }
+    // The dropdown will handle opening the appropriate form
   }
 
   async function handleDelete(id: string) {
@@ -325,28 +400,25 @@ export default function AccountsPage() {
           title="Accounts"
         >
         <div className="flex gap-2">
-          {accounts.length > 0 && (
-            <AddAccountSheet
-              open={false}
-              onOpenChange={() => {}}
+          {accounts.length > 0 && canWrite && (
+            <AddAccountDropdown
               onSuccess={() => {
                 loadAccounts(true);
               }}
+              canWrite={canWrite}
             />
-          )}
-          {accounts.length > 0 && canWrite && (
-            <Button
-              onClick={handleAddAccount}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Account
-            </Button>
           )}
         </div>
       </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
         <ImportStatusBanner />
+        
+        {/* Plaid Connections Dashboard */}
+        <div className="mb-6">
+          <PlaidConnectionsDashboard />
+        </div>
+
         <div className="space-y-4">
           {/* Filters - Only show when we have accounts or are loading */}
           {(accounts.length > 0 || loading) && (
@@ -416,7 +488,7 @@ export default function AccountsPage() {
                         </p>
                         <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                           {canWrite && (
-                            <Button onClick={handleAddAccount} size="small" variant="outline">
+                            <Button onClick={handleAddAccount} size="medium" variant="outline">
                               <Plus className="mr-2 h-4 w-4" />
                               Add Account
                             </Button>
@@ -550,8 +622,26 @@ export default function AccountsPage() {
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             {account.isConnected && (
-                              <Badge variant="default" className="bg-sentiment-positive text-white text-xs w-fit">
-                                Connected
+                              <Badge 
+                                variant="default" 
+                                className={cn(
+                                  "text-white text-xs w-fit",
+                                  account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
+                                    ? "bg-red-500 hover:bg-red-600"
+                                    : account.plaidStatus === 'pending_expiration'
+                                    ? "bg-yellow-500 hover:bg-yellow-600"
+                                    : account.plaidIsSyncing
+                                    ? "bg-blue-500 hover:bg-blue-600"
+                                    : "bg-sentiment-positive hover:bg-sentiment-positive/90"
+                                )}
+                              >
+                                {account.plaidIsSyncing 
+                                  ? "Syncing..." 
+                                  : account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
+                                  ? "Error"
+                                  : account.plaidStatus === 'pending_expiration'
+                                  ? "Expiring"
+                                  : "Connected"}
                               </Badge>
                             )}
                             {account.isConnected && account.lastSyncedAt && (() => {
@@ -571,6 +661,14 @@ export default function AccountsPage() {
                                 return null;
                               }
                             })()}
+                            {/* Error indicator */}
+                            {(account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required') && account.plaidErrorMessage && (
+                              <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                {account.plaidErrorCode === 'ITEM_LOGIN_REQUIRED'
+                                  ? 'Reconnection required'
+                                  : account.plaidErrorMessage.substring(0, 50) + (account.plaidErrorMessage.length > 50 ? '...' : '')}
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -579,7 +677,6 @@ export default function AccountsPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
                                 onClick={() => {
                                   if (!checkWriteAccess()) return;
                                   setSelectedAccount(account);
@@ -594,7 +691,7 @@ export default function AccountsPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                className="text-destructive hover:text-destructive"
                                 onClick={() => {
                                   if (!checkWriteAccess()) return;
                                   handleDelete(account.id);
@@ -638,7 +735,7 @@ export default function AccountsPage() {
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                       {canWrite && (
-                        <Button onClick={handleAddAccount} size="small" variant="outline">
+                        <Button onClick={handleAddAccount} size="medium" variant="outline">
                           <Plus className="mr-2 h-4 w-4" />
                           Add Account
                         </Button>
@@ -679,7 +776,11 @@ export default function AccountsPage() {
                         }
                       }}
                       onDelete={handleDelete}
+                      onSync={handleSync}
+                      onDisconnect={handleDisconnect}
                       deletingId={deletingId}
+                      syncingId={syncingId}
+                      disconnectingId={disconnectingId}
                       canDelete={canWrite}
                       canEdit={canWrite}
                     />
@@ -736,7 +837,7 @@ export default function AccountsPage() {
       {canWrite && accounts.length > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-[60] lg:hidden px-4">
           <Button
-            size="small"
+            size="medium"
             className="w-full"
             onClick={handleAddAccount}
           >
@@ -746,16 +847,6 @@ export default function AccountsPage() {
         </div>
       )}
 
-      {/* Add Account Sheet */}
-      <AddAccountSheet
-        open={isAddAccountSheetOpen}
-        onOpenChange={setIsAddAccountSheetOpen}
-        onSuccess={() => {
-          loadAccounts(true); // Force refresh to bypass cache
-          loadAccountLimit();
-        }}
-        canWrite={canWrite}
-      />
       </div>
   );
 }

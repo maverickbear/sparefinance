@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { usePagePerformance } from "@/hooks/use-page-performance";
@@ -22,7 +22,7 @@ const CategorySelectionDialog = dynamic(() => import("@/components/transactions/
 const BlockedFeature = dynamic(() => import("@/components/common/blocked-feature").then(m => ({ default: m.BlockedFeature })), { ssr: false });
 import { formatMoney } from "@/components/common/money";
 import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, ChevronLeft, ChevronRight, Filter, Calendar, Wallet, Tag, Type, XCircle, Receipt, RefreshCw } from "lucide-react";
-import { TransactionsMobileCard } from "@/components/transactions/transactions-mobile-card";
+import { TransactionsMobileCard } from "@/src/presentation/components/features/transactions/transactions-mobile-card";
 import {
   Select,
   SelectContent,
@@ -69,7 +69,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
-import { ImportStatusBanner } from "@/components/accounts/import-status-banner";
+import { ImportStatusBanner } from "@/src/presentation/components/features/accounts/import-status-banner";
 
 interface Account {
   id: string;
@@ -236,6 +236,12 @@ export default function TransactionsPage() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  const handleItemsPerPageChange = useCallback((value: string) => {
+    const newItemsPerPage = Number(value);
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  }, []);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]); // Accumulated transactions for mobile
   const [loadingMore, setLoadingMore] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -266,6 +272,7 @@ export default function TransactionsPage() {
       clearTimeout(resizeTimeout);
     };
   }, []);
+
 
   // Focus date input when editing starts
   useEffect(() => {
@@ -643,20 +650,10 @@ export default function TransactionsPage() {
   async function handleSyncAll() {
     try {
       setSyncingAll(true);
-      const response = await fetch('/api/plaid/sync-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to sync transactions');
-      }
-
+      // Plaid integration removed - sync functionality no longer available
       toast({
-        title: 'Transactions synced',
-        description: `Synced ${data.synced} new transactions from ${data.accounts} account${data.accounts !== 1 ? 's' : ''}. ${data.skipped} were skipped.`,
+        title: 'Sync unavailable',
+        description: 'Bank account sync is no longer available. Please add transactions manually.',
         variant: 'success',
       });
 
@@ -878,18 +875,20 @@ export default function TransactionsPage() {
     openDeleteDialog(
       {
         title: "Delete Transaction",
-        description: "This transaction will be permanently deleted. This action cannot be undone.",
+        description: "This transaction will be permanently deleted. You can undo this action within 7 seconds.",
         variant: "destructive",
         confirmLabel: "Delete",
       },
       async () => {
         const transactionToDelete = transactions.find(t => t.id === id);
+        if (!transactionToDelete) return;
         
         // Optimistic update: remove from UI immediately
         setTransactions(prev => prev.filter(t => t.id !== id));
         setDeletingId(id);
 
         try {
+          // Hard delete directly
           const response = await fetch(`/api/v2/transactions/${id}`, {
             method: "DELETE",
           });
@@ -899,25 +898,21 @@ export default function TransactionsPage() {
             throw new Error(error.error || "Failed to delete transaction");
           }
 
+          // Show success toast
           toast({
             title: "Transaction deleted",
             description: "Your transaction has been deleted successfully.",
             variant: "success",
           });
-          
-          // Reload transactions immediately to ensure UI is in sync with database
-          // This bypasses any browser cache by using cache: 'no-store'
+
+          // Reload transactions
           await loadTransactions();
-          
-          // Refresh router to update dashboard and other pages that depend on transactions
-          // Do this after loadTransactions to ensure we have fresh data
           router.refresh();
+          
         } catch (error) {
           console.error("Error deleting transaction:", error);
           // Revert optimistic update on error
-          if (transactionToDelete) {
-            setTransactions(prev => [...prev, transactionToDelete].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-          }
+          setTransactions(prev => [...prev, transactionToDelete].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
           toast({
             title: "Error",
             description: error instanceof Error ? error.message : "Failed to delete transaction",
@@ -938,7 +933,7 @@ export default function TransactionsPage() {
     openDeleteMultipleDialog(
       {
         title: "Delete Transactions",
-        description: `${count} transaction${count > 1 ? 's will' : ' will'} be permanently deleted. This action cannot be undone.`,
+        description: `${count} transaction${count > 1 ? 's will' : ' will'} be permanently deleted.`,
         variant: "destructive",
         confirmLabel: "Delete",
       },
@@ -951,6 +946,7 @@ export default function TransactionsPage() {
         setSelectedTransactionIds(new Set());
 
         try {
+          // Hard delete directly
           const response = await fetch("/api/v2/transactions/bulk", {
             method: "DELETE",
             headers: {
@@ -964,19 +960,17 @@ export default function TransactionsPage() {
             throw new Error(error.error || "Failed to delete transactions");
           }
 
+          // Show success toast
           toast({
             title: "Transactions deleted",
             description: `${count} transaction${count > 1 ? 's' : ''} deleted successfully.`,
             variant: "success",
           });
-          
-          // Reload transactions immediately to ensure UI is in sync with database
-          // This bypasses any browser cache by using cache: 'no-store'
+
+          // Reload transactions
           await loadTransactions();
-          
-          // Refresh router to update dashboard and other pages that depend on transactions
-          // Do this after loadTransactions to ensure we have fresh data
           router.refresh();
+          
         } catch (error) {
           console.error("Error deleting transactions:", error);
           // Revert optimistic update on error
@@ -1180,35 +1174,59 @@ export default function TransactionsPage() {
         throw new Error(error.error || "Failed to update transaction");
       }
 
-      // Update category/subcategory names in the transaction without reloading
-      if (categoryId) {
-        const updatedCategory = categories.find(c => c.id === categoryId);
-        if (updatedCategory) {
+      // Fetch updated transaction with relations to get category/subcategory data
+      const updatedResponse = await fetch(`/api/v2/transactions/${transactionToUpdate.id}`);
+      if (updatedResponse.ok) {
+        const updatedTransaction = await updatedResponse.json();
+        // Update transaction in state with full category/subcategory data
+        setTransactions(prev => prev.map(tx => 
+          tx.id === transactionToUpdate.id 
+            ? {
+                ...tx,
+                categoryId: updatedTransaction.categoryId || undefined,
+                subcategoryId: updatedTransaction.subcategoryId || undefined,
+                category: updatedTransaction.category || null,
+                subcategory: updatedTransaction.subcategory || null,
+              }
+            : tx
+        ));
+      } else {
+        // Fallback: Update with local category data if API call fails
+        if (categoryId) {
+          const updatedCategory = categories.find(c => c.id === categoryId);
+          if (updatedCategory) {
+            // Find subcategory if provided
+            let updatedSubcategory = null;
+            if (subcategoryId && updatedCategory.subcategories) {
+              updatedSubcategory = updatedCategory.subcategories.find(s => s.id === subcategoryId) || null;
+            }
+            
+            setTransactions(prev => prev.map(tx => 
+              tx.id === transactionToUpdate.id 
+                ? { 
+                    ...tx, 
+                    categoryId: categoryId || undefined, 
+                    subcategoryId: subcategoryId || undefined,
+                    category: { id: updatedCategory.id, name: updatedCategory.name },
+                    subcategory: updatedSubcategory ? { id: updatedSubcategory.id, name: updatedSubcategory.name, logo: updatedSubcategory.logo || null } : null
+                  }
+                : tx
+            ));
+          }
+        } else {
+          // If category is cleared, remove category and subcategory objects
           setTransactions(prev => prev.map(tx => 
             tx.id === transactionToUpdate.id 
               ? { 
                   ...tx, 
-                  categoryId: categoryId || undefined, 
-                  subcategoryId: subcategoryId || undefined,
-                  category: updatedCategory,
-                  subcategory: subcategoryId ? updatedCategory.subcategories?.find(s => s.id === subcategoryId) : undefined
+                  categoryId: undefined, 
+                  subcategoryId: undefined,
+                  category: null,
+                  subcategory: null
                 }
               : tx
           ));
         }
-      } else {
-        // If category is cleared, remove category and subcategory objects
-        setTransactions(prev => prev.map(tx => 
-          tx.id === transactionToUpdate.id 
-            ? { 
-                ...tx, 
-                categoryId: undefined, 
-                subcategoryId: undefined,
-                category: undefined,
-                subcategory: undefined
-              }
-            : tx
-        ));
       }
 
       toast({
@@ -1926,7 +1944,6 @@ export default function TransactionsPage() {
         ) : (
           <>
             {mobileTransactions.map((tx) => {
-            const plaidMeta = tx.plaidMetadata as any;
             return (
               <TransactionsMobileCard
                 key={tx.id}
@@ -2016,13 +2033,10 @@ export default function TransactionsPage() {
               </TableRow>
             ) : (
               paginatedTransactions.map((tx) => {
-                const plaidMeta = tx.plaidMetadata as any;
-                // Support both camelCase (new) and snake_case (old) for backward compatibility
-                const isPending = plaidMeta?.pending;
-                const authorizedDate = plaidMeta?.authorizedDate || plaidMeta?.authorizedDatetime || 
-                                      plaidMeta?.authorized_date || plaidMeta?.authorized_datetime;
-                const currencyCode = plaidMeta?.isoCurrencyCode || plaidMeta?.unofficialCurrencyCode ||
-                                     plaidMeta?.iso_currency_code || plaidMeta?.unofficial_currency_code;
+                // Plaid metadata no longer available
+                const isPending = false;
+                const authorizedDate = null;
+                const currencyCode = null;
                 
                 return (
               <TableRow key={tx.id}>
@@ -2166,7 +2180,7 @@ export default function TransactionsPage() {
                     <Button
                       type="button"
                       variant="link"
-                      size="small"
+                      size="medium"
                       className="text-blue-600 dark:text-blue-400 underline decoration-dashed underline-offset-2"
                       onClick={() => {
                         setTransactionForCategory(tx);
@@ -2289,10 +2303,7 @@ export default function TransactionsPage() {
             <span className="text-sm text-muted-foreground">Items per page:</span>
             <Select
               value={itemsPerPage.toString()}
-              onValueChange={(value) => {
-                setItemsPerPage(Number(value));
-                setCurrentPage(1);
-              }}
+              onValueChange={handleItemsPerPageChange}
             >
               <SelectTrigger className="h-9 w-[80px]">
                 <SelectValue />
@@ -2315,7 +2326,7 @@ export default function TransactionsPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => {
                 const newPage = Math.max(1, currentPage - 1);
                 setCurrentPage(newPage);
@@ -2348,7 +2359,7 @@ export default function TransactionsPage() {
                   <Button
                     key={pageNum}
                     variant={currentPage === pageNum ? "default" : "outline"}
-                    size="small"
+                    size="medium"
                     onClick={() => {
                       setCurrentPage(pageNum);
                       // OPTIMIZED: Clear accumulated transactions on desktop when navigating pages
@@ -2367,7 +2378,7 @@ export default function TransactionsPage() {
             
             <Button
               variant="outline"
-              size="small"
+              size="medium"
               onClick={() => {
                 const newPage = Math.min(totalPages, currentPage + 1);
                 setCurrentPage(newPage);
@@ -2575,7 +2586,7 @@ export default function TransactionsPage() {
                     variant={filters.categoryId === "all" ? "default" : "outline"}
                     onClick={() => setFilters({ ...filters, categoryId: "all" })}
                     className="rounded-full h-9 px-4 text-xs font-medium transition-all hover:scale-105"
-                    size="small"
+                    size="medium"
                   >
                     All
                   </Button>
@@ -2588,7 +2599,7 @@ export default function TransactionsPage() {
                         variant={filters.categoryId === category.id ? "default" : "outline"}
                         onClick={() => setFilters({ ...filters, categoryId: category.id })}
                         className="rounded-full h-9 px-4 text-xs font-medium transition-all hover:scale-105"
-                        size="small"
+                        size="medium"
                       >
                         {category.name}
                         {filters.categoryId === category.id && (

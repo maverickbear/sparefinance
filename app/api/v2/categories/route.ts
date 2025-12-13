@@ -1,34 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
-import { CategoryFormData } from "@/src/domain/categories/categories.validations";
+import { categorySchema } from "@/src/domain/categories/categories.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 import { revalidateTag } from 'next/cache';
 
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const macroId = searchParams.get("macroId");
     const categoryId = searchParams.get("categoryId");
     const all = searchParams.get("all");
-    const consolidated = searchParams.get("consolidated");
 
     const service = makeCategoriesService();
 
     const cacheHeaders = getCacheHeaders('static');
-
-    // If "consolidated" parameter is present, return both groups and categories
-    if (consolidated === "true" || consolidated === "") {
-      const [groups, categories] = await Promise.all([
-        service.getGroups(),
-        service.getAllCategories(),
-      ]);
-      return NextResponse.json({ groups, categories }, { 
-        status: 200,
-        headers: cacheHeaders,
-      });
-    }
 
     // If "all" parameter is present, return all categories
     if (all === "true" || all === "") {
@@ -48,18 +35,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // If macroId is provided, return categories for that group
-    if (macroId) {
-      const categories = await service.getCategoriesByGroup(macroId);
-      return NextResponse.json(categories, { 
-        status: 200,
-        headers: cacheHeaders,
-      });
-    }
-
-    // Default: return groups
-    const groups = await service.getGroups();
-    return NextResponse.json(groups, { 
+    // Default: return all categories
+    const categories = await service.getAllCategories();
+    return NextResponse.json(categories, { 
       status: 200,
       headers: cacheHeaders,
     });
@@ -92,28 +70,15 @@ export async function POST(request: NextRequest) {
     await throwIfNotAllowed(writeGuard);
 
     const body = await request.json();
-    const { name, macroId, groupId } = body;
-
-    // Support both macroId (deprecated) and groupId for backward compatibility
-    const finalGroupId = groupId || macroId;
-
-    if (!name || !finalGroupId) {
-      return NextResponse.json(
-        { error: "Name and groupId (or macroId) are required" },
-        { status: 400 }
-      );
-    }
+    
+    // Validate input using domain schema
+    const validated = categorySchema.parse(body);
 
     const service = makeCategoriesService();
-    const category = await service.createCategory({ 
-      name, 
-      groupId: finalGroupId, 
-      macroId: macroId || undefined 
-    });
+    const category = await service.createCategory(validated);
     
     // Invalidate cache
     revalidateTag('categories', 'max');
-    revalidateTag('groups', 'max');
     
     return NextResponse.json(category, { status: 201 });
   } catch (error) {

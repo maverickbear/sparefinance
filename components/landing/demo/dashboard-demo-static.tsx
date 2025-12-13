@@ -1,18 +1,14 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { SummaryCards } from "@/app/(protected)/dashboard/summary-cards";
 import { FinancialHealthScoreWidget } from "@/app/(protected)/dashboard/widgets/financial-health-score-widget";
-import { ExpensesByCategoryWidget } from "@/app/(protected)/dashboard/widgets/expenses-by-category-widget";
-import { CashFlowTimelineWidget } from "@/app/(protected)/dashboard/widgets/cash-flow-timeline-widget";
-import { BudgetStatusWidget } from "@/app/(protected)/dashboard/widgets/budget-status-widget";
-import { RecurringPaymentsWidget } from "@/app/(protected)/dashboard/widgets/recurring-payments-widget";
-import { SavingsGoalsWidget } from "@/app/(protected)/dashboard/widgets/savings-goals-widget";
-import { SubscriptionsWidget } from "@/app/(protected)/dashboard/widgets/subscriptions-widget";
+// Removed: ExpensesByCategoryWidget and CashFlowTimelineWidget - replaced by new dashboard widgets
+import { BudgetOverviewWidget } from "@/app/(protected)/dashboard/widgets/budget-overview-widget";
+import { SubscriptionsRecurringGoalsWidget } from "@/app/(protected)/dashboard/widgets/subscriptions-recurring-goals-widget";
 import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
 import { InvestmentPortfolioWidget } from "@/app/(protected)/dashboard/widgets/investment-portfolio-widget";
-import { calculateTotalIncome, calculateTotalExpenses } from "@/app/(protected)/dashboard/utils/transaction-helpers";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
 
@@ -36,21 +32,6 @@ const mockLastMonthTransactions: TransactionWithRelations[] = [
   { id: "2", type: "expense", amount: -3700, accountId: "demo-account-1", category: { id: "2", name: "Food & Dining" }, date: new Date(2024, 10, 5) },
 ];
 
-const mockChartTransactions: TransactionWithRelations[] = [
-  { id: "1", type: "income", amount: 5000, accountId: "demo-account-1", date: new Date(2024, 6, 1) },
-  { id: "2", type: "expense", amount: -3200, accountId: "demo-account-1", date: new Date(2024, 6, 15) },
-  { id: "3", type: "income", amount: 5500, accountId: "demo-account-1", date: new Date(2024, 7, 1) },
-  { id: "4", type: "expense", amount: -3500, accountId: "demo-account-1", date: new Date(2024, 7, 15) },
-  { id: "5", type: "income", amount: 6000, accountId: "demo-account-1", date: new Date(2024, 8, 1) },
-  { id: "6", type: "expense", amount: -3800, accountId: "demo-account-1", date: new Date(2024, 8, 15) },
-  { id: "7", type: "income", amount: 6500, accountId: "demo-account-1", date: new Date(2024, 9, 1) },
-  { id: "8", type: "expense", amount: -4000, accountId: "demo-account-1", date: new Date(2024, 9, 15) },
-  { id: "9", type: "income", amount: 7000, accountId: "demo-account-1", date: new Date(2024, 10, 1) },
-  { id: "10", type: "expense", amount: -4200, accountId: "demo-account-1", date: new Date(2024, 10, 15) },
-  { id: "11", type: "income", amount: 8000, accountId: "demo-account-1", date: new Date(2024, 11, 1) },
-  { id: "12", type: "expense", amount: -3500, accountId: "demo-account-1", date: new Date(2024, 11, 15) },
-];
-
 const mockFinancialHealth = {
   score: 85,
   classification: "Excellent" as const,
@@ -70,38 +51,62 @@ const mockFinancialHealth = {
 const mockBudgets = [
   {
     id: "1",
+    period: "2024-12-01 00:00:00",
+    userId: "demo-user",
+    isRecurring: true,
     category: { id: "2", name: "Food & Dining" },
+    categoryId: "2",
+    subcategoryId: null,
+    note: null,
     amount: 1600,
     actualSpend: 1200,
     percentage: 75,
-    status: "ok",
+    status: "ok" as const,
     displayName: "Food & Dining",
   },
   {
     id: "2",
+    period: "2024-12-01 00:00:00",
+    userId: "demo-user",
+    isRecurring: true,
     category: { id: "3", name: "Transportation" },
+    categoryId: "3",
+    subcategoryId: null,
+    note: null,
     amount: 800,
     actualSpend: 672,
     percentage: 84,
-    status: "warning",
+    status: "warning" as const,
     displayName: "Transportation",
   },
   {
     id: "3",
+    period: "2024-12-01 00:00:00",
+    userId: "demo-user",
+    isRecurring: true,
     category: { id: "6", name: "Shopping" },
+    categoryId: "6",
+    subcategoryId: null,
+    note: null,
     amount: 400,
     actualSpend: 475,
     percentage: 118.75,
-    status: "over",
+    status: "over" as const,
     displayName: "Shopping",
   },
   {
     id: "4",
+    period: "2024-12-01 00:00:00",
+    userId: "demo-user",
+    isRecurring: true,
     category: { id: "4", name: "Entertainment" },
+    categoryId: "4",
+    subcategoryId: null,
+    note: null,
     amount: 500,
     actualSpend: 450,
     percentage: 90,
-    status: "ok",
+    status: "ok" as const,
     displayName: "Entertainment",
   },
 ];
@@ -110,26 +115,56 @@ const mockGoals = [
   {
     id: "1",
     name: "Emergency Fund",
-    type: "savings",
     targetAmount: 10000,
-    currentAmount: 6500,
-    savedAmount: 6500,
+    currentBalance: 6500,
+    incomePercentage: 20,
+    priority: "High" as const,
+    isPaused: false,
+    isCompleted: false,
+    userId: "demo-user",
+    householdId: null,
+    monthlyContribution: 500,
+    monthsToGoal: 7,
+    progressPct: 65,
+    incomeBasis: 5000,
+    createdAt: new Date(2024, 0, 1).toISOString(),
+    updatedAt: new Date(2024, 11, 1).toISOString(),
   },
   {
     id: "2",
     name: "Vacation",
-    type: "savings",
     targetAmount: 5000,
-    currentAmount: 2500,
-    savedAmount: 2500,
+    currentBalance: 2500,
+    incomePercentage: 10,
+    priority: "Medium" as const,
+    isPaused: false,
+    isCompleted: false,
+    userId: "demo-user",
+    householdId: null,
+    monthlyContribution: 300,
+    monthsToGoal: 9,
+    progressPct: 50,
+    incomeBasis: 5000,
+    createdAt: new Date(2024, 0, 1).toISOString(),
+    updatedAt: new Date(2024, 11, 1).toISOString(),
   },
   {
     id: "3",
     name: "New Car",
-    type: "savings",
     targetAmount: 20000,
-    currentAmount: 8000,
-    savedAmount: 8000,
+    currentBalance: 8000,
+    incomePercentage: 15,
+    priority: "Medium" as const,
+    isPaused: false,
+    isCompleted: false,
+    userId: "demo-user",
+    householdId: null,
+    monthlyContribution: 1000,
+    monthsToGoal: 12,
+    progressPct: 40,
+    incomeBasis: 5000,
+    createdAt: new Date(2024, 0, 1).toISOString(),
+    updatedAt: new Date(2024, 11, 1).toISOString(),
   },
 ];
 
@@ -139,28 +174,37 @@ const mockRecurringPayments = [
     date: new Date(2024, 11, 15),
     type: "expense" as const,
     amount: -1200,
+    accountId: "1",
     description: "Rent Payment",
-    account: { id: "1", name: "Checking Account" },
+    account: { id: "1", name: "Checking Account", type: "checking" },
     category: { id: "1", name: "Housing" },
+    categoryId: "1",
+    subcategoryId: null,
   },
   {
     id: "2",
     date: new Date(2024, 11, 20),
     type: "expense" as const,
     amount: -350,
+    accountId: "1",
     description: "Electricity Bill",
-    account: { id: "1", name: "Checking Account" },
+    account: { id: "1", name: "Checking Account", type: "checking" },
     category: { id: "5", name: "Utilities" },
+    categoryId: "5",
+    subcategoryId: null,
   },
   {
     id: "3",
     date: new Date(2024, 11, 1),
     type: "expense" as const,
     amount: -99,
+    accountId: "1",
     description: "Netflix",
-    account: { id: "1", name: "Checking Account" },
+    account: { id: "1", name: "Checking Account", type: "checking" },
     category: { id: "4", name: "Entertainment" },
+    categoryId: "4",
     subcategory: { id: "1", name: "Streaming", logo: null },
+    subcategoryId: "1",
   },
 ];
 
@@ -227,8 +271,6 @@ export function DashboardDemoStatic() {
   const totalBalance = 30500;
   const savings = 25000;
   const lastMonthTotalBalance = 28000;
-  const liabilities: any[] = [];
-  const debts: any[] = [];
 
   // Mock accounts for SummaryCards
   const mockAccounts = [
@@ -247,23 +289,6 @@ export function DashboardDemoStatic() {
       userId: "demo-user",
     },
   ];
-
-  // Calculate income and expenses using helper functions
-  const currentIncome = useMemo(() => {
-    return calculateTotalIncome(mockSelectedMonthTransactions);
-  }, []);
-
-  const currentExpenses = useMemo(() => {
-    return calculateTotalExpenses(mockSelectedMonthTransactions);
-  }, []);
-
-  const lastMonthIncome = useMemo(() => {
-    return calculateTotalIncome(mockLastMonthTransactions);
-  }, []);
-
-  const lastMonthExpenses = useMemo(() => {
-    return calculateTotalExpenses(mockLastMonthTransactions);
-  }, []);
 
   // Calculate net worth
   const totalAssets = totalBalance;
@@ -345,38 +370,30 @@ export function DashboardDemoStatic() {
             lastMonthTransactions={mockLastMonthTransactions}
             expectedIncomeRange={null}
           />
-          <ExpensesByCategoryWidget
-            selectedMonthTransactions={mockSelectedMonthTransactions}
-            selectedMonthDate={selectedMonthDate}
-          />
+          {/* Expenses by Category - Removed widget, using placeholder */}
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Expenses by Category widget (demo placeholder)</p>
+          </div>
         </div>
 
-        {/* Cash Flow Timeline and Budget Status side by side */}
+        {/* Budget Overview */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-          <CashFlowTimelineWidget
-            chartTransactions={mockChartTransactions}
-            selectedMonthDate={selectedMonthDate}
-          />
-          <BudgetStatusWidget
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Cash Flow Timeline widget (demo placeholder)</p>
+          </div>
+          <BudgetOverviewWidget
             budgets={mockBudgets}
           />
         </div>
 
-        {/* Recurring Payments and Savings Goals side by side */}
+        {/* Subscriptions, Recurring & Goals */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-          <RecurringPaymentsWidget
+          <SubscriptionsRecurringGoalsWidget
+            subscriptions={mockSubscriptions}
             recurringPayments={mockRecurringPayments}
-            monthlyIncome={currentIncome}
-          />
-          <SavingsGoalsWidget
             goals={mockGoals}
           />
         </div>
-
-        {/* Subscriptions Widget - Full Width */}
-        <SubscriptionsWidget
-          subscriptions={mockSubscriptions}
-        />
 
         {/* Dashboard Grid */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

@@ -16,10 +16,10 @@ export interface InvestmentTransactionRow {
   price: number | null;
   fees: number;
   notes: string | null;
-  securityId: string | null;
-  accountId: string;
-  createdAt: string;
-  updatedAt: string;
+  security_id: string | null;
+  account_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SecurityRow {
@@ -28,28 +28,28 @@ export interface SecurityRow {
   name: string;
   class: string;
   sector: string | null;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SecurityPriceRow {
   id: string;
-  securityId: string;
+  security_id: string;
   date: string;
   price: number;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface PositionRow {
-  securityId: string;
-  accountId: string;
-  openQuantity: number;
-  averageEntryPrice: number;
-  totalCost: number;
-  currentPrice: number;
-  currentMarketValue: number;
-  openPnl: number;
-  lastUpdatedAt: string;
+  security_id: string;
+  account_id: string;
+  open_quantity: number;
+  average_entry_price: number;
+  total_cost: number;
+  current_price: number;
+  current_market_value: number;
+  open_pnl: number;
+  last_updated_at: string;
 }
 
 export class InvestmentsRepository {
@@ -69,16 +69,16 @@ export class InvestmentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     let query = supabase
-      .from("InvestmentTransaction")
-      .select("id, date, type, quantity, price, fees, notes, securityId, accountId, createdAt, updatedAt")
+      .from("investment_transactions")
+      .select("id, date, type, quantity, price, fees, notes, security_id, account_id, created_at, updated_at")
       .order("date", { ascending: false });
 
     if (filters?.accountId) {
-      query = query.eq("accountId", filters.accountId);
+      query = query.eq("account_id", filters.accountId);
     }
 
     if (filters?.securityId) {
-      query = query.eq("securityId", filters.securityId);
+      query = query.eq("security_id", filters.securityId);
     }
 
     if (filters?.startDate) {
@@ -108,7 +108,7 @@ export class InvestmentsRepository {
     const supabase = await createServerClient();
 
     const { data: transaction, error } = await supabase
-      .from("InvestmentTransaction")
+      .from("investment_transactions")
       .select("*")
       .eq("id", id)
       .single();
@@ -142,9 +142,35 @@ export class InvestmentsRepository {
   }): Promise<InvestmentTransactionRow> {
     const supabase = await createServerClient();
 
+    const insertData: {
+      id: string;
+      date: string;
+      account_id: string;
+      security_id: string | null;
+      type: string;
+      quantity: number | null;
+      price: number | null;
+      fees: number;
+      notes: string | null;
+      created_at: string;
+      updated_at: string;
+    } = {
+      id: data.id,
+      date: data.date,
+      account_id: data.accountId,
+      security_id: data.securityId,
+      type: data.type,
+      quantity: data.quantity,
+      price: data.price,
+      fees: data.fees,
+      notes: data.notes,
+      created_at: data.createdAt,
+      updated_at: data.updatedAt,
+    };
+
     const { data: transaction, error } = await supabase
-      .from("InvestmentTransaction")
-      .insert(data)
+      .from("investment_transactions")
+      .insert(insertData)
       .select()
       .single();
 
@@ -158,19 +184,49 @@ export class InvestmentsRepository {
 
   /**
    * Update an investment transaction
+   * Receives camelCase parameters and maps to snake_case for database
    */
   async updateTransaction(
     id: string,
-    data: Partial<Omit<InvestmentTransactionRow, "id" | "createdAt">>
+    data: Partial<{
+      date: string;
+      type: string;
+      quantity: number | null;
+      price: number | null;
+      fees: number;
+      notes: string | null;
+      securityId: string | null;
+      accountId: string;
+    }>
   ): Promise<InvestmentTransactionRow> {
     const supabase = await createServerClient();
 
+    // Map camelCase to snake_case for database
+    const updateData: {
+      date?: string;
+      type?: string;
+      quantity?: number | null;
+      price?: number | null;
+      fees?: number;
+      notes?: string | null;
+      security_id?: string | null;
+      account_id?: string;
+      updated_at: string;
+    } = {
+      updated_at: formatTimestamp(new Date()),
+    };
+    if (data.date !== undefined) updateData.date = data.date;
+    if (data.type !== undefined) updateData.type = data.type;
+    if (data.quantity !== undefined) updateData.quantity = data.quantity;
+    if (data.price !== undefined) updateData.price = data.price;
+    if (data.fees !== undefined) updateData.fees = data.fees;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.securityId !== undefined) updateData.security_id = data.securityId;
+    if (data.accountId !== undefined) updateData.account_id = data.accountId;
+
     const { data: transaction, error } = await supabase
-      .from("InvestmentTransaction")
-      .update({
-        ...data,
-        updatedAt: formatTimestamp(new Date()),
-      })
+      .from("investment_transactions")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -190,7 +246,7 @@ export class InvestmentsRepository {
     const supabase = await createServerClient();
 
     const { error } = await supabase
-      .from("InvestmentTransaction")
+      .from("investment_transactions")
       .delete()
       .eq("id", id);
 
@@ -211,13 +267,13 @@ export class InvestmentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     let query = supabase
-      .from("Position")
-      .select("securityId, accountId, openQuantity, averageEntryPrice, totalCost, currentPrice, currentMarketValue, openPnl, lastUpdatedAt")
-      .gt("openQuantity", 0)
-      .order("lastUpdatedAt", { ascending: false });
+      .from("positions")
+      .select("security_id, account_id, open_quantity, average_entry_price, total_cost, current_price, current_market_value, open_pnl, last_updated_at")
+      .gt("open_quantity", 0)
+      .order("last_updated_at", { ascending: false });
 
     if (accountId) {
-      query = query.eq("accountId", accountId);
+      query = query.eq("account_id", accountId);
     }
 
     const { data, error } = await query;
@@ -237,7 +293,7 @@ export class InvestmentsRepository {
     const supabase = await createServerClient();
 
     const { data, error } = await supabase
-      .from("Security")
+      .from("securities")
       .select("*")
       .order("symbol", { ascending: true });
 
@@ -264,7 +320,7 @@ export class InvestmentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data, error } = await supabase
-      .from("Security")
+      .from("securities")
       .select("id, symbol, name, class, sector")
       .in("id", securityIds);
 
@@ -289,9 +345,25 @@ export class InvestmentsRepository {
   }): Promise<SecurityRow> {
     const supabase = await createServerClient();
 
+    const insertData: {
+      id: string;
+      symbol: string;
+      name: string;
+      class: string;
+      created_at: string;
+      updated_at: string;
+    } = {
+      id: data.id,
+      symbol: data.symbol,
+      name: data.name,
+      class: data.class,
+      created_at: data.createdAt,
+      updated_at: data.updatedAt,
+    };
+
     const { data: security, error } = await supabase
-      .from("Security")
-      .insert(data)
+      .from("securities")
+      .insert(insertData)
       .select()
       .single();
 
@@ -310,12 +382,12 @@ export class InvestmentsRepository {
     const supabase = await createServerClient();
 
     let query = supabase
-      .from("SecurityPrice")
+      .from("security_prices")
       .select("*")
       .order("date", { ascending: false });
 
     if (securityId) {
-      query = query.eq("securityId", securityId);
+      query = query.eq("security_id", securityId);
     }
 
     const { data, error } = await query;
@@ -340,9 +412,23 @@ export class InvestmentsRepository {
   }): Promise<SecurityPriceRow> {
     const supabase = await createServerClient();
 
+    const insertData: {
+      id: string;
+      security_id: string;
+      date: string;
+      price: number;
+      created_at: string;
+    } = {
+      id: data.id,
+      security_id: data.securityId,
+      date: data.date,
+      price: data.price,
+      created_at: data.createdAt,
+    };
+
     const { data: price, error } = await supabase
-      .from("SecurityPrice")
-      .insert(data)
+      .from("security_prices")
+      .insert(insertData)
       .select()
       .single();
 
@@ -360,11 +446,11 @@ export class InvestmentsRepository {
   async findInvestmentAccounts(
     accessToken?: string,
     refreshToken?: string
-  ): Promise<Array<{ id: string; name: string; type: string; userId: string; householdId: string | null; createdAt: string; updatedAt: string }>> {
+  ): Promise<Array<{ id: string; name: string; type: string; user_id: string; household_id: string | null; created_at: string; updated_at: string }>> {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data, error } = await supabase
-      .from("Account")
+      .from("accounts")
       .select("*")
       .eq("type", "investment")
       .order("name", { ascending: true });
@@ -379,7 +465,7 @@ export class InvestmentsRepository {
       return [];
     }
 
-    return (data || []) as Array<{ id: string; name: string; type: string; userId: string; householdId: string | null; createdAt: string; updatedAt: string }>;
+    return (data || []) as Array<{ id: string; name: string; type: string; user_id: string; household_id: string | null; created_at: string; updated_at: string }>;
   }
 
   /**
@@ -389,7 +475,7 @@ export class InvestmentsRepository {
     accountIds: string[],
     accessToken?: string,
     refreshToken?: string
-  ): Promise<Array<{ accountId: string; totalEquity: number | null; marketValue: number | null; cash: number | null }>> {
+  ): Promise<Array<{ account_id: string; total_equity: number | null; market_value: number | null; cash: number | null }>> {
     if (accountIds.length === 0) {
       return [];
     }
@@ -397,17 +483,17 @@ export class InvestmentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data, error } = await supabase
-      .from("InvestmentAccount")
-      .select("accountId, totalEquity, marketValue, cash")
-      .in("accountId", accountIds)
-      .not("accountId", "is", null);
+      .from("investment_accounts")
+      .select("account_id, total_equity, market_value, cash")
+      .in("account_id", accountIds)
+      .not("account_id", "is", null);
 
     if (error) {
       logger.error("[InvestmentsRepository] Error fetching investment account data:", error);
       return [];
     }
 
-    return (data || []) as Array<{ accountId: string; totalEquity: number | null; marketValue: number | null; cash: number | null }>;
+    return (data || []) as Array<{ account_id: string; total_equity: number | null; market_value: number | null; cash: number | null }>;
   }
 
   /**
@@ -417,7 +503,7 @@ export class InvestmentsRepository {
     accountIds: string[],
     accessToken?: string,
     refreshToken?: string
-  ): Promise<Array<{ accountId: string; totalValue: number }>> {
+  ): Promise<Array<{ account_id: string; totalValue: number }>> {
     if (accountIds.length === 0) {
       return [];
     }
@@ -425,16 +511,19 @@ export class InvestmentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data, error } = await supabase
-      .from("AccountInvestmentValue")
-      .select("accountId, totalValue")
-      .in("accountId", accountIds);
+      .from("account_investment_values")
+      .select("account_id, market_value")
+      .in("account_id", accountIds);
 
     if (error) {
       logger.error("[InvestmentsRepository] Error fetching account investment values:", error);
       return [];
     }
 
-    return (data || []) as Array<{ accountId: string; totalValue: number }>;
+    return (data || []).map((row: { account_id: string; market_value: number | null }) => ({
+      account_id: row.account_id,
+      totalValue: row.market_value || 0,
+    }));
   }
 
   /**
@@ -452,10 +541,10 @@ export class InvestmentsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data, error } = await supabase
-      .from("InvestmentAccount")
-      .select("id, accountId")
-      .in("accountId", accountIds)
-      .not("accountId", "is", null);
+      .from("investment_accounts")
+      .select("id, account_id")
+      .in("account_id", accountIds)
+      .not("account_id", "is", null);
 
     if (error) {
       logger.error("[InvestmentsRepository] Error fetching investment account mapping:", error);
@@ -463,13 +552,326 @@ export class InvestmentsRepository {
     }
 
     const map = new Map<string, string>();
-    data?.forEach((ia: any) => {
-      if (ia.accountId) {
-        map.set(ia.id, ia.accountId);
+    data?.forEach((ia: { id: string; account_id: string | null }) => {
+      if (ia.account_id) {
+        map.set(ia.id, ia.account_id);
       }
     });
 
     return map;
+  }
+
+  /**
+   * Find all investment holdings for a user
+   */
+  async findHoldings(
+    userId: string,
+    accountId?: string
+  ): Promise<Array<{
+    id: string;
+    account_id: string;
+    symbol: string;
+    quantity: number;
+    average_price: number;
+    current_price: number;
+    last_price_update_at: string | null;
+    created_at: string;
+    updated_at: string;
+  }>> {
+    const supabase = await createServerClient();
+
+    let query = supabase
+      .from("investment_holdings")
+      .select("*")
+      .eq("user_id", userId);
+
+    if (accountId) {
+      query = query.eq("account_id", accountId);
+    }
+
+    const { data, error } = await query.order("symbol", { ascending: true });
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error fetching holdings:", error);
+      return [];
+    }
+
+    return (data || []) as Array<{
+      id: string;
+      account_id: string;
+      symbol: string;
+      quantity: number;
+      average_price: number;
+      current_price: number;
+      last_price_update_at: string | null;
+      created_at: string;
+      updated_at: string;
+    }>;
+  }
+
+  /**
+   * Upsert investment holdings (insert or update)
+   */
+  async upsertHoldings(
+    userId: string,
+    accountId: string,
+    holdings: Array<{
+      symbol: string;
+      quantity: number;
+      averagePrice: number;
+      currentPrice: number;
+    }>
+  ): Promise<void> {
+    const supabase = await createServerClient();
+
+    const holdingsData = holdings.map((holding) => ({
+      id: `${accountId}-${holding.symbol}`,
+      account_id: accountId,
+      user_id: userId,
+      symbol: holding.symbol,
+      quantity: holding.quantity,
+      average_price: holding.averagePrice,
+      current_price: holding.currentPrice,
+      last_price_update_at: formatTimestamp(new Date()),
+      updated_at: formatTimestamp(new Date()),
+    }));
+
+    const { error } = await supabase
+      .from("investment_holdings")
+      .upsert(holdingsData, {
+        onConflict: "id",
+      });
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error upserting holdings:", error);
+      throw new Error(`Failed to upsert holdings: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update holding price
+   */
+  async updateHoldingPrice(
+    holdingId: string,
+    price: number
+  ): Promise<void> {
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("investment_holdings")
+      .update({
+        current_price: price,
+        last_price_update_at: formatTimestamp(new Date()),
+        updated_at: formatTimestamp(new Date()),
+      })
+      .eq("id", holdingId);
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error updating holding price:", error);
+      throw new Error(`Failed to update holding price: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find all manual investments for a user
+   */
+  async findManualInvestments(
+    userId: string
+  ): Promise<Array<{
+    id: string;
+    user_id: string;
+    title: string;
+    current_value: number;
+    estimated_growth: number | null;
+    last_updated_at: string;
+    created_at: string;
+    updated_at: string;
+  }>> {
+    const supabase = await createServerClient();
+
+    const { data, error } = await supabase
+      .from("manual_investments")
+      .select("*")
+      .eq("user_id", userId)
+      .order("title", { ascending: true });
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error fetching manual investments:", error);
+      return [];
+    }
+
+    return (data || []) as Array<{
+      id: string;
+      user_id: string;
+      title: string;
+      current_value: number;
+      estimated_growth: number | null;
+      last_updated_at: string;
+      created_at: string;
+      updated_at: string;
+    }>;
+  }
+
+  /**
+   * Create a manual investment
+   */
+  async createManualInvestment(
+    userId: string,
+    data: {
+      id: string;
+      title: string;
+      currentValue: number;
+      estimatedGrowth: number | null;
+    }
+  ): Promise<{
+    id: string;
+    user_id: string;
+    title: string;
+    current_value: number;
+    estimated_growth: number | null;
+    last_updated_at: string;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const supabase = await createServerClient();
+
+    const insertData = {
+      id: data.id,
+      user_id: userId,
+      title: data.title,
+      current_value: data.currentValue,
+      estimated_growth: data.estimatedGrowth,
+      last_updated_at: formatTimestamp(new Date()),
+      created_at: formatTimestamp(new Date()),
+      updated_at: formatTimestamp(new Date()),
+    };
+
+    const { data: investment, error } = await supabase
+      .from("manual_investments")
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error creating manual investment:", error);
+      throw new Error(`Failed to create manual investment: ${error.message}`);
+    }
+
+    return investment as {
+      id: string;
+      user_id: string;
+      title: string;
+      current_value: number;
+      estimated_growth: number | null;
+      last_updated_at: string;
+      created_at: string;
+      updated_at: string;
+    };
+  }
+
+  /**
+   * Update a manual investment
+   */
+  async updateManualInvestment(
+    id: string,
+    data: {
+      title?: string;
+      currentValue?: number;
+      estimatedGrowth?: number | null;
+    }
+  ): Promise<void> {
+    const supabase = await createServerClient();
+
+    const updateData: {
+      updated_at: string;
+      title?: string;
+      current_value?: number;
+      estimated_growth?: number;
+      last_updated_at?: string;
+    } = {
+      updated_at: formatTimestamp(new Date()),
+    };
+
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.currentValue !== undefined) updateData.current_value = data.currentValue;
+    if (data.estimatedGrowth !== undefined) updateData.estimated_growth = data.estimatedGrowth ?? undefined;
+    
+    if (data.currentValue !== undefined || data.estimatedGrowth !== undefined) {
+      updateData.last_updated_at = formatTimestamp(new Date());
+    }
+
+    const { error } = await supabase
+      .from("manual_investments")
+      .update(updateData)
+      .eq("id", id);
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error updating manual investment:", error);
+      throw new Error(`Failed to update manual investment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete a manual investment
+   */
+  async deleteManualInvestment(id: string): Promise<void> {
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("manual_investments")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error deleting manual investment:", error);
+      throw new Error(`Failed to delete manual investment: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update investment account sync timestamp
+   */
+  async updateAccountSyncTime(
+    accountId: string,
+    lastSyncedAt: Date
+  ): Promise<void> {
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("investment_accounts")
+      .update({
+        last_synced_at: formatTimestamp(lastSyncedAt),
+        updated_at: formatTimestamp(new Date()),
+      })
+      .eq("id", accountId);
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error updating account sync time:", error);
+      throw new Error(`Failed to update account sync time: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update investment account balance
+   */
+  async updateAccountBalance(
+    accountId: string,
+    balance: number
+  ): Promise<void> {
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("investment_accounts")
+      .update({
+        total_equity: balance,
+        updated_at: formatTimestamp(new Date()),
+      })
+      .eq("id", accountId);
+
+    if (error) {
+      logger.error("[InvestmentsRepository] Error updating account balance:", error);
+      throw new Error(`Failed to update account balance: ${error.message}`);
+    }
   }
 }
 

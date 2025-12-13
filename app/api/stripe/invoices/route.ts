@@ -11,6 +11,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   typescript: true,
 });
 
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient();
@@ -25,11 +26,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Get subscription to find Stripe customer ID
+    // FIX: Use app_subscriptions table (not system.subscriptions) and snake_case column names
     const { data: subscription, error: subError } = await supabase
-      .from("Subscription")
-      .select("stripeCustomerId")
-      .eq("userId", authUser.id)
-      .order("createdAt", { ascending: false })
+      .from("app_subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", authUser.id)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
@@ -37,7 +39,10 @@ export async function GET(request: NextRequest) {
       console.error("[INVOICES] Error fetching subscription:", subError);
     }
 
-    if (!subscription?.stripeCustomerId) {
+    // Map snake_case to camelCase for use
+    const stripeCustomerId = subscription?.stripe_customer_id;
+    
+    if (!stripeCustomerId) {
       return NextResponse.json({
         invoices: [],
         hasMore: false,
@@ -53,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch invoices from Stripe
     const params: Stripe.InvoiceListParams = {
-      customer: subscription.stripeCustomerId,
+      customer: stripeCustomerId,
       limit: limit + 1, // Fetch one extra to check if there are more
     };
 

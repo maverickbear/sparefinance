@@ -462,7 +462,7 @@ export function HouseholdIncomeSettings() {
           <Button
             onClick={handleSave}
             disabled={saving || (!selectedIncome && !(useCustom && customIncome && customIncome > 0)) || !selectedCountry || !selectedStateOrProvince}
-            size="small"
+            size="medium"
           >
             {saving ? (
               <>

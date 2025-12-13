@@ -17,12 +17,24 @@ export const metadata = {
 
 export default async function TermsOfServicePage() {
   // Fetch plans to get dynamic plan names
-  const subscriptionsService = makeSubscriptionsService();
-  const plans = await subscriptionsService.getPlans();
-  const essentialPlan = plans.find(p => p.id === 'essential');
-  const proPlan = plans.find(p => p.id === 'pro');
-  const essentialPlanName = essentialPlan?.name || 'ESSENTIAL';
-  const proPlanName = proPlan?.name || 'PRO';
+  let proPlanName = 'PRO';
+  let proPlan: { name: string; priceMonthly: number; priceYearly: number } | undefined = undefined;
+  try {
+    const subscriptionsService = makeSubscriptionsService();
+    const plans = await subscriptionsService.getPlans();
+    // Only Pro plan exists now
+    proPlan = plans.find(p => p.name === 'pro');
+    proPlanName = proPlan?.name || 'PRO';
+  } catch (error: any) {
+    // Handle prerendering errors gracefully - use default during build
+    const errorMessage = error?.message || '';
+    if (!errorMessage.includes('prerender') && 
+        !errorMessage.includes('HANGING_PROMISE') &&
+        !errorMessage.includes('fetch() rejects')) {
+      console.error("Error fetching plans:", error);
+    }
+    // Use default 'PRO' if fetch fails
+  }
   return (
     <div className="min-h-screen bg-background">
       <LandingHeader isAuthenticated={false} />
@@ -124,9 +136,9 @@ export default async function TermsOfServicePage() {
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                   <li><strong>Household Members:</strong> Available on the {proPlanName} plan. You may invite family members to your account. Each member maintains separate financial data, and you are responsible for managing member access and permissions. The account owner can view and manage all household members' data.</li>
                   <li><strong>AI-Powered Features:</strong> The Service uses OpenAI-powered artificial intelligence to provide category suggestions, financial insights, and automated categorization based on your historical data. These are suggestions only, and you are responsible for verifying and approving all AI-generated content. We do not guarantee the accuracy of AI suggestions.</li>
-                  <li><strong>CSV Import/Export:</strong> Available on {essentialPlanName} and {proPlanName} plans. You may import and export your financial data in CSV format. You are responsible for the accuracy of imported data and for maintaining backups of exported data. Imported data may require manual verification and categorization.</li>
+                  <li><strong>CSV Import/Export:</strong> You may import and export your financial data in CSV format. You are responsible for the accuracy of imported data and for maintaining backups of exported data. Imported data may require manual verification and categorization.</li>
                   <li><strong>Investment Tracking:</strong> You may track investments, securities, positions, and portfolio performance. Investment data may be entered manually. We do not provide investment advice and are not responsible for investment decisions made based on data displayed in the Service.</li>
-                  <li><strong>Debt Management:</strong> You may track loans, mortgages, credit cards, and other debts. Debt information may be synced from Plaid or entered manually. We do not provide debt management advice.</li>
+                  <li><strong>Debt Management:</strong> You may track loans, mortgages, credit cards, and other debts. Debt information may be entered manually or imported via CSV. We do not provide debt management advice.</li>
                   <li><strong>Plan Limits:</strong> Your subscription plan includes specific limits (e.g., number of transactions per month, number of accounts). You agree not to exceed these limits and understand that exceeding limits may result in service restrictions or require plan upgrades.</li>
                 </ul>
               </div>
@@ -166,15 +178,14 @@ export default async function TermsOfServicePage() {
                   Spare Finance offers the following subscription plans:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
-                  <li><strong>{essentialPlanName} Plan:</strong> ${essentialPlan?.priceMonthly.toFixed(2) || '7.99'}/month or ${essentialPlan?.priceYearly.toFixed(2) || '79.90'}/year - Includes 500 transactions per month, 10 accounts, investments, advanced reports, CSV import/export, and AI-powered categorization</li>
-                  <li><strong>{proPlanName} Plan:</strong> ${proPlan?.priceMonthly.toFixed(2) || '14.99'}/month or ${proPlan?.priceYearly.toFixed(2) || '149.90'}/year - Includes unlimited transactions and accounts, plus all {essentialPlanName} plan features</li>
+                  <li><strong>{proPlanName} Plan:</strong> ${proPlan?.priceMonthly.toFixed(2) || '14.99'}/month or ${proPlan?.priceYearly.toFixed(2) || '149.90'}/year - Includes unlimited transactions, unlimited accounts, investments, advanced reports, CSV import/export, AI-powered categorization, budgets, goals, receipt scanner, household members, and all features</li>
                 </ul>
               </div>
 
               <div>
                 <h3 className="font-semibold mb-2">Free Trial</h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Both {essentialPlanName} and {proPlanName} plans include a 30-day free trial period. During the trial:
+                  The {proPlanName} plan includes a 30-day free trial period. During the trial:
                 </p>
                 <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2 ml-4">
                   <li>You have full access to all features of your selected plan</li>

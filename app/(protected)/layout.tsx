@@ -40,8 +40,8 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
   let userData: { id: string; isBlocked: boolean; role: string } | null = null;
   try {
     const { data, error: userError } = await supabase
-      .from("User")
-      .select("id, isBlocked, role")
+      .from("users")
+      .select("id, is_blocked, role")
       .eq("id", user.id)
       .single();
 
@@ -59,7 +59,12 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
       redirect(redirectUrl);
     }
 
-    userData = data;
+    // Map snake_case to camelCase for consistency
+    userData = {
+      id: data.id,
+      isBlocked: data.is_blocked,
+      role: data.role,
+    };
   } catch (error) {
     log.error("Error fetching user data:", error);
     const headersList = await headers();
@@ -118,21 +123,10 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
     subscription = subscriptionData.subscription;
     plan = subscriptionData.plan;
     
-    log.debug("Subscription check result:", {
-      hasSubscription: !!subscription,
-      subscriptionId: subscription?.id,
-      planId: subscription?.planId,
-      status: subscription?.status,
-      userId: userId,
-      hasPlan: !!plan,
-      planIdFromPlan: plan?.id,
-    });
-    
     // Note: SubscriptionsService already handles household member subscription inheritance
     // No need for manual retry - the service checks household membership internally
     // If no subscription found, user needs to complete onboarding (handled by onboarding dialog)
     if (!subscription) {
-      log.debug("No subscription found - onboarding will handle plan selection", { userId });
       shouldOpenModal = false; // Don't open pricing dialog, let onboarding handle it
     } else {
       // Check if subscription status allows access
@@ -145,26 +139,16 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
       } else {
         // Open modal for "cancelled" status (user needs to reactivate)
         if (subscription.status === "cancelled") {
-          log.debug("Subscription is cancelled, opening pricing dialog");
           shouldOpenModal = true;
           reason = "no_subscription"; // Use no_subscription reason to show dialog
         } else if (subscription.status === "past_due") {
-          log.debug("Subscription is past_due, opening pricing dialog");
           shouldOpenModal = true;
           reason = "subscription_inactive";
         } else {
           // Allow access for other statuses (unpaid, etc.)
-          log.debug("Subscription has other status, allowing access:", subscription.status);
           shouldOpenModal = false;
         }
       }
-      
-      log.debug("Subscription status check:", {
-        status: subscription.status,
-        isActive: isActiveStatus,
-        isTrialing: isTrialingStatus,
-        shouldOpenModal,
-      });
     }
   } catch (error) {
     // If error checking subscription, don't open pricing dialog

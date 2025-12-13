@@ -86,7 +86,7 @@ export function SubscriptionCard({ subscription, plan, onSubscriptionUpdated }: 
           <div>
             <CardTitle className="flex items-center gap-2">
               Current Plan
-              <PlanBadge plan={plan.name as "essential" | "pro"} />
+              <PlanBadge plan={plan.name} />
             </CardTitle>
             <CardDescription className="mt-1">
               {plan.name.charAt(0).toUpperCase() + plan.name.slice(1)} plan

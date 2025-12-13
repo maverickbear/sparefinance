@@ -5,9 +5,10 @@ import { getCachedSubscriptionData } from "@/src/application/subscriptions/get-d
 import { PlanFeatures } from "@/src/domain/subscriptions/subscriptions.validations";
 import { PlanErrorCode, createPlanError, type PlanError } from "@/lib/utils/plan-errors";
 import { BaseLimitCheckResult, BaseSubscriptionData } from "@/src/domain/subscriptions/subscriptions.types";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 // Helper functions to use cached subscription data (single fetch per request)
-async function getUserSubscriptionData(userId: string): Promise<BaseSubscriptionData> {
+export async function getUserSubscriptionData(userId: string): Promise<BaseSubscriptionData> {
   return getCachedSubscriptionData(userId);
 }
 
@@ -124,7 +125,7 @@ export async function guardFeatureAccess(
     
     return { allowed: true };
   } catch (error) {
-    console.error("Error in guardFeatureAccess:", error);
+    logger.error("[FeatureGuard] Error in guardFeatureAccess:", error);
     return {
       allowed: false,
       error: createPlanError(PlanErrorCode.FEATURE_NOT_AVAILABLE, {
@@ -171,7 +172,7 @@ export async function guardFeatureAccessReadOnly(
     
     return { allowed: true };
   } catch (error) {
-    console.error("Error in guardFeatureAccessReadOnly:", error);
+    logger.error("[FeatureGuard] Error in guardFeatureAccessReadOnly:", error);
     return {
       allowed: false,
       error: createPlanError(PlanErrorCode.FEATURE_NOT_AVAILABLE, {
@@ -200,7 +201,7 @@ export async function guardWriteAccess(userId: string): Promise<GuardResult> {
     
     return { allowed: true };
   } catch (error) {
-    console.error("Error in guardWriteAccess:", error);
+    logger.error("[FeatureGuard] Error in guardWriteAccess:", error);
     return {
       allowed: false,
       error: createPlanError(PlanErrorCode.SUBSCRIPTION_INACTIVE),
@@ -210,8 +211,8 @@ export async function guardWriteAccess(userId: string): Promise<GuardResult> {
 
 /**
  * Guard transaction limit - validates if user can create a new transaction
- * Now uses user_monthly_usage table for fast limit checking (no COUNT(*) queries)
- * This function only READS from user_monthly_usage - it does NOT update counters
+ * Now uses system.userMonthlyUsage table for fast limit checking (no COUNT(*) queries)
+ * This function only READS from system.userMonthlyUsage - it does NOT update counters
  * Counter updates are handled by SQL functions that create transactions atomically
  */
 export async function guardTransactionLimit(
@@ -259,6 +260,65 @@ export async function guardTransactionLimit(
     return { allowed: true };
   } catch (error) {
     console.error("Error in guardTransactionLimit:", error);
+    return {
+      allowed: false,
+      error: createPlanError(PlanErrorCode.TRANSACTION_LIMIT_REACHED),
+    };
+  }
+}
+
+/**
+ * Guard bulk transaction limit - validates if user can create multiple transactions
+ * Checks if currentCount + transactionCount <= limit BEFORE creating any transactions
+ * This prevents partial creation when bulk operations exceed limits
+ */
+export async function guardBulkTransactionLimit(
+  userId: string,
+  transactionCount: number,
+  month?: Date
+): Promise<GuardResult> {
+  try {
+    // First check if user can write at all
+    const writeGuard = await guardWriteAccess(userId);
+    if (!writeGuard.allowed) {
+      return writeGuard;
+    }
+    
+    // Get subscription data using unified API
+    const { limits, plan } = await getUserSubscriptionData(userId);
+    
+    // Unlimited transactions
+    if (limits.maxTransactions === -1) {
+      return { allowed: true };
+    }
+
+    // Calculate month_date (first day of month)
+    const checkMonth = month || new Date();
+    const monthDate = new Date(checkMonth.getFullYear(), checkMonth.getMonth(), 1);
+    
+    // Use SubscriptionsRepository to get monthly usage
+    const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+    const subscriptionsRepository = new SubscriptionsRepository();
+    const currentCount = await subscriptionsRepository.getUserMonthlyUsage(userId, monthDate);
+
+    // Check if currentCount + transactionCount would exceed limit
+    const wouldExceed = (currentCount + transactionCount) > limits.maxTransactions;
+    
+    if (wouldExceed) {
+      const remaining = Math.max(0, limits.maxTransactions - currentCount);
+      return {
+        allowed: false,
+        error: createPlanError(PlanErrorCode.TRANSACTION_LIMIT_REACHED, {
+          limit: limits.maxTransactions,
+          current: currentCount,
+          currentPlan: plan?.name,
+        }),
+      };
+    }
+    
+    return { allowed: true };
+  } catch (error) {
+    console.error("Error in guardBulkTransactionLimit:", error);
     return {
       allowed: false,
       error: createPlanError(PlanErrorCode.TRANSACTION_LIMIT_REACHED),
@@ -322,7 +382,7 @@ export async function guardHouseholdMembers(userId: string): Promise<GuardResult
     // Check if user is super_admin - super_admin can always invite members
     const supabase = await createServerClient();
     const { data: user } = await supabase
-      .from("User")
+      .from("users")
       .select("role")
       .eq("id", userId)
       .single();
@@ -374,6 +434,8 @@ export async function guardBankIntegration(userId: string): Promise<GuardResult>
  * Get current user ID from session
  * Also verifies that the user exists in the User table
  * If user doesn't exist, logs out and returns null
+ * 
+ * PERFORMANCE OPTIMIZATION: Uses cached verification (60 minutes cache)
  */
 export async function getCurrentUserId(): Promise<string | null> {
   try {
@@ -384,28 +446,16 @@ export async function getCurrentUserId(): Promise<string | null> {
       return null;
     }
     
-    // Verify user exists in User table
-    const { data: userData, error: userError } = await supabase
-      .from("User")
-      .select("id")
-      .eq("id", user.id)
-      .single();
+    // Use verifyUserExists which has caching (60 minutes)
+    // This avoids duplicate database queries
+    const { verifyUserExists } = await import("@/lib/utils/verify-user-exists");
+    const { exists, userId } = await verifyUserExists(user);
 
-    // If user doesn't exist in User table, logout and return null
-    if (userError || !userData) {
-      console.warn(`[getCurrentUserId] User ${user.id} authenticated but not found in User table. Logging out.`);
-      
-      // Logout to clear session
-      try {
-        await supabase.auth.signOut();
-      } catch (signOutError) {
-        console.error("[getCurrentUserId] Error signing out:", signOutError);
-      }
-      
+    if (!exists) {
       return null;
     }
     
-    return user.id;
+    return userId;
   } catch (error) {
     console.error("Error getting current user ID:", error);
     return null;

@@ -11,23 +11,24 @@ import { logger } from "@/lib/utils/logger";
 export interface GoalRow {
   id: string;
   name: string;
-  targetAmount: number;
-  currentBalance: number;
-  incomePercentage: number;
+  target_amount: number;
+  current_balance: number;
+  income_percentage: number;
   priority: "High" | "Medium" | "Low";
-  isPaused: boolean;
-  isCompleted: boolean;
-  completedAt: string | null;
+  is_paused: boolean;
+  is_completed: boolean;
+  completed_at: string | null;
   description: string | null;
-  expectedIncome: number | null;
-  targetMonths: number | null;
-  accountId: string | null;
-  holdingId: string | null;
-  isSystemGoal: boolean;
-  userId: string;
-  householdId: string | null;
-  createdAt: string;
-  updatedAt: string;
+  expected_income: number | null;
+  target_months: number | null;
+  account_id: string | null;
+  holding_id: string | null;
+  is_system_goal: boolean;
+  user_id: string;
+  household_id: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 export class GoalsRepository {
@@ -51,10 +52,11 @@ export class GoalsRepository {
     logger.debug(`[GoalsRepository] Fetching goals for user: ${user.id}`);
 
     const { data: goals, error } = await supabase
-      .from("Goal")
+      .from("goals")
       .select("*")
+      .is("deleted_at", null) // Exclude soft-deleted records
       .order("priority", { ascending: true })
-      .order("createdAt", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       // Handle permission denied errors gracefully (can happen during SSR)
@@ -90,9 +92,10 @@ export class GoalsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: goal, error } = await supabase
-      .from("Goal")
+      .from("goals")
       .select("*")
       .eq("id", id)
+      .is("deleted_at", null) // Exclude soft-deleted records
       .single();
 
     if (error) {
@@ -133,27 +136,27 @@ export class GoalsRepository {
     const supabase = await createServerClient();
 
     const { data: goal, error } = await supabase
-      .from("Goal")
+      .from("goals")
       .insert({
         id: data.id,
         name: data.name,
-        targetAmount: data.targetAmount,
-        currentBalance: data.currentBalance,
-        incomePercentage: data.incomePercentage,
+        target_amount: data.targetAmount,
+        current_balance: data.currentBalance,
+        income_percentage: data.incomePercentage,
         priority: data.priority,
-        isPaused: data.isPaused,
-        isCompleted: data.isCompleted,
-        completedAt: data.completedAt,
+        is_paused: data.isPaused,
+        is_completed: data.isCompleted,
+        completed_at: data.completedAt,
         description: data.description,
-        expectedIncome: data.expectedIncome,
-        targetMonths: data.targetMonths,
-        accountId: data.accountId,
-        holdingId: data.holdingId,
-        isSystemGoal: data.isSystemGoal,
-        userId: data.userId,
-        householdId: data.householdId,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
+        expected_income: data.expectedIncome,
+        target_months: data.targetMonths,
+        account_id: data.accountId,
+        holding_id: data.holdingId,
+        is_system_goal: data.isSystemGoal,
+        user_id: data.userId,
+        household_id: data.householdId,
+        created_at: data.createdAt,
+        updated_at: data.updatedAt,
       })
       .select()
       .single();
@@ -190,9 +193,25 @@ export class GoalsRepository {
   ): Promise<GoalRow> {
     const supabase = await createServerClient();
 
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.targetAmount !== undefined) updateData.target_amount = data.targetAmount;
+    if (data.currentBalance !== undefined) updateData.current_balance = data.currentBalance;
+    if (data.incomePercentage !== undefined) updateData.income_percentage = data.incomePercentage;
+    if (data.priority !== undefined) updateData.priority = data.priority;
+    if (data.isPaused !== undefined) updateData.is_paused = data.isPaused;
+    if (data.isCompleted !== undefined) updateData.is_completed = data.isCompleted;
+    if (data.completedAt !== undefined) updateData.completed_at = data.completedAt;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.expectedIncome !== undefined) updateData.expected_income = data.expectedIncome;
+    if (data.targetMonths !== undefined) updateData.target_months = data.targetMonths;
+    if (data.accountId !== undefined) updateData.account_id = data.accountId;
+    if (data.holdingId !== undefined) updateData.holding_id = data.holdingId;
+    if (data.updatedAt !== undefined) updateData.updated_at = data.updatedAt;
+
     const { data: goal, error } = await supabase
-      .from("Goal")
-      .update(data)
+      .from("goals")
+      .update(updateData)
       .eq("id", id)
       .select()
       .single();
@@ -206,18 +225,20 @@ export class GoalsRepository {
   }
 
   /**
-   * Delete a goal
+   * Soft delete a goal
    */
   async delete(id: string): Promise<void> {
     const supabase = await createServerClient();
+    const now = new Date().toISOString();
 
     const { error } = await supabase
-      .from("Goal")
-      .delete()
-      .eq("id", id);
+      .from("goals")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("id", id)
+      .is("deleted_at", null); // Only soft-delete if not already deleted
 
     if (error) {
-      logger.error("[GoalsRepository] Error deleting goal:", error);
+      logger.error("[GoalsRepository] Error soft-deleting goal:", error);
       throw new Error(`Failed to delete goal: ${error.message}`);
     }
   }
@@ -232,10 +253,10 @@ export class GoalsRepository {
     const supabase = await createServerClient();
 
     const { data: goal, error } = await supabase
-      .from("Goal")
+      .from("goals")
       .select("*")
-      .eq("userId", userId)
-      .eq("isSystemGoal", isSystemGoal)
+      .eq("user_id", userId)
+      .eq("is_system_goal", isSystemGoal)
       .single();
 
     if (error) {
@@ -260,11 +281,11 @@ export class GoalsRepository {
     const supabase = await createServerClient(accessToken, refreshToken);
 
     const { data: goal, error } = await supabase
-      .from("Goal")
+      .from("goals")
       .select("*")
-      .eq("householdId", householdId)
+      .eq("household_id", householdId)
       .eq("name", "Emergency Funds")
-      .eq("isSystemGoal", true)
+      .eq("is_system_goal", true)
       .maybeSingle();
 
     if (error) {

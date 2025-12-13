@@ -767,7 +767,7 @@ export function InvestmentCsvImportDialog({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="small"
+                          size="medium"
                           onClick={() => removeFile(index)}
                           disabled={pdfData?.isProcessing}
                         >

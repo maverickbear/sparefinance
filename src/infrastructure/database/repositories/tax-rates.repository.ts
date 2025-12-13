@@ -29,7 +29,7 @@ export class TaxRatesRepository {
     const supabase = createServiceRoleClient();
 
     const { data: rates, error } = await supabase
-      .from("tax_rates")
+      .from("system_tax_rates")
       .select("*")
       .order("country_code", { ascending: true })
       .order("state_or_province_code", { ascending: true });
@@ -53,7 +53,7 @@ export class TaxRatesRepository {
     const supabase = createServiceRoleClient();
 
     const { data: rate, error } = await supabase
-      .from("tax_rates")
+      .from("system_tax_rates")
       .select("*")
       .eq("country_code", countryCode)
       .eq("state_or_province_code", stateOrProvinceCode)
@@ -82,7 +82,7 @@ export class TaxRatesRepository {
     const supabase = createServiceRoleClient();
 
     const { data: rate, error } = await supabase
-      .from("tax_rates")
+      .from("system_tax_rates")
       .select("*")
       .eq("id", id)
       .single();
@@ -117,7 +117,7 @@ export class TaxRatesRepository {
     const supabase = createServiceRoleClient();
 
     const { data: rate, error } = await supabase
-      .from("tax_rates")
+      .from("system_tax_rates")
       .insert({
         country_code: data.countryCode,
         state_or_province_code: data.stateOrProvinceCode,
@@ -159,7 +159,7 @@ export class TaxRatesRepository {
     if (data.isActive !== undefined) updateData.is_active = data.isActive;
 
     const { data: rate, error } = await supabase
-      .from("tax_rates")
+      .from("system_tax_rates")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -181,7 +181,7 @@ export class TaxRatesRepository {
     const supabase = createServiceRoleClient();
 
     const { error } = await supabase
-      .from("tax_rates")
+      .from("system_tax_rates")
       .delete()
       .eq("id", id);
 

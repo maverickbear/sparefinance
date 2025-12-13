@@ -10,6 +10,7 @@ import { AppError } from "@/src/application/shared/app-error";
  * Returns current user's subscription data (subscription + plan + limits)
  * Uses SubscriptionsService as single source of truth
  */
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();

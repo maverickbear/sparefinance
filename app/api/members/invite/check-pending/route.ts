@@ -6,10 +6,8 @@ import { AppError } from "@/src/application/shared/app-error";
 /**
  * GET /api/members/invite/check-pending
  * Checks if an email has a pending invitation
- * 
- * Note: This route uses searchParams which causes prerendering warnings during build.
- * These warnings are expected and do not affect functionality.
  */
+
 export async function GET(request: NextRequest) {
   // Opt out of static generation - this route uses searchParams
   noStore();

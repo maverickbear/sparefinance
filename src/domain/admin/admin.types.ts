@@ -53,23 +53,17 @@ export interface PromoCode {
   updatedAt: Date;
 }
 
-export interface SystemGroup {
-  id: string;
-  name: string;
-  type: "income" | "expense" | null;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: null;
-}
+// NOTE: SystemGroup has been completely removed - groups are no longer part of the system
+// Categories now have a direct type property ("income" | "expense") instead of being grouped
 
 export interface SystemCategory {
   id: string;
   name: string;
-  macroId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  type: "income" | "expense";
+  createdAt: Date | string; // Allow string for serialization from server to client
+  updatedAt: Date | string; // Allow string for serialization from server to client
   userId: null;
-  group?: SystemGroup;
+  isSystem: true;
   subcategories?: SystemSubcategory[];
 }
 
@@ -77,9 +71,10 @@ export interface SystemSubcategory {
   id: string;
   name: string;
   categoryId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string; // Allow string for serialization from server to client
+  updatedAt: Date | string; // Allow string for serialization from server to client
   userId: null;
+  isSystem: true;
   logo: string | null;
 }
 

@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
 import { getPlannedPaymentsForDashboard } from "@/src/application/planned-payments/get-dashboard-planned-payments";
-import { PlannedPaymentFormData, plannedPaymentSchema } from "@/src/domain/planned-payments/planned-payments.validations";
-import { PLANNED_HORIZON_DAYS } from "@/src/domain/planned-payments/planned-payments.types";
+// Use new domain types (with backward compatibility)
+// Use new domain types (with backward compatibility)
+import { PlannedPaymentFormData, PLANNED_HORIZON_DAYS } from "@/src/domain/financial-events/financial-events.types";
+import { plannedPaymentSchema } from "@/src/domain/financial-events/financial-events.validations";
 import { getCurrentUserId, guardWriteAccess, throwIfNotAllowed } from "@/src/application/shared/feature-guard";
 import { ZodError } from "zod";
 import { AppError } from "@/src/application/shared/app-error";
 import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 import { revalidateTag } from 'next/cache';
 import { parseDateInput } from "@/src/infrastructure/utils/timestamp";
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +26,7 @@ export async function GET(request: NextRequest) {
       startDate?: Date;
       endDate?: Date;
       status?: "scheduled" | "paid" | "skipped" | "cancelled";
-      source?: "recurring" | "debt" | "manual" | "subscription";
+      source?: "recurring" | "debt" | "manual" | "subscription" | "goal";
       accountId?: string;
       type?: "expense" | "income" | "transfer";
       page?: number;
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
       filters.status = searchParams.get("status") as "scheduled" | "paid" | "skipped" | "cancelled";
     }
     if (searchParams.get("source")) {
-      filters.source = searchParams.get("source") as "recurring" | "debt" | "manual" | "subscription";
+      filters.source = searchParams.get("source") as "recurring" | "debt" | "manual" | "subscription" | "goal";
     }
     if (searchParams.get("accountId")) {
       filters.accountId = searchParams.get("accountId")!;

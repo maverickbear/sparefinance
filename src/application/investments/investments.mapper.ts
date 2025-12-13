@@ -20,21 +20,21 @@ export class InvestmentsMapper {
     const sector = security?.sector || mapClassToSector(assetType, security?.symbol || "");
 
     return {
-      securityId: position.securityId,
+      securityId: position.security_id,
       symbol: security?.symbol || "",
       name: security?.name || security?.symbol || "",
       assetType,
       sector,
-      quantity: position.openQuantity || 0,
-      avgPrice: position.averageEntryPrice || 0,
-      bookValue: position.totalCost || 0,
-      lastPrice: position.currentPrice || 0,
-      marketValue: position.currentMarketValue || 0,
-      unrealizedPnL: position.openPnl || 0,
-      unrealizedPnLPercent: position.totalCost > 0 
-        ? ((position.openPnl || 0) / position.totalCost) * 100 
+      quantity: position.open_quantity || 0,
+      avgPrice: position.average_entry_price || 0,
+      bookValue: position.total_cost || 0,
+      lastPrice: position.current_price || 0,
+      marketValue: position.current_market_value || 0,
+      unrealizedPnL: position.open_pnl || 0,
+      unrealizedPnLPercent: position.total_cost > 0 
+        ? ((position.open_pnl || 0) / position.total_cost) * 100 
         : 0,
-      accountId: position.accountId,
+      accountId: position.account_id,
       accountName: account?.name || "Unknown Account",
     };
   }
@@ -57,10 +57,10 @@ export class InvestmentsMapper {
       price: row.price,
       fees: row.fees,
       notes: row.notes,
-      securityId: row.securityId,
-      accountId: row.accountId,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      securityId: row.security_id,
+      accountId: row.account_id,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
       account: relations?.account || null,
       security: relations?.security || null,
     };
@@ -76,8 +76,8 @@ export class InvestmentsMapper {
       name: row.name,
       class: row.class,
       sector: row.sector,
-      createdAt: new Date(row.createdAt),
-      updatedAt: new Date(row.updatedAt),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
     };
   }
 
@@ -90,10 +90,10 @@ export class InvestmentsMapper {
   ): BaseSecurityPrice {
     return {
       id: row.id,
-      securityId: row.securityId,
+      securityId: row.security_id,
       date: new Date(row.date),
       price: row.price,
-      createdAt: new Date(row.createdAt),
+      createdAt: new Date(row.created_at),
       security: security || null,
     };
   }
@@ -110,8 +110,8 @@ export class InvestmentsMapper {
       price: domain.price ?? null,
       fees: domain.fees ?? 0,
       notes: domain.notes ?? null,
-      securityId: domain.securityId ?? null,
-      accountId: domain.accountId,
+      security_id: domain.securityId ?? null,
+      account_id: domain.accountId,
     };
   }
 }

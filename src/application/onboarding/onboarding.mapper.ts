@@ -24,13 +24,18 @@ export class OnboardingMapper {
       country: typeof settings.country === 'string' ? settings.country : undefined,
       stateOrProvince: typeof settings.stateOrProvince === 'string' ? settings.stateOrProvince : undefined,
       budgetRule: (settings.budgetRule as BudgetRuleType) || undefined,
+      onboardingCompletedAt: typeof settings.onboardingCompletedAt === 'string' ? settings.onboardingCompletedAt : undefined,
+      onboardingGoals: Array.isArray(settings.onboardingGoals) ? settings.onboardingGoals as string[] : undefined,
+      onboardingHouseholdType: (settings.onboardingHouseholdType === "personal" || settings.onboardingHouseholdType === "shared") 
+        ? settings.onboardingHouseholdType 
+        : undefined,
     };
   }
 
   /**
    * Map domain HouseholdSettings to database JSONB format
    */
-  static settingsToDatabase(settings: HouseholdSettings): Record<string, unknown> {
+  static settingsToDatabase(settings: HouseholdSettings & Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
 
     if (settings.expectedIncome !== undefined) {
@@ -52,6 +57,25 @@ export class OnboardingMapper {
     if (settings.budgetRule !== undefined) {
       result.budgetRule = settings.budgetRule;
     }
+
+    if (settings.onboardingCompletedAt !== undefined) {
+      result.onboardingCompletedAt = settings.onboardingCompletedAt;
+    }
+
+    if (settings.onboardingGoals !== undefined) {
+      result.onboardingGoals = settings.onboardingGoals;
+    }
+
+    if (settings.onboardingHouseholdType !== undefined) {
+      result.onboardingHouseholdType = settings.onboardingHouseholdType;
+    }
+
+    // Include any additional custom fields
+    Object.keys(settings).forEach(key => {
+      if (!['expectedIncome', 'expectedIncomeAmount', 'country', 'stateOrProvince', 'budgetRule', 'onboardingCompletedAt', 'onboardingGoals', 'onboardingHouseholdType'].includes(key)) {
+        result[key] = settings[key];
+      }
+    });
 
     return result;
   }
