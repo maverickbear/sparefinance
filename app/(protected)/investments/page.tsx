@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { PortfolioSummaryCards } from "@/components/portfolio/portfolio-summary-cards";
@@ -48,7 +47,6 @@ interface PortfolioSummary {
 }
 
 export default function InvestmentsPage() {
-  const router = useRouter();
   const perf = usePagePerformance("Investments");
   const { checkWriteAccess, canWrite } = useWriteGuard();
   const { toast } = useToast();
@@ -202,42 +200,7 @@ export default function InvestmentsPage() {
     <SimpleTabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <PageHeader
             title="Portfolio Management"
-          >
-          <div className="flex items-center gap-2">
-            {canWrite && (
-              <>
-                <Button
-                  onClick={() => {
-                    if (!checkWriteAccess()) return;
-                    // Check if user has access to CSV import
-                    const hasAccess = limits.hasCsvImport === true || String(limits.hasCsvImport) === "true";
-                    if (!hasAccess) {
-                      setShowImportUpgradeModal(true);
-                      return;
-                    }
-                    setShowImportDialog(true);
-                  }}
-                  variant="outline"
-                  size="medium"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import File
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (!checkWriteAccess()) return;
-                    setShowTransactionForm(true);
-                  }}
-                  variant="default"
-                  size="medium"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Transaction
-                </Button>
-              </>
-            )}
-          </div>
-        </PageHeader>
+          />
 
         {/* Fixed Tabs - Desktop only */}
         <FixedTabsWrapper>
@@ -271,6 +234,40 @@ export default function InvestmentsPage() {
         </div>
 
         <div className="w-full p-4 lg:p-8">
+          {/* Action Buttons - Moved from header */}
+          {canWrite && (
+            <div className="flex items-center gap-2 justify-end mb-6">
+              <Button
+                onClick={() => {
+                  if (!checkWriteAccess()) return;
+                  // Check if user has access to CSV import
+                  const hasAccess = limits.hasCsvImport === true || String(limits.hasCsvImport) === "true";
+                  if (!hasAccess) {
+                    setShowImportUpgradeModal(true);
+                    return;
+                  }
+                  setShowImportDialog(true);
+                }}
+                variant="outline"
+                size="medium"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import File
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!checkWriteAccess()) return;
+                  setShowTransactionForm(true);
+                }}
+                variant="default"
+                size="medium"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Transaction
+              </Button>
+            </div>
+          )}
+
           <SimpleTabsContent value="overview">
             {loading ? (
               <div className="flex items-center justify-center py-12">

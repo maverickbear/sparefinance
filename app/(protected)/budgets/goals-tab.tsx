@@ -303,16 +303,6 @@ export function GoalsTab() {
               ? "Create your first savings goal to start tracking your progress and achieve your financial dreams."
               : `Try adjusting your filters to see ${filterBy === "active" ? "completed" : "active"} goals.`
           }
-          actionLabel={filterBy === "all" && canWrite ? "Create Your First Goal" : undefined}
-          onAction={
-            filterBy === "all" && canWrite
-              ? () => {
-                  setSelectedGoal(null);
-                  setIsFormOpen(true);
-                }
-              : undefined
-          }
-          actionIcon={filterBy === "all" ? Plus : undefined}
         />
         </div>
       ) : (

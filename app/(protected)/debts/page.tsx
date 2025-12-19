@@ -183,23 +183,25 @@ export default function DebtsPage() {
     >
       <PageHeader
         title="Debts"
-      >
-        {!(sortedDebts.length === 0 && filterBy === "all") && canWrite && (
-          <Button
-            size="medium"
-            onClick={() => {
-              if (!checkWriteAccess()) return;
-              setSelectedDebt(null);
-              setIsFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Debt
-          </Button>
-        )}
-      </PageHeader>
+      />
 
       <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons - Moved from header */}
+        {!(sortedDebts.length === 0 && filterBy === "all") && canWrite && (
+          <div className="flex items-center gap-2 justify-end mb-6">
+            <Button
+              size="medium"
+              onClick={() => {
+                if (!checkWriteAccess()) return;
+                setSelectedDebt(null);
+                setIsFormOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Debt
+            </Button>
+          </div>
+        )}
 
       {loading && debts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -274,17 +276,6 @@ export default function DebtsPage() {
                     ? "Create your first debt entry to start tracking your loans and debt payments."
                     : `Try adjusting your filters to see ${filterBy === "active" ? "completed" : "active"} debts.`
                 }
-                actionLabel={filterBy === "all" && canWrite ? "Create Your First Debt" : undefined}
-                onAction={
-                  filterBy === "all" && canWrite
-                    ? () => {
-                        if (!checkWriteAccess()) return;
-                        setSelectedDebt(null);
-                        setIsFormOpen(true);
-                      }
-                    : undefined
-                }
-                actionIcon={filterBy === "all" && canWrite ? Plus : undefined}
               />
             </div>
           )}

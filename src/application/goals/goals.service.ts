@@ -604,9 +604,12 @@ export class GoalsService {
   }
 
   /**
-   * Automatically calculate and update emergency fund goal based on income and expenses
+   * Calculate and update emergency fund goal based on income and expenses
    * Uses predicted income if available, otherwise calculates from transactions
    * Follows financial best practices: 6 months of expenses as target, 10-20% of income for savings
+   * 
+   * Note: This method only updates existing goals. It does not create goals automatically.
+   * Users must create the Emergency Fund goal manually.
    */
   async calculateAndUpdateEmergencyFund(
     accessToken?: string,
@@ -625,35 +628,13 @@ export class GoalsService {
       return null;
     }
 
-    // Get or create emergency fund goal
-    let emergencyFundGoal = await this.repository.findEmergencyFundGoal(householdId, accessToken, refreshToken);
+    // Get existing emergency fund goal (do not create if it doesn't exist)
+    const emergencyFundGoal = await this.repository.findEmergencyFundGoal(householdId, accessToken, refreshToken);
     
     if (!emergencyFundGoal) {
-      // Create emergency fund goal if it doesn't exist
-      const id = crypto.randomUUID();
-      const now = formatTimestamp(new Date());
-      
-      emergencyFundGoal = await this.repository.create({
-        id,
-        name: "Emergency Funds",
-        targetAmount: 0,
-        currentBalance: 0,
-        incomePercentage: 0,
-        priority: "High",
-        description: "Emergency fund for unexpected expenses",
-        isPaused: false,
-        isCompleted: false,
-        completedAt: null,
-        expectedIncome: null,
-        targetMonths: null,
-        accountId: null,
-        holdingId: null,
-        isSystemGoal: true,
-        userId: user.id,
-        householdId,
-        createdAt: now,
-        updatedAt: now,
-      });
+      // Goal does not exist - user must create it manually
+      logger.info("[GoalsService] Emergency fund goal does not exist. User must create it manually.");
+      return null;
     }
 
     // Calculate monthly income (use predicted/expected income if available)

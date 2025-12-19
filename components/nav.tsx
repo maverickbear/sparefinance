@@ -298,6 +298,47 @@ function NavComponent() {
                       pathname === basePath ||
                       (basePath !== "/" && pathname.startsWith(basePath));
                     
+                    // Handle "soon" items - render as disabled button instead of link
+                    if (item.soon) {
+                      const soonElement = (
+                        <div
+                          className={cn(
+                            "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out cursor-not-allowed opacity-60",
+                            isCollapsed
+                              ? "justify-center px-3 py-2"
+                              : "space-x-3 px-3 py-2 justify-between"
+                          )}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <Icon className="h-4 w-4 flex-shrink-0" />
+                            {!isCollapsed && <span>{item.label}</span>}
+                          </div>
+                          {!isCollapsed && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                              SOON
+                            </span>
+                          )}
+                        </div>
+                      );
+
+                      if (isCollapsed) {
+                        return (
+                          <Tooltip key={item.href}>
+                            <TooltipTrigger asChild>
+                              <div className="relative">
+                                {soonElement}
+                                <TooltipContent side="right">
+                                  {item.label} (SOON)
+                                </TooltipContent>
+                              </div>
+                            </TooltipTrigger>
+                          </Tooltip>
+                        );
+                      }
+
+                      return <div key={item.href}>{soonElement}</div>;
+                    }
+                    
                     const linkElement = (
                       <Link
                         href={item.href}

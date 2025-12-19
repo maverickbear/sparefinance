@@ -446,17 +446,6 @@ export function InvestmentTransactionsTable({
             <div className="flex items-center justify-center py-12 text-muted-foreground">
               <div className="text-center">
                 <p className="text-sm">No transactions found</p>
-                {transactions.length === 0 && (
-                  <Button
-                    onClick={handleAddNew}
-                    variant="outline"
-                    className="mt-4"
-                    size="medium"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Your First Transaction
-                  </Button>
-                )}
               </div>
             </div>
           ) : (

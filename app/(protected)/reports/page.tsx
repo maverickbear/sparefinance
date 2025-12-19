@@ -89,7 +89,7 @@ interface ReportsProps {
 
 export default async function ReportsPage({ searchParams }: ReportsProps) {
   // Get period from URL or use default (access uncached data first)
-  const params = await Promise.resolve(searchParams);
+  const params = await searchParams;
   const periodParam = params?.period;
   const period: ReportPeriod = (periodParam && 
     ["current-month", "last-3-months", "last-6-months", "last-12-months", "year-to-date", "custom"].includes(periodParam)
@@ -172,7 +172,6 @@ export default async function ReportsPage({ searchParams }: ReportsProps) {
             <SimpleTabsTrigger value="overview">Overview</SimpleTabsTrigger>
             <SimpleTabsTrigger value="net-worth">Net Worth</SimpleTabsTrigger>
             <SimpleTabsTrigger value="income-expenses">Income & Expenses</SimpleTabsTrigger>
-            <SimpleTabsTrigger value="investments">Investments</SimpleTabsTrigger>
             <SimpleTabsTrigger value="debts">Debts</SimpleTabsTrigger>
             <SimpleTabsTrigger value="goals">Goals</SimpleTabsTrigger>
             <SimpleTabsTrigger value="accounts">Accounts</SimpleTabsTrigger>
@@ -201,9 +200,6 @@ export default async function ReportsPage({ searchParams }: ReportsProps) {
               </SimpleTabsTrigger>
               <SimpleTabsTrigger value="income-expenses" className="flex-shrink-0 whitespace-nowrap">
                 Income & Expenses
-              </SimpleTabsTrigger>
-              <SimpleTabsTrigger value="investments" className="flex-shrink-0 whitespace-nowrap">
-                Investments
               </SimpleTabsTrigger>
               <SimpleTabsTrigger value="debts" className="flex-shrink-0 whitespace-nowrap">
                 Debts

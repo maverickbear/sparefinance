@@ -23,9 +23,8 @@ import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 import type { Account } from "@/src/domain/accounts/accounts.types";
-import type { PortfolioSummary, HistoricalDataPoint, Holding } from "@/src/domain/portfolio/portfolio.types";
 import type { ReportPeriod, NetWorthData, CashFlowData, TrendData } from "@/src/domain/reports/reports.types";
-import { InvestmentPerformanceSection } from "@/components/reports/investment-performance-section";
+import type { PortfolioSummary, Holding, HistoricalDataPoint } from "@/src/domain/portfolio/portfolio.types";
 import { DebtAnalysisSection } from "@/components/reports/debt-analysis-section";
 import { GoalsProgressSection } from "@/components/reports/goals-progress-section";
 import { AccountBalancesSection } from "@/components/reports/account-balances-section";
@@ -321,17 +320,6 @@ export function ReportsContent({
           )}
           <div className="pb-8">
             <SpendingPatternsSection transactions={historicalTransactions} />
-          </div>
-        </SimpleTabsContent>
-
-        {/* Investments Tab */}
-        <SimpleTabsContent value="investments">
-          <div className="pb-8">
-            <InvestmentPerformanceSection
-              portfolioSummary={portfolioSummary}
-              portfolioHoldings={portfolioHoldings}
-              portfolioHistorical={portfolioHistorical}
-            />
           </div>
         </SimpleTabsContent>
 

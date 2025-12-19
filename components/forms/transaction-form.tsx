@@ -911,7 +911,7 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
                   }}
                   className="w-full"
                 >
-                <TabsList className="h-12 w-full grid grid-cols-3 md:h-auto">
+                <TabsList className="h-fit w-full grid grid-cols-3 md:h-auto">
                   <TabsTrigger value="expense" className="text-sm">Expense</TabsTrigger>
                   <TabsTrigger value="income" className="text-sm">Income</TabsTrigger>
                   <TabsTrigger value="transfer" className="text-sm">Transfer</TabsTrigger>

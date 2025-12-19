@@ -470,8 +470,11 @@ export default function SubscriptionsPage() {
     <div>
       <PageHeader
         title="Subscriptions"
-      >
-        <div className="flex gap-2">
+      />
+
+      <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons - Moved from header */}
+        <div className="flex items-center gap-2 justify-end mb-6">
           {selectedSubscriptions.size > 0 && canWrite && (
             <Button
               size="medium"
@@ -526,9 +529,6 @@ export default function SubscriptionsPage() {
             </Button>
           )}
         </div>
-      </PageHeader>
-
-      <div className="w-full p-4 lg:p-8">
 
       {/* Mobile Card View */}
       <div className="lg:hidden">
@@ -607,13 +607,6 @@ export default function SubscriptionsPage() {
                   icon={Plus}
                   title="No subscriptions created yet"
                   description="Create your first subscription to start tracking recurring service payments."
-                  actionLabel={canWrite ? "Create Your First Subscription" : undefined}
-                  onAction={canWrite ? () => {
-                          if (!checkWriteAccess()) return;
-                          setSelectedSubscription(null);
-                          setIsFormOpen(true);
-                  } : undefined}
-                  actionIcon={canWrite ? Plus : undefined}
                 />
               </div>
             )}
@@ -830,13 +823,6 @@ export default function SubscriptionsPage() {
               icon={Plus}
               title="No subscriptions created yet"
               description="Create your first subscription to start tracking recurring service payments."
-              actionLabel={canWrite ? "Create Your First Subscription" : undefined}
-              onAction={canWrite ? () => {
-                      if (!checkWriteAccess()) return;
-                      setSelectedSubscription(null);
-                      setIsFormOpen(true);
-              } : undefined}
-              actionIcon={canWrite ? Plus : undefined}
             />
           </div>
         )}

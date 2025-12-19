@@ -20,21 +20,21 @@ export class InvestmentsMapper {
     const sector = security?.sector || mapClassToSector(assetType, security?.symbol || "");
 
     return {
-      securityId: position.security_id,
+      securityId: position.securityId,
       symbol: security?.symbol || "",
       name: security?.name || security?.symbol || "",
       assetType,
       sector,
-      quantity: position.open_quantity || 0,
-      avgPrice: position.average_entry_price || 0,
-      bookValue: position.total_cost || 0,
-      lastPrice: position.current_price || 0,
-      marketValue: position.current_market_value || 0,
-      unrealizedPnL: position.open_pnl || 0,
-      unrealizedPnLPercent: position.total_cost > 0 
-        ? ((position.open_pnl || 0) / position.total_cost) * 100 
+      quantity: position.openQuantity || 0,
+      avgPrice: position.averageEntryPrice || 0,
+      bookValue: position.totalCost || 0,
+      lastPrice: position.currentPrice || 0,
+      marketValue: position.currentMarketValue || 0,
+      unrealizedPnL: position.openPnl || 0,
+      unrealizedPnLPercent: position.totalCost > 0 
+        ? ((position.openPnl || 0) / position.totalCost) * 100 
         : 0,
-      accountId: position.account_id,
+      accountId: position.accountId,
       accountName: account?.name || "Unknown Account",
     };
   }

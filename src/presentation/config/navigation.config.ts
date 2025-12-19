@@ -32,6 +32,7 @@ export interface NavItem {
   icon: LucideIcon;
   isToggle?: boolean;
   isBack?: boolean;
+  soon?: boolean;
 }
 
 /**
@@ -85,7 +86,7 @@ export const baseNavSections: NavSection[] = [
       { href: "/planning/budgets", label: "Budgets", icon: Target },
       { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
-      { href: "/investments", label: "Investments", icon: TrendingUp },
+      { href: "#", label: "Investments", icon: TrendingUp, soon: true },
     ],
   },
   {

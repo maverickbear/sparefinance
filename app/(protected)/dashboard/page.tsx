@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import nextDynamic from "next/dynamic";
 import { loadDashboardData } from "./data-loader";
-import { PageHeader } from "@/components/common/page-header";
-import { DashboardHeaderActions } from "@/components/dashboard/dashboard-header-actions";
 import { makeProfileService } from "@/src/application/profile/profile.factory";
 import { makeOnboardingDecisionService } from "@/src/application/onboarding/onboarding.factory";
 import { makeOnboardingService } from "@/src/application/onboarding/onboarding.factory";
@@ -122,7 +120,7 @@ async function DashboardContent({
 export default async function Dashboard({ searchParams }: DashboardProps) {
   // Get selected range from URL or default to "this-month"
   // Access searchParams first (dynamic data) to unlock Date.now() usage
-  const params = await Promise.resolve(searchParams);
+  const params = await searchParams;
   const rangeParam = params?.range as DateRange | undefined;
   const validRange: DateRange = rangeParam && ["this-month", "last-month", "last-60-days", "last-90-days"].includes(rangeParam)
     ? rangeParam
@@ -133,11 +131,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   
   // Start performance tracking after accessing dynamic data
   const perf = startServerPagePerformance("Dashboard");
-  
-  // Get user profile to personalize the header
-  const profileService = makeProfileService();
-  const profile = await profileService.getProfile();
-  const firstName = profile?.name?.split(' ')[0] || 'there';
   
   // Get onboarding decision and status in parallel for optimal performance
   let shouldShowOnboarding = false;
@@ -199,21 +192,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       </Suspense>
       <DashboardRealtime />
       <DashboardUpdateChecker />
-      <PageHeader
-        title={`Welcome, ${firstName}`}
-      >
-        <DashboardHeaderActions />
-      </PageHeader>
 
-      <div className="w-full p-4 lg:p-8">
-        <Suspense fallback={null}>
-          <DashboardContent 
-            selectedMonthDate={selectedMonthDate}
-            startDate={startDate}
-            endDate={endDate}
-          />
-        </Suspense>
-      </div>
+      <Suspense fallback={null}>
+        <DashboardContent 
+          selectedMonthDate={selectedMonthDate}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -175,6 +175,7 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       "/debts": "Debts",
       "/investments": "Investments",
       "/reports": "Reports",
+      "/insights": "Insights",
       "/settings/myaccount": "My Account",
       "/settings/billing": "Billing",
       "/settings/household": "Household",
@@ -182,7 +183,17 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       "/feedback": "Feedback",
       "/help-support": "Help & Support",
       "/portal-management": "Portal Management",
+      "/portal-management/dashboard": "Portal Dashboard",
+      "/portal-management/users": "Users",
+      "/portal-management/promo-codes": "Promo Codes",
+      "/portal-management/system-entities": "System Entities",
+      "/portal-management/contact-forms": "Contact Forms",
+      "/portal-management/feedback": "Feedback",
+      "/portal-management/plans": "Plans",
+      "/portal-management/subscription-services": "Subscription Services",
+      "/portal-management/tax-rates": "Tax Rates",
       "/portal-management/seo": "SEO Settings",
+      "/design": "Design System",
     };
 
     // Check exact match first

@@ -1678,8 +1678,48 @@ export default function TransactionsPage() {
     >
       <PageHeader
         title="Transactions"
+      />
+
+      <ImportStatusBanner />
+
+      {/* Fixed Tabs - Desktop only */}
+      <FixedTabsWrapper>
+        <SimpleTabsList>
+          <SimpleTabsTrigger value="expense">Expense</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="income">Income</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="transfer">Transfer</SimpleTabsTrigger>
+        </SimpleTabsList>
+      </FixedTabsWrapper>
+
+      {/* Mobile/Tablet Tabs - Sticky at top */}
+      <div 
+        className="lg:hidden sticky top-0 z-40 bg-card dark:bg-transparent border-b"
       >
-          <div className="flex flex-wrap gap-3 justify-center md:justify-end">
+        <div 
+          className="overflow-x-auto scrollbar-hide" 
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x mandatory',
+            touchAction: 'pan-x',
+          }}
+        >
+          <SimpleTabsList className="min-w-max px-4" style={{ scrollSnapAlign: 'start' }}>
+            <SimpleTabsTrigger value="expense" className="flex-shrink-0 whitespace-nowrap">
+              Expense
+            </SimpleTabsTrigger>
+            <SimpleTabsTrigger value="income" className="flex-shrink-0 whitespace-nowrap">
+              Income
+            </SimpleTabsTrigger>
+            <SimpleTabsTrigger value="transfer" className="flex-shrink-0 whitespace-nowrap">
+              Transfer
+            </SimpleTabsTrigger>
+          </SimpleTabsList>
+        </div>
+      </div>
+
+      <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons - Moved from header */}
+        <div className="flex items-center gap-2 justify-end mb-6">
           {selectedTransactionIds.size > 0 && (
             <>
               <Select
@@ -1861,54 +1901,13 @@ export default function TransactionsPage() {
                 setSelectedTransaction(null);
                 setIsFormOpen(true);
               }} 
-              className="text-xs md:text-sm hidden lg:flex"
+              className="text-xs md:text-sm"
             >
               <Plus className="h-3 w-3 md:h-4 md:w-4 md:mr-2" />
               <span className="hidden md:inline">Add Transaction</span>
             </Button>
           )}
         </div>
-      </PageHeader>
-
-      <ImportStatusBanner />
-
-      {/* Fixed Tabs - Desktop only */}
-      <FixedTabsWrapper>
-        <SimpleTabsList>
-          <SimpleTabsTrigger value="expense">Expense</SimpleTabsTrigger>
-          <SimpleTabsTrigger value="income">Income</SimpleTabsTrigger>
-          <SimpleTabsTrigger value="transfer">Transfer</SimpleTabsTrigger>
-        </SimpleTabsList>
-      </FixedTabsWrapper>
-
-      {/* Mobile/Tablet Tabs - Sticky at top */}
-      <div 
-        className="lg:hidden sticky top-0 z-40 bg-card dark:bg-transparent border-b"
-      >
-        <div 
-          className="overflow-x-auto scrollbar-hide" 
-          style={{ 
-            WebkitOverflowScrolling: 'touch',
-            scrollSnapType: 'x mandatory',
-            touchAction: 'pan-x',
-          }}
-        >
-          <SimpleTabsList className="min-w-max px-4" style={{ scrollSnapAlign: 'start' }}>
-            <SimpleTabsTrigger value="expense" className="flex-shrink-0 whitespace-nowrap">
-              Expense
-            </SimpleTabsTrigger>
-            <SimpleTabsTrigger value="income" className="flex-shrink-0 whitespace-nowrap">
-              Income
-            </SimpleTabsTrigger>
-            <SimpleTabsTrigger value="transfer" className="flex-shrink-0 whitespace-nowrap">
-              Transfer
-            </SimpleTabsTrigger>
-          </SimpleTabsList>
-        </div>
-      </div>
-
-      {/* Content Container */}
-      <div className="w-full lg:p-8">
         {/* Mobile Card View */}
         <div className="lg:hidden" ref={pullToRefreshRef}>
         {/* Pull to refresh indicator */}

@@ -398,20 +398,20 @@ export default function AccountsPage() {
     <div>
         <PageHeader
           title="Accounts"
-        >
-        <div className="flex gap-2">
-          {accounts.length > 0 && canWrite && (
+        />
+
+      <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons - Moved from header */}
+        {accounts.length > 0 && canWrite && (
+          <div className="flex items-center gap-2 justify-end mb-6">
             <AddAccountDropdown
               onSuccess={() => {
                 loadAccounts(true);
               }}
               canWrite={canWrite}
             />
-          )}
-        </div>
-      </PageHeader>
-
-      <div className="w-full p-4 lg:p-8">
+          </div>
+        )}
         <ImportStatusBanner />
         
         {/* Plaid Connections Dashboard */}

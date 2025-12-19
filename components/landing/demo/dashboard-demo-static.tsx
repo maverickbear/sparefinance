@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { SubscriptionProvider } from "@/contexts/subscription-context";
-import { SummaryCards } from "@/app/(protected)/dashboard/summary-cards";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatMoney } from "@/components/common/money";
+import { AnimatedNumber } from "@/components/common/animated-number";
+import { ArrowUpRight, ArrowDownRight, PiggyBank } from "lucide-react";
 import { FinancialHealthScoreWidget } from "@/app/(protected)/dashboard/widgets/financial-health-score-widget";
 // Removed: ExpensesByCategoryWidget and CashFlowTimelineWidget - replaced by new dashboard widgets
 import { BudgetOverviewWidget } from "@/app/(protected)/dashboard/widgets/budget-overview-widget";
@@ -10,6 +13,7 @@ import { SubscriptionsRecurringGoalsWidget } from "@/app/(protected)/dashboard/w
 import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
 import { InvestmentPortfolioWidget } from "@/app/(protected)/dashboard/widgets/investment-portfolio-widget";
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
+import { cn } from "@/lib/utils";
 import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
 
 // Mock data
@@ -267,33 +271,31 @@ export function DashboardDemoStatic() {
     setSelectedMonthDate(new Date(now.getFullYear(), now.getMonth(), 1));
   }, []);
 
-  // Calculate values using the same logic as the real dashboard
+  // Static demo values - no calculations, no logic
   const totalBalance = 30500;
   const savings = 25000;
   const lastMonthTotalBalance = 28000;
-
-  // Mock accounts for SummaryCards
-  const mockAccounts = [
-    {
-      id: "demo-account-1",
-      name: "Checking Account",
-      balance: 5500,
-      type: "checking",
-      userId: "demo-user",
-    },
-    {
-      id: "demo-account-2",
-      name: "Savings Account",
-      balance: 25000,
-      type: "savings",
-      userId: "demo-user",
-    },
-  ];
-
-  // Calculate net worth
+  const balanceChange = 2500; // totalBalance - lastMonthTotalBalance
+  
+  // Static income/expense values
+  const currentIncome = 8000;
+  const lastMonthIncome = 7500;
+  const incomeMomChange = 6.67; // ((8000 - 7500) / 7500) * 100
+  
+  const currentExpenses = 3500;
+  const lastMonthExpenses = 3700;
+  const expensesMomChange = -5.41; // ((3500 - 3700) / 3700) * 100
+  
+  const monthlySavings = 4500; // currentIncome - currentExpenses
+  const lastMonthSavings = 3800; // lastMonthIncome - lastMonthExpenses
+  const savingsChange = 18.42; // ((4500 - 3800) / 3800) * 100
+  
+  const availableToSpend = 2800; // Static value for demo
+  
+  // Static net worth values
   const totalAssets = totalBalance;
   const totalDebts = 5000;
-  const netWorth = totalAssets - totalDebts;
+  const netWorth = 25500; // Static value: totalAssets - totalDebts
 
   // Don't render until dates are available to avoid SSR issues
   if (!currentDate || !selectedMonthDate) {
@@ -348,19 +350,125 @@ export function DashboardDemoStatic() {
           </h2>
         </div>
         
-        {/* Financial Summary - Full Width */}
-        <SummaryCards
-          selectedMonthTransactions={mockSelectedMonthTransactions}
-          lastMonthTransactions={mockLastMonthTransactions}
-          savings={savings}
-          totalBalance={totalBalance}
-          lastMonthTotalBalance={lastMonthTotalBalance}
-          accounts={mockAccounts}
-          selectedMemberId={null}
-          householdMembers={[]}
-          isLoadingMembers={false}
-          financialHealth={mockFinancialHealth}
-        />
+        {/* Financial Summary - Static Demo Version */}
+        <div className="flex flex-col gap-3 md:gap-4">
+          {/* Primary Color Card - Balance Banner */}
+          <Card className="bg-primary border-primary">
+            <CardContent className="p-4 md:p-5 flex flex-col h-full min-h-[160px]">
+              {/* Household Selector - Static */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="text-accent-foreground text-xs font-normal px-2 py-1">
+                  All Households
+                </div>
+              </div>
+
+              {/* Balance Amount Label */}
+              <div className="text-foreground text-lg font-semibold mb-1">Balance Amount</div>
+
+              {/* Balance Amount */}
+              <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-foreground">
+                <AnimatedNumber value={totalBalance} format="money" />
+              </div>
+
+              {/* Balance Change Tag */}
+              <div className="inline-flex items-center text-sm font-medium mb-3 text-foreground">
+                +{formatMoney(balanceChange)} vs last month
+              </div>
+
+              {/* Available to Spend Section */}
+              <div>
+                <div className="text-foreground text-xs mb-1">Available to spend this month</div>
+                <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-foreground">
+                  <AnimatedNumber value={availableToSpend} format="money" />
+                </div>
+                <div className="text-sm text-foreground mb-2">
+                  after bills, goals & minimum debt
+                </div>
+                <div className="text-[10px] text-foreground mt-2">
+                  Based on connected accounts
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Monthly Income and Expense - Side by Side */}
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            {/* Total Income Card */}
+            <Card>
+              <CardContent className="p-4 md:p-5 flex flex-col h-full">
+                <div className="flex flex-col items-start gap-2 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                    <ArrowUpRight className="h-4 w-4 text-foreground" />
+                  </div>
+                  <div className="text-lg font-semibold">Monthly Income</div>
+                </div>
+                
+                {/* Amount */}
+                <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
+                  <AnimatedNumber value={currentIncome} format="money" />
+                </div>
+
+                {/* Percentage Change Tag */}
+                <div className="text-sm font-medium mb-1">
+                  <span className="text-green-600 dark:text-green-400">
+                    +{incomeMomChange.toFixed(2)}%
+                  </span>
+                  <span className="text-grey-300"> vs last month</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Expense Card */}
+            <Card>
+              <CardContent className="p-4 md:p-5 flex flex-col h-full">
+                <div className="flex flex-col items-start gap-2 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                    <ArrowDownRight className="h-4 w-4 text-foreground" />
+                  </div>
+                  <div className="text-lg font-semibold">Monthly Expense</div>
+                </div>
+                
+                {/* Amount */}
+                <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
+                  <AnimatedNumber value={currentExpenses} format="money" />
+                </div>
+
+                {/* Percentage Change Tag */}
+                <div className="text-sm font-medium mb-1">
+                  <span className="text-green-600 dark:text-green-400">
+                    {expensesMomChange.toFixed(2)}%
+                  </span>
+                  <span className="text-grey-300"> vs last month</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Monthly Savings Card */}
+          <Card>
+            <CardContent className="p-4 md:p-5">
+              <div className="flex flex-col items-start gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                  <PiggyBank className="h-4 w-4 text-foreground" />
+                </div>
+                <div className="text-lg font-semibold">Monthly Savings</div>
+              </div>
+              
+              {/* Amount */}
+              <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
+                <AnimatedNumber value={monthlySavings} format="money" />
+              </div>
+
+              {/* Percentage Change Tag */}
+              <div className="text-sm font-medium mb-1">
+                <span className="text-green-600 dark:text-green-400">
+                  +{savingsChange.toFixed(2)}%
+                </span>
+                <span className="text-grey-300"> vs last month</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Top Widgets - Spare Score and Expenses by Category side by side */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">

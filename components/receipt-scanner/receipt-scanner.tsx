@@ -46,8 +46,21 @@ export function ReceiptScanner({
   const streamRef = useRef<MediaStream | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const breakpoint = useBreakpoint();
-  // Show camera option only on mobile/tablet (below lg breakpoint = 1024px)
-  const isMobileOrTablet = !breakpoint || breakpoint === "xs" || breakpoint === "sm" || breakpoint === "md";
+  // Show camera option on mobile/tablet (below lg breakpoint = 1024px)
+  // Also check for touch device or mobile user agent as fallback
+  const isMobileOrTablet = React.useMemo(() => {
+    // Check breakpoint first
+    if (breakpoint && (breakpoint === "xs" || breakpoint === "sm" || breakpoint === "md")) {
+      return true;
+    }
+    // Fallback: check for touch device
+    if (typeof window !== "undefined") {
+      const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      return hasTouch || isMobileUA;
+    }
+    return false;
+  }, [breakpoint]);
 
   // Cleanup camera stream when dialog closes
   React.useEffect(() => {
@@ -276,8 +289,8 @@ export function ReceiptScanner({
             </div>
           )}
 
-          {/* Action Buttons */}
-          {!preview && !showCamera && (
+          {/* Action Buttons - Only show if no initialMode is set (to avoid duplicate options) */}
+          {!preview && !showCamera && !initialMode && (
             <div className="flex flex-col gap-3">
               {/* Camera button - only on mobile/tablet */}
               {isMobileOrTablet && (

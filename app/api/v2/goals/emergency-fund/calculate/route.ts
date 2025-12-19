@@ -4,7 +4,9 @@ import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 
 /**
  * POST /api/v2/goals/emergency-fund/calculate
- * Calculate and update emergency fund goal automatically based on income and expenses
+ * Calculate and update emergency fund goal based on income and expenses
+ * Note: The emergency fund goal must exist before calling this endpoint.
+ * Users must create the goal manually.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -22,8 +24,8 @@ export async function POST(request: NextRequest) {
     
     if (!goal) {
       return NextResponse.json(
-        { error: "Failed to calculate emergency fund. Please ensure you have income and expense data." },
-        { status: 400 }
+        { error: "Emergency fund goal not found. Please create the goal first before calculating." },
+        { status: 404 }
       );
     }
 

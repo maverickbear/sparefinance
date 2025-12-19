@@ -12,7 +12,7 @@ import { AccountForm } from "@/components/forms/account-form";
 import { PlaidLinkWrapper } from "./plaid-link-wrapper";
 import { ReplaceManualAccountsDialog } from "./replace-manual-accounts-dialog";
 import { PlaidImportLoadingModal } from "./plaid-import-loading-modal";
-import { Wallet, Building2, ChevronDown, Plus } from "lucide-react";
+import { Wallet, Building2, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 
 // Internal component that opens Plaid Link when ready
@@ -334,7 +334,6 @@ export function AddAccountDropdown({
 
   const defaultTrigger = (
     <Button variant="outline" size="medium" disabled={!canWrite}>
-      <Plus className="h-3 w-3 mr-1.5" />
       Connect or Add Account
       <ChevronDown className="h-3 w-3 ml-1.5" />
     </Button>

@@ -34,12 +34,28 @@ import {
   ArrowRight,
   Bell,
   FileText,
+  Lightbulb,
+  LayoutDashboard,
+  Tag,
+  Mail,
+  Star,
+  Calculator,
+  Search,
+  Palette,
+  Shield,
+  Moon,
+  Sun,
+  LogOut,
 } from "lucide-react";
+import { useTheme } from "next-themes";
+import { portalManagementItems } from "@/src/presentation/config/navigation.config";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  soon?: boolean;
 }
 
 interface NavCategory {
@@ -47,37 +63,78 @@ interface NavCategory {
   items: NavItem[];
 }
 
-const navCategories: NavCategory[] = [
-  {
-    title: "Money Management",
-    items: [
-      { href: "/accounts", label: "Bank Accounts", icon: Wallet },
-      { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
-      { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
-      { href: "/settings/categories", label: "Categories", icon: FolderTree },
-      { href: "/settings/household", label: "Household", icon: Users },
-    ],
-  },
-  {
-    title: "Planning",
-    items: [
-      { href: "/planning/budgets", label: "Budgets", icon: Target },
-      { href: "/planning/goals", label: "Goals", icon: PiggyBank },
-      { href: "/debts", label: "Debts", icon: CreditCard },
-      { href: "/investments", label: "Investments", icon: TrendingUp },
-      { href: "/reports", label: "Reports", icon: FileText },
-    ],
-  },
-  {
-    title: "Account & Settings",
-    items: [
-      { href: "/settings/myaccount", label: "My Account", icon: User },
-      { href: "/settings/billing", label: "Billing", icon: DollarSign },
-      { href: "/help-support", label: "Help & Support", icon: HelpCircle },
-      { href: "/feedback", label: "Feedback", icon: MessageSquare },
-    ],
-  },
-];
+// Helper function to build nav categories dynamically based on user role
+function buildNavCategories(isSuperAdmin: boolean): NavCategory[] {
+  const categories: NavCategory[] = [
+    {
+      title: "Overview",
+      items: [
+        { href: "/reports", label: "Reports", icon: FileText },
+        { href: "/insights", label: "Insights", icon: Lightbulb },
+      ],
+    },
+    {
+      title: "Money Management",
+      items: [
+        { href: "/accounts", label: "Bank Accounts", icon: Wallet },
+        { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
+        { href: "/planned-payment", label: "Planned Payments", icon: Calendar },
+        { href: "/settings/categories", label: "Categories", icon: FolderTree },
+        { href: "/settings/household", label: "Household", icon: Users },
+      ],
+    },
+    {
+      title: "Planning",
+      items: [
+        { href: "/planning/budgets", label: "Budgets", icon: Target },
+        { href: "/planning/goals", label: "Goals", icon: PiggyBank },
+        { href: "/debts", label: "Debts", icon: CreditCard },
+        { href: "#", label: "Investments", icon: TrendingUp, soon: true },
+      ],
+    },
+    {
+      title: "Account & Settings",
+      items: [
+        { href: "/settings/myaccount", label: "My Account", icon: User },
+        { href: "/settings/billing", label: "Billing", icon: DollarSign },
+        { href: "/help-support", label: "Help & Support", icon: HelpCircle },
+        { href: "/feedback", label: "Feedback", icon: MessageSquare },
+      ],
+    },
+  ];
+
+  // Add Portal Management section for super admins
+  if (isSuperAdmin) {
+    const portalItems: NavItem[] = portalManagementItems.map((item) => ({
+      href: item.href,
+      label: item.label,
+      icon: item.icon,
+    }));
+
+    categories.push({
+      title: "Portal Management",
+      items: portalItems,
+    });
+  }
+
+  // Add Legal & Preferences section
+  const legalItems: NavItem[] = [
+    { href: "/privacy-policy", label: "Privacy Policy", icon: Shield },
+    { href: "/terms-of-service", label: "Terms of Service", icon: FileText },
+  ];
+
+  // Add theme toggle for super admins
+  if (isSuperAdmin) {
+    legalItems.push({ href: "#", label: "Theme", icon: Sun });
+  }
+
+  categories.push({
+    title: "Legal & Preferences",
+    items: legalItems,
+  });
+
+  return categories;
+}
 
 interface UserProfile {
   name: string | null;
@@ -136,14 +193,20 @@ export function MoreMenuSheet({
 }: MoreMenuSheetProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   // Use Context instead of local state and fetch
-  const { user, checking: checkingAuth } = useAuthSafe();
+  const { user, role, checking: checkingAuth } = useAuthSafe();
   const { subscription, plan, checking: checkingSubscription } = useSubscriptionSafe();
   
   // Derive data from Context
   const loading = checkingAuth || checkingSubscription;
+  const isSuperAdmin = role === "super_admin";
+  const log = logger.withPrefix("MORE-MENU");
+  
+  // Build nav categories dynamically based on user role
+  const navCategories = buildNavCategories(isSuperAdmin);
   
   // Build userProfile from Context
   const userProfile: UserProfile | null = user ? {
@@ -184,6 +247,29 @@ export function MoreMenuSheet({
     if (!hasSubscription) {
       router.push("/dashboard");
       return;
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      onOpenChange(false);
+      const response = await fetch("/api/v2/auth/sign-out", {
+        method: "POST",
+      });
+
+      // Always redirect to landing page (even if there's an error)
+      router.push("/");
+      window.location.href = "/";
+      
+      if (!response.ok) {
+        const error = await response.json();
+        log.error("Failed to sign out:", error.error || "Unknown error");
+      }
+    } catch (error) {
+      log.error("Error signing out:", error);
+      // Still redirect to landing page even if there's an error
+      router.push("/");
+      window.location.href = "/";
     }
   };
 
@@ -321,6 +407,109 @@ export function MoreMenuSheet({
                   const Icon = item.icon;
                   const active = isActive(item.href);
                   const isLast = index === category.items.length - 1;
+                  
+                  // Handle theme toggle specially (only for super admins in Legal & Preferences)
+                  if (category.title === "Legal & Preferences" && item.label === "Theme" && isSuperAdmin) {
+                    return (
+                      <button
+                        key="theme-toggle"
+                        onClick={() => {
+                          setTheme(theme === "dark" ? "light" : "dark");
+                        }}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2 w-full",
+                          "transition-all duration-200",
+                          "hover:bg-muted/50 active:scale-[0.98]",
+                          !isLast && "border-b border-border",
+                          "text-foreground"
+                        )}
+                      >
+                        <div className="p-1.5 rounded-lg transition-colors flex-shrink-0 bg-muted">
+                          {theme === "dark" ? (
+                            <Sun className="h-4 w-4" />
+                          ) : (
+                            <Moon className="h-4 w-4" />
+                          )}
+                        </div>
+                        <span className="text-sm font-medium flex-1 text-left">
+                          {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      </button>
+                    );
+                  }
+                  
+                  // Handle "soon" items - render as disabled button instead of link
+                  if (item.soon) {
+                    return (
+                      <div
+                        key={item.href}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2",
+                          "transition-all duration-200",
+                          "opacity-60 cursor-not-allowed",
+                          !isLast && "border-b border-border",
+                          "text-muted-foreground"
+                        )}
+                      >
+                        <div className="p-1.5 rounded-lg transition-colors flex-shrink-0 bg-muted">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <span className="text-sm font-medium flex-1">
+                          {item.label}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                          SOON
+                        </span>
+                      </div>
+                    );
+                  }
+                  
+                  // Handle external links (Privacy Policy, Terms of Service)
+                  const isExternal = item.href === "/privacy-policy" || item.href === "/terms-of-service";
+                  
+                  if (isExternal) {
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        prefetch={true}
+                        onClick={() => handleItemClick(item.href)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2",
+                          "transition-all duration-200",
+                          "hover:bg-muted/50 active:scale-[0.98]",
+                          !isLast && "border-b border-border",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "text-foreground"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "p-1.5 rounded-lg transition-colors flex-shrink-0",
+                            active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <span
+                          className={cn(
+                            "text-sm font-medium flex-1",
+                            active && "text-primary"
+                          )}
+                        >
+                          {item.label}
+                        </span>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                      </Link>
+                    );
+                  }
+                  
                   return (
                     <Link
                       key={item.href}
@@ -369,6 +558,29 @@ export function MoreMenuSheet({
               </div>
             </div>
           ))}
+
+          {/* Logout Button */}
+          <div className="space-y-2 pt-4 border-t">
+            <div className="border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={handleLogout}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 w-full",
+                  "transition-all duration-200",
+                  "hover:bg-muted/50 active:scale-[0.98]",
+                  "text-destructive"
+                )}
+              >
+                <div className="p-1.5 rounded-lg transition-colors flex-shrink-0 bg-destructive/10">
+                  <LogOut className="h-4 w-4 text-destructive" />
+                </div>
+                <span className="text-sm font-medium flex-1 text-left">
+                  Log out
+                </span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
 
         </div>
       </SheetContent>

@@ -41,15 +41,15 @@ export interface SecurityPriceRow {
 }
 
 export interface PositionRow {
-  security_id: string;
-  account_id: string;
-  open_quantity: number;
-  average_entry_price: number;
-  total_cost: number;
-  current_price: number;
-  current_market_value: number;
-  open_pnl: number;
-  last_updated_at: string;
+  securityId: string;
+  accountId: string;
+  openQuantity: number;
+  averageEntryPrice: number;
+  totalCost: number;
+  currentPrice: number;
+  currentMarketValue: number;
+  openPnl: number;
+  lastUpdatedAt: string;
 }
 
 export class InvestmentsRepository {
@@ -268,12 +268,12 @@ export class InvestmentsRepository {
 
     let query = supabase
       .from("positions")
-      .select("security_id, account_id, open_quantity, average_entry_price, total_cost, current_price, current_market_value, open_pnl, last_updated_at")
-      .gt("open_quantity", 0)
-      .order("last_updated_at", { ascending: false });
+      .select("securityId, accountId, openQuantity, averageEntryPrice, totalCost, currentPrice, currentMarketValue, openPnl, lastUpdatedAt")
+      .gt("openQuantity", 0)
+      .order("lastUpdatedAt", { ascending: false });
 
     if (accountId) {
-      query = query.eq("account_id", accountId);
+      query = query.eq("accountId", accountId);
     }
 
     const { data, error } = await query;

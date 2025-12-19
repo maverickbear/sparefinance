@@ -12,6 +12,7 @@ import { Camera, Upload, Plus } from "lucide-react";
 import { ReceiptScanner } from "@/components/receipt-scanner/receipt-scanner";
 import { TransactionForm } from "@/components/forms/transaction-form";
 import { useSubscriptionSafe } from "@/contexts/subscription-context";
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 
 interface AddTransactionSheetProps {
   open: boolean;
@@ -23,13 +24,31 @@ export function AddTransactionSheet({
   onOpenChange,
 }: AddTransactionSheetProps) {
   const { limits } = useSubscriptionSafe();
+  const breakpoint = useBreakpoint();
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = React.useState(false);
   const [receiptScannerMode, setReceiptScannerMode] = React.useState<"camera" | "upload" | null>(null);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
   
-  // Check if receipt scanner feature is enabled
-  // Default to false if not within SubscriptionProvider (safe fallback)
-  const hasReceiptScanner = limits.hasReceiptScanner === true || String(limits.hasReceiptScanner) === "true";
+  // Check if receipt scanner feature is enabled via subscription
+  const hasReceiptScannerSubscription = limits.hasReceiptScanner === true || String(limits.hasReceiptScanner) === "true";
+  
+  // Detect if device is mobile/tablet
+  const isMobileOrTablet = React.useMemo(() => {
+    // Check breakpoint first
+    if (breakpoint && (breakpoint === "xs" || breakpoint === "sm" || breakpoint === "md")) {
+      return true;
+    }
+    // Fallback: check for touch device
+    if (typeof window !== "undefined") {
+      const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      return hasTouch || isMobileUA;
+    }
+    return false;
+  }, [breakpoint]);
+  
+  // Always show receipt scanner on mobile, or if subscription allows it
+  const showReceiptScanner = isMobileOrTablet || hasReceiptScannerSubscription;
 
   const handleTakePicture = () => {
     setReceiptScannerMode("camera");
@@ -56,8 +75,8 @@ export function AddTransactionSheet({
             <SheetTitle>Add Transaction</SheetTitle>
           </SheetHeader>
           <div className="px-6 py-4">
-            <div className={hasReceiptScanner ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
-              {hasReceiptScanner && (
+            <div className={showReceiptScanner ? "grid grid-cols-3 gap-3" : "grid grid-cols-1 gap-3"}>
+              {showReceiptScanner && (
                 <>
                   <Button
                     onClick={handleTakePicture}

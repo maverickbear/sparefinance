@@ -44,8 +44,8 @@ export class InvestmentsService {
 
     if (positions && positions.length > 0) {
       // Fetch securities and accounts for enrichment
-      const securityIds = new Set(positions.map(p => p.security_id));
-      const accountIds = new Set(positions.map(p => p.account_id));
+      const securityIds = new Set(positions.map(p => p.securityId));
+      const accountIds = new Set(positions.map(p => p.accountId));
 
       const [securities, accounts] = await Promise.all([
         securityIds.size > 0
@@ -60,8 +60,8 @@ export class InvestmentsService {
       const accountMap = new Map(accounts.map(a => [a.id, a]));
 
       const holdings = positions.map(position => {
-        const security = securityMap.get(position.security_id);
-        const account = accountMap.get(position.account_id);
+        const security = securityMap.get(position.securityId);
+        const account = accountMap.get(position.accountId);
         return InvestmentsMapper.positionToHolding(position, security || undefined, account || undefined);
       });
 

@@ -248,12 +248,6 @@ export function BudgetsTab() {
           icon={Wallet}
           title="No budgets yet"
           description="Create your first budget to start tracking your spending and stay on top of your finances."
-          actionLabel={canWrite ? "Create Your First Budget" : undefined}
-          onAction={canWrite ? () => {
-            setSelectedBudget(null);
-            setIsFormOpen(true);
-          } : undefined}
-          actionIcon={canWrite ? Plus : undefined}
         />
         </div>
       ) : (

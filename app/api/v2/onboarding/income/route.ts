@@ -89,20 +89,7 @@ export async function POST(request: NextRequest) {
     }
     // If no ruleType provided, do NOT create budgets automatically
 
-    // Recalculate emergency fund goal based on new income (only if household exists)
-    try {
-      const { getActiveHouseholdId } = await import("@/lib/utils/household");
-      const householdId = await getActiveHouseholdId(userId, accessToken, refreshToken);
-      if (householdId) {
-        const { makeGoalsService } = await import("@/src/application/goals/goals.factory");
-        const goalsService = makeGoalsService();
-        await goalsService.calculateAndUpdateEmergencyFund(accessToken, refreshToken);
-      }
-      // If no household, emergency fund will be created when household is created
-    } catch (error) {
-      // Log but don't fail the request if emergency fund calculation fails
-      console.error("Error recalculating emergency fund:", error);
-    }
+    // Note: Emergency fund goal must be created manually by the user
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

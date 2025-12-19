@@ -23,8 +23,8 @@ const TabsList = React.forwardRef<
       "rounded-[var(--radius)]",
       // Padding using design tokens - responsive
       "p-1",
-      // Height - responsive for mobile touch targets (min 44px) and desktop
-      "h-11 md:h-10",
+      // Height - fit content to accommodate varying content sizes
+      "h-fit",
       // Smooth transitions
       "transition-colors duration-200",
       // Focus styles for accessibility

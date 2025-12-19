@@ -341,9 +341,12 @@ export default function BudgetsPage() {
     <div>
       <PageHeader
         title="Budgets"
-      >
+      />
+
+      <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons - Moved from header */}
         {canWrite && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-end mb-6">
             {allSelected && (
               <Button
                 variant="destructive"
@@ -380,9 +383,6 @@ export default function BudgetsPage() {
             </Button>
           </div>
         )}
-      </PageHeader>
-
-      <div className="w-full p-4 lg:p-8">
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-3">
           {allSelected && canWrite && (
@@ -414,13 +414,6 @@ export default function BudgetsPage() {
                 icon={Wallet}
                 title="No budgets yet"
                 description="Create your first budget to start tracking your spending and stay on top of your finances."
-                actionLabel={canWrite ? "Create Your First Budget" : undefined}
-                onAction={canWrite ? () => {
-                  if (!checkWriteAccess()) return;
-                  setSelectedBudget(null);
-                  setIsFormOpen(true);
-                } : undefined}
-                actionIcon={canWrite ? Plus : undefined}
               />
             </div>
           ) : (

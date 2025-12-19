@@ -76,34 +76,6 @@ export default function GoalsPage() {
       setGoals(data || []);
       setHasLoaded(true);
       perf.markDataLoaded();
-      
-      // OPTIMIZATION: Check emergency fund goal in background, don't block render
-      // This ensures the goal exists but doesn't slow down initial page load
-      if (data && data.length > 0) {
-        // Check if emergency fund exists
-        const hasEmergencyFund = data.some((g: Goal) => g.isSystemGoal && g.name?.toLowerCase().includes('emergency'));
-        
-        if (!hasEmergencyFund) {
-          // Create emergency fund in background
-          fetch("/api/v2/goals/emergency-fund/calculate", {
-            method: "POST",
-          }).then((response) => {
-            if (response.ok) {
-              // Silently reload goals in background
-              fetch(`/api/v2/goals`).then((res2) => {
-                if (res2.ok) {
-                  res2.json().then((data2) => {
-                    setGoals(data2 || []);
-                  });
-                }
-              });
-            }
-          }).catch((error) => {
-            // Silently fail - emergency fund creation is not critical
-            console.debug("Emergency fund creation failed (non-critical):", error);
-          });
-        }
-      }
     } catch (error) {
       console.error("Error loading goals:", error);
       setHasLoaded(true);
@@ -194,23 +166,25 @@ export default function GoalsPage() {
       <div>
         <PageHeader
           title="Goals"
-        >
-        {sortedGoals.length > 0 && canWrite && (
-          <Button
-            size="medium"
-            onClick={() => {
-              if (!checkWriteAccess()) return;
-              setSelectedGoal(null);
-              setIsFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Goal
-          </Button>
-        )}
-      </PageHeader>
+        />
 
       <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons - Moved from header */}
+        {sortedGoals.length > 0 && canWrite && (
+          <div className="flex items-center gap-2 justify-end mb-6">
+            <Button
+              size="medium"
+              onClick={() => {
+                if (!checkWriteAccess()) return;
+                setSelectedGoal(null);
+                setIsFormOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Goal
+            </Button>
+          </div>
+        )}
       <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
         {loading && !hasLoaded ? (
           <div className="col-span-full text-center py-8 text-muted-foreground">
@@ -222,13 +196,6 @@ export default function GoalsPage() {
               icon={PiggyBank}
               title="No goals created yet"
               description="Create your first savings goal to start tracking your progress and achieve your financial dreams."
-              actionLabel={canWrite ? "Create Your First Goal" : undefined}
-              onAction={canWrite ? () => {
-                if (!checkWriteAccess()) return;
-                setSelectedGoal(null);
-                setIsFormOpen(true);
-              } : undefined}
-              actionIcon={canWrite ? Plus : undefined}
             />
           </div>
         ) : (

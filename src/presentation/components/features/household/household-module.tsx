@@ -174,12 +174,6 @@ export function HouseholdModule() {
               icon={Users}
               title="No members yet"
               description="Invite household members to share access to your financial data."
-              actionLabel={canWrite ? "Invite Your First Member" : undefined}
-              onAction={canWrite ? () => {
-                if (!checkWriteAccess()) return;
-                setIsFormOpen(true);
-              } : undefined}
-              actionIcon={canWrite ? Plus : undefined}
             />
           </div>
         ) : (
