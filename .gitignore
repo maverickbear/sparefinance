@@ -64,6 +64,8 @@ cypress/screenshots/
 *.pem
 secrets/
 .secrets/
+# Scripts that contain secrets
+scripts/organize-env-files.sh
 # Allow .env.example to be versioned
 !.env.example
 !.env.template
