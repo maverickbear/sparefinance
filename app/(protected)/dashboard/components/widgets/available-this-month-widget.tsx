@@ -36,9 +36,8 @@ const CustomTooltip = ({ active, payload }: any) => {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Available:</span>
             <span
-              className={`text-sm font-semibold ${
-                data.available >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-              }`}
+              className={`text-sm font-semibold ${data.available >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+                }`}
             >
               {formatMoney(data.available)}
             </span>
@@ -188,7 +187,7 @@ export function AvailableThisMonthWidget({
   const daysRemaining = Math.max(0, endOfMonth.getDate() - today.getDate());
   const daysInMonth = endOfMonth.getDate();
   const daysElapsed = daysInMonth - daysRemaining;
-  
+
   const dailyAverage = daysElapsed > 0 ? availableThisMonth / daysElapsed : 0;
   const projectedAvailable = availableThisMonth + (dailyAverage * daysRemaining);
 
@@ -204,9 +203,8 @@ export function AvailableThisMonthWidget({
         <div className="border border-border rounded-lg p-4">
           <div className="text-xs text-muted-foreground mb-1">Available This Month</div>
           <div
-            className={`text-2xl font-bold ${
-              availableThisMonth >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-            }`}
+            className={`text-2xl font-bold ${availableThisMonth >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+              }`}
           >
             {formatMoney(availableThisMonth)}
           </div>
@@ -220,9 +218,8 @@ export function AvailableThisMonthWidget({
         <div className="border border-border rounded-lg p-4">
           <div className="text-xs text-muted-foreground mb-1">Projected This Month</div>
           <div
-            className={`text-2xl font-bold ${
-              projectedAvailable >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-            }`}
+            className={`text-2xl font-bold ${projectedAvailable >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+              }`}
           >
             {formatMoney(projectedAvailable)}
           </div>
@@ -370,9 +367,8 @@ export function AvailableThisMonthWidget({
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-foreground">Available This Month</span>
               <span
-                className={`text-sm font-bold ${
-                  availableThisMonth >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-                }`}
+                className={`text-sm font-bold ${availableThisMonth >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+                  }`}
               >
                 {formatMoney(availableThisMonth)}
               </span>

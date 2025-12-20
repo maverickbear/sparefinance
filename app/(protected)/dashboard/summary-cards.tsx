@@ -34,9 +34,9 @@ interface SummaryCardsProps {
   debts?: any[];
 }
 
-export function SummaryCards({ 
-  selectedMonthTransactions, 
-  lastMonthTransactions, 
+export function SummaryCards({
+  selectedMonthTransactions,
+  lastMonthTransactions,
   savings,
   totalBalance,
   lastMonthTotalBalance,
@@ -57,23 +57,23 @@ export function SummaryCards({
   const searchParams = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expectedMonthlyAfterTax, setExpectedMonthlyAfterTax] = useState<number | null>(null);
-  
+
   // Get selected month from URL or use current month (same logic as MonthSelector)
   const monthParam = searchParams.get("month");
-  const selectedMonth = monthParam 
+  const selectedMonth = monthParam
     ? (() => {
-        // Parse YYYY-MM-DD format and create date in local timezone
-        const [year, month, day] = monthParam.split('-').map(Number);
-        return startOfMonth(new Date(year, month - 1, day));
-      })()
+      // Parse YYYY-MM-DD format and create date in local timezone
+      const [year, month, day] = monthParam.split('-').map(Number);
+      return startOfMonth(new Date(year, month - 1, day));
+    })()
     : startOfMonth(new Date());
-  
+
   // Calculate start and end dates for the selected month
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);
   const startDateStr = format(monthStart, "yyyy-MM-dd");
   const endDateStr = format(monthEnd, "yyyy-MM-dd");
-  
+
   // Get today's date (without time)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -116,19 +116,19 @@ export function SummaryCards({
   });
 
   // Calculate expenses - ensure we always return 0 if no transactions
-  const currentExpenses = expenseTransactions.length === 0 
-    ? 0 
+  const currentExpenses = expenseTransactions.length === 0
+    ? 0
     : expenseTransactions.reduce((sum, t) => {
-        let amount = 0;
-        if (t.amount != null) {
-          const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
-          amount = isNaN(parsed) ? 0 : parsed;
-          // Ensure expenses are always positive (use absolute value)
-          amount = Math.abs(amount);
-        }
-        return sum + amount;
-      }, 0);
-  
+      let amount = 0;
+      if (t.amount != null) {
+        const parsed = typeof t.amount === 'string' ? parseFloat(t.amount) : Number(t.amount);
+        amount = isNaN(parsed) ? 0 : parsed;
+        // Ensure expenses are always positive (use absolute value)
+        amount = Math.abs(amount);
+      }
+      return sum + amount;
+    }, 0);
+
   // Ensure currentExpenses is never NaN or Infinity
   const finalCurrentExpenses = isNaN(currentExpenses) || !isFinite(currentExpenses) ? 0 : currentExpenses;
 
@@ -167,8 +167,8 @@ export function SummaryCards({
   const incomeMomChange = lastMonthIncome !== 0
     ? ((currentIncome - lastMonthIncome) / Math.abs(lastMonthIncome)) * 100
     : currentIncome > 0
-    ? 100 // 100% increase from 0
-    : 0;
+      ? 100 // 100% increase from 0
+      : 0;
 
   // Calculate expenses change percentage
   // If last month had no expenses but current month has expenses, show 100% increase
@@ -177,15 +177,15 @@ export function SummaryCards({
   const expensesMomChange = lastMonthExpenses !== 0
     ? ((finalCurrentExpenses - lastMonthExpenses) / Math.abs(lastMonthExpenses)) * 100
     : finalCurrentExpenses > 0
-    ? 100 // 100% increase from 0
-    : 0;
+      ? 100 // 100% increase from 0
+      : 0;
 
   // Calculate monthly savings (income - expenses) for current month
   const monthlySavings = currentIncome - finalCurrentExpenses;
-  
+
   // Calculate monthly savings for last month
   const lastMonthSavings = lastMonthIncome - lastMonthExpenses;
-  
+
   // Calculate savings change percentage
   const savingsChange = lastMonthSavings !== 0
     ? ((monthlySavings - lastMonthSavings) / Math.abs(lastMonthSavings)) * 100
@@ -315,33 +315,33 @@ export function SummaryCards({
       // If no expected income range, only use planned income payments
       return plannedIncomePayments;
     }
-    
+
     // Use after-tax income if available, otherwise use gross from range
-    const baseExpectedIncome = expectedMonthlyAfterTax !== null 
-      ? expectedMonthlyAfterTax 
+    const baseExpectedIncome = expectedMonthlyAfterTax !== null
+      ? expectedMonthlyAfterTax
       : (() => {
-          const range = expectedIncomeRange as string;
-          const INCOME_RANGE_TO_MONTHLY: Record<string, number> = {
-            "0-50k": 25000 / 12,
-            "50k-100k": 75000 / 12,
-            "100k-150k": 125000 / 12,
-            "150k-250k": 200000 / 12,
-            "250k+": 300000 / 12,
-          };
-          return INCOME_RANGE_TO_MONTHLY[range] || 0;
-        })();
-    
+        const range = expectedIncomeRange as string;
+        const INCOME_RANGE_TO_MONTHLY: Record<string, number> = {
+          "0-50k": 25000 / 12,
+          "50k-100k": 75000 / 12,
+          "100k-150k": 125000 / 12,
+          "150k-250k": 200000 / 12,
+          "250k+": 300000 / 12,
+        };
+        return INCOME_RANGE_TO_MONTHLY[range] || 0;
+      })();
+
     // Sum expected income + planned income payments
     return baseExpectedIncome + plannedIncomePayments;
   })();
 
   // Get selected member name or "All Households"
-  const selectedMemberName = selectedMemberId 
+  const selectedMemberName = selectedMemberId
     ? (() => {
-        const fullName = householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown";
-        // Extract only the first name
-        return fullName.split(" ")[0];
-      })()
+      const fullName = householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown";
+      // Extract only the first name
+      return fullName.split(" ")[0];
+    })()
     : "All Households";
 
   // Calculate total bills (recurring payments + subscriptions) for current month
@@ -435,208 +435,208 @@ export function SummaryCards({
   return (
     <>
       <div className="flex flex-col gap-3 md:gap-4">
-          {/* Primary Color Card - Balance Banner */}
-          <Card 
-            className="bg-primary border-primary cursor-pointer transition-all"
-            onClick={() => setIsModalOpen(true)}
-          >
-            <CardContent className="p-4 md:p-5 flex flex-col h-full min-h-[160px]">
-              {/* Logo and Household Selector */}
-              <div className="flex items-start justify-between mb-4">
-                {/* Household Selector */}
-                <Select
-                  value={selectedMemberId || "all"}
-                  onValueChange={handleMemberChange}
-                >
-                  <SelectTrigger className="!w-auto inline-flex bg-transparent border-0 text-accent-foreground hover:text-accent-foreground/80 hover:bg-accent-foreground/10 h-auto px-2 py-1 text-xs font-normal shadow-none focus:ring-0 focus:ring-offset-0 rounded transition-colors">
-                    <SelectValue>
-                      {isLoadingMembers ? "Loading..." : selectedMemberName}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Households</SelectItem>
-                    {householdMembers
-                      .filter((member) => member.memberId) // Only show members with memberId (accepted invitations)
-                      .map((member) => {
-                        const fullName = member.name || member.email;
-                        const firstName = fullName.split(" ")[0];
-                        return (
-                          <SelectItem key={member.id} value={member.memberId!}>
-                            {firstName}
-                          </SelectItem>
-                        );
-                      })}
-                  </SelectContent>
-                </Select>
+        {/* Primary Color Card - Balance Banner */}
+        <Card
+          className="bg-primary border-primary cursor-pointer transition-all"
+          onClick={() => setIsModalOpen(true)}
+        >
+          <CardContent className="p-4 md:p-5 flex flex-col h-full min-h-[160px]">
+            {/* Logo and Household Selector */}
+            <div className="flex items-start justify-between mb-4">
+              {/* Household Selector */}
+              <Select
+                value={selectedMemberId || "all"}
+                onValueChange={handleMemberChange}
+              >
+                <SelectTrigger className="!w-auto inline-flex bg-transparent border-0 text-accent-foreground hover:text-accent-foreground/80 hover:bg-accent-foreground/10 h-auto px-2 py-1 text-xs font-normal shadow-none focus:ring-0 focus:ring-offset-0 rounded transition-colors">
+                  <SelectValue>
+                    {isLoadingMembers ? "Loading..." : selectedMemberName}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Households</SelectItem>
+                  {householdMembers
+                    .filter((member) => member.memberId) // Only show members with memberId (accepted invitations)
+                    .map((member) => {
+                      const fullName = member.name || member.email;
+                      const firstName = fullName.split(" ")[0];
+                      return (
+                        <SelectItem key={member.id} value={member.memberId!}>
+                          {firstName}
+                        </SelectItem>
+                      );
+                    })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Balance Amount Label - Use content.primary */}
+            <div className="text-foreground text-lg font-semibold mb-1">Balance Amount</div>
+
+            {/* Balance Amount - Use content.primary */}
+            <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-foreground">
+              <AnimatedNumber value={totalBalance} format="money" />
+            </div>
+
+            {/* Balance Change Tag - Use content.primary */}
+            {lastMonthTotalBalance !== 0 && (
+              <div className={cn(
+                "inline-flex items-center text-sm font-medium mb-3 text-foreground"
+              )}>
+                {balanceChange >= 0 ? "+" : ""}{formatMoney(balanceChange)} vs last month
               </div>
+            )}
 
-              {/* Balance Amount Label - Use content.primary */}
-              <div className="text-foreground text-lg font-semibold mb-1">Balance Amount</div>
-
-              {/* Balance Amount - Use content.primary */}
-              <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-foreground">
-                <AnimatedNumber value={totalBalance} format="money" />
+            {/* Available to Spend Section */}
+            <div>
+              {/* Label - Use content.primary */}
+              <div className="text-foreground text-xs mb-1">Available to spend this month</div>
+              {/* Amount - Use content.primary */}
+              <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-foreground">
+                <AnimatedNumber value={availableToSpend} format="money" />
               </div>
-
-              {/* Balance Change Tag - Use content.primary */}
-              {lastMonthTotalBalance !== 0 && (
-                <div className={cn(
-                  "inline-flex items-center text-sm font-medium mb-3 text-foreground"
-                )}>
-                  {balanceChange >= 0 ? "+" : ""}{formatMoney(balanceChange)} vs last month
+              {/* Description - Use content.primary */}
+              <div className="text-sm text-foreground mb-2">
+                after bills, goals & minimum debt
+              </div>
+              {hasConnectedAccounts && (
+                <div className="text-[10px] text-foreground mt-2">
+                  Based on connected accounts
                 </div>
               )}
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Available to Spend Section */}
-              <div>
-                {/* Label - Use content.primary */}
-                <div className="text-foreground text-xs mb-1">Available to spend this month</div>
-                {/* Amount - Use content.primary */}
-                <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-foreground">
-                  <AnimatedNumber value={availableToSpend} format="money" />
+        {/* Monthly Income and Expense - Side by Side */}
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
+          {/* Total Income Card */}
+          <Card className="cursor-pointer" onClick={() => {
+            router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
+          }}>
+            <CardContent className="p-4 md:p-5 flex flex-col h-full">
+              <div className="flex flex-col items-start gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                  <ArrowUpRight className="h-4 w-4 text-foreground" />
                 </div>
-                {/* Description - Use content.primary */}
-                <div className="text-sm text-foreground mb-2">
-                  after bills, goals & minimum debt
-                </div>
-                {hasConnectedAccounts && (
-                  <div className="text-[10px] text-foreground mt-2">
-                    Based on connected accounts
-                  </div>
-                )}
+                <div className="text-lg font-semibold">Income</div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Monthly Income and Expense - Side by Side */}
-          <div className="grid grid-cols-2 gap-3 md:gap-4">
-            {/* Total Income Card */}
-            <Card className="cursor-pointer" onClick={() => {
-                router.push(`/transactions?type=income&startDate=${startDateStr}&endDate=${endDateStr}`);
-              }}>
-                <CardContent className="p-4 md:p-5 flex flex-col h-full">
-                  <div className="flex flex-col items-start gap-2 mb-3">
-                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                      <ArrowUpRight className="h-4 w-4 text-foreground" />
-                    </div>
-                    <div className="text-lg font-semibold">Monthly Income</div>
-                  </div>
-                  
-                  {/* Amount */}
-                  <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
-                    <AnimatedNumber value={currentIncome} format="money" />
-                  </div>
+              {/* Amount */}
+              <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
+                <AnimatedNumber value={currentIncome} format="money" />
+              </div>
 
-                  {/* Percentage Change Tag */}
-                  <div className="text-sm font-medium mb-1">
-                    <span className={cn(
-                      incomeMomChange >= 0 
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-600 dark:text-red-400"
-                    )}>
-                      {incomeMomChange >= 0 ? "+" : ""}{incomeMomChange.toFixed(2)}%
-                    </span>
-                    <span className="text-grey-300"> vs last month</span>
-                  </div>
+              {/* Percentage Change Tag */}
+              <div className="text-sm font-medium mb-1">
+                <span className={cn(
+                  incomeMomChange >= 0
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                )}>
+                  {incomeMomChange >= 0 ? "+" : ""}{incomeMomChange.toFixed(2)}%
+                </span>
+                <span className="text-grey-300"> vs last month</span>
+              </div>
 
-                  {/* Footer - Expected Income (always show if available) */}
-                  {expectedIncomeRange && (
-                    <div className="mt-auto pt-2">
-                      <div className="text-sm text-muted-foreground">
-                        Expected {formatMoney(totalExpectedIncome)}
-                        {plannedIncomePayments > 0 && (
-                          <span className="text-xs text-muted-foreground/70 ml-1">
-                            ({formatMoney(plannedIncomePayments)} planned)
-                          </span>
-                        )}
-                      </div>
-                      {currentIncome > 0 && (
-                        <div className="text-xs text-muted-foreground/70 mt-1">
-                          Received {formatMoney(currentIncome)} 
-                          {totalExpectedIncome > 0 && (
-                            <span className={cn(
-                              "ml-1",
-                              currentIncome >= totalExpectedIncome 
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-orange-600 dark:text-orange-400"
-                            )}>
-                              ({((currentIncome / totalExpectedIncome) * 100).toFixed(0)}%)
-                            </span>
-                          )}
-                        </div>
+              {/* Footer - Expected Income (always show if available) */}
+              {expectedIncomeRange && (
+                <div className="mt-auto pt-2">
+                  <div className="text-sm text-muted-foreground">
+                    Coming soon {formatMoney(totalExpectedIncome)}
+                    {plannedIncomePayments > 0 && (
+                      <span className="text-xs text-muted-foreground/70 ml-1">
+                        ({formatMoney(plannedIncomePayments)} planned)
+                      </span>
+                    )}
+                  </div>
+                  {currentIncome > 0 && (
+                    <div className="text-xs text-muted-foreground/70 mt-1">
+                      Received {formatMoney(currentIncome)}
+                      {totalExpectedIncome > 0 && (
+                        <span className={cn(
+                          "ml-1",
+                          currentIncome >= totalExpectedIncome
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-orange-600 dark:text-orange-400"
+                        )}>
+                          ({((currentIncome / totalExpectedIncome) * 100).toFixed(0)}%)
+                        </span>
                       )}
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-            {/* Total Expense Card */}
-            <Card className="cursor-pointer" onClick={() => {
-                router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
-              }}>
-                <CardContent className="p-4 md:p-5 flex flex-col h-full">
-                  <div className="flex flex-col items-start gap-2 mb-3">
-                    <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                      <ArrowDownRight className="h-4 w-4 text-foreground" />
-                    </div>
-                    <div className="text-lg font-semibold">Monthly Expense</div>
-                  </div>
-                  
-                  {/* Amount */}
-                  <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
-                    <AnimatedNumber value={finalCurrentExpenses} format="money" />
-                  </div>
-
-                  {/* Percentage Change Tag */}
-                  <div className="text-sm font-medium mb-1">
-                    <span className={cn(
-                      expensesMomChange >= 0 
-                        ? "text-red-600 dark:text-red-400"
-                        : "text-green-600 dark:text-green-400"
-                    )}>
-                      {expensesMomChange >= 0 ? "+" : ""}{expensesMomChange.toFixed(2)}%
-                    </span>
-                    <span className="text-grey-300"> vs last month</span>
-                  </div>
-
-                  {/* Footer - Expected Expense */}
-                  <div className="mt-auto pt-2">
-                    <div className="text-sm text-muted-foreground">
-                      Expected {formatMoney(expectedExpense)}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-          </div>
-
-          {/* Monthly Savings Card */}
-          <Card className="cursor-pointer">
-              <CardContent className="p-4 md:p-5">
-                <div className="flex flex-col items-start gap-2 mb-3">
-                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                    <PiggyBank className="h-4 w-4 text-foreground" />
-                  </div>
-                  <div className="text-lg font-semibold">Monthly Savings</div>
                 </div>
-                
-                {/* Amount */}
-                <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
-                  <AnimatedNumber value={monthlySavings} format="money" />
-                </div>
+              )}
+            </CardContent>
+          </Card>
 
-                {/* Percentage Change Tag */}
-                <div className="text-sm font-medium mb-1">
-                  <span className={cn(
-                    savingsChange >= 0 
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
-                  )}>
-                    {savingsChange >= 0 ? "+" : ""}{savingsChange.toFixed(2)}%
-                  </span>
-                  <span className="text-grey-300"> vs last month</span>
+          {/* Total Expense Card */}
+          <Card className="cursor-pointer" onClick={() => {
+            router.push(`/transactions?type=expense&startDate=${startDateStr}&endDate=${endDateStr}`);
+          }}>
+            <CardContent className="p-4 md:p-5 flex flex-col h-full">
+              <div className="flex flex-col items-start gap-2 mb-3">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                  <ArrowDownRight className="h-4 w-4 text-foreground" />
                 </div>
-              </CardContent>
-            </Card>
+                <div className="text-lg font-semibold">Spending</div>
+              </div>
+
+              {/* Amount */}
+              <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
+                <AnimatedNumber value={finalCurrentExpenses} format="money" />
+              </div>
+
+              {/* Percentage Change Tag */}
+              <div className="text-sm font-medium mb-1">
+                <span className={cn(
+                  expensesMomChange >= 0
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-green-600 dark:text-green-400"
+                )}>
+                  {expensesMomChange >= 0 ? "+" : ""}{expensesMomChange.toFixed(2)}%
+                </span>
+                <span className="text-grey-300"> vs last month</span>
+              </div>
+
+              {/* Footer - Expected Expense */}
+              <div className="mt-auto pt-2">
+                <div className="text-sm text-muted-foreground">
+                  Left to pay {formatMoney(expectedExpense)}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Monthly Savings Card */}
+        <Card className="cursor-pointer">
+          <CardContent className="p-4 md:p-5">
+            <div className="flex flex-col items-start gap-2 mb-3">
+              <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
+                <PiggyBank className="h-4 w-4 text-foreground" />
+              </div>
+              <div className="text-lg font-semibold">Savings</div>
+            </div>
+
+            {/* Amount */}
+            <div className="text-xl md:text-2xl font-bold mb-2 tabular-nums">
+              <AnimatedNumber value={monthlySavings} format="money" />
+            </div>
+
+            {/* Percentage Change Tag */}
+            <div className="text-sm font-medium mb-1">
+              <span className={cn(
+                savingsChange >= 0
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+              )}>
+                {savingsChange >= 0 ? "+" : ""}{savingsChange.toFixed(2)}%
+              </span>
+              <span className="text-grey-300"> vs last month</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <AccountsBreakdownModal

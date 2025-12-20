@@ -77,7 +77,7 @@ export function SpareScoreWidget({
     const emergencyFundMonths = financialHealth.emergencyFundMonths || 0;
     const debtExposure = financialHealth.debtExposure === "Low" ? 80 : financialHealth.debtExposure === "Moderate" ? 50 : 20;
     const spendingDiscipline = financialHealth.spendingDiscipline === "Excellent" ? 90 : financialHealth.spendingDiscipline === "Good" ? 70 : financialHealth.spendingDiscipline === "Fair" ? 50 : 30;
-    
+
     // Net amount component (positive = good)
     const netAmount = financialHealth.netAmount || 0;
     const netAmountScore = netAmount > 0 ? Math.min(100, (netAmount / (financialHealth.monthlyIncome || 1)) * 100) : 0;
@@ -100,7 +100,7 @@ export function SpareScoreWidget({
   const insights = useMemo(() => {
     if (hasNoData) return [];
     const insightsList = [];
-    
+
     if (financialHealth?.savingsRate && financialHealth.savingsRate < 0.1) {
       insightsList.push({
         type: "warning",
@@ -108,7 +108,7 @@ export function SpareScoreWidget({
         message: `Your savings rate is ${(financialHealth.savingsRate * 100).toFixed(1)}%. Aim for at least 10-20% to improve your score.`,
       });
     }
-    
+
     if (financialHealth?.emergencyFundMonths && financialHealth.emergencyFundMonths < 3) {
       insightsList.push({
         type: "warning",
@@ -116,7 +116,7 @@ export function SpareScoreWidget({
         message: `You have ${financialHealth.emergencyFundMonths.toFixed(1)} months of emergency fund. Aim for 6-8 months.`,
       });
     }
-    
+
     if (financialHealth?.debtExposure && financialHealth.debtExposure !== "Low") {
       insightsList.push({
         type: "warning",
@@ -124,7 +124,7 @@ export function SpareScoreWidget({
         message: `Your debt exposure is ${financialHealth.debtExposure}. Focus on paying down debt to improve your score.`,
       });
     }
-    
+
     if (spareScore >= 80) {
       insightsList.push({
         type: "positive",
@@ -132,7 +132,7 @@ export function SpareScoreWidget({
         message: "You're doing great! Keep maintaining good financial habits.",
       });
     }
-    
+
     return insightsList;
   }, [financialHealth, spareScore, hasNoData]);
 
@@ -174,17 +174,17 @@ export function SpareScoreWidget({
               {spareScore} / 100
             </span>
           </div>
-          <div className="relative h-4 w-full overflow-hidden rounded-full bg-muted">
+          <div className="relative h-4 w-full rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500">
             <div
-              className={`h-full rounded-full transition-all ${classification.color}`}
-              style={{ width: `${spareScore}%` }}
+              className="absolute top-0 h-full w-1.5 bg-white border-2 border-black rounded-full shadow-md transform -translate-x-1/2"
+              style={{ left: `${spareScore}%`, transition: 'left 0.5s ease-out' }}
             />
           </div>
-          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground font-medium">
             <span>0</span>
-            <span>40 (Fair)</span>
-            <span>60 (Good)</span>
-            <span>80 (Excellent)</span>
+            <span>40</span>
+            <span>60</span>
+            <span>80</span>
             <span>100</span>
           </div>
         </div>
@@ -220,9 +220,8 @@ export function SpareScoreWidget({
             <div>
               <div className="text-xs text-muted-foreground mb-1">Net Amount</div>
               <div
-                className={`text-lg font-semibold ${
-                  (financialHealth.netAmount || 0) >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-                }`}
+                className={`text-lg font-semibold ${(financialHealth.netAmount || 0) >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+                  }`}
               >
                 {formatMoney(financialHealth.netAmount || 0)}
               </div>
@@ -257,9 +256,8 @@ export function SpareScoreWidget({
             {insights.map((insight, index) => (
               <div key={index} className="flex items-start gap-2">
                 <div
-                  className={`w-2 h-2 rounded-full mt-1.5 ${
-                    insight.type === "positive" ? "bg-sentiment-positive" : "bg-sentiment-warning"
-                  }`}
+                  className={`w-2 h-2 rounded-full mt-1.5 ${insight.type === "positive" ? "bg-sentiment-positive" : "bg-sentiment-warning"
+                    }`}
                 />
                 <div>
                   <div className="text-sm font-medium text-foreground">{insight.title}</div>

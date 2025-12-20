@@ -31,14 +31,14 @@ export function CashFlowSection({
   selectedMonthTransactions,
   lastMonthTransactions = [],
   chartTransactions = [],
-  incomeSubtitle = "Includes paychecks and transfers in.",
-  expensesSubtitle = "Spending + bills paid so far.",
+  incomeSubtitle = "Money coming in",
+  expensesSubtitle = "Money going out",
   netSubtitle,
 }: CashFlowSectionProps) {
   const isPositive = netCashFlow >= 0;
   const defaultNetSubtitle = isPositive
-    ? "You're ahead this month."
-    : "You're behind this month.";
+    ? "You're growing your wealth!"
+    : "Spending more than income.";
 
   return (
     <section
@@ -47,7 +47,7 @@ export function CashFlowSection({
     >
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <h2 className="m-0 text-2xl font-semibold text-foreground">
-          What's happening this month
+          How you're doing this month
         </h2>
         <div className="text-muted-foreground text-xs">
           Income → Expenses → Result
@@ -74,7 +74,7 @@ export function CashFlowSection({
           variant="flow"
         />
 
-        <div className="hidden md:grid text-muted-foreground text-xs justify-center select-none font-mono">
+        <div className="hidden md:grid text-muted-foreground text-xs justify-center select-none font-mono mx-2">
           →
         </div>
 
@@ -97,7 +97,7 @@ export function CashFlowSection({
           variant="flow"
         />
 
-        <div className="hidden md:grid text-muted-foreground text-xs justify-center select-none font-mono">
+        <div className="hidden md:grid text-muted-foreground text-xs justify-center select-none font-mono mx-2">
           →
         </div>
 

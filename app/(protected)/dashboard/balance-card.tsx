@@ -150,16 +150,16 @@ export function BalanceCard({
   const hasConnectedAccounts = accounts.some((acc: any) => acc.externalId);
 
   // Get selected member name
-  const selectedMemberName = selectedMemberId 
+  const selectedMemberName = selectedMemberId
     ? (() => {
-        const fullName = householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown";
-        return fullName.split(" ")[0];
-      })()
+      const fullName = householdMembers.find(m => m.memberId === selectedMemberId)?.name || "Unknown";
+      return fullName.split(" ")[0];
+    })()
     : "All Households";
 
   return (
     <>
-      <Card 
+      <Card
         className="bg-primary border-primary cursor-pointer transition-all"
         onClick={() => setIsModalOpen(true)}
       >
@@ -193,7 +193,7 @@ export function BalanceCard({
           </div>
 
           {/* Balance Amount Label */}
-          <div className="text-foreground text-lg font-semibold mb-1">Balance Amount</div>
+          <div className="text-foreground text-lg font-semibold mb-1">Total Balance</div>
 
           {/* Balance Amount */}
           <div className="text-2xl md:text-3xl font-bold mb-2 tabular-nums text-foreground">
@@ -209,12 +209,12 @@ export function BalanceCard({
 
           {/* Available to Spend Section */}
           <div>
-            <div className="text-foreground text-xs mb-1">Available to spend this month</div>
-            <div className="text-xl md:text-2xl font-bold mb-1 tabular-nums text-foreground">
+            <div className="text-foreground text-xs mb-1">Safe to Spend</div>
+            <div className="text-lg md:text-xl font-semibold mb-1 tabular-nums text-foreground/90">
               <AnimatedNumber value={availableToSpend} format="money" />
             </div>
-            <div className="text-sm text-foreground mb-2">
-              after bills, goals & minimum debt
+            <div className="text-sm text-muted-foreground mb-2">
+              After all bills & obligations
             </div>
             {hasConnectedAccounts && (
               <div className="text-[10px] text-foreground mt-2">

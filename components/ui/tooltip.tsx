@@ -18,7 +18,7 @@ interface TooltipProps {
 }
 
 export function Tooltip({ children }: TooltipProps) {
-  return <>{children}</>;
+  return <div className="relative group/tooltip">{children}</div>;
 }
 
 interface TooltipTriggerProps {

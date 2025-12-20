@@ -28,9 +28,8 @@ const CustomTooltip = ({ active, payload }: any) => {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Net Cash Flow:</span>
             <span
-              className={`text-sm font-semibold ${
-                data.netCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-              }`}
+              className={`text-sm font-semibold ${data.netCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+                }`}
             >
               {formatMoney(data.netCashFlow)}
             </span>
@@ -92,10 +91,10 @@ export function NetCashFlowWidget({
     const recent = netCashFlowData.slice(-3);
     const older = netCashFlowData.slice(-6, -3);
     if (older.length === 0) return "stable";
-    
+
     const recentAvg = recent.reduce((acc, item) => acc + item.netCashFlow, 0) / recent.length;
     const olderAvg = older.reduce((acc, item) => acc + item.netCashFlow, 0) / older.length;
-    
+
     if (recentAvg > olderAvg * 1.1) return "improving";
     if (recentAvg < olderAvg * 0.9) return "declining";
     return "stable";
@@ -107,7 +106,7 @@ export function NetCashFlowWidget({
   const daysRemaining = Math.max(0, endOfMonth.getDate() - today.getDate());
   const daysInMonth = endOfMonth.getDate();
   const daysElapsed = daysInMonth - daysRemaining;
-  
+
   const dailyAverage = daysElapsed > 0 ? currentNetCashFlow / daysElapsed : 0;
   const projectedNetCashFlow = currentNetCashFlow + (dailyAverage * daysRemaining);
 
@@ -118,9 +117,8 @@ export function NetCashFlowWidget({
         <div className="border border-border rounded-lg p-4">
           <div className="text-xs text-muted-foreground mb-1">Current Month</div>
           <div
-            className={`text-2xl font-bold ${
-              currentNetCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-            }`}
+            className={`text-2xl font-bold ${currentNetCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+              }`}
           >
             {currentNetCashFlow >= 0 ? "+" : ""}
             {formatMoney(currentNetCashFlow)}
@@ -132,9 +130,8 @@ export function NetCashFlowWidget({
         <div className="border border-border rounded-lg p-4">
           <div className="text-xs text-muted-foreground mb-1">Projected This Month</div>
           <div
-            className={`text-2xl font-bold ${
-              projectedNetCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-            }`}
+            className={`text-2xl font-bold ${projectedNetCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+              }`}
           >
             {projectedNetCashFlow >= 0 ? "+" : ""}
             {formatMoney(projectedNetCashFlow)}
@@ -146,9 +143,8 @@ export function NetCashFlowWidget({
         <div className="border border-border rounded-lg p-4">
           <div className="text-xs text-muted-foreground mb-1">6-Month Average</div>
           <div
-            className={`text-2xl font-bold ${
-              averageNetCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
-            }`}
+            className={`text-2xl font-bold ${averageNetCashFlow >= 0 ? "text-sentiment-positive" : "text-sentiment-negative"
+              }`}
           >
             {averageNetCashFlow >= 0 ? "+" : ""}
             {formatMoney(averageNetCashFlow)}

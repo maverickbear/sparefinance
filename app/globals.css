@@ -5,181 +5,280 @@
 @layer base {
   :root {
     /* Background colors */
-    --background: 0 0% 100%;  /* Use in informational or interactive elements where white is needed, or where other colours would be too prominent in the hierarchy: #FFFFFF */
+    --background: 0 0% 100%;
+    /* Use in informational or interactive elements where white is needed, or where other colours would be too prominent in the hierarchy: #FFFFFF */
     /* Background Dark: Dark background surface */
-    --background-dark: 0 0% 11%;  /* Use for dark background surfaces: #1C1C1C */
+    --background-dark: 0 0% 11%;
+    /* Use for dark background surfaces: #1C1C1C */
     /* Content Primary: Use to emphasise primary content in relation to other elements nearby */
-    --foreground: 0 0% 11%;  /* Use to emphasise primary content in relation to other elements nearby: #1C1C1C */
-    
+    --foreground: 0 0% 11%;
+    /* Use to emphasise primary content in relation to other elements nearby: #1C1C1C */
+
     /* Card colors */
-    --card: 0 0% 100%;  /* Use for elevated surfaces that partially show the content behind it, like bottom sheets and sidebars: #FFFFFF */
+    --card: 0 0% 100%;
+    /* Use for elevated surfaces that partially show the content behind it, like bottom sheets and sidebars: #FFFFFF */
     /* Content Primary: For card titles and emphasized content */
-    --card-foreground: 0 0% 11%;  /* Content Primary: #1C1C1C */
-    
+    --card-foreground: 0 0% 11%;
+    /* Content Primary: #1C1C1C */
+
     /* Popover colors */
-    --popover: 0 0% 100%;     /* Background Screen: #FFFFFF */
+    --popover: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
     /* Content Primary: For popover titles */
-    --popover-foreground: 0 0% 11%;  /* Content Primary: #1C1C1C */
-    
+    --popover-foreground: 0 0% 11%;
+    /* Content Primary: #1C1C1C */
+
     /* Primary colors (Interactive Primary) */
-    --primary: 142 57% 56%;  /* For neutral interactive elements or emphasising active items in a list: #4FCF7D */
-    --primary-foreground: 0 0% 100%;  /* Use for copy on negative buttons. Turns dark on dark mode to keep elements visible: #FFFFFF */
-    
+    --primary: 142 57% 56%;
+    /* For neutral interactive elements or emphasising active items in a list: #4FCF7D */
+    --primary-foreground: 0 0% 100%;
+    /* Use for copy on negative buttons. Turns dark on dark mode to keep elements visible: #FFFFFF */
+
     /* Secondary colors (Interactive Secondary) */
-    --secondary: 90 11% 93%;  /* For de-emphasised interactivity, like borders on inputs and checkboxes, and clear buttons on search inputs. Do not use on text: #ECEEEA */
-    --secondary-foreground: 0 0% 11%;  /* Content Primary: #1C1C1C */
-    
+    --secondary: 90 11% 93%;
+    /* For de-emphasised interactivity, like borders on inputs and checkboxes, and clear buttons on search inputs. Do not use on text: #ECEEEA */
+    --secondary-foreground: 0 0% 11%;
+    /* Content Primary: #1C1C1C */
+
     /* Muted colors (Content Secondary) */
-    --muted: 94 100% 10% / 0.08;  /* Use for faintly darkening an area, for example on loading shimmers: #16330014 */
+    --muted: 94 100% 10% / 0.08;
+    /* Use for faintly darkening an area, for example on loading shimmers: #16330014 */
     /* Content Secondary: Use for most body text, and in supportive elements that give context to content that's close to it */
-    --muted-foreground: 120 1% 27%;  /* Use for most body text, and in supportive elements that give context to content that's close to it: #454745 */
-    
+    --muted-foreground: 120 1% 27%;
+    /* Use for most body text, and in supportive elements that give context to content that's close to it: #454745 */
+
     /* Content Link */
-    --content-link: 94 100% 24%;  /* Use for links and for external link icons that appear in line with link text: #357B00 */
-    
+    --content-link: 94 100% 24%;
+    /* Use for links and for external link icons that appear in line with link text: #357B00 */
+
     /* Content Colors */
-    --content-primary: 0 0% 11%;  /* Use to emphasise primary content in relation to other elements nearby: #1C1C1C */
-    --content-tertiary: 120 1% 42%;  /* Use in form inputs for placeholders, and for the label that says a field is 'Optional'. Avoid using elsewhere: #6A6C6A */
-    
+    --content-primary: 0 0% 11%;
+    /* Use to emphasise primary content in relation to other elements nearby: #1C1C1C */
+    --content-tertiary: 120 1% 42%;
+    /* Use in form inputs for placeholders, and for the label that says a field is 'Optional'. Avoid using elsewhere: #6A6C6A */
+
     /* Accent colors (Interactive Accent) */
-    --accent: 142 94% 75%;  /* For sparing use as an accent colour in interactive elements, such as primary button backgrounds: #86FBB0 */
-    --accent-foreground: 94 100% 10%;  /* Interactive Primary: #163300 */
-    
+    --accent: 142 94% 75%;
+    /* For sparing use as an accent colour in interactive elements, such as primary button backgrounds: #86FBB0 */
+    --accent-foreground: 94 100% 10%;
+    /* Interactive Primary: #163300 */
+
     /* Destructive colors (Sentiment Negative) */
-    --destructive: 7 86% 35%;  /* Indicates negative sentiment, for example on error states or destructive actions. Can be used as text or as a background: #A8200D */
-    --destructive-foreground: 0 0% 100%;  /* Base Contrast: #FFFFFF */
-    
+    --destructive: 7 86% 35%;
+    /* Indicates negative sentiment, for example on error states or destructive actions. Can be used as text or as a background: #A8200D */
+    --destructive-foreground: 0 0% 100%;
+    /* Base Contrast: #FFFFFF */
+
     /* Border and input colors */
-    --border: 0 0% 11% / 0.12;  /* Use in most separators, for example in the section header and tabs components: #1C1C1C1F */
-    --input: 0 0% 11% / 0.12;  /* Use on the edges of images to differentiate them from the background, such as flags in avatars: #1C1C1C1F */
-    
+    --border: 0 0% 11% / 0.12;
+    /* Use in most separators, for example in the section header and tabs components: #1C1C1C1F */
+    --input: 0 0% 11% / 0.12;
+    /* Use on the edges of images to differentiate them from the background, such as flags in avatars: #1C1C1C1F */
+
     /* Ring color (Interactive Primary) */
-    --ring: 142 57% 56%;      /* Interactive Primary: #4FCF7D */
-    
+    --ring: 142 57% 56%;
+    /* Interactive Primary: #4FCF7D */
+
     /* Border radius */
     --radius: 12px;
-    
+
     /* Legacy grey scale - mapped to new content colors */
-    --grey-50: 0 0% 100%;  /* Background Screen: #FFFFFF */
-    --grey-100: 0 0% 100%;  /* Background Screen: #FFFFFF */
-    --grey-200: 0 0% 100%;  /* Background Screen: #FFFFFF */
-    --grey-300: 120 1% 42%;  /* Content Tertiary: #6A6C6A */
-    --grey-400: 120 1% 27%;  /* Content Secondary: #454745 */
-    --grey-500: 0 0% 11%;  /* Content Primary: #1C1C1C */
-    --grey-600: 0 0% 9%;  /* Base Dark: #181818 */
-    --grey-700: 0 0% 9%;  /* Base Dark: #181818 */
-    --grey-800: 0 0% 9%;  /* Base Dark: #181818 */
-    --grey-900: 0 0% 11%;  /* Content Primary: #1C1C1C */
-    
+    --grey-50: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
+    --grey-100: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
+    --grey-200: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
+    --grey-300: 120 1% 42%;
+    /* Content Tertiary: #6A6C6A */
+    --grey-400: 120 1% 27%;
+    /* Content Secondary: #454745 */
+    --grey-500: 0 0% 11%;
+    /* Content Primary: #1C1C1C */
+    --grey-600: 0 0% 9%;
+    /* Base Dark: #181818 */
+    --grey-700: 0 0% 9%;
+    /* Base Dark: #181818 */
+    --grey-800: 0 0% 9%;
+    /* Base Dark: #181818 */
+    --grey-900: 0 0% 11%;
+    /* Content Primary: #1C1C1C */
+
     /* Legacy primary color scale - mapped to new interactive colors */
-    --primary-900: 94 100% 10%;  /* Interactive Control: #163300 */
-    --primary-800: 94 100% 10%;  /* Interactive Control: #163300 */
-    --primary-700: 94 100% 10%;  /* Interactive Control: #163300 */
-    --primary-600: 142 57% 56%;  /* Interactive Primary: #4FCF7D */
-    --primary-500: 142 57% 56%;  /* Interactive Primary: #4FCF7D */
-    --primary-400: 142 94% 75%;  /* Interactive Accent: #86FBB0 */
-    --primary-300: 97 72% 67%;  /* Interactive Contrast: #9FE870 */
-    
+    --primary-900: 94 100% 10%;
+    /* Interactive Control: #163300 */
+    --primary-800: 94 100% 10%;
+    /* Interactive Control: #163300 */
+    --primary-700: 94 100% 10%;
+    /* Interactive Control: #163300 */
+    --primary-600: 142 57% 56%;
+    /* Interactive Primary: #4FCF7D */
+    --primary-500: 142 57% 56%;
+    /* Interactive Primary: #4FCF7D */
+    --primary-400: 142 94% 75%;
+    /* Interactive Accent: #86FBB0 */
+    --primary-300: 97 72% 67%;
+    /* Interactive Contrast: #9FE870 */
+
     /* Legacy neutral colors - mapped to new colors */
-    --neutral-50: 0 0% 100%;  /* Background Screen: #FFFFFF */
-    --neutral-100: 0 0% 100%;  /* Background Screen: #FFFFFF */
-    --neutral-200: 0 0% 100%;  /* Background Screen: #FFFFFF */
-    --neutral-300: 120 1% 42%;  /* Content Tertiary: #6A6C6A */
-    --neutral-400: 120 1% 27%;  /* Content Secondary: #454745 */
-    --neutral-500: 0 0% 11%;  /* Content Primary: #1C1C1C */
-    --neutral-600: 0 0% 9%;  /* Base Dark: #181818 */
-    
+    --neutral-50: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
+    --neutral-100: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
+    --neutral-200: 0 0% 100%;
+    /* Background Screen: #FFFFFF */
+    --neutral-300: 120 1% 42%;
+    /* Content Tertiary: #6A6C6A */
+    --neutral-400: 120 1% 27%;
+    /* Content Secondary: #454745 */
+    --neutral-500: 0 0% 11%;
+    /* Content Primary: #1C1C1C */
+    --neutral-600: 0 0% 9%;
+    /* Base Dark: #181818 */
+
     /* New sentiment colors */
-    --sentiment-negative: 7 86% 35%;  /* Sentiment Negative: #A8200D */
-    --sentiment-positive: 94 67% 20%;  /* Sentiment Positive: #2F5711 */
-    --sentiment-warning: 47 83% 60%;  /* Sentiment Warning: #EDC843 */
+    --sentiment-negative: 7 86% 35%;
+    /* Sentiment Negative: #A8200D */
+    --sentiment-positive: 94 67% 20%;
+    /* Sentiment Positive: #2F5711 */
+    --sentiment-warning: 47 83% 60%;
+    /* Sentiment Warning: #EDC843 */
   }
 
   .dark {
     /* Background colors */
-    --background: 0 0% 9%;  /* Base Dark: #181818 */
+    --background: 0 0% 9%;
+    /* Base Dark: #181818 */
     /* Content Primary: White in dark mode for contrast - For headings, titles, important text */
-    --foreground: 0 0% 100%;  /* Base Contrast: #FFFFFF */
-    
+    --foreground: 0 0% 100%;
+    /* Base Contrast: #FFFFFF */
+
     /* Card colors */
-    --card: 0 0% 11%;  /* Slightly lighter than background */
+    --card: 0 0% 11%;
+    /* Slightly lighter than background */
     /* Content Primary: For card titles and emphasized content */
-    --card-foreground: 0 0% 100%;  /* Base Contrast: #FFFFFF */
-    
+    --card-foreground: 0 0% 100%;
+    /* Base Contrast: #FFFFFF */
+
     /* Popover colors */
-    --popover: 0 0% 11%;        /* Slightly lighter than background */
+    --popover: 0 0% 11%;
+    /* Slightly lighter than background */
     /* Content Primary: For popover titles */
-    --popover-foreground: 0 0% 100%;  /* Base Contrast: #FFFFFF */
-    
+    --popover-foreground: 0 0% 100%;
+    /* Base Contrast: #FFFFFF */
+
     /* Primary colors (Interactive Primary) */
-    --primary: 142 57% 56%;  /* For neutral interactive elements or emphasising active items in a list: #4FCF7D */
-    --primary-foreground: 0 0% 100%;  /* Use for copy on negative buttons. Turns dark on dark mode to keep elements visible: #FFFFFF */
-    
+    --primary: 142 57% 56%;
+    /* For neutral interactive elements or emphasising active items in a list: #4FCF7D */
+    --primary-foreground: 0 0% 100%;
+    /* Use for copy on negative buttons. Turns dark on dark mode to keep elements visible: #FFFFFF */
+
     /* Secondary colors (Interactive Secondary) */
-    --secondary: 90 11% 93%;  /* For de-emphasised interactivity, like borders on inputs and checkboxes, and clear buttons on search inputs. Do not use on text: #ECEEEA */
-    --secondary-foreground: 0 0% 100%;  /* Base Contrast: #FFFFFF */
-    
+    --secondary: 90 11% 93%;
+    /* For de-emphasised interactivity, like borders on inputs and checkboxes, and clear buttons on search inputs. Do not use on text: #ECEEEA */
+    --secondary-foreground: 0 0% 100%;
+    /* Base Contrast: #FFFFFF */
+
     /* Muted colors (Content Secondary for body text) */
-    --muted: 0 0% 14%;  /* Slightly lighter than background */
+    --muted: 0 0% 14%;
+    /* Slightly lighter than background */
     /* Content Secondary: Use for most body text, and in supportive elements that give context to content that's close to it */
-    --muted-foreground: 120 1% 27%;  /* Use for most body text, and in supportive elements that give context to content that's close to it: #454745 */
-    
+    --muted-foreground: 120 1% 27%;
+    /* Use for most body text, and in supportive elements that give context to content that's close to it: #454745 */
+
     /* Content Link (same in dark mode) */
-    --content-link: 94 100% 24%;  /* Use for links and for external link icons that appear in line with link text: #357B00 */
-    
+    --content-link: 94 100% 24%;
+    /* Use for links and for external link icons that appear in line with link text: #357B00 */
+
     /* Content Colors */
-    --content-primary: 0 0% 100%;  /* Use to emphasise primary content in relation to other elements nearby: #FFFFFF (white in dark mode) */
-    --content-tertiary: 120 1% 27%;  /* Use in form inputs for placeholders, and for the label that says a field is 'Optional'. Avoid using elsewhere: #454745 */
-    
+    --content-primary: 0 0% 100%;
+    /* Use to emphasise primary content in relation to other elements nearby: #FFFFFF (white in dark mode) */
+    --content-tertiary: 120 1% 27%;
+    /* Use in form inputs for placeholders, and for the label that says a field is 'Optional'. Avoid using elsewhere: #454745 */
+
     /* Accent colors (Interactive Accent) */
-    --accent: 142 94% 75%;  /* For sparing use as an accent colour in interactive elements, such as primary button backgrounds: #86FBB0 */
-    --accent-foreground: 94 100% 10%;  /* Interactive Primary: #163300 */
-    
+    --accent: 142 94% 75%;
+    /* For sparing use as an accent colour in interactive elements, such as primary button backgrounds: #86FBB0 */
+    --accent-foreground: 94 100% 10%;
+    /* Interactive Primary: #163300 */
+
     /* Destructive colors (Sentiment Negative) */
-    --destructive: 7 86% 35%;  /* Indicates negative sentiment, for example on error states or destructive actions. Can be used as text or as a background: #A8200D */
-    --destructive-foreground: 0 0% 100%;  /* Base Contrast: #FFFFFF */
-    
+    --destructive: 7 86% 35%;
+    /* Indicates negative sentiment, for example on error states or destructive actions. Can be used as text or as a background: #A8200D */
+    --destructive-foreground: 0 0% 100%;
+    /* Base Contrast: #FFFFFF */
+
     /* Border and input colors - Lighter in dark mode for better contrast */
-    --border: 0 0% 100% / 0.12;  /* Border Neutral: White with alpha for contrast on dark background */
-    --input: 0 0% 100% / 0.12;  /* Border Neutral: White with alpha for contrast on dark background */
-    
+    --border: 0 0% 100% / 0.12;
+    /* Border Neutral: White with alpha for contrast on dark background */
+    --input: 0 0% 100% / 0.12;
+    /* Border Neutral: White with alpha for contrast on dark background */
+
     /* Ring color (Interactive Primary) */
-    --ring: 142 57% 56%;        /* Interactive Primary: #4FCF7D */
-    
+    --ring: 142 57% 56%;
+    /* Interactive Primary: #4FCF7D */
+
     /* Legacy grey scale for dark mode - inverted */
-    --grey-50: 0 0% 9%;  /* Background Screen: #FFFFFF */
-    --grey-100: 0 0% 11%;  /* Background Screen: #FFFFFF */
-    --grey-200: 0 0% 14%;  /* Background Screen: #FFFFFF */
-    --grey-300: 120 1% 27%;  /* Content Tertiary: #6A6C6A */
-    --grey-400: 120 1% 42%;  /* Content Secondary: #454745 */
-    --grey-500: 0 0% 100%;  /* Content Primary: #1C1C1C (white in dark mode) */
-    --grey-600: 0 0% 100%;  /* Base Dark: #181818 */
-    --grey-700: 0 0% 100%;  /* Base Dark: #181818 */
-    --grey-800: 0 0% 100%;  /* Base Dark: #181818 */
-    --grey-900: 0 0% 100%;  /* Content Primary: #1C1C1C (white in dark mode) */
-    
+    --grey-50: 0 0% 9%;
+    /* Background Screen: #FFFFFF */
+    --grey-100: 0 0% 11%;
+    /* Background Screen: #FFFFFF */
+    --grey-200: 0 0% 14%;
+    /* Background Screen: #FFFFFF */
+    --grey-300: 120 1% 27%;
+    /* Content Tertiary: #6A6C6A */
+    --grey-400: 120 1% 42%;
+    /* Content Secondary: #454745 */
+    --grey-500: 0 0% 100%;
+    /* Content Primary: #1C1C1C (white in dark mode) */
+    --grey-600: 0 0% 100%;
+    /* Base Dark: #181818 */
+    --grey-700: 0 0% 100%;
+    /* Base Dark: #181818 */
+    --grey-800: 0 0% 100%;
+    /* Base Dark: #181818 */
+    --grey-900: 0 0% 100%;
+    /* Content Primary: #1C1C1C (white in dark mode) */
+
     /* Legacy primary color scale for dark mode */
-    --primary-900: 94 100% 10%;  /* Interactive Control: #163300 */
-    --primary-800: 94 100% 10%;  /* Interactive Control: #163300 */
-    --primary-700: 94 100% 10%;  /* Interactive Control: #163300 */
-    --primary-600: 142 57% 56%;  /* Interactive Primary: #4FCF7D */
-    --primary-500: 142 57% 56%;  /* Interactive Primary: #4FCF7D */
-    --primary-400: 142 94% 75%;  /* Interactive Accent: #86FBB0 */
-    --primary-300: 97 72% 67%;  /* Interactive Contrast: #9FE870 */
-    
+    --primary-900: 94 100% 10%;
+    /* Interactive Control: #163300 */
+    --primary-800: 94 100% 10%;
+    /* Interactive Control: #163300 */
+    --primary-700: 94 100% 10%;
+    /* Interactive Control: #163300 */
+    --primary-600: 142 57% 56%;
+    /* Interactive Primary: #4FCF7D */
+    --primary-500: 142 57% 56%;
+    /* Interactive Primary: #4FCF7D */
+    --primary-400: 142 94% 75%;
+    /* Interactive Accent: #86FBB0 */
+    --primary-300: 97 72% 67%;
+    /* Interactive Contrast: #9FE870 */
+
     /* Legacy neutral colors for dark mode */
-    --neutral-50: 0 0% 9%;  /* Background Screen: #FFFFFF */
-    --neutral-100: 0 0% 11%;  /* Background Screen: #FFFFFF */
-    --neutral-200: 0 0% 14%;  /* Background Screen: #FFFFFF */
-    --neutral-300: 120 1% 27%;  /* Content Tertiary: #6A6C6A */
-    --neutral-400: 120 1% 42%;  /* Content Secondary: #454745 */
-    --neutral-500: 0 0% 100%;  /* Content Primary: #1C1C1C (white in dark mode) */
-    --neutral-600: 0 0% 100%;  /* Base Dark: #181818 */
-    
+    --neutral-50: 0 0% 9%;
+    /* Background Screen: #FFFFFF */
+    --neutral-100: 0 0% 11%;
+    /* Background Screen: #FFFFFF */
+    --neutral-200: 0 0% 14%;
+    /* Background Screen: #FFFFFF */
+    --neutral-300: 120 1% 27%;
+    /* Content Tertiary: #6A6C6A */
+    --neutral-400: 120 1% 42%;
+    /* Content Secondary: #454745 */
+    --neutral-500: 0 0% 100%;
+    /* Content Primary: #1C1C1C (white in dark mode) */
+    --neutral-600: 0 0% 100%;
+    /* Base Dark: #181818 */
+
     /* New sentiment colors (same in dark mode) */
-    --sentiment-negative: 7 86% 35%;  /* Sentiment Negative: #A8200D */
-    --sentiment-positive: 94 67% 20%;  /* Sentiment Positive: #2F5711 */
-    --sentiment-warning: 47 83% 60%;  /* Sentiment Warning: #EDC843 */
+    --sentiment-negative: 7 86% 35%;
+    /* Sentiment Negative: #A8200D */
+    --sentiment-positive: 94 67% 20%;
+    /* Sentiment Positive: #2F5711 */
+    --sentiment-warning: 47 83% 60%;
+    /* Sentiment Warning: #EDC843 */
   }
 }
 
@@ -187,10 +286,12 @@
   * {
     @apply border-border;
   }
+
   /* Default body text uses content.primary, but most body text should explicitly use text-muted-foreground */
   body {
     @apply text-foreground;
   }
+
   /* Remove spinner buttons from number inputs */
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button {
@@ -198,6 +299,7 @@
     appearance: none;
     margin: 0;
   }
+
   input[type="number"] {
     -moz-appearance: textfield;
     appearance: textfield;
@@ -206,7 +308,7 @@
 
 @layer utilities {
   .bg-grid-pattern {
-    background-image: 
+    background-image:
       linear-gradient(to right, hsla(var(--border)) 1px, transparent 1px),
       linear-gradient(to bottom, hsla(var(--border)) 1px, transparent 1px);
     background-size: 20px 20px;
@@ -226,24 +328,24 @@
     scroll-behavior: smooth;
     overflow-x: hidden;
   }
-  
+
   /* Prevent body scroll - scroll only happens in content area for protected pages */
   /* Public pages (landing, auth, etc.) can still scroll normally */
   body {
     overflow-x: hidden;
   }
-  
+
   /* When layout wrapper is active (protected pages), prevent body scroll */
   body.layout-fixed {
     overflow: hidden;
     height: 100%;
   }
-  
+
   html.layout-fixed {
     overflow: hidden;
     height: 100%;
   }
-  
+
   body[data-scroll-locked] {
     overflow: hidden !important;
   }
@@ -254,6 +356,7 @@
       opacity: 0;
       transform: translateY(20px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -266,7 +369,7 @@
 
   /* Hero section decorative patterns */
   .hero-pattern {
-    background-image: 
+    background-image:
       radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.1) 1px, transparent 0);
     background-size: 60px 60px;
   }
@@ -284,9 +387,10 @@
 
   /* Responsive improvements for tablets and mobile */
   @media (max-width: 1023px) {
+
     /* Improve touch targets on mobile/tablet */
-    button:not(.icon-only), 
-    a:not(.icon-only), 
+    button:not(.icon-only),
+    a:not(.icon-only),
     [role="button"]:not(.icon-only) {
       min-height: 44px;
     }
@@ -294,6 +398,7 @@
 
   /* iPad specific optimizations */
   @media (min-width: 768px) and (max-width: 1023px) {
+
     /* Tablet portrait optimizations */
     .container {
       padding-left: 1.5rem;
@@ -309,12 +414,15 @@
 
   /* Hide scrollbar but keep functionality */
   .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
-  
+
   .scrollbar-hide::-webkit-scrollbar {
-    display: none;  /* Chrome, Safari and Opera */
+    display: none;
+    /* Chrome, Safari and Opera */
   }
 
   /* Infinite carousel animation */
@@ -322,6 +430,7 @@
     0% {
       transform: translateX(0);
     }
+
     100% {
       transform: translateX(-50%);
     }
@@ -342,6 +451,7 @@
     0% {
       transform: translateX(-100%);
     }
+
     100% {
       transform: translateX(100%);
     }
@@ -353,13 +463,15 @@
 
   /* UI Rule: When background is primary (solid, not with opacity), text should always be dark/black */
   .bg-primary {
-    color: hsl(var(--foreground)) !important; /* Always black text on solid primary background */
+    color: hsl(var(--foreground)) !important;
+    /* Always black text on solid primary background */
   }
 
   /* UI Rule: Icons inside containers with primary background opacity should be black */
   [class*="bg-primary/10"] svg,
   [class*="bg-primary/20"] svg {
-    color: hsl(var(--foreground)) !important; /* Always black icons in primary/10 or primary/20 containers */
+    color: hsl(var(--foreground)) !important;
+    /* Always black icons in primary/10 or primary/20 containers */
   }
 
   /* React Select styles */

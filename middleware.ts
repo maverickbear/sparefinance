@@ -8,8 +8,8 @@ import { generateCorrelationId } from "@/src/infrastructure/utils/structured-log
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 // New format (sb_publishable_...) is preferred, fallback to old format (anon JWT) for backward compatibility
 // Publishable keys are safe to expose and have the same privileges as anon keys
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 
-                        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /**
  * Create Supabase client for middleware using request cookies
@@ -83,10 +83,10 @@ function getClientId(request: NextRequest): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
   const realIp = request.headers.get("x-real-ip");
   const ip = forwardedFor?.split(",")[0] || realIp || "unknown";
-  
+
   // Combine IP with user agent for better identification
   const userAgent = request.headers.get("user-agent") || "unknown";
-  
+
   return `${ip}:${userAgent.substring(0, 50)}`;
 }
 
@@ -99,7 +99,7 @@ async function checkRateLimit(
   config: RateLimitConfig
 ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
   const key = `ratelimit:${clientId}:${path}`;
-  
+
   // In-memory rate limiting
   const now = Date.now();
   const entry = rateLimitStore.get(key);
@@ -206,16 +206,16 @@ export async function middleware(request: NextRequest) {
 
   // Block malicious requests immediately (before any other processing)
   if (isMaliciousRequest(pathname)) {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || 
-               request.headers.get("x-real-ip") || 
-               "unknown";
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
-    
+
     // Log security event
     SecurityLogger.suspiciousActivity(
       `Blocked malicious request: ${pathname}`,
-      { 
-        ip, 
+      {
+        ip,
         userAgent,
         details: {
           pathname,
@@ -226,11 +226,11 @@ export async function middleware(request: NextRequest) {
 
     // Return 403 Forbidden immediately
     return NextResponse.json(
-      { 
+      {
         error: "Forbidden",
         message: "Access denied"
       },
-      { 
+      {
         status: 403,
         headers: {
           "X-Content-Type-Options": "nosniff",
@@ -238,6 +238,27 @@ export async function middleware(request: NextRequest) {
         }
       }
     );
+  }
+
+  // Check authentication for protected routes
+  const protectedPaths = ["/dashboard", "/settings", "/reports", "/portal-management", "/transactions", "/planning", "/members", "/insights"];
+  const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
+
+  if (isProtectedPath) {
+    try {
+      const supabase = createMiddlewareClient(request);
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        const redirectUrl = new URL("/auth/login", request.url);
+        redirectUrl.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(redirectUrl);
+      }
+    } catch (error) {
+      const redirectUrl = new URL("/auth/login", request.url);
+      redirectUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   // Check maintenance mode for all routes except:
@@ -249,15 +270,15 @@ export async function middleware(request: NextRequest) {
   const isMaintenancePage = pathname === "/maintenance";
   const isAccountDeletedPage = pathname === "/account-deleted";
   const isLandingPage = pathname === "/";
-  const isPublicPage = pathname.startsWith("/auth") || 
-                       pathname === "/privacy-policy" || 
-                       pathname === "/terms-of-service" || 
-                       pathname === "/faq" ||
-                       pathname.startsWith("/members/accept") ||
-                       pathname.startsWith("/design");
-  const isStaticFile = pathname.startsWith("/_next") || 
-                       pathname.startsWith("/favicon") ||
-                       /\.(svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname);
+  const isPublicPage = pathname.startsWith("/auth") ||
+    pathname === "/privacy-policy" ||
+    pathname === "/terms-of-service" ||
+    pathname === "/faq" ||
+    pathname.startsWith("/members/accept") ||
+    pathname.startsWith("/design");
+  const isStaticFile = pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    /\.(svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname);
 
   // Check maintenance mode status
   if (!isStaticFile && !pathname.startsWith("/api")) {
@@ -305,10 +326,10 @@ export async function middleware(request: NextRequest) {
           const errorMessage = authError?.message?.toLowerCase() || "";
           const errorCode = authError?.code?.toLowerCase() || "";
           if (errorCode === "refresh_token_not_found" ||
-              errorMessage.includes("refresh_token_not_found") ||
-              errorMessage.includes("refresh token not found") ||
-              errorMessage.includes("invalid refresh token") ||
-              errorMessage.includes("jwt expired")) {
+            errorMessage.includes("refresh_token_not_found") ||
+            errorMessage.includes("refresh token not found") ||
+            errorMessage.includes("invalid refresh token") ||
+            errorMessage.includes("jwt expired")) {
             // Expected error - redirect to landing page
             return NextResponse.redirect(new URL("/", request.url));
           }
@@ -372,10 +393,10 @@ export async function middleware(request: NextRequest) {
           const errorMessage3 = authError?.message?.toLowerCase() || "";
           const errorCode3 = authError?.code?.toLowerCase() || "";
           if (errorCode3 === "refresh_token_not_found" ||
-              errorMessage3.includes("refresh_token_not_found") ||
-              errorMessage3.includes("refresh token not found") ||
-              errorMessage3.includes("invalid refresh token") ||
-              errorMessage3.includes("jwt expired")) {
+            errorMessage3.includes("refresh_token_not_found") ||
+            errorMessage3.includes("refresh token not found") ||
+            errorMessage3.includes("invalid refresh token") ||
+            errorMessage3.includes("jwt expired")) {
             // Expected error - redirect to maintenance
             return NextResponse.redirect(new URL("/maintenance", request.url));
           }
@@ -410,9 +431,9 @@ export async function middleware(request: NextRequest) {
 
   if (!result.allowed) {
     // Rate limit exceeded - log security event
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || 
-               request.headers.get("x-real-ip") || 
-               "unknown";
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
     const userAgent = request.headers.get("user-agent") || "unknown";
     SecurityLogger.rateLimitExceeded(
       `Rate limit exceeded for path ${pathname}`,

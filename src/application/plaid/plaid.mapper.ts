@@ -53,30 +53,30 @@ export class PlaidMapper {
       error_message: domain.errorMessage ?? null,
       consent_expires_at: domain.consentExpiresAt
         ? (domain.consentExpiresAt instanceof Date
-            ? domain.consentExpiresAt.toISOString()
-            : domain.consentExpiresAt)
+          ? domain.consentExpiresAt.toISOString()
+          : domain.consentExpiresAt)
         : null,
       last_successful_update: domain.lastSuccessfulUpdate
         ? (domain.lastSuccessfulUpdate instanceof Date
-            ? domain.lastSuccessfulUpdate.toISOString()
-            : domain.lastSuccessfulUpdate)
+          ? domain.lastSuccessfulUpdate.toISOString()
+          : domain.lastSuccessfulUpdate)
         : null,
       is_syncing: domain.isSyncing ?? false,
       sync_started_at: domain.syncStartedAt
         ? (domain.syncStartedAt instanceof Date
-            ? domain.syncStartedAt.toISOString()
-            : domain.syncStartedAt)
+          ? domain.syncStartedAt.toISOString()
+          : domain.syncStartedAt)
         : null,
       transactions_cursor: domain.transactionsCursor ?? null,
       created_at: domain.createdAt
         ? (domain.createdAt instanceof Date
-            ? domain.createdAt.toISOString()
-            : domain.createdAt)
+          ? domain.createdAt.toISOString()
+          : domain.createdAt)
         : new Date().toISOString(),
       updated_at: domain.updatedAt
         ? (domain.updatedAt instanceof Date
-            ? domain.updatedAt.toISOString()
-            : domain.updatedAt)
+          ? domain.updatedAt.toISOString()
+          : domain.updatedAt)
         : new Date().toISOString(),
     };
   }
@@ -132,9 +132,29 @@ export class PlaidMapper {
     userId: string,
     householdId: string | null
   ): Partial<BaseTransaction> {
-    // Determine transaction type based on amount
-    // Positive = expense (outflow), Negative = income (inflow)
-    const type: 'income' | 'expense' | 'transfer' = plaidTx.amount >= 0 ? 'expense' : 'income';
+    // Determine transaction type based on Plaid data
+    let type: 'income' | 'expense' | 'transfer' = plaidTx.amount >= 0 ? 'expense' : 'income';
+
+    // Check for transfer indicators
+    // 1. Payment channel is 'transfer'
+    if (plaidTx.paymentChannel === 'transfer') {
+      type = 'transfer';
+    }
+    // 2. Category includes 'Transfer' (Legacy)
+    else if (
+      plaidTx.category &&
+      plaidTx.category.some(c => c.toLowerCase().includes('transfer') && !c.toLowerCase().includes('wire'))
+    ) {
+      // Exclude wire transfers if preferred, or include them. Plaid often categorizes transfers as "Transfer"
+      type = 'transfer';
+    }
+    // 3. Personal Finance Category (PFC) is TRANSFER_IN or TRANSFER_OUT
+    else if (
+      plaidTx.primaryCategory === 'TRANSFER_IN' ||
+      plaidTx.primaryCategory === 'TRANSFER_OUT'
+    ) {
+      type = 'transfer';
+    }
 
     // Map Plaid category to our category (simplified - will be enhanced later)
     // For now, we'll use the primary category if available

@@ -23,7 +23,7 @@ const SidebarContext = createContext<{
   setIsCollapsed: (collapsed: boolean) => void;
 }>({
   isCollapsed: false,
-  setIsCollapsed: () => {},
+  setIsCollapsed: () => { },
 });
 
 export const useSidebar = () => useContext(SidebarContext);
@@ -42,11 +42,11 @@ export const useSidebar = () => useContext(SidebarContext);
 function NavComponent() {
   const pathname = usePathname();
   const router = useRouter();
-  
+
   // Use Context only for reading state (role for portal management visibility)
   // All other user/subscription data is handled by UserMenuClient
   const { role } = useAuthSafe();
-  
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -145,239 +145,239 @@ function NavComponent() {
               {navSections.map((section) => {
                 const isSectionCollapsed = collapsedSections.has(section.title);
                 return (
-                <div key={section.title} className="space-y-1">
-                  {!isCollapsed && (
-                    <button
-                      onClick={() => {
-                        setCollapsedSections(prev => {
-                          const next = new Set(prev);
-                          if (next.has(section.title)) {
-                            next.delete(section.title);
-                          } else {
-                            next.add(section.title);
-                          }
-                          return next;
-                        });
-                      }}
-                      className="flex items-center justify-between w-full px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-                    >
-                      <span>{section.title}</span>
-                      <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 transition-transform duration-200",
-                          isSectionCollapsed && "rotate-[-90deg]"
-                        )}
-                      />
-                    </button>
-                  )}
-                  <div className={cn(
-                    "transition-all duration-200 ease-in-out",
-                    isSectionCollapsed ? "max-h-0 overflow-hidden opacity-0" : "max-h-[500px] opacity-100"
-                  )}>
-                    {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const isToggle = item.isToggle;
-                    const isBack = item.isBack;
-                    
-                    // Handle Portal Management toggle button (show normal items)
-                    if (isToggle && !isBack) {
-                      const isActive = pathname.startsWith("/portal-management");
-                      
-                      if (isCollapsed) {
-                        const toggleButton = (
-                          <button
-                            onClick={() => {
-                              setShowPortalManagementItems(!showPortalManagementItems);
-                              if (!showPortalManagementItems) {
-                                router.push("/portal-management/dashboard");
-                              }
-                            }}
-                            className={cn(
-                              "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full",
-                              isActive
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                            )}
-                          >
-                            <Icon className="h-4 w-4 flex-shrink-0" />
-                          </button>
-                        );
-                        return (
-                          <Tooltip key="portal-management-toggle">
-                            <TooltipTrigger asChild>
-                              <div className="relative">
-                                {toggleButton}
-                                <TooltipContent side="right">
-                                  Portal Management
-                                </TooltipContent>
-                              </div>
-                            </TooltipTrigger>
-                          </Tooltip>
-                        );
-                      }
-                      
-                      return (
-                        <button
-                          key="portal-management-toggle"
-                          onClick={() => {
-                            setShowPortalManagementItems(!showPortalManagementItems);
-                            if (!showPortalManagementItems) {
-                              router.push("/portal-management/dashboard");
+                  <div key={section.title} className="space-y-1">
+                    {!isCollapsed && (
+                      <button
+                        onClick={() => {
+                          setCollapsedSections(prev => {
+                            const next = new Set(prev);
+                            if (next.has(section.title)) {
+                              next.delete(section.title);
+                            } else {
+                              next.add(section.title);
                             }
-                          }}
+                            return next;
+                          });
+                        }}
+                        className="flex items-center justify-between w-full px-3 pb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                      >
+                        <span>{section.title}</span>
+                        <ChevronDown
                           className={cn(
-                            "flex items-center justify-between w-full rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2",
-                            isActive
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                            "h-3.5 w-3.5 transition-transform duration-200",
+                            isSectionCollapsed && "rotate-[-90deg]"
                           )}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <Icon className="h-4 w-4 flex-shrink-0" />
-                            <span>{item.label}</span>
-                          </div>
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 transition-transform duration-200",
-                              showPortalManagementItems && "rotate-180"
-                            )}
-                          />
-                        </button>
-                      );
-                    }
-                    
-                    // Handle back button (show normal items again)
-                    if (isToggle && isBack) {
-                      if (isCollapsed) {
-                        const backButton = (
-                          <button
-                            onClick={() => {
-                              setShowPortalManagementItems(false);
-                              router.push("/dashboard");
-                            }}
-                            className="flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                          >
-                            <ChevronLeft className="h-4 w-4 flex-shrink-0" />
-                          </button>
-                        );
-                        return (
-                          <Tooltip key="portal-management-back">
-                            <TooltipTrigger asChild>
-                              <div className="relative">
-                                {backButton}
-                                <TooltipContent side="right">
-                                  Back to Main Menu
-                                </TooltipContent>
+                        />
+                      </button>
+                    )}
+                    <div className={cn(
+                      "transition-all duration-200 ease-in-out",
+                      isSectionCollapsed ? "max-h-0 overflow-hidden opacity-0" : "max-h-[500px] opacity-100"
+                    )}>
+                      {section.items.map((item) => {
+                        const Icon = item.icon;
+                        const isToggle = item.isToggle;
+                        const isBack = item.isBack;
+
+                        // Handle Portal Management toggle button (show normal items)
+                        if (isToggle && !isBack) {
+                          const isActive = pathname.startsWith("/portal-management");
+
+                          if (isCollapsed) {
+                            const toggleButton = (
+                              <button
+                                onClick={() => {
+                                  setShowPortalManagementItems(!showPortalManagementItems);
+                                  if (!showPortalManagementItems) {
+                                    router.push("/portal-management/dashboard");
+                                  }
+                                }}
+                                className={cn(
+                                  "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full",
+                                  isActive
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                                )}
+                              >
+                                <Icon className="h-4 w-4 flex-shrink-0" />
+                              </button>
+                            );
+                            return (
+                              <Tooltip key="portal-management-toggle">
+                                <TooltipTrigger asChild>
+                                  <div className="relative">
+                                    {toggleButton}
+                                    <TooltipContent side="right">
+                                      Portal Management
+                                    </TooltipContent>
+                                  </div>
+                                </TooltipTrigger>
+                              </Tooltip>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key="portal-management-toggle"
+                              onClick={() => {
+                                setShowPortalManagementItems(!showPortalManagementItems);
+                                if (!showPortalManagementItems) {
+                                  router.push("/portal-management/dashboard");
+                                }
+                              }}
+                              className={cn(
+                                "flex items-center justify-between w-full rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2",
+                                isActive
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                              )}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <Icon className="h-4 w-4 flex-shrink-0" />
+                                <span>{item.label}</span>
                               </div>
-                            </TooltipTrigger>
-                          </Tooltip>
-                        );
-                      }
-                      
-                      return (
-                        <button
-                          key="portal-management-back"
-                          onClick={() => {
-                            setShowPortalManagementItems(false);
-                            router.push("/dashboard");
-                          }}
-                          className="flex items-center space-x-3 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                        >
-                          <ChevronLeft className="h-5 w-5 flex-shrink-0" />
-                          <span>Back to Main Menu</span>
-                        </button>
-                      );
-                    }
-                    
-                    // Handle Portal Management items (regular links now)
-                    
-                    // Regular link item
-                    const basePath = item.href.split("?")[0];
-                    const isActive =
-                      pathname === item.href ||
-                      pathname === basePath ||
-                      (basePath !== "/" && pathname.startsWith(basePath));
-                    
-                    // Handle "soon" items - render as disabled button instead of link
-                    if (item.soon) {
-                      const soonElement = (
-                        <div
-                          className={cn(
-                            "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out cursor-not-allowed opacity-60",
-                            isCollapsed
-                              ? "justify-center px-3 py-2"
-                              : "space-x-3 px-3 py-2 justify-between"
-                          )}
-                        >
-                          <div className="flex items-center space-x-3">
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform duration-200",
+                                  showPortalManagementItems && "rotate-180"
+                                )}
+                              />
+                            </button>
+                          );
+                        }
+
+                        // Handle back button (show normal items again)
+                        if (isToggle && isBack) {
+                          if (isCollapsed) {
+                            const backButton = (
+                              <button
+                                onClick={() => {
+                                  setShowPortalManagementItems(false);
+                                  router.push("/dashboard");
+                                }}
+                                className="flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                              >
+                                <ChevronLeft className="h-4 w-4 flex-shrink-0" />
+                              </button>
+                            );
+                            return (
+                              <Tooltip key="portal-management-back">
+                                <TooltipTrigger asChild>
+                                  <div className="relative">
+                                    {backButton}
+                                    <TooltipContent side="right">
+                                      Back to Main Menu
+                                    </TooltipContent>
+                                  </div>
+                                </TooltipTrigger>
+                              </Tooltip>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key="portal-management-back"
+                              onClick={() => {
+                                setShowPortalManagementItems(false);
+                                router.push("/dashboard");
+                              }}
+                              className="flex items-center space-x-3 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                            >
+                              <ChevronLeft className="h-5 w-5 flex-shrink-0" />
+                              <span>Back to Main Menu</span>
+                            </button>
+                          );
+                        }
+
+                        // Handle Portal Management items (regular links now)
+
+                        // Regular link item
+                        const basePath = item.href.split("?")[0];
+                        const isActive =
+                          pathname === item.href ||
+                          pathname === basePath ||
+                          (basePath !== "/" && pathname.startsWith(basePath));
+
+                        // Handle "soon" items - render as disabled button instead of link
+                        if (item.soon) {
+                          const soonElement = (
+                            <div
+                              className={cn(
+                                "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out cursor-not-allowed opacity-60",
+                                isCollapsed
+                                  ? "justify-center px-3 py-2"
+                                  : "space-x-3 px-3 py-2 justify-between"
+                              )}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <Icon className="h-4 w-4 flex-shrink-0" />
+                                {!isCollapsed && <span>{item.label}</span>}
+                              </div>
+                              {!isCollapsed && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                                  SOON
+                                </span>
+                              )}
+                            </div>
+                          );
+
+                          if (isCollapsed) {
+                            return (
+                              <Tooltip key={item.href}>
+                                <TooltipTrigger asChild>
+                                  <div className="relative">
+                                    {soonElement}
+                                    <TooltipContent side="right">
+                                      {item.label} (SOON)
+                                    </TooltipContent>
+                                  </div>
+                                </TooltipTrigger>
+                              </Tooltip>
+                            );
+                          }
+
+                          return <div key={item.href}>{soonElement}</div>;
+                        }
+
+                        const linkElement = (
+                          <Link
+                            href={item.href}
+                            prefetch={true}
+                            className={cn(
+                              "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out",
+                              isActive
+                                ? "bg-primary text-primary-foreground translate-x-0"
+                                : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground hover:translate-x-1 translate-x-0",
+                              isCollapsed
+                                ? "justify-center px-3 py-2"
+                                : "space-x-3 px-3 py-2"
+                            )}
+                          >
                             <Icon className="h-4 w-4 flex-shrink-0" />
                             {!isCollapsed && <span>{item.label}</span>}
-                          </div>
-                          {!isCollapsed && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
-                              SOON
-                            </span>
-                          )}
-                        </div>
-                      );
-
-                      if (isCollapsed) {
-                        return (
-                          <Tooltip key={item.href}>
-                            <TooltipTrigger asChild>
-                              <div className="relative">
-                                {soonElement}
-                                <TooltipContent side="right">
-                                  {item.label} (SOON)
-                                </TooltipContent>
-                              </div>
-                            </TooltipTrigger>
-                          </Tooltip>
+                          </Link>
                         );
-                      }
 
-                      return <div key={item.href}>{soonElement}</div>;
-                    }
-                    
-                    const linkElement = (
-                      <Link
-                        href={item.href}
-                        prefetch={true}
-                        className={cn(
-                          "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out",
-                          isActive
-                            ? "bg-primary text-primary-foreground translate-x-0"
-                            : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground hover:translate-x-1 translate-x-0",
-                          isCollapsed
-                            ? "justify-center px-3 py-2"
-                            : "space-x-3 px-3 py-2"
-                        )}
-                      >
-                        <Icon className="h-4 w-4 flex-shrink-0" />
-                        {!isCollapsed && <span>{item.label}</span>}
-                      </Link>
-                    );
+                        if (isCollapsed) {
+                          return (
+                            <Tooltip key={item.href}>
+                              <TooltipTrigger asChild>
+                                <div className="relative">
+                                  {linkElement}
+                                  <TooltipContent side="right">
+                                    {item.label}
+                                  </TooltipContent>
+                                </div>
+                              </TooltipTrigger>
+                            </Tooltip>
+                          );
+                        }
 
-                    if (isCollapsed) {
-                      return (
-                        <Tooltip key={item.href}>
-                          <TooltipTrigger asChild>
-                            <div className="relative">
-                              {linkElement}
-                              <TooltipContent side="right">
-                                {item.label}
-                              </TooltipContent>
-                            </div>
-                          </TooltipTrigger>
-                        </Tooltip>
-                      );
-                    }
-
-                    return <div key={item.href}>{linkElement}</div>;
-                  })}
+                        return <div key={item.href}>{linkElement}</div>;
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
+                );
               })}
             </nav>
 

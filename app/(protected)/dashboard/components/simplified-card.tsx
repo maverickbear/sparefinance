@@ -24,7 +24,7 @@ export function SimplifiedCard({
   return (
     <div
       className={cn(
-        "border border-border rounded-[var(--radius)] p-3.5 bg-transparent min-h-[92px] flex flex-col gap-2",
+        "border border-border rounded-[var(--radius)] p-4 md:p-5 bg-transparent min-h-[92px] flex flex-col gap-2",
         className
       )}
     >

@@ -62,7 +62,7 @@ export function WidgetExpandableCard({
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent 
+        <DialogContent
           className={cn(
             modalWidth === "60%" ? "sm:w-[60%]" : !modalWidth && "sm:max-w-4xl",
             "max-h-[90vh] overflow-y-auto"
