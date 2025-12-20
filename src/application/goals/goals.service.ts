@@ -7,6 +7,8 @@ import { GoalsRepository } from "@/src/infrastructure/database/repositories/goal
 import { GoalsMapper } from "./goals.mapper";
 import { GoalFormData } from "../../domain/goals/goals.validations";
 import { BaseGoal, GoalWithCalculations } from "../../domain/goals/goals.types";
+import type { AccountWithBalance } from "../../domain/accounts/accounts.types";
+import type { TransactionWithRelations } from "../../domain/transactions/transactions.types";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { formatTimestamp, formatDateStart, formatDateEnd } from "@/lib/utils/timestamp";
 import { getActiveHouseholdId } from "@/lib/utils/household";
@@ -89,7 +91,7 @@ export class GoalsService {
         if (!transactions) return 0;
 
         const decryptedTransactions = decryptTransactionsBatch(transactions);
-        const monthIncome = decryptedTransactions.reduce((sum: number, tx: any) => {
+        const monthIncome = decryptedTransactions.reduce((sum: number, tx: { amount: number | string | null }) => {
           const amount = getTransactionAmount(tx.amount) || 0;
           return sum + amount;
         }, 0);
@@ -158,7 +160,7 @@ export class GoalsService {
   async getGoals(
     accessToken?: string,
     refreshToken?: string,
-    accounts?: any[] // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
+    accounts?: AccountWithBalance[] // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
   ): Promise<GoalWithCalculations[]> {
     const rows = await this.repository.findAll(accessToken, refreshToken);
 
@@ -435,7 +437,22 @@ export class GoalsService {
     // Check if goal should be marked as completed
     const isCompleted = targetAmount > 0 && effectiveCurrentBalance >= targetAmount;
 
-    const updateData: any = {
+    const updateData: Partial<{
+      name: string;
+      targetAmount: number;
+      currentBalance: number;
+      incomePercentage: number;
+      priority: "High" | "Medium" | "Low";
+      description: string | null;
+      isPaused: boolean;
+      expectedIncome: number | null;
+      targetMonths: number | null;
+      accountId: string | null;
+      holdingId: string | null;
+      isCompleted: boolean;
+      completedAt: string | null;
+      updatedAt: string;
+    }> = {
       updatedAt: formatTimestamp(new Date()),
     };
 
@@ -589,7 +606,7 @@ export class GoalsService {
         if (!transactions) return 0;
 
         const decryptedTransactions = decryptTransactionsBatch(transactions);
-        const monthExpenses = decryptedTransactions.reduce((sum: number, tx: any) => {
+        const monthExpenses = decryptedTransactions.reduce((sum: number, tx: { amount: number | string | null }) => {
           const amount = getTransactionAmount(tx.amount) || 0;
           return sum + Math.abs(amount); // Ensure expenses are positive
         }, 0);

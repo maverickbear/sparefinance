@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2, Shield, Database } from "lucide-react";
 
 interface PlaidImportLoadingModalProps {
   open: boolean;
@@ -62,7 +62,7 @@ export function PlaidImportLoadingModal({
       // Wait a bit before calling onComplete
       const timer = setTimeout(() => {
         onComplete?.();
-      }, 500);
+      }, 800);
       return () => clearTimeout(timer);
     }
   }, [stage, progress, onComplete]);
@@ -93,49 +93,147 @@ export function PlaidImportLoadingModal({
     }
   };
 
+  const getStageIcon = () => {
+    switch (stage) {
+      case "exchanging":
+        return <Shield className="h-6 w-6" />;
+      case "syncing":
+        return <Database className="h-6 w-6" />;
+      case "complete":
+        return <CheckCircle2 className="h-6 w-6" />;
+      default:
+        return <Loader2 className="h-6 w-6 animate-spin" />;
+    }
+  };
+
+  const isComplete = stage === "complete";
+
   return (
     <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-center mb-4">
-            <div className="relative w-16 h-16">
-              <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+        {/* Header with gradient background */}
+        <div className="relative bg-gradient-to-br from-primary/10 via-primary/5 to-background px-6 pt-8 pb-6">
+          <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
+          
+          <DialogHeader className="relative space-y-6">
+            {/* Icon container with animated background */}
+            <div className="flex items-center justify-center">
+              <div className="relative">
+                {/* Pulsing background circle */}
+                {!isComplete && (
+                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                )}
+                <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 backdrop-blur-sm border border-primary/20 shadow-lg">
+                  {isComplete ? (
+                    <div className="text-primary scale-110 transition-transform duration-500">
+                      {getStageIcon()}
+                    </div>
+                  ) : (
+                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-          <DialogTitle className="text-center text-xl">
-            {getStageMessage()}
-          </DialogTitle>
-          <DialogDescription className="text-center mt-2">
-            {getStageDescription()}
-          </DialogDescription>
-        </DialogHeader>
 
-        <div className="mt-6 space-y-2">
-          {/* Progress bar */}
-          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300 ease-out rounded-full"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+            {/* Title */}
+            <DialogTitle className="text-center text-2xl font-semibold tracking-tight text-foreground">
+              {getStageMessage()}
+            </DialogTitle>
 
-          {/* Progress indicators */}
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <div
-              className={`h-2 w-2 rounded-full transition-all ${
-                progress >= 33 ? "bg-primary" : "bg-muted"
-              }`}
-            />
-            <div
-              className={`h-2 w-2 rounded-full transition-all ${
-                progress >= 66 ? "bg-primary" : "bg-muted"
-              }`}
-            />
-            <div
-              className={`h-2 w-2 rounded-full transition-all ${
-                progress >= 100 ? "bg-primary" : "bg-muted"
-              }`}
-            />
+            {/* Description */}
+            <DialogDescription className="text-center text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
+              {getStageDescription()}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        {/* Content section */}
+        <div className="px-6 pb-8 pt-6 space-y-6">
+          {/* Progress bar with enhanced styling */}
+          <div className="space-y-4">
+            <div className="relative w-full h-2.5 bg-muted/50 rounded-full overflow-hidden shadow-inner">
+              <div
+                className="absolute inset-y-0 left-0 h-full bg-gradient-to-r from-primary via-primary to-primary/80 rounded-full transition-all duration-500 ease-out shadow-sm"
+                style={{ width: `${progress}%` }}
+              >
+                {/* Shimmer effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+              </div>
+            </div>
+
+            {/* Progress indicators with labels */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <div
+                  className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ${
+                    progress >= 33
+                      ? "bg-primary border-primary text-primary-foreground shadow-md scale-110"
+                      : "bg-background border-muted text-muted-foreground"
+                  }`}
+                >
+                  {progress >= 33 ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <Shield className="h-4 w-4" />
+                  )}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground text-center">
+                  Connect
+                </span>
+              </div>
+
+              <div className="flex-1 h-0.5 mx-2 bg-muted">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: progress >= 33 ? "100%" : "0%" }}
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <div
+                  className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ${
+                    progress >= 66
+                      ? "bg-primary border-primary text-primary-foreground shadow-md scale-110"
+                      : "bg-background border-muted text-muted-foreground"
+                  }`}
+                >
+                  {progress >= 66 ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <Database className="h-4 w-4" />
+                  )}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground text-center">
+                  Sync
+                </span>
+              </div>
+
+              <div className="flex-1 h-0.5 mx-2 bg-muted">
+                <div
+                  className="h-full bg-primary transition-all duration-500"
+                  style={{ width: progress >= 66 ? "100%" : "0%" }}
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-2 flex-1">
+                <div
+                  className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300 ${
+                    progress >= 100
+                      ? "bg-primary border-primary text-primary-foreground shadow-md scale-110"
+                      : "bg-background border-muted text-muted-foreground"
+                  }`}
+                >
+                  {progress >= 100 ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full bg-muted" />
+                  )}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground text-center">
+                  Complete
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </DialogContent>

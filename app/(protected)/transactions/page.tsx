@@ -650,12 +650,74 @@ export default function TransactionsPage() {
   async function handleSyncAll() {
     try {
       setSyncingAll(true);
-      // Plaid integration removed - sync functionality no longer available
-      toast({
-        title: 'Sync unavailable',
-        description: 'Bank account sync is no longer available. Please add transactions manually.',
-        variant: 'success',
-      });
+      
+      // Get all Plaid connections
+      const connectionsResponse = await fetch('/api/v2/plaid/connections');
+      if (!connectionsResponse.ok) {
+        throw new Error('Failed to fetch Plaid connections');
+      }
+      
+      const { connections } = await connectionsResponse.json();
+      
+      if (!connections || connections.length === 0) {
+        toast({
+          title: 'No bank connections',
+          description: 'No connected bank accounts found. Connect a bank account to sync transactions.',
+          variant: 'default',
+        });
+        return;
+      }
+
+      // Sync all items
+      let totalTransactionsCreated = 0;
+      let totalTransactionsSkipped = 0;
+      let totalAccountsSynced = 0;
+      let errors: string[] = [];
+
+      for (const connection of connections) {
+        if (!connection.itemId) continue;
+        
+        try {
+          const syncResponse = await fetch('/api/v2/plaid/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId: connection.itemId }),
+          });
+
+          if (syncResponse.ok) {
+            const data = await syncResponse.json();
+            totalTransactionsCreated += data.transactionsCreated || 0;
+            totalTransactionsSkipped += data.transactionsSkipped || 0;
+            totalAccountsSynced += data.accountsSynced || 0;
+          } else {
+            const errorData = await syncResponse.json();
+            errors.push(`${connection.institutionName || 'Bank'}: ${errorData.error || 'Sync failed'}`);
+          }
+        } catch (error: any) {
+          errors.push(`${connection.institutionName || 'Bank'}: ${error.message || 'Sync failed'}`);
+        }
+      }
+
+      // Show results
+      if (errors.length > 0 && totalTransactionsCreated === 0) {
+        toast({
+          title: 'Sync failed',
+          description: errors.join('; '),
+          variant: 'destructive',
+        });
+      } else if (errors.length > 0) {
+        toast({
+          title: 'Sync completed with errors',
+          description: `Created ${totalTransactionsCreated} transactions, skipped ${totalTransactionsSkipped} duplicates. Some accounts failed: ${errors.join('; ')}`,
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Sync completed',
+          description: `Created ${totalTransactionsCreated} transactions, skipped ${totalTransactionsSkipped} duplicates from ${totalAccountsSynced} account(s).`,
+          variant: 'success',
+        });
+      }
 
       // Reload transactions to show newly synced ones
       await loadTransactions(true);

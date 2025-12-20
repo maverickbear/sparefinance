@@ -12,6 +12,9 @@ import { makeBudgetsService } from "@/src/application/budgets/budgets.factory";
 import { makeCategoriesService } from "@/src/application/categories/categories.factory";
 import { BudgetRuleProfile, BudgetRuleType } from "../../domain/budgets/budget-rules.types";
 import { AppError } from "./app-error";
+import type { AccountWithBalance } from "../../domain/accounts/accounts.types";
+import type { BaseGoal } from "../../domain/goals/goals.types";
+import type { TransactionWithRelations } from "../../domain/transactions/transactions.types";
 
 export interface FinancialHealthData {
   score: number;
@@ -45,7 +48,7 @@ async function calculateFinancialHealthInternal(
   selectedDate?: Date,
   accessToken?: string,
   refreshToken?: string,
-  accounts?: any[], // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
+  accounts?: AccountWithBalance[], // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
   projectedIncome?: number, // Optional projected income for initial score calculation
   budgetRule?: BudgetRuleProfile // Optional budget rule for validation
 ): Promise<FinancialHealthData> {
@@ -76,7 +79,7 @@ async function calculateFinancialHealthInternal(
   let monthlyIncome = transactions
     .filter((t) => {
       // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
-      const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+      const isTransfer = t.type === "transfer" || !!t.transferFromId || !!t.transferToId;
       return t.type === "income" && !isTransfer;
     })
     .reduce((sum, t) => {
@@ -123,7 +126,7 @@ async function calculateFinancialHealthInternal(
   const monthlyExpenses = transactions
     .filter((t) => {
       // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
-      const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+      const isTransfer = t.type === "transfer" || !!t.transferFromId || !!t.transferToId;
       return t.type === "expense" && !isTransfer;
     })
     .reduce((sum, t) => {
@@ -509,7 +512,7 @@ async function calculateFinancialHealthInternal(
   // Priority: Always use the system Goal "Emergency Funds" if it exists
   // Otherwise, fall back to total balance calculation
   let emergencyFundMonths = 0;
-  let emergencyFundGoal: any = null;
+  let emergencyFundGoal: BaseGoal | null = null;
   const RECOMMENDED_MONTHS = 6; // Minimum recommended emergency fund months
   
   // CRITICAL OPTIMIZATION: Use provided accounts to avoid duplicate getAccounts() calls
@@ -687,7 +690,7 @@ export async function calculateFinancialHealth(
   userId?: string | null,
   accessToken?: string,
   refreshToken?: string,
-  accounts?: any[], // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
+  accounts?: AccountWithBalance[], // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
   projectedIncome?: number, // Optional projected income for initial score calculation
   budgetRule?: BudgetRuleProfile // Optional budget rule for validation
 ): Promise<FinancialHealthData> {
@@ -786,11 +789,11 @@ export async function calculateFinancialHealth(
  * @returns Updated financial health data with recalculated metrics based on the provided transactions
  */
 export async function recalculateFinancialHealthFromTransactions(
-  transactions: any[],
+  transactions: TransactionWithRelations[],
   originalFinancialHealth: FinancialHealthData | null,
   accessToken?: string,
   refreshToken?: string,
-  accounts?: any[]
+  accounts?: AccountWithBalance[]
 ): Promise<FinancialHealthData | null> {
   // If no original financial health data, return null
   if (!originalFinancialHealth) {
@@ -952,7 +955,7 @@ export async function recalculateFinancialHealthFromTransactions(
   // Priority: Use emergency fund goal if it exists
   // Otherwise, fall back to total balance calculation
   let emergencyFundMonths = 0;
-  let emergencyFundGoal: any = null;
+  let emergencyFundGoal: BaseGoal | null = null;
   const RECOMMENDED_MONTHS = 6; // Minimum recommended emergency fund months
   
   try {

@@ -104,6 +104,37 @@ async function retryWithBackoff<T>(
 }
 
 /**
+ * Map string product names to Plaid Products enum values
+ */
+function mapProductsToEnum(productStrings: string[] | undefined): Products[] {
+  if (!productStrings || productStrings.length === 0) {
+    // Default to transactions only (auth may not be authorized for all clients)
+    return [Products.Transactions];
+  }
+
+  const productMap: Record<string, Products> = {
+    transactions: Products.Transactions,
+    auth: Products.Auth,
+    identity: Products.Identity,
+    income: Products.Income,
+    assets: Products.Assets,
+    investments: Products.Investments,
+    liabilities: Products.Liabilities,
+  };
+
+  const mappedProducts = productStrings
+    .map(product => productMap[product.toLowerCase()])
+    .filter((product): product is Products => product !== undefined);
+
+  if (mappedProducts.length === 0) {
+    // Fallback to transactions only if none are valid
+    return [Products.Transactions];
+  }
+
+  return mappedProducts;
+}
+
+/**
  * Create a link token for Plaid Link
  */
 export async function createLinkToken(request: LinkTokenRequest): Promise<LinkTokenResponse> {
@@ -116,7 +147,7 @@ export async function createLinkToken(request: LinkTokenRequest): Promise<LinkTo
           client_user_id: request.userId,
         },
         client_name: request.clientName || 'Spare Finance',
-        products: (request.products as Products[]) || [Products.Transactions, Products.Auth],
+        products: mapProductsToEnum(request.products),
         country_codes: (request.countryCodes as CountryCode[]) || [CountryCode.Us, CountryCode.Ca],
         language: request.language || 'en',
         transactions: {
@@ -273,17 +304,29 @@ export async function syncTransactions(
 
   try {
     const response = await retryWithBackoff(async () => {
-      return await client.transactionsSync({
+      // Build request object
+      const request: any = {
         access_token: accessToken,
-        cursor: cursor || undefined,
-        options: accountIds && accountIds.length > 0 ? {
-          account_ids: accountIds,
-        } as any : undefined,
+      };
+
+      // Only include cursor if it exists
+      if (cursor) {
+        request.cursor = cursor;
+      }
+
+      // Note: accountIds parameter is kept for API compatibility but not passed to Plaid
+      // The SDK v28 may not support account_ids filtering in options
+      // We'll filter results after receiving them if accountIds are provided
+      logger.debug('[PlaidClient] Syncing transactions', {
+        hasCursor: !!cursor,
+        accountIdsRequested: accountIds?.length || 0,
       });
+
+      return await client.transactionsSync(request);
     });
 
     // Map added transactions
-    const added: PlaidTransaction[] = (response.data.added || []).map(tx => ({
+    let added: PlaidTransaction[] = (response.data.added || []).map(tx => ({
       transactionId: tx.transaction_id,
       accountId: tx.account_id,
       amount: tx.amount,
@@ -303,7 +346,7 @@ export async function syncTransactions(
     }));
 
     // Map modified transactions
-    const modified: PlaidTransaction[] = (response.data.modified || []).map(tx => ({
+    let modified: PlaidTransaction[] = (response.data.modified || []).map(tx => ({
       transactionId: tx.transaction_id,
       accountId: tx.account_id,
       amount: tx.amount,
@@ -323,7 +366,17 @@ export async function syncTransactions(
     }));
 
     // Extract removed transaction IDs
-    const removed: string[] = response.data.removed?.map(r => r.transaction_id) || [];
+    let removed: string[] = response.data.removed?.map(r => r.transaction_id) || [];
+
+    // Filter by accountIds if provided (client-side filtering since SDK v28 may not support it)
+    if (accountIds && accountIds.length > 0) {
+      const accountIdsSet = new Set(accountIds);
+      added = added.filter(tx => accountIdsSet.has(tx.accountId));
+      modified = modified.filter(tx => accountIdsSet.has(tx.accountId));
+      // Note: removed transactions don't include account_id, so we can't filter them
+      // This is acceptable as removed transactions are rare and filtering them would require
+      // additional API calls to get transaction details
+    }
 
     return {
       added,
@@ -334,11 +387,17 @@ export async function syncTransactions(
     };
   } catch (error: any) {
     // NEVER log access tokens
+    const errorData = error?.response?.data;
     logger.error('[PlaidClient] Error syncing transactions', {
       error: error?.message || 'Unknown error',
-      errorType: error?.response?.data?.error_type,
-      errorCode: error?.response?.data?.error_code,
+      errorType: errorData?.error_type,
+      errorCode: errorData?.error_code,
+      errorMessage: errorData?.error_message,
+      displayMessage: errorData?.display_message,
+      requestId: errorData?.request_id,
       hasCursor: !!cursor,
+      hasAccountIds: !!(accountIds && accountIds.length > 0),
+      accountIdsCount: accountIds?.length || 0,
     });
     throw error;
   }

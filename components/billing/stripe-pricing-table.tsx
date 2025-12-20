@@ -50,7 +50,7 @@ export function StripePricingTable() {
         src="https://js.stripe.com/v3/pricing-table.js"
         strategy="afterInteractive"
       />
-      {/* @ts-ignore - Stripe custom element */}
+      {/* @ts-expect-error - Stripe custom element type not fully recognized by TypeScript */}
       <stripe-pricing-table
         pricing-table-id="prctbl_1SSuVUEj1ttZtjC0ZdPrMniP"
         publishable-key="pk_live_51SQHmOEj1ttZtjC0C7A9ReTcCvQLyaMJoXEkM844AfX8GUih7QczN0q9YiXLduNX6fksfsttaYqv5bgklGjKCPKd008Th0Tzgx"

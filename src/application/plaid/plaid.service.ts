@@ -41,22 +41,64 @@ export class PlaidService {
 
   /**
    * Create a link token for Plaid Link
+   * Attempts to use both 'transactions' and 'auth' products, but falls back to just 'transactions'
+   * if 'auth' is not authorized for the client
    */
   async createLinkToken(userId: string): Promise<LinkTokenResponse> {
+    // Get products from environment variable or use defaults
+    const productsEnv = process.env.PLAID_PRODUCTS;
+    const defaultProducts = productsEnv 
+      ? productsEnv.split(',').map(p => p.trim())
+      : ['transactions', 'auth'];
+
     try {
+      // First attempt: try with configured products (usually includes auth)
       const request: LinkTokenRequest = {
         userId,
         clientName: 'Spare Finance',
         countryCodes: ['US', 'CA'],
-        products: ['transactions', 'auth'],
+        products: defaultProducts,
       };
 
       return await createLinkToken(request);
     } catch (error: unknown) {
+      const errorResponse = (error as { response?: { data?: { error_type?: string; error_code?: string; error_message?: string } } })?.response?.data;
+      const errorCode = errorResponse?.error_code;
+      const plaidErrorMessage = errorResponse?.error_message || '';
+
+      // If auth product is not authorized, retry with just transactions
+      if (errorCode === 'INVALID_PRODUCT' && plaidErrorMessage.includes('auth')) {
+        logger.warn('[PlaidService] Auth product not authorized, retrying with transactions only', {
+          userId,
+        });
+
+        try {
+          const fallbackRequest: LinkTokenRequest = {
+            userId,
+            clientName: 'Spare Finance',
+            countryCodes: ['US', 'CA'],
+            products: ['transactions'],
+          };
+
+          return await createLinkToken(fallbackRequest);
+        } catch (fallbackError: unknown) {
+          const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
+          logger.error('[PlaidService] Error creating link token with transactions only:', {
+            userId,
+            error: fallbackErrorMessage,
+          });
+          throw new AppError('Failed to create link token', 500);
+        }
+      }
+
+      // For other errors, log and throw
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('[PlaidService] Error creating link token:', {
         userId,
         error: errorMessage,
+        errorType: errorResponse?.error_type,
+        errorCode: errorResponse?.error_code,
+        errorMessage: errorResponse?.error_message,
       });
       throw new AppError('Failed to create link token', 500);
     }
@@ -567,10 +609,12 @@ export class PlaidService {
         : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago if no last update
 
       // Sync each account
+      // Use item.id (UUID) instead of itemId (Plaid's item_id) for account_integrations lookup
+      const itemDatabaseId = item.id;
       for (const plaidAccount of plaidAccounts) {
         try {
           const result = await this.syncAccountInternal(
-            itemId,
+            itemDatabaseId,
             plaidAccount.accountId,
             accessToken,
             startDate,
@@ -704,10 +748,12 @@ export class PlaidService {
         : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago if no last update
 
       // Sync each account
+      // Use item.id (UUID) instead of itemId (Plaid's item_id) for account_integrations lookup
+      const itemDatabaseId = item.id;
       for (const plaidAccount of plaidAccounts) {
         try {
           const result = await this.syncAccountInternal(
-            itemId,
+            itemDatabaseId,
             plaidAccount.accountId,
             accessToken,
             startDate,
@@ -797,7 +843,8 @@ export class PlaidService {
       throw new AppError('Account is not connected to Plaid', 400);
     }
 
-    const item = await this.plaidItemsRepository.findByItemId(integration.plaid_item_id);
+    // plaid_item_id is the UUID from plaid_items table, not Plaid's item_id
+    const item = await this.plaidItemsRepository.findById(integration.plaid_item_id);
     if (!item) {
       throw new AppError('Plaid item not found', 404);
     }
@@ -807,8 +854,8 @@ export class PlaidService {
       throw new AppError('Unauthorized', 403);
     }
 
-    // Get access token
-    const accessToken = await this.plaidItemsRepository.getAccessToken(integration.plaid_item_id);
+    // Get access token using database ID (UUID)
+    const accessToken = await this.plaidItemsRepository.getAccessTokenById(integration.plaid_item_id);
     if (!accessToken) {
       throw new AppError('Failed to get access token', 500);
     }
@@ -861,12 +908,16 @@ export class PlaidService {
     const householdId = await getActiveHouseholdId(userId);
 
     // Get current cursor from item (stored in plaid_items table)
-    const item = await this.plaidItemsRepository.findByItemId(itemId);
+    // itemId here is the UUID from plaid_items table, not Plaid's item_id
+    const item = await this.plaidItemsRepository.findById(itemId);
     if (!item) {
       throw new AppError('Plaid item not found', 404);
     }
     const itemDomain = PlaidMapper.toDomain(item);
     let cursor: string | null = itemDomain.transactionsCursor || null;
+    
+    // Store Plaid's item_id for update operations (repository.update expects item_id, not UUID)
+    const plaidItemId = item.item_id;
 
     let transactionsCreated = 0;
     let transactionsSkipped = 0;
@@ -1063,8 +1114,9 @@ export class PlaidService {
 
         // Save cursor to database after each successful page
         // This allows recovery if sync is interrupted
+        // Use plaidItemId (Plaid's item_id) for update, not UUID
         if (syncResult.nextCursor) {
-          await this.plaidItemsRepository.update(itemId, {
+          await this.plaidItemsRepository.update(plaidItemId, {
             transactionsCursor: syncResult.nextCursor,
           });
         }
@@ -1090,7 +1142,8 @@ export class PlaidService {
 
     // Persist final cursor when sync is complete (has_more is false)
     // Following Plaid's pattern: persist cursor after applying all updates
-    await this.plaidItemsRepository.update(itemId, {
+    // Use plaidItemId (Plaid's item_id) for update, not UUID
+    await this.plaidItemsRepository.update(plaidItemId, {
       transactionsCursor: cursor, // Save final cursor (may be null if sync complete)
     });
 

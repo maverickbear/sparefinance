@@ -95,6 +95,29 @@ export class PlaidItemsRepository {
   }
 
   /**
+   * Find plaid item by database ID (UUID)
+   */
+  async findById(id: string): Promise<PlaidItemRow | null> {
+    const supabase = await createServerClient();
+
+    const { data: item, error } = await supabase
+      .from('plaid_items')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Not found
+      }
+      logger.error('[PlaidItemsRepository] Error finding plaid item by id:', error);
+      throw new Error(`Failed to find plaid item: ${error.message}`);
+    }
+
+    return item as PlaidItemRow;
+  }
+
+  /**
    * Find all plaid items for a user
    */
   async findByUserId(userId: string): Promise<PlaidItemRow[]> {
@@ -206,7 +229,7 @@ export class PlaidItemsRepository {
   }
 
   /**
-   * Get decrypted access token for an item
+   * Get decrypted access token for an item by Plaid item_id
    * This is a helper method that should be used carefully
    */
   async getAccessToken(itemId: string): Promise<string | null> {
@@ -219,6 +242,24 @@ export class PlaidItemsRepository {
       return decrypt(item.access_token_encrypted);
     } catch (error) {
       logger.error('[PlaidItemsRepository] Error decrypting access token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get decrypted access token for an item by database ID (UUID)
+   * This is a helper method that should be used carefully
+   */
+  async getAccessTokenById(id: string): Promise<string | null> {
+    const item = await this.findById(id);
+    if (!item) {
+      return null;
+    }
+
+    try {
+      return decrypt(item.access_token_encrypted);
+    } catch (error) {
+      logger.error('[PlaidItemsRepository] Error decrypting access token by id:', error);
       return null;
     }
   }

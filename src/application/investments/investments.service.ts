@@ -372,7 +372,16 @@ export class InvestmentsService {
       throw new AppError("Unauthorized", 401);
     }
 
-    const updateData: any = {};
+    const updateData: Partial<{
+      date: string;
+      type: string;
+      quantity: number | null;
+      price: number | null;
+      fees: number;
+      notes: string | null;
+      securityId: string | null;
+      accountId: string;
+    }> = {};
     if (data.date) {
       const date = data.date instanceof Date ? data.date : new Date(data.date);
       updateData.date = formatDateOnly(date);
@@ -451,7 +460,7 @@ export class InvestmentsService {
 
     const securityMap = new Map((securities || []).map(s => [s.id, InvestmentsMapper.securityToDomain(s)]));
 
-    return prices.map((price: any) => {
+    return prices.map((price) => {
       return InvestmentsMapper.securityPriceToDomain(price, securityMap.get(price.security_id));
     });
   }

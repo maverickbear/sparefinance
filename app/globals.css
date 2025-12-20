@@ -337,6 +337,20 @@
     animation-play-state: paused;
   }
 
+  /* Shimmer animation for progress bars */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
   /* UI Rule: When background is primary (solid, not with opacity), text should always be dark/black */
   .bg-primary {
     color: hsl(var(--foreground)) !important; /* Always black text on solid primary background */

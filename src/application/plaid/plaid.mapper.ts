@@ -121,6 +121,10 @@ export class PlaidMapper {
   /**
    * Map Plaid transaction to domain transaction
    * Handles mapping of Plaid transaction data to our transaction format
+   * 
+   * Plaid amount convention:
+   * - Positive values = outflows (expenses) - money leaving the account
+   * - Negative values = inflows (income) - money entering the account
    */
   static plaidTransactionToDomain(
     plaidTx: PlaidTransaction,
@@ -129,7 +133,8 @@ export class PlaidMapper {
     householdId: string | null
   ): Partial<BaseTransaction> {
     // Determine transaction type based on amount
-    const type: 'income' | 'expense' | 'transfer' = plaidTx.amount >= 0 ? 'income' : 'expense';
+    // Positive = expense (outflow), Negative = income (inflow)
+    const type: 'income' | 'expense' | 'transfer' = plaidTx.amount >= 0 ? 'expense' : 'income';
 
     // Map Plaid category to our category (simplified - will be enhanced later)
     // For now, we'll use the primary category if available

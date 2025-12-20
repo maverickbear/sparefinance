@@ -39,15 +39,15 @@ async function processImportJobs(req: NextRequest) {
     // If triggered by cron, process all jobs
     const now = new Date().toISOString();
     let query = supabase
-      .from('system.importJobs')
+      .from('system_jobs_imports')
       .select('*')
-      .or(`status.eq.pending,and(status.eq.failed,nextRetryAt.lte.${now})`)
-      .order('createdAt', { ascending: true })
+      .or(`status.eq.pending,and(status.eq.failed,next_retry_at.lte.${now})`)
+      .order('created_at', { ascending: true })
       .limit(MAX_JOBS_PER_RUN);
     
     // If authenticated user (not cron), filter by userId
     if (isAuthenticatedUser && !isCronAuth && !isVercelCron && userId) {
-      query = query.eq('userId', userId);
+      query = query.eq('user_id', userId);
     }
     
     const { data: jobs, error } = await query;
@@ -73,10 +73,10 @@ async function processImportJobs(req: NextRequest) {
       try {
         // Update job status to processing
         await supabase
-          .from('system.importJobs')
+          .from('system_jobs_imports')
           .update({ 
             status: 'processing',
-            updatedAt: formatTimestamp(new Date()),
+            updated_at: formatTimestamp(new Date()),
           })
           .eq('id', job.id);
 
@@ -87,11 +87,11 @@ async function processImportJobs(req: NextRequest) {
           // Other job types can be added here
           console.warn(`Unknown job type: ${job.type}`);
           await supabase
-            .from('system.importJobs')
+            .from('system_jobs_imports')
             .update({
               status: 'failed',
-              errorMessage: `Unknown job type: ${job.type}`,
-              updatedAt: formatTimestamp(new Date()),
+              error_message: `Unknown job type: ${job.type}`,
+              updated_at: formatTimestamp(new Date()),
             })
             .eq('id', job.id);
           results.push({ 
@@ -102,7 +102,7 @@ async function processImportJobs(req: NextRequest) {
       } catch (error: any) {
         console.error(`Error processing job ${job.id}:`, error);
         
-        const retryCount = (job.retryCount || 0) + 1;
+        const retryCount = (job.retry_count || 0) + 1;
         const shouldRetry = retryCount < MAX_RETRIES;
         
         if (shouldRetry) {
@@ -111,25 +111,25 @@ async function processImportJobs(req: NextRequest) {
           const nextRetryAt = new Date(Date.now() + retryDelay);
           
           await supabase
-            .from('system.importJobs')
+            .from('system_jobs_imports')
             .update({
               status: 'failed',
-              errorMessage: error.message || 'Unknown error',
-              retryCount,
-              nextRetryAt: formatTimestamp(nextRetryAt),
-              updatedAt: formatTimestamp(new Date()),
+              error_message: error.message || 'Unknown error',
+              retry_count: retryCount,
+              next_retry_at: formatTimestamp(nextRetryAt),
+              updated_at: formatTimestamp(new Date()),
             })
             .eq('id', job.id);
         } else {
           // Max retries reached, mark as permanently failed
           await supabase
-            .from('system.importJobs')
+            .from('system_jobs_imports')
             .update({
               status: 'failed',
-              errorMessage: error.message || 'Unknown error (max retries reached)',
-              retryCount,
-              nextRetryAt: null,
-              updatedAt: formatTimestamp(new Date()),
+              error_message: error.message || 'Unknown error (max retries reached)',
+              retry_count: retryCount,
+              next_retry_at: null,
+              updated_at: formatTimestamp(new Date()),
             })
             .eq('id', job.id);
         }
@@ -167,7 +167,8 @@ export async function POST(req: NextRequest) {
 
 
 async function processCsvImportJob(supabase: any, job: any) {
-  const { metadata, userId } = job;
+  const { metadata, user_id } = job;
+  const userId = user_id; // Map snake_case to camelCase
   const transactions = metadata?.transactions || [];
 
   if (!transactions || transactions.length === 0) {
@@ -216,14 +217,14 @@ async function processCsvImportJob(supabase: any, job: any) {
       : 100;
 
     await supabase
-      .from('system.importJobs')
+      .from('system_jobs_imports')
       .update({
         progress,
-        processedItems: processed,
-        syncedItems: synced,
-        skippedItems: skipped,
-        errorItems: errors,
-        updatedAt: formatTimestamp(new Date()),
+        processed_items: processed,
+        synced_items: synced,
+        skipped_items: skipped,
+        error_items: errors,
+        updated_at: formatTimestamp(new Date()),
       })
       .eq('id', job.id);
 
@@ -235,16 +236,16 @@ async function processCsvImportJob(supabase: any, job: any) {
 
   // Update job as completed
   await supabase
-    .from('system.importJobs')
+    .from('system_jobs_imports')
     .update({
       status: 'completed',
       progress: 100,
-      processedItems: transactions.length,
-      syncedItems: synced,
-      skippedItems: skipped,
-      errorItems: errors,
-      completedAt: formatTimestamp(new Date()),
-      updatedAt: formatTimestamp(new Date()),
+      processed_items: transactions.length,
+      synced_items: synced,
+      skipped_items: skipped,
+      error_items: errors,
+      completed_at: formatTimestamp(new Date()),
+      updated_at: formatTimestamp(new Date()),
     })
     .eq('id', job.id);
 
