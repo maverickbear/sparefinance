@@ -5,12 +5,12 @@
  */
 
 import { createServerClient, createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
-import { PlaidItemsRepository } from "@/src/infrastructure/database/repositories/plaid-items.repository";
+
 import { logger } from "@/src/infrastructure/utils/logger";
 import { AppError } from "@/src/application/shared/app-error";
 
 export class ProfileAnonymizationService {
-  constructor(private plaidItemsRepository: PlaidItemsRepository) {}
+  constructor() {}
 
   /**
    * Anonymize user PII using SQL function and Supabase Auth Admin API
@@ -181,34 +181,10 @@ export class ProfileAnonymizationService {
    * Disconnects all Plaid items which revokes access tokens
    */
   async revokeAllTokens(userId: string): Promise<void> {
-    try {
-      // Get all Plaid items for user
-      const items = await this.plaidItemsRepository.findByUserId(userId);
-
-      if (items.length === 0) {
-        logger.debug("[ProfileAnonymizationService] No Plaid items to revoke", { userId });
-        return;
-      }
-
-      logger.info("[ProfileAnonymizationService] Revoking Plaid tokens", {
-        userId,
-        itemCount: items.length,
-      });
-
-      // Plaid items will be deleted as part of account deletion flow
-      // This method is here for completeness and future extensibility
-      // The actual disconnection happens in PlaidService.disconnectAllUserItems()
-      
-      logger.debug("[ProfileAnonymizationService] Plaid token revocation handled by PlaidService", {
-        userId,
-      });
-    } catch (error) {
-      logger.warn("[ProfileAnonymizationService] Exception revoking tokens:", {
-        userId,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-      // Don't throw - token revocation is handled elsewhere
-    }
+    // Plaid support removed
+    logger.info("[ProfileAnonymizationService] Tokens revocation skipped - integrations disabled", {
+      userId,
+    });
   }
 }
 

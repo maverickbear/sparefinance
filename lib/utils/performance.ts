@@ -20,20 +20,14 @@ import { logger } from "./logger";
  */
 export function startServerPagePerformance(pageName: string) {
   const startTime = Date.now();
-  const log = logger.withPrefix(`PERF-${pageName.toUpperCase()}`);
-
-  log.info(`[${pageName}] Starting page load...`);
+  // Logging removed for cleaner console
 
   return {
     end: () => {
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      log.info(`[${pageName}] Page loaded in ${duration}ms`);
+      // Performance tracking disabled
     },
     log: (message: string) => {
-      const currentTime = Date.now();
-      const elapsed = currentTime - startTime;
-      log.info(`[${pageName}] ${message} (${elapsed}ms elapsed)`);
+      // Performance tracking disabled
     },
   };
 }

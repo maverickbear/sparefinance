@@ -20,22 +20,12 @@ export interface AccountCardProps {
     householdName?: string | null;
     ownerName?: string | null;
     ownerAvatarUrl?: string | null;
-    isConnected?: boolean;
-    lastSyncedAt?: string | null;
     institutionName?: string | null;
     institutionLogo?: string | null;
-    plaidStatus?: string;
-    plaidErrorCode?: string | null;
-    plaidErrorMessage?: string | null;
-    plaidIsSyncing?: boolean;
   };
   onEdit?: (accountId: string) => void;
   onDelete?: (accountId: string) => void;
-  onSync?: (accountId: string) => void;
-  onDisconnect?: (accountId: string) => void;
   deletingId?: string | null;
-  syncingId?: string | null;
-  disconnectingId?: string | null;
   canDelete?: boolean;
   canEdit?: boolean;
 }
@@ -44,11 +34,7 @@ export function AccountCard({
   account,
   onEdit,
   onDelete,
-  onSync,
-  onDisconnect,
   deletingId,
-  syncingId,
-  disconnectingId,
   canDelete = true,
   canEdit = true,
 }: AccountCardProps) {
@@ -77,47 +63,6 @@ export function AccountCard({
             </div>
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            {account.isConnected && (
-              <>
-                {onSync && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSync(account.id);
-                    }}
-                    disabled={syncingId === account.id}
-                    title="Sync transactions"
-                  >
-                    {syncingId === account.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                )}
-                {onDisconnect && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDisconnect(account.id);
-                    }}
-                    disabled={disconnectingId === account.id}
-                    title="Disconnect account"
-                  >
-                    {disconnectingId === account.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Unlink className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                )}
-              </>
-            )}
             {onEdit && canEdit && (
               <Button
                 variant="ghost"
@@ -140,8 +85,8 @@ export function AccountCard({
                   e.stopPropagation();
                   onDelete(account.id);
                 }}
-                disabled={deletingId === account.id || account.isConnected}
-                title={account.isConnected ? "Cannot delete connected account. Disconnect first." : "Delete account"}
+                disabled={deletingId === account.id}
+                title="Delete account"
               >
                 {deletingId === account.id ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -186,29 +131,7 @@ export function AccountCard({
               </div>
             </div>
           )}
-          {account.isConnected && (
-            <Badge 
-              variant="default" 
-              className={cn(
-                "text-white text-sm px-1.5 py-0.5",
-                account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
-                  ? "bg-red-500 hover:bg-red-600"
-                  : account.plaidStatus === 'pending_expiration'
-                  ? "bg-yellow-500 hover:bg-yellow-600"
-                  : account.plaidIsSyncing
-                  ? "bg-blue-500 hover:bg-blue-600"
-                  : "bg-sentiment-positive hover:bg-sentiment-positive/90"
-              )}
-            >
-              {account.plaidIsSyncing 
-                ? "Syncing..." 
-                : account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
-                ? "Error"
-                : account.plaidStatus === 'pending_expiration'
-                ? "Expiring"
-                : "Connected"}
-            </Badge>
-          )}
+
         </div>
       </CardHeader>
       <CardContent className="space-y-2 flex-1 p-4 pt-0">
@@ -257,47 +180,7 @@ export function AccountCard({
               </div>
             </div>
           )}
-          {account.isConnected && (
-            <div className="space-y-2 pt-2 border-t">
-              {account.lastSyncedAt && (() => {
-                try {
-                  const syncDate = new Date(account.lastSyncedAt);
-                  // Check if date is valid
-                  if (isNaN(syncDate.getTime())) {
-                    return null;
-                  }
-                  return (
-                    <div className="text-sm text-muted-foreground">
-                      Last synced: {format(syncDate, 'MMM dd, HH:mm')}
-                    </div>
-                  );
-                } catch (error) {
-                  console.error("Error formatting lastSyncedAt:", error);
-                  return null;
-                }
-              })()}
-              
-              {/* Error indicator */}
-              {(account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required') && account.plaidErrorMessage && (
-                <div className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
-                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                  <span className="flex-1">
-                    {account.plaidErrorCode === 'ITEM_LOGIN_REQUIRED'
-                      ? 'Reconnection required'
-                      : account.plaidErrorMessage}
-                  </span>
-                </div>
-              )}
 
-              {/* Sync in progress */}
-              {account.plaidIsSyncing && (
-                <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>Syncing transactions...</span>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

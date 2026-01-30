@@ -543,11 +543,11 @@ export class MembersService {
     await supabase
       .from("system_user_active_households")
       .upsert({
-        userId,
-        householdId: invitation.household_id,
-        updatedAt: now,
+        user_id: userId,
+        household_id: invitation.household_id,
+        updated_at: now,
       }, {
-        onConflict: "userId"
+        onConflict: "user_id"
       });
 
     // Invalidate subscription cache to ensure household subscription is found
@@ -936,8 +936,8 @@ export class MembersService {
         email: fullInvitation.email,
         name: fullInvitation.name || null,
         role: fullInvitation.role || "member",
-        createdAt: now,
-        updatedAt: now,
+        created_at: now,
+        updated_at: now,
       });
 
     if (createUserError) {
@@ -997,14 +997,14 @@ export class MembersService {
     const { data: updatedMemberRow, error: updateError } = await serviceRoleClient
       .from("household_members")
       .update({
-        userId: userId,
+        user_id: userId,
         status: "active",
-        acceptedAt: now,
-        joinedAt: now, // Set joinedAt when accepting
+        accepted_at: now,
+        joined_at: now, // Set joinedAt when accepting
         email: null, // Clear email now that user is linked
         name: null, // Clear name now that user is linked
-        invitationToken: null, // Clear token
-        updatedAt: now,
+        invitation_token: null, // Clear token
+        updated_at: now,
       })
       .eq("id", invitationId)
       .eq("status", "pending") // Double-check it's still pending

@@ -6,12 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { formatMoney } from "@/components/common/money";
 import { AnimatedNumber } from "@/components/common/animated-number";
 import { ArrowUpRight, ArrowDownRight, PiggyBank } from "lucide-react";
-import { FinancialHealthScoreWidget } from "@/app/(protected)/dashboard/widgets/financial-health-score-widget";
-// Removed: ExpensesByCategoryWidget and CashFlowTimelineWidget - replaced by new dashboard widgets
-import { BudgetOverviewWidget } from "@/app/(protected)/dashboard/widgets/budget-overview-widget";
-import { SubscriptionsRecurringGoalsWidget } from "@/app/(protected)/dashboard/widgets/subscriptions-recurring-goals-widget";
-import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
-import { InvestmentPortfolioWidget } from "@/app/(protected)/dashboard/widgets/investment-portfolio-widget";
+// Dashboard widgets removed - using placeholders for demo
 import { getDefaultFeatures } from "@/lib/utils/plan-features";
 import { cn } from "@/lib/utils";
 import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
@@ -470,15 +465,11 @@ export function DashboardDemoStatic() {
           </Card>
         </div>
 
-        {/* Top Widgets - Spare Score and Expenses by Category side by side */}
+        {/* Top Widgets - Placeholders */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-          <FinancialHealthScoreWidget
-            financialHealth={mockFinancialHealth}
-            selectedMonthTransactions={mockSelectedMonthTransactions}
-            lastMonthTransactions={mockLastMonthTransactions}
-            expectedIncomeRange={null}
-          />
-          {/* Expenses by Category - Removed widget, using placeholder */}
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Financial Health Score widget (demo placeholder)</p>
+          </div>
           <div className="bg-card rounded-lg border border-border p-6">
             <p className="text-sm text-muted-foreground">Expenses by Category widget (demo placeholder)</p>
           </div>
@@ -489,18 +480,16 @@ export function DashboardDemoStatic() {
           <div className="bg-card rounded-lg border border-border p-6">
             <p className="text-sm text-muted-foreground">Cash Flow Timeline widget (demo placeholder)</p>
           </div>
-          <BudgetOverviewWidget
-            budgets={mockBudgets}
-          />
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Budget Overview widget (demo placeholder)</p>
+          </div>
         </div>
 
         {/* Subscriptions, Recurring & Goals */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-          <SubscriptionsRecurringGoalsWidget
-            subscriptions={mockSubscriptions}
-            recurringPayments={mockRecurringPayments}
-            goals={mockGoals}
-          />
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Subscriptions, Recurring & Goals widget (demo placeholder)</p>
+          </div>
         </div>
 
         {/* Dashboard Grid */}
@@ -508,15 +497,12 @@ export function DashboardDemoStatic() {
           {/* Net Worth Snapshot and Investment Portfolio - side by side, full width */}
           <div className="col-span-full">
             <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2">
-              <NetWorthWidget
-                netWorth={netWorth}
-                totalAssets={totalAssets}
-                totalDebts={totalDebts}
-              />
-              <InvestmentPortfolioWidget
-                savings={savings}
-                demoMode={true}
-              />
+              <div className="bg-card rounded-lg border border-border p-6">
+                <p className="text-sm text-muted-foreground">Net Worth widget (demo placeholder)</p>
+              </div>
+              <div className="bg-card rounded-lg border border-border p-6">
+                <p className="text-sm text-muted-foreground">Investment Portfolio widget (demo placeholder)</p>
+              </div>
             </div>
           </div>
         </div>

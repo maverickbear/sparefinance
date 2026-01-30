@@ -268,12 +268,12 @@ export class InvestmentsRepository {
 
     let query = supabase
       .from("positions")
-      .select("securityId, accountId, openQuantity, averageEntryPrice, totalCost, currentPrice, currentMarketValue, openPnl, lastUpdatedAt")
-      .gt("openQuantity", 0)
-      .order("lastUpdatedAt", { ascending: false });
+      .select("security_id, account_id, open_quantity, average_entry_price, total_cost, current_price, current_market_value, open_pnl, last_updated_at")
+      .gt("open_quantity", 0)
+      .order("last_updated_at", { ascending: false });
 
     if (accountId) {
-      query = query.eq("accountId", accountId);
+      query = query.eq("account_id", accountId);
     }
 
     const { data, error } = await query;
@@ -283,7 +283,18 @@ export class InvestmentsRepository {
       return [];
     }
 
-    return (data || []) as PositionRow[];
+    // Map snake_case database columns to camelCase interface
+    return (data || []).map((row: any) => ({
+      securityId: row.security_id,
+      accountId: row.account_id,
+      openQuantity: row.open_quantity,
+      averageEntryPrice: row.average_entry_price,
+      totalCost: row.total_cost,
+      currentPrice: row.current_price,
+      currentMarketValue: row.current_market_value,
+      openPnl: row.open_pnl,
+      lastUpdatedAt: row.last_updated_at,
+    })) as PositionRow[];
   }
 
   /**

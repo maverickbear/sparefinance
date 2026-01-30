@@ -9,12 +9,10 @@ import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { useWriteGuard } from "@/hooks/use-write-guard";
-import { ImportStatusBanner } from "@/src/presentation/components/features/accounts/import-status-banner";
-import { DeleteAccountWithTransferDialog } from "@/src/presentation/components/features/accounts/delete-account-with-transfer-dialog";
-import { AccountCard } from "@/components/banking/account-card";
 import { AddAccountDropdown } from "@/src/presentation/components/features/accounts/add-account-dropdown";
-import { PlaidConnectionsDashboard } from "@/src/presentation/components/features/accounts/plaid-connections-dashboard";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
+import { AccountCard } from "@/components/banking/account-card";
+import { DeleteAccountWithTransferDialog } from "@/src/presentation/components/features/accounts/delete-account-with-transfer-dialog";
 import {
   Select,
   SelectContent,
@@ -46,14 +44,8 @@ interface Account {
   ownerIds?: string[];
   ownerAvatarUrl?: string | null;
   ownerName?: string | null;
-  isConnected?: boolean;
-  lastSyncedAt?: string | null;
   institutionName?: string | null;
   institutionLogo?: string | null;
-  plaidStatus?: string;
-  plaidErrorCode?: string | null;
-  plaidErrorMessage?: string | null;
-  plaidIsSyncing?: boolean;
 }
 
 
@@ -78,8 +70,6 @@ export default function AccountsPage() {
   const [checkingTransactions, setCheckingTransactions] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
-  const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   // Update ref when perf changes (but don't trigger re-renders)
   useEffect(() => {
@@ -131,82 +121,7 @@ export default function AccountsPage() {
     loadAccounts();
   }, [loadAccounts]);
 
-  async function handleSync(accountId: string) {
-    try {
-      setSyncingId(accountId);
-      const response = await fetch('/api/v2/plaid/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: 'Sync completed',
-          description: `Created ${data.transactionsCreated || 0} transactions, skipped ${data.transactionsSkipped || 0} duplicates.`,
-          variant: 'success',
-        });
-        // Reload accounts to update lastSyncedAt
-        await loadAccounts(true);
-      } else {
-        throw new Error(data.error || 'Failed to sync');
-      }
-    } catch (error: any) {
-      console.error('Error syncing account:', error);
-      toast({
-        title: 'Sync failed',
-        description: error.message || 'Failed to sync transactions',
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncingId(null);
-    }
-  }
-
-  async function handleDisconnect(accountId: string) {
-    try {
-      // First, get the Plaid item ID for this account
-      const statusResponse = await fetch(`/api/v2/plaid/accounts/${accountId}/status`);
-      if (!statusResponse.ok) {
-        throw new Error('Account is not connected to Plaid');
-      }
-      const statusData = await statusResponse.json();
-      
-      if (!statusData.itemId) {
-        throw new Error('Account is not connected to Plaid');
-      }
-
-      setDisconnectingId(accountId);
-      const response = await fetch(`/api/v2/plaid/items/${statusData.itemId}/disconnect`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: 'Account disconnected',
-          description: 'The bank account has been disconnected successfully.',
-          variant: 'success',
-        });
-        // Reload accounts to update connection status
-        await loadAccounts(true);
-      } else {
-        throw new Error(data.error || 'Failed to disconnect');
-      }
-    } catch (error: any) {
-      console.error('Error disconnecting account:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to disconnect account',
-        variant: 'destructive',
-      });
-    } finally {
-      setDisconnectingId(null);
-    }
-  }
 
   async function loadAccountLimit() {
     try {
@@ -388,28 +303,18 @@ export default function AccountsPage() {
 
   return (
     <div>
-        <PageHeader
-          title="Accounts"
-        />
-
-      <div className="w-full p-4 lg:p-8">
-        {/* Action Buttons - Always visible */}
-        {canWrite && (
-          <div className="flex items-center gap-2 justify-end mb-6">
+        <PageHeader title="Accounts">
+          {canWrite && (
             <AddAccountDropdown
               onSuccess={() => {
                 loadAccounts(true);
               }}
               canWrite={canWrite}
             />
-          </div>
-        )}
-        <ImportStatusBanner />
-        
-        {/* Plaid Connections Dashboard */}
-        <div className="mb-6">
-          <PlaidConnectionsDashboard />
-        </div>
+          )}
+        </PageHeader>
+
+      <div className="w-full p-4 lg:p-8">
 
         <div className="space-y-4">
           {/* Filters - Only show when we have accounts or are loading */}
@@ -456,34 +361,33 @@ export default function AccountsPage() {
                   <TableHead>Owner</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead className="text-right">Credit Limit</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Loading accounts...
                     </TableCell>
                   </TableRow>
                 ) : accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto">
                         <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                           <CreditCard className="h-8 w-8 text-muted-foreground" />
                         </div>
                         <h3 className="text-xl font-semibold mb-2">No accounts yet</h3>
                         <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                          Connect your bank account or create a manual account to get started tracking your finances.
+                          Create a manual account to get started tracking your finances.
                         </p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : filteredAccounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No accounts found matching the selected filters.
                     </TableCell>
                   </TableRow>
@@ -603,58 +507,6 @@ export default function AccountsPage() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            {account.isConnected && (
-                              <Badge 
-                                variant="default" 
-                                className={cn(
-                                  "text-white text-xs w-fit",
-                                  account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
-                                    ? "bg-red-500 hover:bg-red-600"
-                                    : account.plaidStatus === 'pending_expiration'
-                                    ? "bg-yellow-500 hover:bg-yellow-600"
-                                    : account.plaidIsSyncing
-                                    ? "bg-blue-500 hover:bg-blue-600"
-                                    : "bg-sentiment-positive hover:bg-sentiment-positive/90"
-                                )}
-                              >
-                                {account.plaidIsSyncing 
-                                  ? "Syncing..." 
-                                  : account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required'
-                                  ? "Error"
-                                  : account.plaidStatus === 'pending_expiration'
-                                  ? "Expiring"
-                                  : "Connected"}
-                              </Badge>
-                            )}
-                            {account.isConnected && account.lastSyncedAt && (() => {
-                              try {
-                                const syncDate = new Date(account.lastSyncedAt);
-                                // Check if date is valid
-                                if (isNaN(syncDate.getTime())) {
-                                  return null;
-                                }
-                                return (
-                                  <div className="text-xs text-muted-foreground">
-                                    {format(syncDate, 'MMM dd, HH:mm')}
-                                  </div>
-                                );
-                              } catch (error) {
-                                console.error("Error formatting lastSyncedAt:", error);
-                                return null;
-                              }
-                            })()}
-                            {/* Error indicator */}
-                            {(account.plaidStatus === 'error' || account.plaidStatus === 'item_login_required') && account.plaidErrorMessage && (
-                              <div className="text-xs text-red-600 dark:text-red-400 mt-1">
-                                {account.plaidErrorCode === 'ITEM_LOGIN_REQUIRED'
-                                  ? 'Reconnection required'
-                                  : account.plaidErrorMessage.substring(0, 50) + (account.plaidErrorMessage.length > 50 ? '...' : '')}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             {canWrite && (
@@ -680,8 +532,8 @@ export default function AccountsPage() {
                                   if (!checkWriteAccess()) return;
                                   handleDelete(account.id);
                                 }}
-                                disabled={isDeleting || account.isConnected}
-                                title={account.isConnected ? "Cannot delete connected account. Disconnect first." : "Delete account"}
+                                disabled={isDeleting}
+                                title="Delete account"
                               >
                                 {isDeleting ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -752,11 +604,7 @@ export default function AccountsPage() {
                         }
                       }}
                       onDelete={handleDelete}
-                      onSync={handleSync}
-                      onDisconnect={handleDisconnect}
                       deletingId={deletingId}
-                      syncingId={syncingId}
-                      disconnectingId={disconnectingId}
                       canDelete={canWrite}
                       canEdit={canWrite}
                     />

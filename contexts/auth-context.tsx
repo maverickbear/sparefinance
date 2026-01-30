@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from "react";
-import { logger } from "@/lib/utils/logger";
 import type { BaseUser } from "@/src/domain/auth/auth.types";
 
 interface AuthContextValue {
@@ -37,8 +36,6 @@ interface AuthProviderProps {
  * - Prevents duplicate fetches
  */
 export function AuthProvider({ children, initialData }: AuthProviderProps) {
-  const log = logger.withPrefix("AUTH-CONTEXT");
-  
   // Initialize state from server data if provided
   const [user, setUser] = useState<BaseUser | null>(initialData?.user ?? null);
   const [isAuthenticated, setIsAuthenticated] = useState(initialData?.isAuthenticated ?? false);
@@ -60,7 +57,6 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
       
       if (!userResponse.ok) {
         if (userResponse.status === 401) {
-          log.log("User not authenticated");
           return { user: null, isAuthenticated: false, role: null };
         }
         throw new Error(`Failed to fetch user: ${userResponse.status}`);
@@ -78,7 +74,7 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
           // Cache role for 5 minutes
           roleCacheRef.current = { role: userRole, timestamp: Date.now() };
         } catch (error) {
-          log.warn("Error parsing role data:", error);
+          // Error parsing role data - silently fail
         }
       } else if (roleCacheRef.current && (Date.now() - roleCacheRef.current.timestamp) < 5 * 60 * 1000) {
         // Use cached role if available and fresh
@@ -91,14 +87,12 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
         role: userRole,
       };
     } catch (error) {
-      log.error("Error fetching user:", error);
       return { user: null, isAuthenticated: false, role: null };
     }
-  }, [log]);
+  }, []);
 
   const refetch = useCallback(async () => {
     if (checkingRef.current) {
-      log.log("Already fetching, skipping");
       return;
     }
 
@@ -112,12 +106,12 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
       setIsAuthenticated(newIsAuthenticated);
       setRole(newRole);
     } catch (error) {
-      log.error("Error in refetch:", error);
+      // Error in refetch - silently fail
     } finally {
       setChecking(false);
       checkingRef.current = false;
     }
-  }, [fetchUser, log]);
+  }, [fetchUser]);
 
   // Initial fetch if no initialData provided (only once on mount)
   useEffect(() => {
@@ -137,7 +131,6 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
 
     // If no initialData, fetch user data once on mount
     initializedRef.current = true;
-    log.log("No initialData provided, fetching user data on mount");
     refetch();
   }, []); // Only run once on mount
 
@@ -148,8 +141,6 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
 
     import("@/lib/supabase").then(({ supabase }) => {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { id: string } } | null) => {
-        log.log("Auth state changed:", event);
-        
         if (event === "SIGNED_OUT" || !session?.user) {
           setUser(null);
           setIsAuthenticated(false);
@@ -169,7 +160,7 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
         authStateChangeSetupRef.current = false;
       };
     });
-  }, [refetch, log]);
+  }, [refetch]);
 
   // Check authentication status when app regains focus
   // This handles cases where auth state changes outside the app
@@ -178,7 +169,6 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
       const timeSinceLastFetch = Date.now() - lastFetchRef.current;
       // Only refetch if it's been at least 1 minute since last fetch
       if (timeSinceLastFetch > 60000) {
-        log.log("App regained focus, checking authentication status...");
         refetch();
       }
     };
@@ -187,7 +177,6 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
       if (document.visibilityState === "visible") {
         const timeSinceLastFetch = Date.now() - lastFetchRef.current;
         if (timeSinceLastFetch > 60000) {
-          log.log("Page became visible, checking authentication status...");
           refetch();
         }
       }
@@ -200,7 +189,7 @@ export function AuthProvider({ children, initialData }: AuthProviderProps) {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [refetch, log]);
+  }, [refetch]);
 
   return (
     <AuthContext.Provider

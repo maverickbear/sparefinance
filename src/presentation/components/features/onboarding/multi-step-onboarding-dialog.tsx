@@ -15,6 +15,7 @@ import { ExpectedIncomeRange } from "@/src/domain/onboarding/onboarding.types";
 import { BudgetRuleType } from "@/src/domain/budgets/budget-rules.types";
 import { CustomOnboardingDialog } from "./custom-onboarding-dialog";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface MultiStepOnboardingDialogProps {
   open: boolean;
@@ -109,7 +110,7 @@ export function MultiStepOnboardingDialog({
             setCurrentStep(parsed.currentStep as Step);
           }
         } catch (error) {
-          console.error("Error restoring onboarding data:", error);
+          logger.error("Error restoring onboarding data:", error);
         }
       }
       
@@ -159,7 +160,7 @@ export function MultiStepOnboardingDialog({
             // No card should be selected by default
           }
         } catch (error) {
-          console.error("Error getting recommended rule:", error);
+          logger.error("Error getting recommended rule:", error);
         }
       }
       getRecommendedRule();
@@ -184,7 +185,7 @@ export function MultiStepOnboardingDialog({
         }
       }
     } catch (error) {
-      console.error("Error loading profile:", error);
+      logger.error("Error loading profile:", error);
     }
   }
 
@@ -343,7 +344,7 @@ export function MultiStepOnboardingDialog({
   function handleLoadingComplete() {
     // Prevent multiple calls
     if (loadingCompleteRef.current) {
-      console.log("[MultiStepOnboardingDialog] Loading already completed, skipping");
+      logger.info("[MuliStepOnboardingDialog] Loading already completed, skipping");
       return;
     }
     loadingCompleteRef.current = true;
@@ -401,7 +402,7 @@ export function MultiStepOnboardingDialog({
         }, 250);
       }, 100);
     } catch (error) {
-      console.error("[ONBOARDING] Failed to load confetti:", error);
+      logger.error("[ONBOARDING] Failed to load confetti:", error);
     }
     
     // CRITICAL: Refresh subscription state before redirecting
@@ -433,7 +434,7 @@ export function MultiStepOnboardingDialog({
 
   function handleLoadingError(error: Error) {
     // Stay on loading step, error is handled by the component
-    console.error("Onboarding completion error:", error);
+    logger.error("Onboarding completion error:", error);
   }
 
   function handleBack() {

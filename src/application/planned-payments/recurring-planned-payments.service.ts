@@ -32,12 +32,12 @@ export class RecurringPlannedPaymentsService {
       .from("transactions")
       .select(`
         *,
-        account:core.accounts(*),
-        category:core.categories!transactions_categoryid_fkey(*),
-        subcategory:core.subcategories!transactions_subcategoryid_fkey(id, name, logo)
+        account:accounts(*),
+        category:categories!transactions_categoryid_fkey(*),
+        subcategory:subcategories!transactions_subcategoryid_fkey(id, name, logo)
       `)
       .eq("user_id", userId)
-      .eq("isRecurring", true)
+      .eq("is_recurring", true)
       .order("date", { ascending: true });
 
     if (error) {

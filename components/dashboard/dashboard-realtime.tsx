@@ -101,16 +101,9 @@ export function DashboardRealtime() {
       }, 2000); // Debounce for 2 seconds to prevent excessive refreshes
     };
 
-    // Performance logging for monitoring outliers
+    // Performance logging disabled
     const logPerformance = (operation: string, duration: number) => {
-      if (duration > CIRCUIT_BREAKER_CONFIG.SLOW_OPERATION_THRESHOLD) {
-        // Log as info instead of warn - network operations can take time
-        // Only warn if it's truly slow (>1s for subscription setup)
-        console.info(`[DashboardRealtime] ${operation} took ${duration.toFixed(2)}ms`);
-      } else if (duration > 500) {
-        // Log as debug for moderate delays (500ms-1000ms)
-        console.debug(`[DashboardRealtime] ${operation} took ${duration.toFixed(2)}ms`);
-      }
+      // Logging removed for cleaner console
     };
 
     // Circuit breaker check
@@ -122,7 +115,6 @@ export function DashboardRealtime() {
       if (breaker.isOpen && now - breaker.lastFailureTime > CIRCUIT_BREAKER_CONFIG.TIMEOUT) {
         breaker.isOpen = false;
         breaker.consecutiveFailures = 0;
-        console.info("[DashboardRealtime] Circuit breaker reset");
         return false;
       }
 
@@ -137,7 +129,6 @@ export function DashboardRealtime() {
 
       if (breaker.consecutiveFailures >= CIRCUIT_BREAKER_CONFIG.MAX_FAILURES) {
         breaker.isOpen = true;
-        console.warn("[DashboardRealtime] Circuit breaker opened - falling back to polling");
       }
     };
 
@@ -164,16 +155,13 @@ export function DashboardRealtime() {
     subscriptionTimeoutRef.current = setTimeout(() => {
       // Double-check that we're still on dashboard and no subscription exists
       if (pathname !== "/dashboard" || subscriptionRef.current || isSubscribingRef.current) {
-        console.log(`[DashboardRealtime-${instanceIdRef.current}] Aborting subscription creation (conditions changed)`);
         return;
       }
 
       isSubscribingRef.current = true;
-      console.log(`[DashboardRealtime-${instanceIdRef.current}] Creating Realtime subscription...`);
 
       // Check circuit breaker before creating subscriptions
       if (checkCircuitBreaker()) {
-        console.info(`[DashboardRealtime-${instanceIdRef.current}] Circuit breaker is open, using polling only`);
         isSubscribingRef.current = false;
         startPolling();
         return;
@@ -242,10 +230,8 @@ export function DashboardRealtime() {
 
             if (status === "SUBSCRIBED") {
               recordSuccess();
-              console.info(`[DashboardRealtime-${instanceIdRef.current}] Realtime subscriptions active for Transaction, Account, Budget, and UserServiceSubscription (took ${duration.toFixed(2)}ms)`);
             } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
               recordFailure();
-              console.warn(`[DashboardRealtime-${instanceIdRef.current}] Subscription error: ${status}, falling back to polling`);
               // Cleanup failed subscription
               if (subscriptionRef.current) {
                 supabase.removeChannel(subscriptionRef.current);
@@ -258,7 +244,7 @@ export function DashboardRealtime() {
       } catch (error) {
         isSubscribingRef.current = false;
         recordFailure();
-        console.error(`[DashboardRealtime-${instanceIdRef.current}] Error setting up subscriptions:`, error);
+        // Error handling - logging removed
         // Fallback to polling on error
         startPolling();
       }
@@ -269,7 +255,6 @@ export function DashboardRealtime() {
     if (!pollingIntervalRef.current) {
       pollingTimeoutRef.current = setTimeout(() => {
         if (pathname === "/dashboard" && !subscriptionRef.current) {
-          console.log(`[DashboardRealtime-${instanceIdRef.current}] Starting polling for Goal`);
           startPolling();
         }
       }, 1000);
@@ -277,8 +262,6 @@ export function DashboardRealtime() {
 
     // Cleanup function to close WebSocket connections
     const cleanup = () => {
-      console.log(`[DashboardRealtime-${instanceIdRef.current}] Cleanup triggered`);
-      
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
       }

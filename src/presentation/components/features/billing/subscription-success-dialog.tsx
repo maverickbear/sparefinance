@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2 } from "lucide-react";
 import { useSubscriptionContext } from "@/contexts/subscription-context";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface SubscriptionSuccessDialogProps {
   open: boolean;
@@ -44,7 +45,7 @@ export function SubscriptionSuccessDialog({
     try {
       setSyncing(true);
       setLoading(true);
-      console.log("[SUCCESS-DIALOG] Syncing subscription from Stripe...", { retryCount });
+      logger.info("[SUCCESS-DIALOG] Syncing subscription from Stripe...", { retryCount });
       
       const response = await fetch("/api/stripe/sync-subscription", {
         method: "POST",
@@ -56,7 +57,7 @@ export function SubscriptionSuccessDialog({
       const data = await response.json();
 
       if (response.ok && data.success) {
-        console.log("[SUCCESS-DIALOG] Subscription synced successfully:", data.subscription);
+        logger.info("[SUCCESS-DIALOG] Subscription synced successfully:", data.subscription);
         
         // Refetch subscription from Context to get latest status
         await refetch();
@@ -65,14 +66,14 @@ export function SubscriptionSuccessDialog({
         
         // If the error indicates we should retry and we haven't exceeded max retries
         if (data.retry && retryCount < maxRetries) {
-          console.log(`[SUCCESS-DIALOG] Retrying sync in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+          logger.info(`[SUCCESS-DIALOG] Retrying sync in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           return syncSubscription(retryCount + 1);
         }
         
         // If it's a 404 and we haven't retried yet, try once more after a delay
         if (response.status === 404 && retryCount === 0) {
-          console.log(`[SUCCESS-DIALOG] Subscription not found, retrying once after ${retryDelay}ms...`);
+          logger.info(`[SUCCESS-DIALOG] Subscription not found, retrying once after ${retryDelay}ms...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           return syncSubscription(retryCount + 1);
         }
@@ -84,7 +85,7 @@ export function SubscriptionSuccessDialog({
       
       // Retry on network errors if we haven't exceeded max retries
       if (retryCount < maxRetries) {
-        console.log(`[SUCCESS-DIALOG] Network error, retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
+        logger.info(`[SUCCESS-DIALOG] Network error, retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
         return syncSubscription(retryCount + 1);
       }

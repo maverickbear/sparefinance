@@ -5,6 +5,7 @@ import { supabase } from "@/src/infrastructure/database/supabase-client";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { logger } from "@/src/infrastructure/utils/logger";
 
 interface ImportJob {
   id: string;
@@ -40,7 +41,7 @@ export function ImportProgress({ jobIds, onComplete }: ImportProgressProps) {
             setJobs(prev => ({ ...prev, [jobId]: job }));
           }
         } catch (error) {
-          console.error(`Error fetching job ${jobId}:`, error);
+          logger.error(`Error fetching job ${jobId}:`, error);
         }
       }
     };
@@ -84,9 +85,9 @@ export function ImportProgress({ jobIds, onComplete }: ImportProgressProps) {
         )
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
-            console.log(`[ImportProgress] Realtime subscription active for job ${jobId}`);
+            logger.info(`[ImportProgress] Realtime subscription active for job ${jobId}`);
           } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.warn(`[ImportProgress] Realtime subscription error for job ${jobId}:`, status);
+            logger.warn(`[ImportProgress] Realtime subscription error for job ${jobId}:`, status);
           }
         });
       

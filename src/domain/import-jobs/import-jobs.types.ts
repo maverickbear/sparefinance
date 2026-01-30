@@ -6,7 +6,7 @@ export interface BaseImportJob {
   id: string;
   userId: string;
   accountId: string | null;
-  type: "plaid_sync" | "csv_import";
+  type: "csv_import";
   status: "pending" | "processing" | "completed" | "failed";
   progress: number;
   totalItems: number;

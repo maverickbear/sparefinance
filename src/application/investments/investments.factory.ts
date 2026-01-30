@@ -7,7 +7,7 @@ import { InvestmentsService } from "./investments.service";
 import { InvestmentsRefreshService } from "./investments-refresh.service";
 import { InvestmentsRepository } from "@/src/infrastructure/database/repositories/investments.repository";
 import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
-import { PlaidInvestmentClient } from "@/src/infrastructure/external/plaid/plaid-investment-client";
+
 import { MarketDataClient } from "@/src/infrastructure/external/market-data/market-data-client";
 
 /**
@@ -24,16 +24,10 @@ export function makeInvestmentsService(): InvestmentsService {
  */
 export function makeInvestmentsRefreshService(): InvestmentsRefreshService {
   const repository = new InvestmentsRepository();
-  const plaidClient = new PlaidInvestmentClient({
-    // In production, load from environment variables
-    clientId: process.env.PLAID_CLIENT_ID,
-    secret: process.env.PLAID_SECRET,
-    environment: (process.env.PLAID_ENV as "sandbox" | "development" | "production") || "sandbox",
-  });
   const marketDataClient = new MarketDataClient({
     apiKey: process.env.MARKET_DATA_API_KEY,
     baseUrl: process.env.MARKET_DATA_BASE_URL,
   });
-  return new InvestmentsRefreshService(repository, plaidClient, marketDataClient);
+  return new InvestmentsRefreshService(repository, marketDataClient);
 }
 

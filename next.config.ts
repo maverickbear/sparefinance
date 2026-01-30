@@ -224,13 +224,13 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               // Allow Vercel Live feedback script (only loads when deployed on Vercel)
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://va.vercel-scripts.com https://challenges.cloudflare.com https://cdn.plaid.com", // Note: 'unsafe-eval' and 'unsafe-inline' may be needed for Next.js, js.stripe.com for Stripe Pricing Table, vercel.live for Vercel Live feedback, www.googletagmanager.com for Google Analytics, va.vercel-scripts.com for Vercel Speed Insights, challenges.cloudflare.com for Turnstile, cdn.plaid.com for Plaid Link
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://va.vercel-scripts.com https://challenges.cloudflare.com", // Note: 'unsafe-eval' and 'unsafe-inline' may be needed for Next.js, js.stripe.com for Stripe Pricing Table, vercel.live for Vercel Live feedback, www.googletagmanager.com for Google Analytics, va.vercel-scripts.com for Vercel Speed Insights, challenges.cloudflare.com for Turnstile
               "worker-src 'self' blob:", // Allow web workers (needed for canvas-confetti)
               "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind CSS
               "img-src 'self' data: https: blob:", // blob: needed for image previews (receipt scanner, file uploads)
               "font-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.sparefinance.com wss://app.sparefinance.com https://api.stripe.com https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://*.google-analytics.com https://va.vercel-scripts.com https://challenges.cloudflare.com https://*.plaid.com", // Allow Plaid API connections
-              "frame-src 'self' https://js.stripe.com https://checkout.stripe.com https://vercel.live https://challenges.cloudflare.com https://cdn.plaid.com", // Allow Plaid Link iframe
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.sparefinance.com wss://app.sparefinance.com https://api.stripe.com https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://*.google-analytics.com https://va.vercel-scripts.com https://challenges.cloudflare.com", // Allow API connections
+              "frame-src 'self' https://js.stripe.com https://checkout.stripe.com https://vercel.live https://challenges.cloudflare.com", // Allow iframes
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",

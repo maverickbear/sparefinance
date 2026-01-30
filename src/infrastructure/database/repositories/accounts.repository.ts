@@ -15,21 +15,7 @@ export interface AccountRow {
   user_id: string | null;
   credit_limit: number | null;
   initial_balance: number | null;
-  plaid_item_id: string | null;
-  plaid_account_id: string | null;
-  is_connected: boolean | null;
-  last_synced_at: string | null;
-  sync_enabled: boolean | null;
-  plaid_mask: string | null;
-  plaid_official_name: string | null;
-  plaid_verification_status: string | null;
-  plaid_subtype: string | null;
   currency_code: string | null;
-  plaid_unofficial_currency_code: string | null;
-  plaid_available_balance: number | null;
-  plaid_persistent_account_id: string | null;
-  plaid_holder_category: 'personal' | 'business' | 'unrecognized' | null;
-  plaid_verification_name: string | null;
   created_at: string;
   updated_at: string;
   due_day_of_month: number | null;
@@ -45,32 +31,7 @@ export interface AccountOwnerRow {
   updated_at: string;
 }
 
-/**
- * Type for Supabase response when joining accounts with account_integrations
- * Supabase returns the join as account_integrations (snake_case) but we access it as accountIntegrations
- */
-interface AccountWithIntegrationsResponse extends Omit<AccountRow, 'account_integrations'> {
-  account_integrations: Array<{
-    id: string;
-    account_id: string;
-    plaid_item_id: string | null;
-    plaid_account_id: string | null;
-    plaid_mask: string | null;
-    plaid_official_name: string | null;
-    plaid_subtype: string | null;
-    plaid_verification_status: string | null;
-    plaid_verification_name: string | null;
-    plaid_available_balance: number | null;
-    plaid_persistent_account_id: string | null;
-    plaid_holder_category: string | null;
-    plaid_unofficial_currency_code: string | null;
-    is_connected: boolean | null;
-    sync_enabled: boolean | null;
-    last_synced_at: string | null;
-    created_at: string;
-    updated_at: string;
-  }>;
-}
+
 
 export class AccountsRepository implements IAccountsRepository {
   /**
@@ -126,13 +87,9 @@ export class AccountsRepository implements IAccountsRepository {
   async findById(id: string, accessToken?: string, refreshToken?: string): Promise<AccountRow | null> {
     const supabase = await createServerClient(accessToken, refreshToken);
 
-    // Fetch account with accountIntegrations join for Plaid data
     const { data: account, error } = await supabase
       .from("accounts")
-      .select(`
-        *,
-        account_integrations:account_integrations(*)
-      `)
+      .select("*")
       .eq("id", id)
       .is("deleted_at", null) // Exclude soft-deleted records
       .single();
@@ -145,23 +102,7 @@ export class AccountsRepository implements IAccountsRepository {
       throw new Error(`Failed to fetch account: ${error.message}`);
     }
 
-    // Merge account_integrations data into account
-    // Supabase returns the join as account_integrations (snake_case)
-    const accountData = account as unknown as AccountWithIntegrationsResponse;
-    if (accountData.account_integrations && accountData.account_integrations.length > 0) {
-      const integration = accountData.account_integrations[0];
-      // Merge integration fields into account, excluding the nested array
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { account_integrations: _, ...accountWithoutIntegrations } = accountData;
-      return {
-        ...accountWithoutIntegrations,
-        ...integration,
-      } as AccountRow;
-    }
-    // If no integration, return account without the nested property
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { account_integrations: _, ...accountWithoutIntegrations } = accountData;
-    return accountWithoutIntegrations as AccountRow;
+    return account as AccountRow;
   }
 
   /**

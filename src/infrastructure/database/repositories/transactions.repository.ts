@@ -32,7 +32,6 @@ export interface TransactionRow {
   tags: string | null;
   receipt_url: string | null;
   deleted_at: string | null;
-  plaid_transaction_id: string | null;
 }
 
 export interface TransactionFilters {
@@ -266,7 +265,6 @@ export class TransactionsRepository implements ITransactionsRepository {
     suggestedCategoryId?: string | null;
     suggestedSubcategoryId?: string | null;
     receiptUrl?: string | null;
-    plaidTransactionId?: string | null;
     createdAt: string;
     updatedAt: string;
   }): Promise<TransactionRow> {
@@ -294,7 +292,6 @@ export class TransactionsRepository implements ITransactionsRepository {
         suggested_category_id: data.suggestedCategoryId ?? null,
         suggested_subcategory_id: data.suggestedSubcategoryId ?? null,
         receipt_url: data.receiptUrl ?? null,
-        plaid_transaction_id: data.plaidTransactionId ?? null,
         created_at: data.createdAt,
         updated_at: data.updatedAt,
       })

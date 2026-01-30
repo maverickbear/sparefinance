@@ -20,6 +20,8 @@ jest.mock("@/src/application/shared/feature-guard", () => ({
   guardTransactionLimit: jest.fn(() => Promise.resolve({ allowed: true })),
   throwIfNotAllowed: jest.fn(() => Promise.resolve()),
 }));
+import { requireTransactionOwnership } from "@/src/infrastructure/utils/security";
+
 jest.mock("@/src/infrastructure/utils/security", () => ({
   requireTransactionOwnership: jest.fn(() => Promise.resolve()),
 }));
@@ -61,8 +63,8 @@ describe("TransactionsService", () => {
     } as any;
 
     mockCategoriesRepository = {
-      findCategoriesByIds: jest.fn(),
-      findSubcategoriesByIds: jest.fn(),
+      findCategoriesByIds: jest.fn().mockResolvedValue([]),
+      findSubcategoriesByIds: jest.fn().mockResolvedValue([]),
     } as any;
 
     // Create service instance
@@ -85,25 +87,12 @@ describe("TransactionsService", () => {
         user_id: "test-user-id",
         credit_limit: null,
         initial_balance: null,
-        plaid_item_id: null,
-        plaid_account_id: null,
-        is_connected: null,
-        last_synced_at: null,
-        sync_enabled: null,
-        plaid_mask: null,
-        plaid_official_name: null,
-        plaid_verification_status: null,
-        plaid_subtype: null,
-        currency_code: null,
-        plaid_unofficial_currency_code: null,
-        plaid_available_balance: null,
-        plaid_persistent_account_id: null,
-        plaid_holder_category: null,
-        plaid_verification_name: null,
+
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         due_day_of_month: null,
         extra_credit: 0,
+        currency_code: 'USD',
         household_id: null,
         deleted_at: null,
       }]);
@@ -142,25 +131,12 @@ describe("TransactionsService", () => {
         user_id: "test-user-id",
         credit_limit: null,
         initial_balance: null,
-        plaid_item_id: null,
-        plaid_account_id: null,
-        is_connected: null,
-        last_synced_at: null,
-        sync_enabled: null,
-        plaid_mask: null,
-        plaid_official_name: null,
-        plaid_verification_status: null,
-        plaid_subtype: null,
-        currency_code: null,
-        plaid_unofficial_currency_code: null,
-        plaid_available_balance: null,
-        plaid_persistent_account_id: null,
-        plaid_holder_category: null,
-        plaid_verification_name: null,
+
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         due_day_of_month: null,
         extra_credit: 0,
+        currency_code: 'USD',
         household_id: null,
         deleted_at: null,
       }]);
@@ -218,6 +194,22 @@ describe("TransactionsService", () => {
     it("should create a transaction successfully", async () => {
       // Mock repository
       mockTransactionsRepository.create.mockResolvedValue(mockTransactionRow);
+      // Mock accounts lookup
+      mockAccountsRepository.findByIds.mockResolvedValue([{
+        id: "test-account-id",
+        name: "Test Account",
+        type: "checking",
+        user_id: "test-user-id",
+        credit_limit: null,
+        initial_balance: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        due_day_of_month: null,
+        extra_credit: 0,
+        currency_code: 'USD',
+        household_id: null,
+        deleted_at: null,
+      }]);
 
       // Execute
       const result = await transactionsService.createTransaction(validTransactionData);
@@ -231,6 +223,22 @@ describe("TransactionsService", () => {
     it("should encrypt description when creating transaction", async () => {
       // Mock repository
       mockTransactionsRepository.create.mockResolvedValue(mockTransactionRow);
+      // Mock accounts lookup
+      mockAccountsRepository.findByIds.mockResolvedValue([{
+        id: "test-account-id",
+        name: "Test Account",
+        type: "checking",
+        user_id: "test-user-id",
+        credit_limit: null,
+        initial_balance: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        due_day_of_month: null,
+        extra_credit: 0,
+        currency_code: 'USD',
+        household_id: null,
+        deleted_at: null,
+      }]);
 
       // Execute
       await transactionsService.createTransaction(validTransactionData);
@@ -252,6 +260,22 @@ describe("TransactionsService", () => {
         id: "transfer-id",
       });
       mockTransactionsRepository.findById.mockResolvedValue(mockTransactionRow);
+      // Mock accounts lookup
+      mockAccountsRepository.findByIds.mockResolvedValue([{
+        id: "test-account-id",
+        name: "Test Account",
+        type: "checking",
+        user_id: "test-user-id",
+        credit_limit: null,
+        initial_balance: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        due_day_of_month: null,
+        extra_credit: 0,
+        currency_code: 'USD',
+        household_id: null,
+        deleted_at: null,
+      }]);
 
       // Execute
       const result = await transactionsService.createTransaction(transferData);
@@ -275,6 +299,22 @@ describe("TransactionsService", () => {
         ...mockTransactionRow,
         amount: 200.00,
       });
+      // Mock accounts lookup
+      mockAccountsRepository.findByIds.mockResolvedValue([{
+        id: "test-account-id",
+        name: "Test Account",
+        type: "checking",
+        user_id: "test-user-id",
+        credit_limit: null,
+        initial_balance: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        due_day_of_month: null,
+        extra_credit: 0,
+        currency_code: 'USD',
+        household_id: null,
+        deleted_at: null,
+      }]);
 
       // Execute
       const result = await transactionsService.updateTransaction("test-transaction-id", updateData);
@@ -312,6 +352,7 @@ describe("TransactionsService", () => {
     it("should fail if transaction not found", async () => {
       // Mock repository
       mockTransactionsRepository.findById.mockResolvedValue(null);
+      (requireTransactionOwnership as jest.Mock).mockRejectedValue(new Error("Transaction not found"));
 
       // Execute and assert
       await expect(

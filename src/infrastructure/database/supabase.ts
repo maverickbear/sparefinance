@@ -95,51 +95,6 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['account_owners']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['account_owners']['Insert']>;
       };
-      account_integrations: {
-        Row: {
-          id: string;
-          account_id: string;
-          plaid_item_id: string | null; // UUID reference to plaid_items.id
-          plaid_account_id: string | null;
-          plaid_mask: string | null;
-          plaid_official_name: string | null;
-          plaid_subtype: string | null;
-          plaid_verification_status: string | null;
-          plaid_verification_name: string | null;
-          plaid_available_balance: number | null;
-          plaid_persistent_account_id: string | null;
-          plaid_holder_category: string | null;
-          plaid_unofficial_currency_code: string | null;
-          is_connected: boolean | null;
-          sync_enabled: boolean | null;
-          last_synced_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['account_integrations']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['account_integrations']['Insert']>;
-      };
-      plaid_items: {
-        Row: {
-          id: string;
-          user_id: string;
-          item_id: string;
-          access_token_encrypted: string;
-          institution_id: string | null;
-          institution_name: string | null;
-          status: string;
-          error_code: string | null;
-          error_message: string | null;
-          consent_expires_at: string | null;
-          last_successful_update: string | null;
-          is_syncing: boolean;
-          sync_started_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['plaid_items']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['plaid_items']['Insert']>;
-      };
       account_investment_values: {
         Row: {
           id: string;
@@ -176,7 +131,6 @@ export interface Database {
           amount: number;
           receipt_url: string | null;
           deleted_at: string | null;
-          plaid_transaction_id: string | null;
         };
         Insert: Omit<Database['public']['Tables']['transactions']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['transactions']['Insert']>;
@@ -374,8 +328,6 @@ export interface Database {
           created_at: string;
           updated_at: string;
           household_id: string | null;
-          plaid_investment_transaction_id: string | null;
-          plaid_subtype: string | null;
           currency_code: string | null;
         };
         Insert: Omit<Database['public']['Tables']['investment_transactions']['Row'], 'id' | 'created_at' | 'updated_at'>;

@@ -17,7 +17,6 @@ type Breakpoint = "xs" | "sm" | "md" | "lg" | "xl" | "2xl" | null;
 export function useBreakpoint() {
   const [breakpoint, setBreakpoint] = useState<Breakpoint>(null);
   const previousBreakpointRef = useRef<Breakpoint>(null);
-  const isDev = process.env.NODE_ENV === "development";
 
   useEffect(() => {
     // Only run on client side
@@ -56,10 +55,6 @@ export function useBreakpoint() {
     const current = getCurrentBreakpoint();
     setBreakpoint(current);
     previousBreakpointRef.current = current;
-    
-    if (isDev) {
-      console.log(`[BREAKPOINT] Current: ${current} (${window.innerWidth}px)`);
-    }
 
     // Handler for breakpoint changes
     const handleChange = () => {
@@ -69,12 +64,6 @@ export function useBreakpoint() {
       if (newBreakpoint !== previous) {
         setBreakpoint(newBreakpoint);
         previousBreakpointRef.current = newBreakpoint;
-        
-        if (isDev) {
-          console.log(
-            `[BREAKPOINT] Changed: ${previous} → ${newBreakpoint} (${window.innerWidth}px)`
-          );
-        }
       }
     };
 
@@ -99,7 +88,7 @@ export function useBreakpoint() {
         }
       });
     };
-  }, [isDev]);
+  }, []);
 
   return breakpoint;
 }

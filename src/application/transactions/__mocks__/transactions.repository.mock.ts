@@ -50,6 +50,6 @@ export const mockTransactionRow: TransactionRow = {
   user_id: "test-user-id",
   household_id: "test-household-id",
   deleted_at: null,
-  plaid_transaction_id: null,
+
 };
 

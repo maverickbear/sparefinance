@@ -1,7 +1,6 @@
 "use client";
 
-import { BudgetOverviewWidget } from "@/app/(protected)/dashboard/widgets/budget-overview-widget";
-import { NetWorthWidget } from "@/app/(protected)/dashboard/widgets/net-worth-widget";
+// Dashboard widgets removed - using placeholders for feature promotions
 import { Download, Users, Building2, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { formatMoney, formatMoneyCompact } from "@/components/common/money";
@@ -356,12 +355,20 @@ function NonClickableExpensesByCategoryWidget() {
 }
 
 export function FeaturePromotionWidget({ featureName }: FeaturePromotionWidgetProps) {
-  // Budgets Widget - Wrap in non-clickable container
+  // Budgets Widget - Placeholder
   if (featureName === "Budgets") {
     return (
-      <div className="pointer-events-none">
-        <BudgetOverviewWidget budgets={getMockBudgets()} />
-      </div>
+      <Card className="h-full pointer-events-none">
+        <CardHeader>
+          <CardTitle>Budget Overview</CardTitle>
+          <CardDescription>Track your spending</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Budget Overview widget (placeholder)</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -411,16 +418,20 @@ export function FeaturePromotionWidget({ featureName }: FeaturePromotionWidgetPr
     return <NonClickablePortfolioPerformanceWidget />;
   }
 
-  // Net Worth Widget (for Unlimited Accounts) - Wrap in non-clickable container
+  // Net Worth Widget (for Unlimited Accounts) - Placeholder
   if (featureName === "Unlimited Accounts") {
     return (
-      <div className="pointer-events-none">
-        <NetWorthWidget
-          netWorth={17120}
-          totalAssets={21420}
-          totalDebts={4300}
-        />
-      </div>
+      <Card className="h-full pointer-events-none">
+        <CardHeader>
+          <CardTitle>Net Worth</CardTitle>
+          <CardDescription>Track your wealth</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground">Net Worth widget (placeholder)</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 

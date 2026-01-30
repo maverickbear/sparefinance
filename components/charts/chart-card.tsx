@@ -13,7 +13,7 @@ interface ChartCardProps {
 
 export function ChartCard({ title, description, children, className, headerActions }: ChartCardProps) {
   return (
-    <Card className={cn("w-full max-w-full", className)}>
+    <Card className={cn("w-full max-w-full h-full", className)}>
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">

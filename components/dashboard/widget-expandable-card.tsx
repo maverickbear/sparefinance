@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { SimplifiedCard } from "@/app/(protected)/dashboard/components/simplified-card";
-import { FlowNode } from "@/app/(protected)/dashboard/components/flow-node";
+// Dashboard components removed - using simple card components instead
 import { cn } from "@/lib/utils";
 
 interface WidgetExpandableCardProps {
@@ -14,6 +13,7 @@ interface WidgetExpandableCardProps {
     text: string;
     variant?: "default" | "positive" | "warning" | "negative";
   };
+  visual?: React.ReactNode;
   expandedContent: React.ReactNode;
   title: string;
   description?: string;
@@ -27,6 +27,7 @@ export function WidgetExpandableCard({
   value,
   subtitle,
   pill,
+  visual,
   expandedContent,
   title,
   description,
@@ -36,7 +37,32 @@ export function WidgetExpandableCard({
 }: WidgetExpandableCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const CardComponent = variant === "flow" ? FlowNode : SimplifiedCard;
+  // Simple card component since dashboard components were removed
+  const SimpleCard = ({ label, value, subtitle, pill, visual }: {
+    label: string;
+    value: string | React.ReactNode;
+    subtitle?: string;
+    pill?: { text: string; variant?: "default" | "positive" | "warning" | "negative" };
+    visual?: React.ReactNode;
+  }) => (
+    <div className="bg-card rounded-lg border border-border p-4">
+      {label && <div className="text-sm text-muted-foreground mb-1">{label}</div>}
+      <div className="text-2xl font-bold">{value}</div>
+      {subtitle && <div className="text-sm text-muted-foreground mt-1">{subtitle}</div>}
+      {pill && (
+        <div className={cn(
+          "inline-block px-2 py-1 rounded text-xs mt-2",
+          pill.variant === "positive" && "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+          pill.variant === "warning" && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+          pill.variant === "negative" && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+          !pill.variant && "bg-muted text-muted-foreground"
+        )}>
+          {pill.text}
+        </div>
+      )}
+      {visual && <div className="mt-2">{visual}</div>}
+    </div>
+  );
 
   return (
     <>
@@ -53,11 +79,12 @@ export function WidgetExpandableCard({
         }}
         aria-label={`View details for ${label}`}
       >
-        <CardComponent
+        <SimpleCard
           label={label}
           value={value}
           subtitle={subtitle}
           pill={pill}
+          visual={visual}
         />
       </div>
 

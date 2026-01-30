@@ -125,22 +125,5 @@ export interface PortfolioSnapshot {
   lastUpdatedAt: Date | string;
 }
 
-export interface PlaidInvestmentAccount {
-  accountId: string;
-  name: string;
-  balance: number;
-  holdings: Array<{
-    symbol: string;
-    quantity: number;
-    averagePrice: number;
-    currentPrice: number | null;
-  }>;
-  cash: number;
-  recentActivity: Array<{
-    type: "dividend" | "contribution" | "trade";
-    date: Date | string;
-    amount: number;
-    description: string;
-  }>;
-}
+
 

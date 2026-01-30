@@ -3,21 +3,21 @@
  * Data access layer for federal tax brackets
  */
 
-import { createServerClient } from "../supabase-server";
+import { createServiceRoleClient } from "../supabase-server";
 import { FederalTaxBracket } from "@/src/domain/taxes/federal-brackets.types";
 import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface FederalBracketRow {
   id: string;
-  country_code: string;
-  tax_year: number;
-  bracket_order: number;
-  min_income: number;
-  max_income: number | null;
-  tax_rate: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  countryCode: string;
+  taxYear: number;
+  bracketOrder: number;
+  minIncome: number;
+  maxIncome: number | null;
+  taxRate: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class FederalBracketsRepository {
@@ -28,15 +28,15 @@ export class FederalBracketsRepository {
     countryCode: string,
     taxYear: number
   ): Promise<FederalTaxBracket[]> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: brackets, error } = await supabase
-      .from("system_federal_tax_brackets")
+      .from("system_tax_federal_brackets")
       .select("*")
-      .eq("country_code", countryCode)
-      .eq("tax_year", taxYear)
-      .eq("is_active", true)
-      .order("bracket_order", { ascending: true });
+      .eq("countryCode", countryCode)
+      .eq("taxYear", taxYear)
+      .eq("isActive", true)
+      .order("bracketOrder", { ascending: true });
 
     if (error) {
       logger.error("[FederalBracketsRepository] Error fetching brackets:", error);
@@ -50,14 +50,14 @@ export class FederalBracketsRepository {
    * Find all federal brackets
    */
   async findAll(): Promise<FederalTaxBracket[]> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: brackets, error } = await supabase
-      .from("system_federal_tax_brackets")
+      .from("system_tax_federal_brackets")
       .select("*")
-      .order("country_code", { ascending: true })
-      .order("tax_year", { ascending: false })
-      .order("bracket_order", { ascending: true });
+      .order("countryCode", { ascending: true })
+      .order("taxYear", { ascending: false })
+      .order("bracketOrder", { ascending: true });
 
     if (error) {
       logger.error("[FederalBracketsRepository] Error fetching brackets:", error);
@@ -71,22 +71,22 @@ export class FederalBracketsRepository {
    * Find current (most recent) federal brackets for a country
    */
   async findCurrentByCountry(countryCode: string): Promise<FederalTaxBracket[]> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     // First, get the most recent year for this country
     const { data: yearData, error: yearError } = await supabase
-      .from("system_federal_tax_brackets")
-      .select("tax_year")
-      .eq("country_code", countryCode)
-      .eq("is_active", true)
-      .order("tax_year", { ascending: false })
+      .from("system_tax_federal_brackets")
+      .select("taxYear")
+      .eq("countryCode", countryCode)
+      .eq("isActive", true)
+      .order("taxYear", { ascending: false })
       .limit(1);
 
     if (yearError || !yearData || yearData.length === 0) {
       return [];
     }
 
-    const currentYear = yearData[0].tax_year;
+    const currentYear = yearData[0].taxYear;
 
     // Get brackets for the most recent year
     return this.findByCountryAndYear(countryCode, currentYear);
@@ -96,10 +96,10 @@ export class FederalBracketsRepository {
    * Find bracket by ID
    */
   async findById(id: string): Promise<FederalTaxBracket | null> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: bracket, error } = await supabase
-      .from("system_federal_tax_brackets")
+      .from("system_tax_federal_brackets")
       .select("*")
       .eq("id", id)
       .single();
@@ -131,18 +131,18 @@ export class FederalBracketsRepository {
     taxRate: number;
     isActive?: boolean;
   }): Promise<FederalTaxBracket> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { data: bracket, error } = await supabase
-      .from("system_federal_tax_brackets")
+      .from("system_tax_federal_brackets")
       .insert({
-        country_code: data.countryCode,
-        tax_year: data.taxYear,
-        bracket_order: data.bracketOrder,
-        min_income: data.minIncome,
-        max_income: data.maxIncome ?? null,
-        tax_rate: data.taxRate,
-        is_active: data.isActive ?? true,
+        countryCode: data.countryCode,
+        taxYear: data.taxYear,
+        bracketOrder: data.bracketOrder,
+        minIncome: data.minIncome,
+        maxIncome: data.maxIncome ?? null,
+        taxRate: data.taxRate,
+        isActive: data.isActive ?? true,
       })
       .select()
       .single();
@@ -167,16 +167,16 @@ export class FederalBracketsRepository {
       isActive?: boolean;
     }
   ): Promise<FederalTaxBracket> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const updateData: any = {};
-    if (data.minIncome !== undefined) updateData.min_income = data.minIncome;
-    if (data.maxIncome !== undefined) updateData.max_income = data.maxIncome;
-    if (data.taxRate !== undefined) updateData.tax_rate = data.taxRate;
-    if (data.isActive !== undefined) updateData.is_active = data.isActive;
+    if (data.minIncome !== undefined) updateData.minIncome = data.minIncome;
+    if (data.maxIncome !== undefined) updateData.maxIncome = data.maxIncome;
+    if (data.taxRate !== undefined) updateData.taxRate = data.taxRate;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
     const { data: bracket, error } = await supabase
-      .from("system_federal_tax_brackets")
+      .from("system_tax_federal_brackets")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -194,10 +194,10 @@ export class FederalBracketsRepository {
    * Delete a bracket
    */
   async delete(id: string): Promise<void> {
-    const supabase = await createServerClient();
+    const supabase = createServiceRoleClient();
 
     const { error } = await supabase
-      .from("system_federal_tax_brackets")
+      .from("system_tax_federal_brackets")
       .delete()
       .eq("id", id);
 
@@ -213,15 +213,15 @@ export class FederalBracketsRepository {
   private mapToDomain(row: FederalBracketRow): FederalTaxBracket {
     return {
       id: row.id,
-      countryCode: row.country_code as "US" | "CA",
-      taxYear: row.tax_year,
-      bracketOrder: row.bracket_order,
-      minIncome: Number(row.min_income),
-      maxIncome: row.max_income ? Number(row.max_income) : null,
-      taxRate: Number(row.tax_rate),
-      isActive: row.is_active,
-      createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at),
+      countryCode: row.countryCode as "US" | "CA",
+      taxYear: row.taxYear,
+      bracketOrder: row.bracketOrder,
+      minIncome: Number(row.minIncome),
+      maxIncome: row.maxIncome ? Number(row.maxIncome) : null,
+      taxRate: Number(row.taxRate),
+      isActive: row.isActive,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt),
     };
   }
 }

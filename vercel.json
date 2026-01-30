@@ -39,20 +39,6 @@
       "source": "/api/health",
       "destination": "/api/health"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/import-jobs/process",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/sync-planned-payments",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/retry-failed-plaid-syncs",
-      "schedule": "0 */6 * * *"
-    }
   ]
 }
 

@@ -172,25 +172,24 @@ export default function GoalsPage() {
     <div>
       <PageHeader
         title="Goals"
-      />
+      >
+        {canWrite && (
+          <Button
+            size="medium"
+            onClick={() => {
+              if (!checkWriteAccess()) return;
+              setSelectedGoal(null);
+              setIsFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Goal
+          </Button>
+        )}
+      </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
-        {/* Action Buttons */}
-        {canWrite && (
-          <div className="flex items-center gap-2 justify-end mb-6">
-            <Button
-              size="medium"
-              onClick={() => {
-                if (!checkWriteAccess()) return;
-                setSelectedGoal(null);
-                setIsFormOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Goal
-            </Button>
-          </div>
-        )}
+
 
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-3">

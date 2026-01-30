@@ -15,7 +15,7 @@ import { getDashboardSubscription } from "../subscriptions/get-dashboard-subscri
 import { makeMembersService } from "../members/members.factory";
 import { makeAuthService } from "../auth/auth.factory";
 import { makeSubscriptionsService } from "../subscriptions/subscriptions.factory";
-import { makePlaidService } from "../plaid/plaid.factory";
+
 import { AppError } from "../shared/app-error";
 import { getCurrentUserId } from "../shared/feature-guard";
 import { validateImageFile, sanitizeFilename, getFileExtension } from "@/lib/utils/file-validation";
@@ -415,30 +415,8 @@ export class ProfileService {
         );
       }
 
-      // 2. Disconnect all Plaid items (don't fail if this fails, but log it)
-      try {
-        const plaidService = makePlaidService();
-        const plaidResult = await plaidService.disconnectAllUserItems(userId);
-        if (plaidResult.failed > 0) {
-          logger.warn("[ProfileService] Warning: Some Plaid items failed to disconnect:", {
-            userId,
-            disconnected: plaidResult.disconnected,
-            failed: plaidResult.failed,
-            errors: plaidResult.errors,
-          });
-        } else if (plaidResult.disconnected > 0) {
-          logger.info("[ProfileService] Disconnected all Plaid items for user", {
-            userId,
-            disconnected: plaidResult.disconnected,
-          });
-        }
-      } catch (plaidError) {
-        logger.error("[ProfileService] Warning: Failed to disconnect Plaid items:", {
-          userId,
-          error: plaidError instanceof Error ? plaidError.message : "Unknown error",
-        });
-        // Continue with account deletion even if Plaid disconnection fails
-      }
+      // 2. Disconnect all Plaid items (skipped - support removed)
+      logger.info("[ProfileService] Plaid disconnection skipped (feature disabled)", { userId });
 
       // 3. Cancel active subscription in Stripe (don't fail if this fails, but log it)
       const subscriptionsService = makeSubscriptionsService();

@@ -207,19 +207,18 @@ export default function BudgetsPage() {
 
   return (
     <div>
-      <PageHeader title="Budgets" />
+      <PageHeader title="Budgets">
+        <Button
+          size="medium"
+          onClick={handleOpenDialog}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Budget
+        </Button>
+      </PageHeader>
 
       <div className="w-full p-4 lg:p-8">
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 justify-end mb-6">
-          <Button
-            size="medium"
-            onClick={handleOpenDialog}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Budget
-          </Button>
-        </div>
+
 
         {loading && !hasLoaded ? (
           <Card>

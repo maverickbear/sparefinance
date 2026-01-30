@@ -10,14 +10,14 @@ import { logger } from "@/src/infrastructure/utils/logger";
 
 export interface TaxRateRow {
   id: string;
-  country_code: string;
-  state_or_province_code: string;
-  tax_rate: number;
-  display_name: string;
+  countryCode: string;
+  stateOrProvinceCode: string;
+  taxRate: number;
+  displayName: string;
   description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export class TaxRatesRepository {
@@ -31,8 +31,8 @@ export class TaxRatesRepository {
     const { data: rates, error } = await supabase
       .from("system_tax_rates")
       .select("*")
-      .order("country_code", { ascending: true })
-      .order("state_or_province_code", { ascending: true });
+      .order("countryCode", { ascending: true })
+      .order("stateOrProvinceCode", { ascending: true });
 
     if (error) {
       logger.error("[TaxRatesRepository] Error fetching tax rates:", error);
@@ -55,8 +55,8 @@ export class TaxRatesRepository {
     const { data: rate, error } = await supabase
       .from("system_tax_rates")
       .select("*")
-      .eq("country_code", countryCode)
-      .eq("state_or_province_code", stateOrProvinceCode)
+      .eq("countryCode", countryCode)
+      .eq("stateOrProvinceCode", stateOrProvinceCode)
       .single();
 
     if (error) {
@@ -119,12 +119,12 @@ export class TaxRatesRepository {
     const { data: rate, error } = await supabase
       .from("system_tax_rates")
       .insert({
-        country_code: data.countryCode,
-        state_or_province_code: data.stateOrProvinceCode,
-        tax_rate: data.taxRate,
-        display_name: data.displayName,
+        countryCode: data.countryCode,
+        stateOrProvinceCode: data.stateOrProvinceCode,
+        taxRate: data.taxRate,
+        displayName: data.displayName,
         description: data.description ?? null,
-        is_active: data.isActive ?? true,
+        isActive: data.isActive ?? true,
       })
       .select()
       .single();
@@ -153,10 +153,10 @@ export class TaxRatesRepository {
     const supabase = createServiceRoleClient();
 
     const updateData: any = {};
-    if (data.taxRate !== undefined) updateData.tax_rate = data.taxRate;
-    if (data.displayName !== undefined) updateData.display_name = data.displayName;
+    if (data.taxRate !== undefined) updateData.taxRate = data.taxRate;
+    if (data.displayName !== undefined) updateData.displayName = data.displayName;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.isActive !== undefined) updateData.is_active = data.isActive;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
     const { data: rate, error } = await supabase
       .from("system_tax_rates")
@@ -197,14 +197,14 @@ export class TaxRatesRepository {
   private mapToDomain(row: TaxRateRow): TaxRate {
     return {
       id: row.id,
-      countryCode: row.country_code as "US" | "CA",
-      stateOrProvinceCode: row.state_or_province_code,
-      taxRate: Number(row.tax_rate),
-      displayName: row.display_name,
+      countryCode: row.countryCode as "US" | "CA",
+      stateOrProvinceCode: row.stateOrProvinceCode,
+      taxRate: Number(row.taxRate),
+      displayName: row.displayName,
       description: row.description,
-      isActive: row.is_active,
-      createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at),
+      isActive: row.isActive,
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt),
     };
   }
 }

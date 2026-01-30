@@ -2,147 +2,95 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { formatMoney } from "@/components/common/money";
 import { getCategoryColor } from "@/lib/utils/category-colors";
 
 interface ExpensesPieChartWidgetProps {
   selectedMonthTransactions: any[];
+  lastMonthTransactions?: any[];
+  className?: string;
 }
-
-// Custom tooltip component
-const CustomTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0];
-    return (
-      <div className="rounded-lg bg-card p-3 backdrop-blur-sm border border-border shadow-lg">
-        <p className="mb-2 text-sm font-medium text-foreground">
-          {data.name || "Uncategorized"}
-        </p>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: data.payload.fill }}
-            />
-            <span className="text-xs text-muted-foreground">Amount:</span>
-            <span className="text-sm font-semibold text-foreground">
-              {formatMoney(data.value)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Percentage:</span>
-            <span className="text-sm font-semibold text-foreground">
-              {data.payload.percentage?.toFixed(1) || 0}%
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-// Custom legend component
-const CustomLegend = ({ payload }: any) => {
-  if (!payload || payload.length === 0) return null;
-  
-  // Show only top 10 items in legend to avoid clutter
-  const topItems = payload.slice(0, 10);
-  const remainingCount = payload.length - 10;
-
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
-      {topItems.map((entry: any, index: number) => (
-        <div key={index} className="flex items-center gap-1.5">
-          <div
-            className="h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-xs text-muted-foreground truncate max-w-[100px]">
-            {entry.value || "Uncategorized"}
-          </span>
-        </div>
-      ))}
-      {remainingCount > 0 && (
-        <span className="text-xs text-muted-foreground">
-          +{remainingCount} more
-        </span>
-      )}
-    </div>
-  );
-};
 
 export function ExpensesPieChartWidget({
   selectedMonthTransactions,
+  lastMonthTransactions = [],
+  className,
 }: ExpensesPieChartWidgetProps) {
-  // Process expenses data
-  const expensesData = useMemo(() => {
-    const expenses = selectedMonthTransactions.filter(
-      (t) => t && t.type === "expense"
-    );
+  const { items, totalExpenses, insight } = useMemo(() => {
+    const toCategoryTotals = (transactions: any[]) => {
+      return transactions
+        .filter((t) => t && t.type === "expense")
+        .reduce((acc, t) => {
+          const categoryName = t.category?.name || "Uncategorized";
+          const amount =
+            t.amount != null
+              ? typeof t.amount === "string"
+                ? parseFloat(t.amount)
+                : Number(t.amount)
+              : 0;
 
-    if (expenses.length === 0) return [];
+          if (isNaN(amount) || amount <= 0) return acc;
 
-    // Group by category
-    const expensesByCategory = expenses.reduce(
-      (acc, t) => {
-        const categoryName = t.category?.name || "Uncategorized";
-        const amount =
-          t.amount != null
-            ? typeof t.amount === "string"
-              ? parseFloat(t.amount)
-              : Number(t.amount)
-            : 0;
+          if (!acc[categoryName]) {
+            acc[categoryName] = 0;
+          }
+          acc[categoryName] += amount;
+          return acc;
+        }, {} as Record<string, number>);
+    };
 
-        if (isNaN(amount) || amount <= 0) return acc;
+    const currentTotals = toCategoryTotals(selectedMonthTransactions);
+    const lastTotals = toCategoryTotals(lastMonthTransactions);
 
-        if (!acc[categoryName]) {
-          acc[categoryName] = 0;
-        }
-        acc[categoryName] += amount;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
-
-    // Convert to array and sort by value descending
-    const dataArray = (Object.entries(expensesByCategory) as [string, number][])
+    const entries = (Object.entries(currentTotals) as [string, number][])
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
-    // Calculate total for percentage
-    const total = dataArray.reduce((sum, item) => sum + item.value, 0);
+    const total = entries.reduce((sum, item) => sum + item.value, 0);
+    const topThree = entries.slice(0, 3);
+    const otherTotal = entries.slice(3).reduce((sum, item) => sum + item.value, 0);
 
-    // Add percentage and color to each item
-    return dataArray.map((item) => ({
-      ...item,
-      percentage: total > 0 ? (item.value / total) * 100 : 0,
-      color: getCategoryColor(item.name),
-    }));
-  }, [selectedMonthTransactions]);
+    const normalized = [...topThree, ...(otherTotal > 0 ? [{ name: "Other", value: otherTotal }] : [])]
+      .map((item) => {
+        const lastValue = lastTotals[item.name] || 0;
+        const changePercent = lastValue > 0
+          ? ((item.value - lastValue) / lastValue) * 100
+          : item.value > 0
+            ? 100
+            : 0;
 
-  const totalExpenses = expensesData.reduce(
-    (sum, item) => sum + item.value,
-    0
-  );
+        return {
+          ...item,
+          percentage: total > 0 ? (item.value / total) * 100 : 0,
+          changePercent,
+          color: getCategoryColor(item.name),
+        };
+      });
+
+    const topCategory = normalized[0];
+    const insightText = topCategory
+      ? `${topCategory.name} accounts for ${Math.round(topCategory.percentage)}% of your spending`
+      : "No expenses recorded yet";
+
+    return { items: normalized, totalExpenses: total, insight: insightText };
+  }, [selectedMonthTransactions, lastMonthTransactions]);
 
   return (
-    <Card className="w-full max-w-full">
+    <Card className={`w-full max-w-full h-full ${className ?? ""}`}>
       <CardHeader className="pb-4">
         <div className="flex items-start justify-between">
           <div className="flex-1 space-y-2">
             <CardTitle className="text-lg font-semibold">
-              Expenses by Category
+              Expenses by category
             </CardTitle>
             <CardDescription className="text-sm">
-              Distribution of expenses grouped by category
+              Top spending areas this month
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {expensesData.length === 0 ? (
+        {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm text-muted-foreground">
               No expenses found for this period
@@ -161,30 +109,40 @@ export function ExpensesPieChartWidget({
                 total expenses
               </span>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={expensesData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={false}
-                  outerRadius={120}
-                  innerRadius={60}
-                  fill={getCategoryColor("")}
-                  dataKey="value"
-                >
-                  {expensesData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color || getCategoryColor(entry.name)}
+            <div className="space-y-3">
+              {items.map((item) => (
+                <div key={item.name} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-foreground">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span>{formatMoney(item.value)}</span>
+                      <span className={item.changePercent >= 0 ? "text-sentiment-negative" : "text-sentiment-positive"}>
+                        {item.changePercent >= 0 ? "+" : ""}
+                        {item.changePercent.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${item.percentage}%`,
+                        backgroundColor: item.color,
+                      }}
                     />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomTooltip />} />
-                <Legend content={<CustomLegend />} />
-              </PieChart>
-            </ResponsiveContainer>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {insight}
+            </div>
           </div>
         )}
       </CardContent>
