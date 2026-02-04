@@ -30,6 +30,7 @@ export interface BasePlannedPayment {
   toAccount?: { id: string; name: string } | null;
   category?: { id: string; name: string } | null;
   subcategory?: { id: string; name: string; logo?: string | null } | null;
+  debt?: { id: string; name: string } | null;
 }
 
 export interface PlannedPaymentFormData {

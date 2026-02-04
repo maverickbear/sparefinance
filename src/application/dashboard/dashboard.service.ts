@@ -27,7 +27,7 @@ import type {
   InvestmentHoldingsWidgetData,
   SubscriptionsWidgetData,
 } from "@/src/domain/dashboard/types";
-import { calculateFinancialHealth } from "@/src/application/shared/financial-health";
+import { calculateFinancialHealth, FinancialHealthData } from "@/src/application/shared/financial-health";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { makeBudgetsService } from "@/src/application/budgets/budgets.factory";
 import { makeGoalsService } from "@/src/application/goals/goals.factory";
@@ -37,7 +37,7 @@ import { ReportsCoreService } from "@/src/application/reports/reports-core.servi
 import { makePortfolioService } from "@/src/application/portfolio/portfolio.factory";
 import { makeUserSubscriptionsService } from "@/src/application/user-subscriptions/user-subscriptions.factory";
 import { getAccountsForDashboard } from "@/src/application/accounts/get-dashboard-accounts";
-import { startOfMonth, endOfMonth, subMonths, format, differenceInDays, addDays, eachDayOfInterval, isSameDay, getDate, isAfter, isBefore } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, format, parseISO, differenceInDays, addDays, eachDayOfInterval, isSameDay, getDate, isAfter, isBefore } from "date-fns";
 import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
 import type { AccountWithBalance } from "@/src/domain/accounts/accounts.types";
 import type { BudgetWithRelations } from "@/src/domain/budgets/budgets.types";
@@ -160,6 +160,12 @@ export class DashboardService {
     const previousMonth = subMonths(selectedMonth, 1);
     const previousMonthEnd = endOfMonth(previousMonth);
 
+    // Initialize services
+    const transactionsService = makeTransactionsService();
+    const budgetsService = makeBudgetsService();
+    const debtsService = makeDebtsService();
+    const goalsService = makeGoalsService();
+
     // OPTIMIZATION: Pre-fetch accounts once to reuse across widgets
     // This prevents multiple calls to getAccountsForDashboard
     let accounts: AccountWithBalance[] | null = null;
@@ -169,8 +175,61 @@ export class DashboardService {
       logger.warn("[DashboardService] Could not pre-fetch accounts, widgets will fetch individually:", error);
     }
 
-    // Fetch all widget data in parallel for performance
-    // OPTIMIZATION: Use better error handling to avoid silent failures
+    // OPTIMIZATION: Pre-fetch shared data in parallel
+    // This dramatically reduces redundant DB calls (transactions fetched 6+ times -> 2 times)
+    const [
+      currentMonthTransactionsResult,
+      previousMonthTransactionsResult,
+      budgets,
+      debts,
+      goals
+    ] = await Promise.all([
+      // 1. Current Month Transactions
+      transactionsService.getTransactions({ startDate: selectedMonth, endDate: selectedMonthEnd }, accessToken, refreshToken)
+        .catch(e => { logger.error("Error pre-fetching current transactions:", e); return { transactions: [], total: 0 }; }),
+      
+      // 2. Previous Month Transactions
+      transactionsService.getTransactions({ startDate: previousMonth, endDate: previousMonthEnd }, accessToken, refreshToken)
+        .catch(e => { logger.error("Error pre-fetching previous transactions:", e); return { transactions: [], total: 0 }; }),
+      
+      // 3. Budgets
+      budgetsService.getBudgets(selectedMonth, accessToken, refreshToken)
+        .catch(e => { logger.error("Error pre-fetching budgets:", e); return []; }),
+      
+      // 4. Debts
+      debtsService.getDebts(accessToken, refreshToken)
+        .catch(e => { logger.error("Error pre-fetching debts:", e); return []; }),
+
+      // 5. Goals
+      goalsService.getGoals(accessToken, refreshToken)
+        .catch(e => { logger.error("Error pre-fetching goals:", e); return []; })
+    ]);
+
+    const currentTransactions = Array.isArray(currentMonthTransactionsResult) ? currentMonthTransactionsResult : (currentMonthTransactionsResult?.transactions || []);
+    const previousTransactions = Array.isArray(previousMonthTransactionsResult) ? previousMonthTransactionsResult : (previousMonthTransactionsResult?.transactions || []);
+
+    // OPTIMIZATION: Calculate Financial Health ONCE and share it
+    // This avoids redundant expensive tax calculations and repeated data fetching
+    let financialHealth: FinancialHealthData | null = null;
+    try {
+      financialHealth = await calculateFinancialHealth(
+        date,
+        userId,
+        accessToken,
+        refreshToken,
+        accounts || undefined, // Use pre-fetched accounts
+        undefined, // projectedIncome
+        undefined, // budgetRule
+        currentTransactions, // Use pre-fetched transactions
+        undefined, // previous transactions (not needed for current score)
+        debts, // Use pre-fetched debts
+        goals // Use pre-fetched goals
+      );
+    } catch (error) {
+      logger.error("[DashboardService] Error pre-calculating financial health:", error);
+    }
+
+    // Fetch all widget data in parallel using pre-fetched data
     const [
       spareScore,
       netWorth,
@@ -190,22 +249,22 @@ export class DashboardService {
       investmentHoldings,
       subscriptions,
     ] = await Promise.all([
-      this.getSpareScoreWidget(userId, date, accessToken, refreshToken, accounts),
-      this.getNetWorthWidget(userId, accessToken, refreshToken, accounts),
-      this.getCashFlowWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken),
-      this.getBudgetPerformanceWidget(userId, selectedMonth, accessToken, refreshToken),
-      this.getTopSpendingCategoriesWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken),
-      this.getUpcomingPaymentsWidget(userId, accessToken, refreshToken),
-      this.getGoalsProgressWidget(userId, accessToken, refreshToken),
-      this.getFinancialAlertsWidget(userId, date, accessToken, refreshToken, accounts),
-      this.getDebtOverviewWidget(userId, accessToken, refreshToken),
+      this.getSpareScoreWidget(userId, date, accessToken, refreshToken, accounts, goals, debts, currentTransactions, financialHealth),
+      this.getNetWorthWidget(userId, accessToken, refreshToken, accounts, debts),
+      this.getCashFlowWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken, currentTransactions, previousTransactions),
+      this.getBudgetPerformanceWidget(userId, selectedMonth, accessToken, refreshToken, budgets),
+      this.getTopSpendingCategoriesWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken, currentTransactions, previousTransactions, budgets),
+      this.getUpcomingPaymentsWidget(userId, accessToken, refreshToken, accounts), // Passed pre-fetched accounts
+      this.getGoalsProgressWidget(userId, accessToken, refreshToken, goals),
+      this.getFinancialAlertsWidget(userId, date, accessToken, refreshToken, accounts, debts, goals, currentTransactions, financialHealth),
+      this.getDebtOverviewWidget(userId, accessToken, refreshToken, debts),
 
       // Investment portfolio disabled for now
       Promise.resolve(null),
       // New Widgets
-      this.getTotalBudgetsWidget(userId, selectedMonth, accessToken, refreshToken),
-      this.getSpendingWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken),
-      this.getRecentTransactionsWidget(userId, accessToken, refreshToken),
+      this.getTotalBudgetsWidget(userId, selectedMonth, accessToken, refreshToken, budgets),
+      this.getSpendingWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken, currentTransactions, previousTransactions),
+      this.getRecentTransactionsWidget(userId, accessToken, refreshToken, currentTransactions),
       this.getRecurringWidget(userId, accessToken, refreshToken),
 
       // Investment holdings disabled for now
@@ -247,12 +306,33 @@ export class DashboardService {
     selectedDate?: Date,
     accessToken?: string,
     refreshToken?: string,
-    accounts?: AccountWithBalance[] | null
+    preFetchedAccounts?: AccountWithBalance[] | null, // Renamed to avoid shadowing
+    preFetchedGoals?: GoalWithCalculations[] | null,
+    preFetchedDebts?: DebtWithCalculations[] | null,
+    preFetchedTransactions?: TransactionWithRelations[] | null,
+    preCalculatedFinancialHealth?: FinancialHealthData | null
   ): Promise<SpareScoreWidgetData | null> {
     try {
-      // Reuse accounts if provided, otherwise fetch
-      const accountsToUse = accounts || await getAccountsForDashboard(true, accessToken, refreshToken);
-      const financialHealth = await calculateFinancialHealth(selectedDate, userId, accessToken, refreshToken, accountsToUse);
+      // Reuse pre-calculated financial health if available, otherwise calculate
+      let financialHealth = preCalculatedFinancialHealth;
+      
+      if (!financialHealth) {
+        // Reuse accounts if provided, otherwise fetch
+        const accounts = preFetchedAccounts || await getAccountsForDashboard(true, accessToken, refreshToken);
+        financialHealth = await calculateFinancialHealth(
+          selectedDate,
+          userId,
+          accessToken,
+          refreshToken,
+          accounts,
+          undefined, // projectedIncome
+          undefined, // budgetRule
+          preFetchedTransactions, // current transactions
+          undefined, // previous transactions (not needed for current score)
+          preFetchedDebts,
+          preFetchedGoals
+        );
+      }
 
       // Calculate trend
       let trend: 'up' | 'down' | 'stable' = 'stable';
@@ -421,14 +501,22 @@ export class DashboardService {
     userId: string,
     accessToken?: string,
     refreshToken?: string,
-    accounts?: AccountWithBalance[] | null
+    preFetchedAccounts?: AccountWithBalance[] | null,
+    preFetchedDebts?: DebtWithCalculations[] | null
   ): Promise<NetWorthWidgetData | null> {
     try {
       // Reuse accounts if provided, otherwise fetch
-      const accountsToUse = accounts || await getAccountsForDashboard(true, accessToken, refreshToken);
-      const debtsService = makeDebtsService();
-      const debts = await debtsService.getDebts(accessToken, refreshToken);
-      const unpaidDebts = debts.filter(d => !d.isPaidOff);
+      const accountsToUse = preFetchedAccounts || await getAccountsForDashboard(true, accessToken, refreshToken);
+
+      // Reuse debts if provided
+      let unpaidDebts: DebtWithCalculations[] = [];
+      if (preFetchedDebts) {
+        unpaidDebts = preFetchedDebts.filter(d => !d.isPaidOff);
+      } else {
+        const debtsService = makeDebtsService();
+        const debts = await debtsService.getDebts(accessToken, refreshToken);
+        unpaidDebts = debts.filter(d => !d.isPaidOff);
+      }
 
       // Get portfolio summary if available
       let portfolioSummary = null;
@@ -549,33 +637,41 @@ export class DashboardService {
     previousStartDate: Date,
     previousEndDate: Date,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedCurrentTransactions?: TransactionWithRelations[] | null,
+    preFetchedPreviousTransactions?: TransactionWithRelations[] | null
   ): Promise<CashFlowWidgetData | null> {
     try {
       const transactionsService = makeTransactionsService();
 
       // Get current period transactions
-      const currentResult = await transactionsService.getTransactions(
-        { startDate, endDate },
-        accessToken,
-        refreshToken
-      );
-      const currentTransactions = Array.isArray(currentResult) ? currentResult : (currentResult?.transactions || []);
+      let currentTransactionsList = preFetchedCurrentTransactions;
+      if (!currentTransactionsList) {
+        const currentResult = await transactionsService.getTransactions(
+          { startDate, endDate },
+          accessToken,
+          refreshToken
+        );
+        currentTransactionsList = Array.isArray(currentResult) ? currentResult : (currentResult?.transactions || []);
+      }
 
       // Get previous period transactions
-      const previousResult = await transactionsService.getTransactions(
-        { startDate: previousStartDate, endDate: previousEndDate },
-        accessToken,
-        refreshToken
-      );
-      const previousTransactions = Array.isArray(previousResult) ? previousResult : (previousResult?.transactions || []);
+      let previousTransactionsList = preFetchedPreviousTransactions;
+      if (!previousTransactionsList) {
+        const previousResult = await transactionsService.getTransactions(
+          { startDate: previousStartDate, endDate: previousEndDate },
+          accessToken,
+          refreshToken
+        );
+        previousTransactionsList = Array.isArray(previousResult) ? previousResult : (previousResult?.transactions || []);
+      }
 
       // Calculate current period
-      const income = currentTransactions
+      const income = currentTransactionsList
         .filter(t => t.type === 'income' && !t.transferFromId && !t.transferToId)
         .reduce((sum, t) => sum + Math.abs(getTransactionAmount(t.amount) || 0), 0);
 
-      const expenses = currentTransactions
+      const expenses = currentTransactionsList
         .filter(t => t.type === 'expense' && !t.transferFromId && !t.transferToId)
         .reduce((sum, t) => sum + Math.abs(getTransactionAmount(t.amount) || 0), 0);
 
@@ -583,11 +679,11 @@ export class DashboardService {
       const spendingRatio = income > 0 ? (expenses / income) * 100 : 0;
 
       // Calculate previous period for comparison
-      const previousIncome = previousTransactions
+      const previousIncome = previousTransactionsList
         .filter(t => t.type === 'income' && !t.transferFromId && !t.transferToId)
         .reduce((sum, t) => sum + Math.abs(getTransactionAmount(t.amount) || 0), 0);
 
-      const previousExpenses = previousTransactions
+      const previousExpenses = previousTransactionsList
         .filter(t => t.type === 'expense' && !t.transferFromId && !t.transferToId)
         .reduce((sum, t) => sum + Math.abs(getTransactionAmount(t.amount) || 0), 0);
 
@@ -670,11 +766,15 @@ export class DashboardService {
     userId: string,
     period: Date,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedBudgets?: BudgetWithRelations[] | null
   ): Promise<BudgetPerformanceWidgetData | null> {
     try {
-      const budgetsService = makeBudgetsService();
-      const budgets = await budgetsService.getBudgets(period, accessToken, refreshToken);
+      let budgets = preFetchedBudgets;
+      if (!budgets) {
+        const budgetsService = makeBudgetsService();
+        budgets = await budgetsService.getBudgets(period, accessToken, refreshToken);
+      }
 
       if (budgets.length === 0) {
         return null;
@@ -750,30 +850,39 @@ export class DashboardService {
     previousStartDate: Date,
     previousEndDate: Date,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedCurrentTransactions?: TransactionWithRelations[] | null,
+    preFetchedPreviousTransactions?: TransactionWithRelations[] | null,
+    preFetchedBudgets?: BudgetWithRelations[] | null
   ): Promise<TopSpendingCategoriesWidgetData | null> {
     try {
       const transactionsService = makeTransactionsService();
 
       // Get current period transactions
-      const currentResult = await transactionsService.getTransactions(
-        { startDate, endDate },
-        accessToken,
-        refreshToken
-      );
-      const currentTransactions = Array.isArray(currentResult) ? currentResult : (currentResult?.transactions || []);
+      let currentTransactionsList = preFetchedCurrentTransactions;
+      if (!currentTransactionsList) {
+        const currentResult = await transactionsService.getTransactions(
+          { startDate, endDate },
+          accessToken,
+          refreshToken
+        );
+        currentTransactionsList = Array.isArray(currentResult) ? currentResult : (currentResult?.transactions || []);
+      }
 
       // Get previous period transactions
-      const previousResult = await transactionsService.getTransactions(
-        { startDate: previousStartDate, endDate: previousEndDate },
-        accessToken,
-        refreshToken
-      );
-      const previousTransactions = Array.isArray(previousResult) ? previousResult : (previousResult?.transactions || []);
+      let previousTransactionsList = preFetchedPreviousTransactions;
+      if (!previousTransactionsList) {
+        const previousResult = await transactionsService.getTransactions(
+          { startDate: previousStartDate, endDate: previousEndDate },
+          accessToken,
+          refreshToken
+        );
+        previousTransactionsList = Array.isArray(previousResult) ? previousResult : (previousResult?.transactions || []);
+      }
 
       // Group current period by category
       const currentCategoryMap = new Map<string, { amount: number; categoryId: string; categoryName: string }>();
-      currentTransactions
+      currentTransactionsList
         .filter(t => t.type === 'expense' && !t.transferFromId && !t.transferToId && t.categoryId)
         .forEach(t => {
           const categoryId = t.categoryId!;
@@ -788,7 +897,7 @@ export class DashboardService {
 
       // Group previous period by category
       const previousCategoryMap = new Map<string, number>();
-      previousTransactions
+      previousTransactionsList
         .filter(t => t.type === 'expense' && !t.transferFromId && !t.transferToId && t.categoryId)
         .forEach(t => {
           const categoryId = t.categoryId!;
@@ -800,9 +909,12 @@ export class DashboardService {
       const totalSpending = Array.from(currentCategoryMap.values()).reduce((sum, c) => sum + c.amount, 0);
 
       // Check which categories have budgets
-      const budgetsService = makeBudgetsService();
-      const budgets = await budgetsService.getBudgets(startDate, accessToken, refreshToken);
-      const categoriesWithBudgets = new Set(budgets.filter(b => b.categoryId).map(b => b.categoryId!));
+      let budgetsList = preFetchedBudgets;
+      if (!budgetsList) {
+        const budgetsService = makeBudgetsService();
+        budgetsList = await budgetsService.getBudgets(startDate, accessToken, refreshToken);
+      }
+      const categoriesWithBudgets = new Set(budgetsList.filter((b: BudgetWithRelations) => b.categoryId).map((b: BudgetWithRelations) => b.categoryId!));
 
       // Build categories with deltas
       const categories = Array.from(currentCategoryMap.values())
@@ -867,7 +979,8 @@ export class DashboardService {
   async getUpcomingPaymentsWidget(
     userId: string,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedAccounts?: AccountWithBalance[] | null
   ): Promise<UpcomingPaymentsWidgetData | null> {
     try {
       const plannedPaymentsService = makePlannedPaymentsService();
@@ -893,7 +1006,7 @@ export class DashboardService {
       }
 
       // Get account balances to check for overdraft
-      const accounts: import("@/src/domain/accounts/accounts.types").AccountWithBalance[] = await getAccountsForDashboard(true, accessToken, refreshToken);
+      const accounts: import("@/src/domain/accounts/accounts.types").AccountWithBalance[] = preFetchedAccounts || await getAccountsForDashboard(true, accessToken, refreshToken);
       const accountBalances = new Map(accounts.map(a => [a.id, a.balance]));
 
       // Build upcoming payments
@@ -979,11 +1092,17 @@ export class DashboardService {
   async getGoalsProgressWidget(
     userId: string,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedGoals?: GoalWithCalculations[] | null
   ): Promise<GoalsProgressWidgetData | null> {
     try {
-      const goalsService = makeGoalsService();
-      const goals = await goalsService.getGoals(accessToken, refreshToken);
+      let goals: GoalWithCalculations[] = [];
+      if (preFetchedGoals) {
+        goals = preFetchedGoals;
+      } else {
+        const goalsService = makeGoalsService();
+        goals = await goalsService.getGoals(accessToken, refreshToken);
+      }
 
       // Filter active, non-paused goals
       const activeGoals = goals.filter(g => !g.isPaused && !g.isCompleted);
@@ -1084,7 +1203,11 @@ export class DashboardService {
     selectedDate?: Date,
     accessToken?: string,
     refreshToken?: string,
-    accounts?: AccountWithBalance[] | null
+    preFetchedAccounts?: AccountWithBalance[] | null,
+    preFetchedDebts?: DebtWithCalculations[] | null,
+    preFetchedGoals?: GoalWithCalculations[] | null,
+    preFetchedTransactions?: TransactionWithRelations[] | null,
+    preCalculatedFinancialHealth?: FinancialHealthData | null
   ): Promise<FinancialAlertsWidgetData> {
     const alerts: Array<{
       id: string;
@@ -1098,9 +1221,50 @@ export class DashboardService {
     }> = [];
 
     try {
-      // Reuse accounts if provided, otherwise fetch
-      const accountsToUse = accounts || await getAccountsForDashboard(true, accessToken, refreshToken);
-      const financialHealth = await calculateFinancialHealth(selectedDate, userId, accessToken, refreshToken, accountsToUse);
+      // Reuse pre-calculated financial health if available, otherwise calculate
+      let financialHealth = preCalculatedFinancialHealth;
+      let accountsToUse = preFetchedAccounts;
+
+      if (!financialHealth) {
+        // Reuse accounts if provided, otherwise fetch
+        accountsToUse = accountsToUse || await getAccountsForDashboard(true, accessToken, refreshToken);
+        financialHealth = await calculateFinancialHealth(
+          selectedDate,
+          userId,
+          accessToken,
+          refreshToken,
+          accountsToUse,
+          undefined, // projectedIncome
+          undefined, // budgetRule
+          preFetchedTransactions,
+          undefined, 
+          preFetchedDebts,
+          preFetchedGoals
+        );
+      } else if (!accountsToUse) {
+         // If we have financialHealth but no accounts, we might need accounts for Overdraft Risk alert below.
+         // However, financialHealth already contains the alerts.
+         // But the logic below adds MORE alerts based on accounts (overdraft risk).
+         // So we still need accounts.
+         accountsToUse = await getAccountsForDashboard(true, accessToken, refreshToken);
+      }
+      
+      const safeAccounts = accountsToUse || [];
+
+      // Add pre-calculated alerts from financial health logic
+      if (financialHealth.alerts) {
+        financialHealth.alerts.forEach(alert => {
+           // Mapping logic if needed, or just push compatible alerts
+           // The structure in financial-health.ts: { id, title, description, severity, action }
+           // The structure here: { id, type, severity, title, description, actionHref, actionLabel, dismissible }
+           
+           // We only want to add alerts that are not duplicates.
+           // However, the logic below specifically checks for Emergency Fund (Alert 1), Negative Cash Flow (Alert 3), High Debt (Alert 4).
+           // These are seemingly duplicated logic...
+           // Let's rely on the logic BELOW for consistency with widget visuals, 
+           // BUT use the calculated metrics from financialHealth.
+        });
+      }
 
       // Alert 1: Emergency fund
       if (financialHealth.emergencyFundMonths < 6) {
@@ -1117,7 +1281,7 @@ export class DashboardService {
       }
 
       // Alert 2: Overdraft risk
-      const lowBalanceAccounts = accountsToUse.filter((a: AccountWithBalance) => {
+      const lowBalanceAccounts = safeAccounts.filter((a: AccountWithBalance) => {
         const balance = a.balance || 0;
         return balance < 100 && (a.type === 'checking' || a.type === 'savings');
       });
@@ -1190,14 +1354,18 @@ export class DashboardService {
   async getDebtOverviewWidget(
     userId: string,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedDebts?: DebtWithCalculations[] | null
   ): Promise<DebtOverviewWidgetData | null> {
     try {
-      const debtsService = makeDebtsService();
-      const debts = await debtsService.getDebts(accessToken, refreshToken);
+      let debtsList = preFetchedDebts;
+      if (!debtsList) {
+        const debtsService = makeDebtsService();
+        debtsList = await debtsService.getDebts(accessToken, refreshToken);
+      }
 
       // Filter unpaid debts
-      const unpaidDebts = debts.filter(d => !d.isPaidOff);
+      const unpaidDebts = debtsList.filter(d => !d.isPaidOff);
 
       if (unpaidDebts.length === 0) {
         return null;
@@ -1399,15 +1567,19 @@ export class DashboardService {
     userId: string,
     period: Date,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedBudgets?: BudgetWithRelations[] | null
   ): Promise<TotalBudgetsWidgetData | null> {
     try {
-      const budgetsService = makeBudgetsService();
-      const budgets = await budgetsService.getBudgets(period, accessToken, refreshToken);
+      let budgetsList = preFetchedBudgets;
+      if (!budgetsList) {
+        const budgetsService = makeBudgetsService();
+        budgetsList = await budgetsService.getBudgets(period, accessToken, refreshToken);
+      }
 
-      const totalBudgeted = budgets.reduce((sum, b) => sum + (b.amount || 0), 0);
+      const totalBudgeted = budgetsList.reduce((sum, b) => sum + (b.amount || 0), 0);
       
-      const categories = budgets
+      const categories = budgetsList
         .filter(b => b.categoryId && b.category)
         .map(b => {
           const spent = b.actualSpend || 0;
@@ -1448,27 +1620,35 @@ export class DashboardService {
     previousStartDate: Date, // Start of last month
     previousEndDate: Date, // End of last month
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedCurrentTransactions?: TransactionWithRelations[] | null,
+    preFetchedPreviousTransactions?: TransactionWithRelations[] | null
   ): Promise<SpendingWidgetData | null> {
     try {
       const transactionsService = makeTransactionsService();
 
       // Get current period transactions
       // Note: We need daily granularity.
-      const currentResult = await transactionsService.getTransactions(
-        { startDate, endDate },
-        accessToken,
-        refreshToken
-      );
-      const currentTransactions = Array.isArray(currentResult) ? currentResult : (currentResult?.transactions || []);
+      let currentTransactions = preFetchedCurrentTransactions;
+      if (!currentTransactions) {
+        const currentResult = await transactionsService.getTransactions(
+          { startDate, endDate },
+          accessToken,
+          refreshToken
+        );
+        currentTransactions = Array.isArray(currentResult) ? currentResult : (currentResult?.transactions || []);
+      }
 
       // Get previous period transactions
-      const previousResult = await transactionsService.getTransactions(
-        { startDate: previousStartDate, endDate: previousEndDate },
-        accessToken,
-        refreshToken
-      );
-      const previousTransactions = Array.isArray(previousResult) ? previousResult : (previousResult?.transactions || []);
+      let previousTransactions = preFetchedPreviousTransactions;
+      if (!previousTransactions) {
+        const previousResult = await transactionsService.getTransactions(
+          { startDate: previousStartDate, endDate: previousEndDate },
+          accessToken,
+          refreshToken
+        );
+        previousTransactions = Array.isArray(previousResult) ? previousResult : (previousResult?.transactions || []);
+      }
 
       // Helper to aggregate by day
       const aggregateByDay = (transactions: TransactionWithRelations[], start: Date, end: Date) => {
@@ -1569,21 +1749,30 @@ export class DashboardService {
   async getRecentTransactionsWidget(
     userId: string,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    preFetchedRecentTransactions?: TransactionWithRelations[] | null
   ): Promise<RecentTransactionsWidgetData | null> {
     try {
       const transactionsService = makeTransactionsService();
+      
       // Get recent 5 transactions
-      const result = await transactionsService.getTransactions(
-        { limit: 5 }, 
-        accessToken, 
-        refreshToken
-      );
-      const transactions = Array.isArray(result) ? result : (result?.transactions || []);
+      let transactions: TransactionWithRelations[] = [];
+      
+      if (preFetchedRecentTransactions && preFetchedRecentTransactions.length > 0) {
+        // Reuse pre-fetched list, taking top 5
+         transactions = preFetchedRecentTransactions.slice(0, 5);
+      } else {
+        const result = await transactionsService.getTransactions(
+          { limit: 5 }, 
+          accessToken, 
+          refreshToken
+        );
+        transactions = Array.isArray(result) ? result : (result?.transactions || []);
+      }
       
       const items = transactions.map(t => ({
         id: t.id,
-        name: t.name || t.description || 'Unknown',
+        name: t.description || 'Unknown',
         amount: Math.abs(getTransactionAmount(t.amount) || 0),
         date: format(new Date(t.date), 'dd MMM'),
         category: t.category?.name || 'Uncategorized',
@@ -1632,6 +1821,29 @@ export class DashboardService {
         userId
       );
       
+      // Build display name: debt name (for debt) > description > category > subcategory > source-based label
+      const getItemName = (p: (typeof plannedPayments)[0]) => {
+        if (p.source === "debt" && p.debt?.name) return p.debt.name;
+        if (p.description?.trim()) return p.description.trim();
+        if (p.category?.name) return p.category.name;
+        if (p.subcategory?.name) return p.subcategory.name;
+        const sourceLabels: Record<string, string> = {
+          recurring: "Recurring payment",
+          subscription: "Subscription",
+          debt: "Debt payment",
+          goal: "Goal deposit",
+          manual: "Planned payment",
+        };
+        return sourceLabels[p.source] ?? "Planned payment";
+      };
+
+      // Format date from planned payment as date-only (avoid timezone shifting the day)
+      const formatPlannedPaymentDate = (date: Date | string): string => {
+        const dateOnly = typeof date === "string" ? date.split("T")[0] : format(date, "yyyy-MM-dd");
+        if (!dateOnly || dateOnly.length < 10) return format(new Date(date), "dd MMM");
+        return format(parseISO(dateOnly), "dd MMM");
+      };
+
       // Filter next few
       // Sort by next date
       const items = plannedPayments
@@ -1639,10 +1851,10 @@ export class DashboardService {
         .slice(0, 5)
         .map((p) => ({
           id: p.id,
-          name: p.description || 'Payment',
+          name: getItemName(p),
           amount: p.amount || 0,
           frequency: p.source === 'recurring' || p.source === 'subscription' ? 'Recurring' : 'One-time',
-          nextDate: format(new Date(p.date), 'dd MMM'),
+          nextDate: formatPlannedPaymentDate(p.date),
         }));
         
        return {

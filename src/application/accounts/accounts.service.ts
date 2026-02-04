@@ -402,5 +402,20 @@ export class AccountsService {
 
     return { transferred: count };
   }
+
+  /**
+   * Set an account as the default account
+   */
+  async setDefaultAccount(accountId: string): Promise<void> {
+    // Verify account ownership
+    await requireAccountOwnership(accountId);
+    
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new AppError("Unauthorized", 401);
+    }
+
+    await this.repository.setDefaultAccount(accountId, userId);
+  }
 }
 

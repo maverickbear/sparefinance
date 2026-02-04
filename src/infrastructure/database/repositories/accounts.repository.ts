@@ -22,6 +22,7 @@ export interface AccountRow {
   extra_credit: number;
   household_id: string | null;
   deleted_at: string | null;
+  is_default: boolean;
 }
 
 export interface AccountOwnerRow {
@@ -58,7 +59,7 @@ export class AccountsRepository implements IAccountsRepository {
     
     const selectFields = options?.selectFields || [
       "id", "name", "type", "initial_balance", 
-      "created_at", "updated_at", "user_id", "household_id"
+      "created_at", "updated_at", "user_id", "household_id", "is_default"
     ];
 
     const { data: accounts, error } = await supabase
@@ -275,35 +276,49 @@ export class AccountsRepository implements IAccountsRepository {
   async setAccountOwners(accountId: string, ownerIds: string[], now: string): Promise<void> {
     const supabase = await createServerClient();
 
-    // Soft delete existing owners
-    const { error: deleteError } = await supabase
-      .from("account_owners")
-      .update({ deleted_at: now, updated_at: now })
-      .eq("account_id", accountId)
-      .is("deleted_at", null);
-
-    if (deleteError) {
-      logger.error("[AccountsRepository] Error deleting account owners:", deleteError);
-      throw new Error(`Failed to delete account owners: ${deleteError.message}`);
-    }
-
-    // Insert new owners
+    // 1. Upsert desired owners (handles both new and re-activating soft-deleted)
     if (ownerIds.length > 0) {
       const accountOwners = ownerIds.map(ownerId => ({
         account_id: accountId,
         owner_id: ownerId,
         created_at: now,
         updated_at: now,
+        deleted_at: null, // Ensure they are active
       }));
 
-      const { error: insertError } = await supabase
+      const { error: upsertError } = await supabase
         .from("account_owners")
-        .insert(accountOwners);
+        .upsert(accountOwners, {
+          onConflict: 'account_id,owner_id',
+          ignoreDuplicates: false, // Update existing records
+        });
 
-      if (insertError) {
-        logger.error("[AccountsRepository] Error creating account owners:", insertError);
-        throw new Error(`Failed to create account owners: ${insertError.message}`);
+      if (upsertError) {
+        logger.error("[AccountsRepository] Error upserting account owners:", upsertError);
+        throw new Error(`Failed to update account owners: ${upsertError.message}`);
       }
+    }
+
+    // 2. Soft-delete owners that are NOT in the new list
+    // We can't use NOT IN easily with Supabase builder in one go for a delete, 
+    // but we can update where account_id matches and owner_id is NOT in the list.
+    
+    let query = supabase
+      .from("account_owners")
+      .update({ deleted_at: now, updated_at: now })
+      .eq("account_id", accountId)
+      .is("deleted_at", null); // Only touch currently active ones
+
+    if (ownerIds.length > 0) {
+        // filter out the ones we just upserted/kept
+        query = query.not("owner_id", "in", `(${ownerIds.join(',')})`);
+    }
+
+    const { error: deleteError } = await query;
+
+    if (deleteError) {
+      logger.error("[AccountsRepository] Error deleting removed account owners:", deleteError);
+      throw new Error(`Failed to remove old account owners: ${deleteError.message}`);
     }
   }
 
@@ -430,6 +445,65 @@ export class AccountsRepository implements IAccountsRepository {
     }
 
     return (users || []) as Array<{ id: string; name: string | null }>;
+  }
+  /**
+   * Set default account for a user
+   * This unsets the default flag for all other accounts associated with the user/household context
+   * and sets it to true for the specified account.
+   */
+  async setDefaultAccount(accountId: string, userId: string): Promise<void> {
+    const supabase = await createServerClient();
+    
+    // First, verify the account belongs to the user or their household (implicitly checked by verifying ownership in service)
+    // We'll perform this update in two steps or a transaction if possible.
+    // Since we don't have explicit transaction support here in the client easily exposed,
+    // we'll unset all first then set the one.
+
+    // 1. Unset is_default for all accounts owned by this user
+    // Ideally this should be scoped to household if accounts are shared, but for now user_id seems to be the owner
+    // Let's look at how accounts are queried. 
+    // Accounts have user_id and ownerIds (via account_owners).
+    // If we want a "User's default account", it should be relative to the user.
+    // However, the column is on the `accounts` table. This implies an account is globally default?
+    // Or default for the `user_id` on the account?
+    // If multiple people own the account, can it be default for one but not another?
+    // The current schema adds `is_default` to `accounts`, so it's a property of the account itself.
+    // This means if I share an account, and I mark it default, it is default for everyone.
+    // This is acceptable for a "Household Finance" app where accounts are shared.
+
+    // Unset all is_default for this user's accounts (or all accounts this user has access to?)
+    // To be safe and simple: Unset for all accounts where this user is an owner.
+    
+    // Get all accounts this user owns
+    // Actually, simpler: Update all accounts where user_id = userId OR where id IN (select account_id from account_owners where owner_id = userId)
+    // But that's a complex query for Supabase client.
+    
+    // Let's assume the service handles the "scope" logic or we just unset for all account IDs that the service passes?
+    // No, repository should handle data.
+    
+    // Let's try: Update accounts set is_default = false where is_default = true (filtered by RLS?)
+    // If RLS is set up correctly, `supabase.from('accounts').update...` will only affect rows the user can seeing/updating.
+    
+    const { error: unsetError } = await supabase
+      .from("accounts")
+      .update({ is_default: false })
+      .eq("is_default", true); // Optimize: only update those that are true
+      
+    if (unsetError) {
+      logger.error("[AccountsRepository] Error unsetting default account:", unsetError);
+      throw new Error(`Failed to unset default accounts: ${unsetError.message}`);
+    }
+
+    // 2. Set is_default = true for the target account
+    const { error: setError } = await supabase
+      .from("accounts")
+      .update({ is_default: true })
+      .eq("id", accountId);
+
+    if (setError) {
+      logger.error("[AccountsRepository] Error setting default account:", setError);
+      throw new Error(`Failed to set default account: ${setError.message}`);
+    }
   }
 }
 

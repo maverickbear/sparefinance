@@ -32,8 +32,8 @@ import { CsvImportExportMockup } from "./demo/csv-import-export-mockup";
 export function LandingFeaturesSection() {
   const mainFeatures = [
     {
-      title: "Track Every Expense Automatically",
-      description: "Connect your bank accounts and see where every dollar goes. No more guessing—know exactly what you're spending on groceries, bills, entertainment, and more.",
+      title: "Track Every Expense",
+      description: "Log your daily spending effortlessly. See exactly where every dollar goes—know exactly what you're spending on groceries, bills, entertainment, and more.",
       icon: TrendingUp,
       mockup: <ExpenseTrackingMockup />,
     },
@@ -77,8 +77,8 @@ export function LandingFeaturesSection() {
       mockup: <InvestmentPortfolioMockup />,
     },
     {
-      title: "Smart Transaction Categorization",
-      description: "Our intelligent system learns your spending patterns and automatically categorizes transactions. Just approve or adjust—it gets smarter over time.",
+      title: "Easy Transaction Categorization",
+      description: "Our intelligent system helps you categorize transactions quickly. Just select or adjust—it gets smarter over time.",
       icon: Sparkles,
       tag: "AI-Powered",
       tagColor: "bg-primary text-black",

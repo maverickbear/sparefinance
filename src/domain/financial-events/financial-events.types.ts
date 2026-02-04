@@ -37,6 +37,7 @@ export interface BaseFinancialEvent {
   toAccount?: { id: string; name: string } | null;
   category?: { id: string; name: string } | null;
   subcategory?: { id: string; name: string; logo?: string | null } | null;
+  debt?: { id: string; name: string } | null;
 }
 
 // Backward compatibility: export old name

@@ -87,6 +87,7 @@ interface Account {
   id: string;
   name: string;
   type: string;
+  isDefault?: boolean;
 }
 
 // Helper function to format account type for display
@@ -313,6 +314,13 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         const accountsData = await accountsRes.json().catch(() => []);
           setAccounts(accountsData);
           
+          if (accountsData.length > 0) {
+            const defaultAccount = accountsData.find((a: any) => a.isDefault);
+            if (defaultAccount) {
+              form.setValue('accountId', defaultAccount.id);
+            }
+          }
+
         if (accountsData.length === 0) {
           // No accounts, show the dialog
           setShowAccountDialog(true);
@@ -392,7 +400,13 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
       } else {
         const accountsData = await accountsRes.json().catch(() => []);
         setAccounts(accountsData);
+        if (accountsData.length > 0 && !transaction) {
+          const defaultAccount = accountsData.find((a: any) => a.isDefault);
+          if (defaultAccount) {
+            form.setValue('accountId', defaultAccount.id);
+          }
         }
+      }
       }
     } catch (error) {
       logger.error("Error loading data:", error);

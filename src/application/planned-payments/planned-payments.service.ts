@@ -9,6 +9,7 @@
 import { PlannedPaymentsRepository } from "@/src/infrastructure/database/repositories/planned-payments.repository";
 import { AccountsRepository } from "@/src/infrastructure/database/repositories/accounts.repository";
 import { CategoriesRepository } from "@/src/infrastructure/database/repositories/categories.repository";
+import { DebtsRepository } from "@/src/infrastructure/database/repositories/debts.repository";
 import { PlannedPaymentsMapper } from "./planned-payments.mapper";
 // Use new domain types (with backward compatibility)
 // Use new domain types (with backward compatibility)
@@ -29,7 +30,8 @@ export class PlannedPaymentsService {
   constructor(
     private repository: PlannedPaymentsRepository,
     private accountsRepository: AccountsRepository,
-    private categoriesRepository: CategoriesRepository
+    private categoriesRepository: CategoriesRepository,
+    private debtsRepository: DebtsRepository
   ) {}
 
   /**
@@ -97,15 +99,17 @@ export class PlannedPaymentsService {
     const accountIds = new Set<string>();
     const categoryIds = new Set<string>();
     const subcategoryIds = new Set<string>();
+    const debtIds = new Set<string>();
 
     data.forEach(pp => {
       if (pp.account_id) accountIds.add(pp.account_id);
       if (pp.to_account_id) accountIds.add(pp.to_account_id);
       if (pp.category_id) categoryIds.add(pp.category_id);
       if (pp.subcategory_id) subcategoryIds.add(pp.subcategory_id);
+      if (pp.debt_id) debtIds.add(pp.debt_id);
     });
 
-    const [accounts, categories, subcategories] = await Promise.all([
+    const [accounts, categories, subcategories, debts] = await Promise.all([
       accountIds.size > 0
         ? this.accountsRepository.findByIds(Array.from(accountIds), accessToken, refreshToken)
         : Promise.resolve([]),
@@ -115,11 +119,15 @@ export class PlannedPaymentsService {
       subcategoryIds.size > 0
         ? this.categoriesRepository.findSubcategoriesByIds(Array.from(subcategoryIds), accessToken, refreshToken)
         : Promise.resolve([]),
+      debtIds.size > 0
+        ? this.debtsRepository.findByIds(Array.from(debtIds), accessToken, refreshToken)
+        : Promise.resolve([]),
     ]);
 
     const accountMap = new Map(accounts.map(a => [a.id, a]));
     const categoryMap = new Map(categories.map(c => [c.id, c]));
     const subcategoryMap = new Map(subcategories.map(s => [s.id, s]));
+    const debtMap = new Map(debts.map(d => [d.id, d]));
 
     const plannedPayments = data.map(pp => {
       return PlannedPaymentsMapper.toDomain(pp, {
@@ -127,6 +135,7 @@ export class PlannedPaymentsService {
         toAccount: pp.to_account_id ? (accountMap.get(pp.to_account_id) || null) : null,
         category: pp.category_id ? (categoryMap.get(pp.category_id) || null) : null,
         subcategory: pp.subcategory_id ? (subcategoryMap.get(pp.subcategory_id) || null) : null,
+        debt: pp.debt_id ? (debtMap.get(pp.debt_id) || null) : null,
       });
     });
 
@@ -406,6 +415,7 @@ export class PlannedPaymentsService {
     toAccount?: { id: string; name: string } | null;
     category?: { id: string; name: string } | null;
     subcategory?: { id: string; name: string; logo?: string | null } | null;
+    debt?: { id: string; name: string } | null;
   }> {
     const relations: any = {};
 
@@ -427,6 +437,11 @@ export class PlannedPaymentsService {
     if (row.subcategory_id) {
       const subcategory = await this.categoriesRepository.findSubcategoryById(row.subcategory_id, accessToken, refreshToken);
       relations.subcategory = subcategory ? { id: subcategory.id, name: subcategory.name, logo: subcategory.logo } : null;
+    }
+
+    if (row.debt_id) {
+      const debt = await this.debtsRepository.findById(row.debt_id, accessToken, refreshToken);
+      relations.debt = debt ? { id: debt.id, name: debt.name } : null;
     }
 
     return relations;

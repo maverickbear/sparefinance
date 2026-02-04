@@ -20,6 +20,7 @@ export class PlannedPaymentsMapper {
       toAccount?: { id: string; name: string } | null;
       category?: { id: string; name: string } | null;
       subcategory?: { id: string; name: string; logo?: string | null } | null;
+      debt?: { id: string; name: string } | null;
     }
   ): BaseFinancialEvent {
     return {
@@ -46,6 +47,7 @@ export class PlannedPaymentsMapper {
       toAccount: relations?.toAccount || null,
       category: relations?.category || null,
       subcategory: relations?.subcategory || null,
+      debt: relations?.debt || null,
     };
   }
 

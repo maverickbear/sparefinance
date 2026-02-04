@@ -106,6 +106,34 @@ export class DebtsRepository {
   }
 
   /**
+   * Find multiple debts by IDs (returns id and name only for enrichment)
+   */
+  async findByIds(
+    ids: string[],
+    accessToken?: string,
+    refreshToken?: string
+  ): Promise<Array<{ id: string; name: string }>> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const supabase = await createServerClient(accessToken, refreshToken);
+
+    const { data: debts, error } = await supabase
+      .from("debts")
+      .select("id, name")
+      .in("id", ids)
+      .is("deleted_at", null);
+
+    if (error) {
+      logger.error("[DebtsRepository] Error fetching debts by IDs:", error);
+      throw new Error(`Failed to fetch debts: ${error.message}`);
+    }
+
+    return (debts || []) as Array<{ id: string; name: string }>;
+  }
+
+  /**
    * Create a new debt
    */
   async create(data: {

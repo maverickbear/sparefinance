@@ -4,7 +4,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Loader2, RefreshCw, Unlink, AlertCircle } from "lucide-react";
+import { Edit, Trash2, Loader2, RefreshCw, Unlink, AlertCircle, Star } from "lucide-react";
 import { formatMoney } from "@/components/common/money";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -22,8 +22,10 @@ export interface AccountCardProps {
     ownerAvatarUrl?: string | null;
     institutionName?: string | null;
     institutionLogo?: string | null;
+    isDefault?: boolean;
   };
   onEdit?: (accountId: string) => void;
+  onSetDefault?: (accountId: string) => void;
   onDelete?: (accountId: string) => void;
   deletingId?: string | null;
   canDelete?: boolean;
@@ -33,6 +35,7 @@ export interface AccountCardProps {
 export function AccountCard({
   account,
   onEdit,
+  onSetDefault,
   onDelete,
   deletingId,
   canDelete = true,
@@ -63,6 +66,23 @@ export function AccountCard({
             </div>
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0">
+            {onSetDefault && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSetDefault(account.id);
+                }}
+                title={account.isDefault ? "Default account" : "Set as default"}
+                className={cn(
+                  account.isDefault ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-yellow-500"
+                )}
+                disabled={account.isDefault}
+              >
+                <Star className={cn("h-3.5 w-3.5", account.isDefault && "fill-current")} />
+              </Button>
+            )}
             {onEdit && canEdit && (
               <Button
                 variant="ghost"

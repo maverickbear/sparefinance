@@ -60,8 +60,7 @@ export function SubscriptionForm({
   const [subcategories, setSubcategories] = useState<Array<{ id: string; name: string; categoryId: string }>>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string | null>(null);
-  const [isAddingNewSubcategory, setIsAddingNewSubcategory] = useState(false);
-  const [newSubcategoryName, setNewSubcategoryName] = useState("");
+
   
   // New subscription services state
   const [subscriptionServiceCategories, setSubscriptionServiceCategories] = useState<any[]>([]);
@@ -172,7 +171,6 @@ export function SubscriptionForm({
       accountId: "",
       firstBillingDate: new Date(),
       categoryId: null,
-      newSubcategoryName: null,
       planId: null,
     },
   });
@@ -218,61 +216,7 @@ export function SubscriptionForm({
   }
 
 
-  // Find or create subcategory for a service
-  async function findOrCreateSubcategoryForService(serviceName: string, serviceLogo?: string | null) {
-    // Find all Subscriptions categories (groups removed)
-    const subscriptionsCategories = allCategories.filter((category) => {
-      const categoryName = category.name?.toLowerCase() || "";
-      return categoryName.includes("subscription");
-    });
 
-    if (subscriptionsCategories.length === 0) {
-      // Don't log error to console - this is expected if categories haven't loaded yet
-      // The user can still create a custom subcategory manually
-      return null;
-    }
-
-    // First, try to find existing subcategory with the same name across all Subscriptions categories
-    for (const category of subscriptionsCategories) {
-      const existingSubcategory = category.subcategories?.find(
-        (subcat) => subcat.name.toLowerCase() === serviceName.toLowerCase()
-      );
-
-      if (existingSubcategory) {
-        return existingSubcategory.id;
-      }
-    }
-
-    // If not found, create a new subcategory in the first Subscriptions category
-    const category = subscriptionsCategories[0];
-    
-    try {
-      const response = await fetch(`/api/v2/categories/${category.id}/subcategories`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: serviceName,
-          logo: serviceLogo || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error("Error creating subcategory:", error);
-        return null;
-      }
-
-      const newSubcategory = await response.json();
-      
-      // Reload categories to include the new subcategory
-      await loadAllCategories();
-      
-      return newSubcategory.id;
-    } catch (error) {
-      console.error("Error creating subcategory:", error);
-      return null;
-    }
-  }
 
   // Set category filter when editing and categories are loaded
   useEffect(() => {
@@ -310,7 +254,7 @@ export function SubscriptionForm({
         accountId: subscription.accountId,
         firstBillingDate: subscription.firstBillingDate ? new Date(subscription.firstBillingDate) : new Date(),
         categoryId: null,
-        newSubcategoryName: null,
+
       });
       setBillingFrequency(subscription.billingFrequency);
       
@@ -332,14 +276,12 @@ export function SubscriptionForm({
         accountId: accounts.length > 0 ? accounts[0].id : "",
         firstBillingDate: new Date(),
         categoryId: null,
-        newSubcategoryName: null,
       });
       setBillingFrequency("monthly");
       setSelectedCategoryId("");
       setSelectedCategoryFilter(null);
       setSubcategories([]);
-      setIsAddingNewSubcategory(false);
-      setNewSubcategoryName("");
+
       setSelectedServiceId(null);
     }
   }, [open, subscription, accounts.length]);
@@ -446,8 +388,8 @@ export function SubscriptionForm({
     if (!categoryId) {
       setSelectedServiceId(null);
       form.setValue("serviceName", "");
+      form.setValue("serviceName", "");
       form.setValue("subcategoryId", null);
-      setIsAddingNewSubcategory(false);
       return;
     }
     
@@ -476,86 +418,75 @@ export function SubscriptionForm({
     }
   }
 
-  function handleSelectChange(value: string) {
-    if (value === "custom") {
-      // User wants to create custom service name
-      setIsAddingNewSubcategory(true);
-      form.setValue("subcategoryId", null);
-      form.setValue("serviceName", "");
-      setSelectedCategoryId("");
-    } else if (value) {
-      // Selected an existing subcategory
-      const subcategories = getSubscriptionsSubcategories();
-      const selected = subcategories.find((sub) => sub.id === value);
-      if (selected) {
-        form.setValue("subcategoryId", selected.id);
-        form.setValue("serviceName", selected.name);
-        setSelectedCategoryId(selected.categoryId);
-        setIsAddingNewSubcategory(false);
-      }
-    } else {
-      // Cleared
-      form.setValue("subcategoryId", null);
-      form.setValue("serviceName", "");
-      setSelectedCategoryId("");
-      setIsAddingNewSubcategory(false);
-    }
-  }
 
-  async function handleCreateNewSubcategory() {
-    if (!newSubcategoryName.trim() || !selectedCategoryId) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter a subcategory name and select a category",
-        variant: "destructive",
-      });
-      return;
-    }
 
-    try {
-      const res = await fetch(`/api/v2/categories/${selectedCategoryId}/subcategories`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newSubcategoryName.trim() }),
-      });
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to create subcategory");
-      }
-
-      const newSubcategory = await res.json();
-      setSubcategories([...subcategories, { ...newSubcategory, categoryId: selectedCategoryId }]);
-      form.setValue("subcategoryId", newSubcategory.id);
-      form.setValue("serviceName", newSubcategory.name);
-      setIsAddingNewSubcategory(false);
-      setNewSubcategoryName("");
-      
-      toast({
-        title: "Success",
-        description: "Subcategory created successfully",
-        variant: "success",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create subcategory",
-        variant: "destructive",
-      });
-    }
-  }
 
   async function onSubmit(data: UserServiceSubscriptionFormData) {
     try {
       setIsSubmitting(true);
+
+      // Check if service name matches an existing subcategory in the selected category
+      let finalSubcategoryId = data.subcategoryId;
+      let finalNewSubcategoryName = null;
+      let finalCategoryId = data.categoryId;
+
+      if (selectedCategoryId && data.serviceName) {
+         // Fix: Check if selectedCategoryId is a real DB category
+         // If "virtual" (like 'cat-software'), fallback to the first "Subscription" category
+         const isRealCategory = allCategories.some(c => c.id === selectedCategoryId);
+         let targetCategoryId = selectedCategoryId;
+
+         if (!isRealCategory) {
+            const subscriptionsCategories = allCategories.filter((category) => {
+              const categoryName = category.name?.toLowerCase() || "";
+              return categoryName.includes("subscription");
+            });
+            if (subscriptionsCategories.length > 0) {
+              targetCategoryId = subscriptionsCategories[0].id;
+            }
+         }
+         
+         finalCategoryId = targetCategoryId;
+         
+         // Find subcategories for this category to check for duplicates
+         // Use the original selectedCategoryId for UI consistency if we have subcategories loaded for it
+         // But for creation we MUST use targetCategoryId
+         let subcats: any[] = [];
+         
+         // Try to get subcategories from the target category (real one)
+         const realCategory = allCategories.find(c => c.id === targetCategoryId);
+         if (realCategory?.subcategories) {
+           subcats = realCategory.subcategories;
+         }
+         
+         if (subcats.length === 0) {
+           // Fallback to currently loaded subcategories state
+           subcats = subcategories;
+         }
+
+         const existingSubcategory = subcats.find(
+           (sc) => sc.name.toLowerCase() === data.serviceName.trim().toLowerCase()
+         );
+
+         if (existingSubcategory) {
+           finalSubcategoryId = existingSubcategory.id;
+           finalNewSubcategoryName = null;
+         } else {
+           finalSubcategoryId = null;
+           finalNewSubcategoryName = data.serviceName.trim();
+         }
+      }
 
       const formData: UserServiceSubscriptionFormData = {
         ...data,
         firstBillingDate: data.firstBillingDate instanceof Date 
           ? data.firstBillingDate 
           : new Date(data.firstBillingDate),
-        categoryId: isAddingNewSubcategory && selectedCategoryId ? selectedCategoryId : null,
-        newSubcategoryName: isAddingNewSubcategory ? newSubcategoryName.trim() : null,
+        categoryId: finalCategoryId,
+        subcategoryId: finalSubcategoryId,
+        newSubcategoryName: finalNewSubcategoryName,
+        serviceName: data.serviceName.trim(), 
       };
 
       // Save subscription
@@ -629,168 +560,42 @@ export function SubscriptionForm({
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
           {/* Service Name / Subcategory */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Subscription Category</label>
-            <div className="flex flex-wrap gap-2">
-              {getSubscriptionCategories().map((category) => (
-                <Badge
-                  key={category.id}
-                  variant={selectedCategoryFilter === category.id ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    // Toggle: if already selected, deselect to show all
-                    if (selectedCategoryFilter === category.id) {
-                      handleCategoryFilterClick(null);
-                    } else {
-                      handleCategoryFilterClick(category.id);
-                    }
-                  }}
-                >
-                  {category.name}
-                </Badge>
-              ))}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Subscription Category</label>
+              <Select
+                value={selectedCategoryFilter || ""}
+                onValueChange={(value) => {
+                  const categoryId = value === "all" ? null : value;
+                  handleCategoryFilterClick(categoryId);
+                  // Ensure selectedCategoryId is set for "Create New" functionality
+                  if (categoryId) {
+                    setSelectedCategoryId(categoryId);
+                    form.setValue("categoryId", categoryId);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getSubscriptionCategories().map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Service Name</label>
-            {!selectedCategoryFilter ? (
-              <p className="text-sm text-muted-foreground">
-                Please select a subscription category to view available services.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {/* Custom Service Card - Always First */}
-                <Card
-                  className={`cursor-pointer transition-all hover:border-primary w-[100px] h-[100px] flex items-center justify-center ${
-                    isAddingNewSubcategory
-                      ? "border-primary border-2 bg-primary/5"
-                      : "border-border"
-                  }`}
-                  onClick={() => {
-                  setSelectedServiceId(null);
-                  form.setValue("serviceName", "");
-                  form.setValue("subcategoryId", null);
-                  setIsAddingNewSubcategory(true);
-                  }}
-                >
-                  <CardContent className="p-2 flex flex-col items-center justify-center h-full">
-                    <div className="flex flex-col items-center gap-1 text-center">
-                      {isAddingNewSubcategory && (
-                        <Check className="h-4 w-4 text-primary mb-1" />
-                      )}
-                      <Plus className="h-5 w-5 text-muted-foreground mb-1" />
-                      <span className="font-medium text-xs leading-tight text-muted-foreground">
-                        Create New
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Service Cards */}
-                {(() => {
-                    const category = subscriptionServiceCategories.find(
-                      (cat) => cat.id === selectedCategoryFilter
-                    );
-                  const servicesToShow = category
-                    ? [...category.services].sort((a, b) => a.name.localeCompare(b.name))
-                    : [];
-
-                  return servicesToShow.map((service) => {
-                    const isSelected = selectedServiceId === service.id;
-                      return (
-                      <Card
-                        key={service.id}
-                        className={`cursor-pointer transition-all hover:border-primary w-[100px] h-[100px] flex items-center justify-center ${
-                          isSelected
-                            ? "border-primary border-2 bg-primary/5"
-                            : "border-border"
-                        }`}
-                        onClick={async () => {
-                          setSelectedServiceId(service.id);
-                          form.setValue("serviceName", service.name);
-                          setIsAddingNewSubcategory(false);
-                          
-                          // Find or create subcategory for this service
-                          const subcategoryId = await findOrCreateSubcategoryForService(service.name, service.logo);
-                          if (subcategoryId) {
-                            form.setValue("subcategoryId", subcategoryId);
-                          } else {
-                            form.setValue("subcategoryId", null);
-                          }
-                          
-                          // Ensure planId is null - users enter amounts manually
-                          form.setValue("planId", null);
-                        }}
-                      >
-                        <CardContent className="p-2 flex flex-col items-center justify-center h-full">
-                          <div className="flex flex-col items-center gap-1 text-center">
-                            {isSelected && (
-                              <Check className="h-4 w-4 text-primary mb-1" />
-                            )}
-                            {service.logo ? (
-                                  <img
-                                    src={service.logo}
-                                    alt={service.name}
-                                className="h-8 w-8 object-contain mb-1"
-                                  />
-                            ) : (
-                              <div className="h-8 w-8 mb-1" />
-                                )}
-                            <span className="font-medium text-xs leading-tight">
-                              {service.name}
-                            </span>
-                              </div>
-                        </CardContent>
-                      </Card>
-                      );
-                  });
-                })()}
-                      </div>
-                )}
-
-            {isAddingNewSubcategory && (
-              <div className="space-y-2">
-                <Select
-                  value={selectedCategoryId || ""}
-                  onValueChange={(value) => {
-                    setSelectedCategoryId(value);
-                    form.setValue("categoryId", value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category for new subcategory" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allCategories
-                      .filter((category) => {
-                        const categoryName = category.name?.toLowerCase() || "";
-                        return categoryName.includes("subscription");
-                      })
-                      .map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Enter new subcategory name"
-                    value={newSubcategoryName}
-                    onChange={(e) => setNewSubcategoryName(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    onClick={handleCreateNewSubcategory}
-                    variant="outline"
-                  >
-                    Create
-                  </Button>
-                </div>
-              </div>
-            )}
-
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Service Name</label>
+              <Input
+                placeholder="e.g. Netflix, Spotify, Gym"
+                disabled={!selectedCategoryFilter}
+                {...form.register("serviceName")}
+              />
+            </div>
           </div>
 
           {/* Amount and Account */}

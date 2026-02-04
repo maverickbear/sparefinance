@@ -13,8 +13,9 @@ import { makeCategoriesService } from "@/src/application/categories/categories.f
 import { BudgetRuleProfile, BudgetRuleType } from "../../domain/budgets/budget-rules.types";
 import { AppError } from "./app-error";
 import type { AccountWithBalance } from "../../domain/accounts/accounts.types";
-import type { BaseGoal } from "../../domain/goals/goals.types";
+import type { BaseGoal, GoalWithCalculations } from "../../domain/goals/goals.types";
 import type { TransactionWithRelations } from "../../domain/transactions/transactions.types";
+import type { DebtWithCalculations } from "../../domain/debts/debts.types";
 
 export interface FinancialHealthData {
   score: number;
@@ -48,9 +49,13 @@ async function calculateFinancialHealthInternal(
   selectedDate?: Date,
   accessToken?: string,
   refreshToken?: string,
-  accounts?: AccountWithBalance[], // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
+  accounts?: AccountWithBalance[] | null, // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
   projectedIncome?: number, // Optional projected income for initial score calculation
-  budgetRule?: BudgetRuleProfile // Optional budget rule for validation
+  budgetRule?: BudgetRuleProfile, // Optional budget rule for validation
+  preFetchedTransactions?: TransactionWithRelations[] | null,
+  preFetchedPreviousTransactions?: TransactionWithRelations[] | null,
+  preFetchedDebts?: DebtWithCalculations[] | null,
+  preFetchedGoals?: GoalWithCalculations[] | null
 ): Promise<FinancialHealthData> {
   const date = selectedDate || new Date();
   const selectedMonth = startOfMonth(date);
@@ -60,20 +65,25 @@ async function calculateFinancialHealthInternal(
   // Call internal function directly to avoid reading cookies inside cached function
   const log = logger.withPrefix("calculateFinancialHealthInternal");
 
-  const transactionsService = makeTransactionsService();
-  const transactionsResult = await transactionsService.getTransactions(
-    {
-      startDate: selectedMonth,
-      endDate: selectedMonthEnd,
-    },
-    accessToken,
-    refreshToken
-  );
-  
-  // Extract transactions array from result
-  const transactions = Array.isArray(transactionsResult)
-    ? transactionsResult
-    : (transactionsResult?.transactions || []);
+  let transactions: TransactionWithRelations[] = [];
+  if (preFetchedTransactions) {
+    transactions = preFetchedTransactions;
+  } else {
+    const transactionsService = makeTransactionsService();
+    const transactionsResult = await transactionsService.getTransactions(
+      {
+        startDate: selectedMonth,
+        endDate: selectedMonthEnd,
+      },
+      accessToken,
+      refreshToken
+    );
+    
+    // Extract transactions array from result
+    transactions = Array.isArray(transactionsResult)
+      ? transactionsResult
+      : (transactionsResult?.transactions || []);
+  }
   
   // Only count income and expense transactions (exclude transfers)
   let monthlyIncome = transactions
@@ -385,20 +395,27 @@ async function calculateFinancialHealthInternal(
   let lastMonthScore: number | undefined;
   try {
     const lastMonth = subMonths(selectedMonth, 1);
-    const lastMonthEnd = endOfMonth(lastMonth);
-    const lastMonthTransactionsResult = await transactionsService.getTransactions(
-      {
-        startDate: lastMonth,
-        endDate: lastMonthEnd,
-      },
-      accessToken,
-      refreshToken
-    );
+    
+    let lastMonthTransactions: TransactionWithRelations[] = [];
+    if (preFetchedPreviousTransactions) {
+      lastMonthTransactions = preFetchedPreviousTransactions;
+    } else {
+      const transactionsService = makeTransactionsService();
+      const lastMonthEnd = endOfMonth(lastMonth);
+      const lastMonthTransactionsResult = await transactionsService.getTransactions(
+        {
+          startDate: lastMonth,
+          endDate: lastMonthEnd,
+        },
+        accessToken,
+        refreshToken
+      );
 
-    // Extract transactions array from result
-    const lastMonthTransactions = Array.isArray(lastMonthTransactionsResult)
-      ? lastMonthTransactionsResult
-      : (lastMonthTransactionsResult?.transactions || []);
+      // Extract transactions array from result
+      lastMonthTransactions = Array.isArray(lastMonthTransactionsResult)
+        ? lastMonthTransactionsResult
+        : (lastMonthTransactionsResult?.transactions || []);
+    }
 
     const lastMonthIncome = lastMonthTransactions
       .filter((t) => {
@@ -477,8 +494,13 @@ async function calculateFinancialHealthInternal(
 
     if (userId) {
       // Get total debts
-      const debtsService = makeDebtsService();
-      const debts = await debtsService.getDebts(accessToken, refreshToken);
+      let debts: DebtWithCalculations[] = [];
+      if (preFetchedDebts) {
+        debts = preFetchedDebts;
+      } else {
+        const debtsService = makeDebtsService();
+        debts = await debtsService.getDebts(accessToken, refreshToken);
+      }
 
       let totalDebts = 0;
 
@@ -531,15 +553,28 @@ async function calculateFinancialHealthInternal(
       const householdId = await getActiveHouseholdId(user.id, accessToken, refreshToken);
       
       if (householdId) {
-        const { data: goal } = await supabase
-          .from("goals")
-          .select("*")
-          .eq("household_id", householdId)
-          .eq("name", "Emergency Funds")
-          .eq("is_system_goal", true)
-          .maybeSingle();
-        
-        emergencyFundGoal = goal;
+        if (preFetchedGoals) {
+          // Use pre-fetched goals if available
+          const goal = preFetchedGoals.find(g => 
+            g.householdId === householdId && 
+            g.name === "Emergency Funds" && 
+            g.isSystemGoal
+          );
+          if (goal) {
+            emergencyFundGoal = goal;
+          }
+        } else {
+          // Fallback to DB fetch
+          const { data: goal } = await supabase
+            .from("goals")
+            .select("*")
+            .eq("household_id", householdId)
+            .eq("name", "Emergency Funds")
+            .eq("is_system_goal", true)
+            .maybeSingle();
+          
+          emergencyFundGoal = goal;
+        }
         
         // If emergency fund goal exists, always use its currentBalance
         // This is the preferred method - use the Goal value from the system
@@ -690,9 +725,13 @@ export async function calculateFinancialHealth(
   userId?: string | null,
   accessToken?: string,
   refreshToken?: string,
-  accounts?: AccountWithBalance[], // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
+  accounts?: AccountWithBalance[] | null, // OPTIMIZED: Accept accounts to avoid duplicate getAccounts() call
   projectedIncome?: number, // Optional projected income for initial score calculation
-  budgetRule?: BudgetRuleProfile // Optional budget rule for validation
+  budgetRule?: BudgetRuleProfile, // Optional budget rule for validation
+  preFetchedTransactions?: TransactionWithRelations[] | null,
+  preFetchedPreviousTransactions?: TransactionWithRelations[] | null,
+  preFetchedDebts?: DebtWithCalculations[] | null,
+  preFetchedGoals?: GoalWithCalculations[] | null
 ): Promise<FinancialHealthData> {
   const log = logger.withPrefix("calculateFinancialHealth");
   
@@ -734,7 +773,18 @@ export async function calculateFinancialHealth(
   }
   
   try {
-    const result = await calculateFinancialHealthInternal(selectedDate, finalAccessToken, finalRefreshToken, accounts, projectedIncome, budgetRule);
+    const result = await calculateFinancialHealthInternal(
+      selectedDate, 
+      finalAccessToken, 
+      finalRefreshToken, 
+      accounts, 
+      projectedIncome, 
+      budgetRule,
+      preFetchedTransactions,
+      preFetchedPreviousTransactions,
+      preFetchedDebts,
+      preFetchedGoals
+    );
     
     // Validate result before returning
     if (result.score === undefined || isNaN(result.score) || !isFinite(result.score)) {

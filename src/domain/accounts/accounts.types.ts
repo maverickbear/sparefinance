@@ -14,6 +14,7 @@ export interface BaseAccount {
   updatedAt?: string;
   dueDayOfMonth?: number | null;
   extraCredit?: number;
+  isDefault?: boolean;
 }
 
 export interface AccountWithBalance extends BaseAccount {

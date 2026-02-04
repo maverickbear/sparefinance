@@ -2,7 +2,7 @@
 
 import { RecurringWidgetData } from "@/src/domain/dashboard/types";
 import { WidgetCard } from "./widget-card";
-import { ChevronRight, RefreshCw, Music, MonitorPlay, MessageSquare } from "lucide-react";
+import { ChevronRight, RefreshCw, Music, MonitorPlay, MessageSquare, Calendar } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,7 @@ export function RecurringWidget({ data, className }: RecurringWidgetProps) {
 
   const SeeAllLink = () => (
     <Link 
-      href="/planning/recurring" 
+      href="/planned-payment" 
       className="flex items-center text-sm font-medium hover:underline"
     >
       See all <ChevronRight className="ml-1 h-4 w-4" />
@@ -25,7 +25,7 @@ export function RecurringWidget({ data, className }: RecurringWidgetProps) {
 
   return (
     <WidgetCard
-      title="Recurring"
+      title="Planned Payments"
       headerAction={<SeeAllLink />} 
       className={className}
     >
@@ -49,8 +49,9 @@ export function RecurringWidget({ data, className }: RecurringWidgetProps) {
                  ${item.amount.toFixed(2)}
                </span>
                
-               <span className="text-xs text-muted-foreground flex items-center min-w-[60px] justify-end">
-                 <span>📅</span> {item.nextDate}
+               <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[60px] justify-end">
+                 <Calendar className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                 {item.nextDate}
                </span>
                
                <ChevronRight className="h-4 w-4 text-muted-foreground" />

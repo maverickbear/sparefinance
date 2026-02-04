@@ -100,10 +100,20 @@ export class RecurringPlannedPaymentsService {
         currentDate.setMonth(currentDate.getMonth() + 1);
       }
 
+      // Supabase returns snake_case; resolve account id from column or joined relation
+      const accountRelation = (tx as { account?: { id?: string } | Array<{ id?: string }> }).account;
+      const txAccountId =
+        (tx as { account_id?: string }).account_id ??
+        (Array.isArray(accountRelation) ? accountRelation[0]?.id : accountRelation?.id);
+      if (!txAccountId) {
+        logger.warn(`[RecurringPlannedPaymentsService] Skipping recurring transaction ${tx.id}: no account_id`);
+        continue;
+      }
+
       // Generate payments until horizon
       while (currentDate <= horizonDate) {
         const dateStr = currentDate.toISOString().split("T")[0];
-        const key = `${tx.accountId}-${dateStr}-${amount}`;
+        const key = `${txAccountId}-${dateStr}-${amount}`;
 
         // Skip if already exists
         if (existingKeys.has(key)) {
@@ -113,13 +123,7 @@ export class RecurringPlannedPaymentsService {
         }
 
         try {
-          // Handle account (can be array or object)
-          let account = null;
-          if (tx.account) {
-            account = Array.isArray(tx.account) ? (tx.account.length > 0 ? tx.account[0] : null) : tx.account;
-          }
-
-          // Handle category
+          // Handle category (Supabase returns snake_case)
           let category = null;
           if (tx.category) {
             category = Array.isArray(tx.category) ? (tx.category.length > 0 ? tx.category[0] : null) : tx.category;
@@ -132,13 +136,14 @@ export class RecurringPlannedPaymentsService {
           }
 
           const description = decryptDescription(tx.description) || `Recurring: ${tx.description || "Transaction"}`;
+          const toAccountId = tx.type === "transfer" ? (tx.transfer_to_id ?? null) : null;
 
           const plannedPaymentData: PlannedPaymentFormData = {
             date: currentDate,
             type: tx.type,
             amount: Math.abs(amount),
-            accountId: tx.accountId,
-            toAccountId: tx.toAccountId || null,
+            accountId: txAccountId,
+            toAccountId: toAccountId ?? undefined,
             categoryId: category?.id || null,
             subcategoryId: subcategory?.id || null,
             description,

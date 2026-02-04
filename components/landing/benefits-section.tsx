@@ -9,9 +9,9 @@ export function BenefitsSection() {
     {
       title: "Know Exactly Where Your Money Goes",
       subtitle: "Complete Visibility",
-      description: "Stop wondering where your money disappeared. Track every expense automatically, see spending by category, and understand your patterns. Share this view with your family so everyone knows where you stand.",
+      description: "Stop wondering where your money disappeared. Track every expense easily, see spending by category, and understand your patterns. Share this view with your family so everyone knows where you stand.",
       features: [
-        "See all expenses in one place, automatically categorized",
+        "See all expenses in one place, neatly categorized",
         "Understand spending patterns by category and time",
         "Share financial overview with family members",
       ],

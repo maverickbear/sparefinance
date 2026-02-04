@@ -22,6 +22,7 @@ export class AccountsMapper {
       updatedAt: row.updated_at,
       dueDayOfMonth: row.due_day_of_month,
       extraCredit: row.extra_credit,
+      isDefault: row.is_default,
     };
   }
 

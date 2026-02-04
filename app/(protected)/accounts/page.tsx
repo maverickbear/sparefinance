@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Edit, Trash2, Loader2 } from "lucide-react";
+import { CreditCard, Edit, Trash2, Loader2, Star } from "lucide-react";
 import { AccountForm } from "@/components/forms/account-form";
 import { useToast } from "@/components/toast-provider";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
@@ -46,6 +46,7 @@ interface Account {
   ownerName?: string | null;
   institutionName?: string | null;
   institutionLogo?: string | null;
+  isDefault?: boolean;
 }
 
 
@@ -254,6 +255,43 @@ export default function AccountsPage() {
     // Start deletion immediately - loading will show in the table row
     // Dialog is already closed, user can continue using the app
     performDelete(accountIdToDelete, transferToId);
+    performDelete(accountIdToDelete, transferToId);
+  }
+
+  async function handleSetDefault(id: string) {
+    if (!checkWriteAccess()) return;
+    
+    // Optimistic update
+    const previousAccounts = [...accounts];
+    setAccounts(prev => prev.map(acc => ({
+      ...acc,
+      isDefault: acc.id === id
+    })));
+
+    try {
+      const response = await fetch(`/api/v2/accounts/${id}/set-default`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to set default account");
+      }
+      
+      toast({
+        title: "Default account updated",
+        description: "Your default account has been updated successfully.",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error("Error setting default account:", error);
+      // Revert optimistic update
+      setAccounts(previousAccounts);
+      toast({
+        title: "Error",
+        description: "Failed to set default account. Please try again.",
+        variant: "destructive",
+      });
+    }
   }
 
 
@@ -361,6 +399,7 @@ export default function AccountsPage() {
                   <TableHead>Owner</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead className="text-right">Credit Limit</TableHead>
+                  <TableHead>Default</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -423,7 +462,12 @@ export default function AccountsPage() {
                               />
                             )}
                             <div>
-                              <div className="font-medium">{account.name}</div>
+                              <div className="font-medium flex items-center gap-1.5">
+                                {account.name}
+                                {account.isDefault && (
+                                  <Star className="h-3 w-3 text-yellow-500 fill-current" />
+                                )}
+                              </div>
                             </div>
                           </div>
                         </TableCell>
@@ -506,6 +550,22 @@ export default function AccountsPage() {
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                           {canWrite && (
+                            <Button
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => handleSetDefault(account.id)}
+                              title={account.isDefault ? "Default account" : "Set as default"}
+                              className={cn(
+                                account.isDefault ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-yellow-500"
+                              )}
+                              disabled={account.isDefault}
+                            >
+                               <Star className={cn("h-4 w-4", account.isDefault && "fill-current")} />
+                            </Button>
+                           )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -604,6 +664,7 @@ export default function AccountsPage() {
                         }
                       }}
                       onDelete={handleDelete}
+                      onSetDefault={handleSetDefault}
                       deletingId={deletingId}
                       canDelete={canWrite}
                       canEdit={canWrite}

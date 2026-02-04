@@ -96,7 +96,6 @@ export function DynamicPricingTable({
     }
 
     // Features in order of importance (always shown, enabled based on plan)
-    features.push({ label: "Bank integration", enabled: f.hasBankIntegration });
     features.push({ label: "Budgets", enabled: f.hasBudgets });
     features.push({ label: "Goals tracking", enabled: f.hasGoals });
     features.push({ label: "Receipt scanner", enabled: f.hasReceiptScanner });

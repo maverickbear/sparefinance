@@ -64,7 +64,6 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
   const [selectedOwnerIds, setSelectedOwnerIds] = useState<string[]>([]);
   const [loadingHouseholds, setLoadingHouseholds] = useState(false);
   const [userRole, setUserRole] = useState<"admin" | "member" | "super_admin" | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [accountLimit, setAccountLimit] = useState<{ current: number; limit: number } | null>(null);
   const [loadingLimit, setLoadingLimit] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,7 +92,6 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
   // Role comes from AuthContext (handled in separate useEffect)
   useEffect(() => {
     if (open) {
-      loadCurrentUserId();
       loadHouseholds();
       // Use initial limit if provided, otherwise load it
       if (initialAccountLimit !== undefined) {
@@ -108,21 +106,9 @@ export function AccountForm({ open, onOpenChange, account, onSuccess, initialAcc
     }
   }, [open, initialAccountLimit]);
 
-  async function loadCurrentUserId() {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) {
-        console.error("Error loading current user:", error);
-        return;
-      }
-      setCurrentUserId(user.id);
-    } catch (error) {
-      console.error("Error loading current user:", error);
-    }
-  }
-
-  // Use AuthContext for role instead of fetching
-  const { role } = useAuthSafe();
+  // Use AuthContext for user and role
+  const { role, user } = useAuthSafe();
+  const currentUserId = user?.id;
   
   // Update userRole state when role from Context changes
   useEffect(() => {

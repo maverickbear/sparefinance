@@ -71,5 +71,6 @@ export interface IAccountsRepository {
     refreshToken?: string
   ): Promise<Array<{ id: string; name: string | null }>>;
   transferTransactions(fromAccountId: string, toAccountId: string): Promise<number>;
+  setDefaultAccount(accountId: string, userId: string): Promise<void>;
 }
 
