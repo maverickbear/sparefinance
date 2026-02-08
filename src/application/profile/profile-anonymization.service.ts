@@ -177,11 +177,9 @@ export class ProfileAnonymizationService {
   }
 
   /**
-   * Revoke all external tokens (Plaid, etc.)
-   * Disconnects all Plaid items which revokes access tokens
+   * Revoke external tokens (no-op; no external banking).
    */
   async revokeAllTokens(userId: string): Promise<void> {
-    // Plaid support removed
     logger.info("[ProfileAnonymizationService] Tokens revocation skipped - integrations disabled", {
       userId,
     });

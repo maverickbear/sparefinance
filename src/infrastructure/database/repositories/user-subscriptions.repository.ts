@@ -106,6 +106,16 @@ export class UserSubscriptionsRepository {
   }): Promise<UserServiceSubscriptionRow> {
     const supabase = await createServerClient();
 
+    // billing_day: DB check constraint; send only integer 1-31 or omit (DB default). Never send undefined/0/NaN.
+      const rawDay = data.billingDay;
+      const billingDay =
+        rawDay != null &&
+        !Number.isNaN(rawDay) &&
+        rawDay >= 1 &&
+        rawDay <= 31
+          ? Math.floor(Number(rawDay))
+          : null;
+
     const insertData: Record<string, unknown> = {
       id: data.id,
       user_id: data.userId,
@@ -116,13 +126,15 @@ export class UserSubscriptionsRepository {
       amount: data.amount,
       description: data.description,
       billing_frequency: data.billingFrequency,
-      billing_day: data.billingDay,
       account_id: data.accountId,
       is_active: data.isActive,
       first_billing_date: data.firstBillingDate,
       created_at: data.createdAt,
       updated_at: data.updatedAt,
     };
+    if (billingDay !== null) {
+      insertData.billing_day = billingDay;
+    }
 
     const { data: subscription, error } = await supabase
       .from("user_subscriptions")
@@ -157,7 +169,7 @@ export class UserSubscriptionsRepository {
   }>): Promise<UserServiceSubscriptionRow> {
     const supabase = await createServerClient();
 
-    // Map camelCase to snake_case for database
+    // Map camelCase to snake_case for database. billing_day: only 1-31 or null per check constraint.
     const updateData: Record<string, unknown> = {};
     if (data.serviceName !== undefined) updateData.service_name = data.serviceName;
     if (data.subcategoryId !== undefined) updateData.subcategory_id = data.subcategoryId;
@@ -165,7 +177,11 @@ export class UserSubscriptionsRepository {
     if (data.amount !== undefined) updateData.amount = data.amount;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.billingFrequency !== undefined) updateData.billing_frequency = data.billingFrequency;
-    if (data.billingDay !== undefined) updateData.billing_day = data.billingDay;
+    if (data.billingDay !== undefined) {
+      const raw = data.billingDay;
+      const n = raw != null && !Number.isNaN(raw) && raw >= 1 && raw <= 31 ? Math.floor(Number(raw)) : null;
+      updateData.billing_day = n;
+    }
     if (data.accountId !== undefined) updateData.account_id = data.accountId;
     if (data.isActive !== undefined) updateData.is_active = data.isActive;
     if (data.firstBillingDate !== undefined) updateData.first_billing_date = data.firstBillingDate;

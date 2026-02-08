@@ -34,19 +34,21 @@ export function SpareScoreDetailsDialog({
 }: SpareScoreDetailsDialogProps) {
   if (!data) return null;
 
-  // Calculate next milestone
+  const empty = data.isEmptyState ?? false; // No transactions this month — show "—" instead of 0
+
+  // Next tier boundaries: 85 Excellent, 70 Strong, 55 Fair, 40 Fragile (docs/Spare_Score.md)
   const currentScore = data.score;
-  const nextMilestone = 
-    currentScore < 60 ? 60 :
+  const nextMilestone =
+    currentScore < 40 ? 40 :
+    currentScore < 55 ? 55 :
     currentScore < 70 ? 70 :
-    currentScore < 80 ? 80 :
-    currentScore < 90 ? 90 :
+    currentScore < 85 ? 85 :
     100;
-  
+
   const pointsNeeded = nextMilestone - currentScore;
-  const progressToNext = currentScore >= 100 ? 100 : 
-    currentScore < 60 ? (currentScore / 60) * 100 :
-    ((currentScore - (nextMilestone - 10)) / 10) * 100;
+  const bandStart = nextMilestone === 40 ? 0 : nextMilestone - 15;
+  const bandSize = nextMilestone === 40 ? 40 : 15;
+  const progressToNext = currentScore >= 100 ? 100 : Math.max(0, Math.min(100, ((currentScore - bandStart) / bandSize) * 100));
 
   // Prepare data for Radar Chart
   const radarData = [
@@ -101,9 +103,11 @@ export function SpareScoreDetailsDialog({
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Current</p>
                     <div className="flex items-baseline gap-2">
-                       <span className="text-3xl font-bold">{data.score}</span>
+                       <span className="text-3xl font-bold">{empty ? "—" : data.score}</span>
                     </div>
-                    <p className="text-xs font-medium text-primary truncate">{data.classification}</p>
+                    <p className={cn("text-xs font-medium truncate", empty ? "text-muted-foreground" : "text-primary")}>
+                      {empty ? "No data" : data.classification}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -112,10 +116,10 @@ export function SpareScoreDetailsDialog({
                    <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Stats</p>
                     <div className="flex items-baseline gap-2">
-                       <span className="text-3xl font-bold">{pointsNeeded > 0 ? pointsNeeded : 0}</span>
+                       <span className="text-3xl font-bold">{empty ? "—" : (pointsNeeded > 0 ? pointsNeeded : 0)}</span>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
-                      Points to next tier
+                      {empty ? "Add transactions to see score" : "Points to next tier"}
                     </p>
                   </div>
                 </CardContent>
@@ -125,9 +129,9 @@ export function SpareScoreDetailsDialog({
                    <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Progress</p>
                     <div className="flex items-baseline gap-2">
-                       <span className="text-3xl font-bold">{Math.round(progressToNext)}%</span>
+                       <span className="text-3xl font-bold">{empty ? "—" : `${Math.round(progressToNext)}%`}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">To next level</p>
+                    <p className="text-xs text-muted-foreground truncate">{empty ? "No data" : "To next level"}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -137,34 +141,38 @@ export function SpareScoreDetailsDialog({
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <p className="text-sm font-medium">Score Progress</p>
-                <p className="text-sm font-bold">{data.score} / 100</p>
+                <p className="text-sm font-bold">{empty ? "— / 100" : `${data.score} / 100`}</p>
               </div>
               <div className="relative h-3 w-full rounded-full bg-secondary overflow-visible">
                 {/* Gradient Background */}
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 opacity-80" />
                 
-                {/* Marker */}
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 w-1.5 h-5 bg-black dark:bg-white border-2 border-white dark:border-black rounded-full z-10 shadow-sm transition-all duration-500"
-                  style={{ left: `${data.score}%` }}
-                />
+                {/* Marker: hide when empty so we don't show "0%" */}
+                {!empty && (
+                  <div 
+                    className="absolute top-1/2 -translate-y-1/2 w-1.5 h-5 bg-black dark:bg-white border-2 border-white dark:border-black rounded-full z-10 shadow-sm transition-all duration-500"
+                    style={{ left: `${data.score}%` }}
+                  />
+                )}
               </div>
               <div className="flex justify-between text-[10px] text-muted-foreground px-1">
                 <span>0</span>
                 <span>Critical</span>
+                <span>Fragile</span>
                 <span>Fair</span>
-                <span>Good</span>
+                <span>Strong</span>
+                <span>Excellent</span>
                 <span>100</span>
               </div>
             </div>
 
-            {/* Insights - MOVED HERE */}
+            {/* Insights */}
             <div className="space-y-4">
               <h3 className="font-semibold text-base">Insights</h3>
-              <div className="grid gap-3">
+              <div className="grid grid-cols-1 gap-3">
                  {data.alerts.map((alert) => (
-                    <Card key={alert.id}>
-                      <CardContent className="p-4 flex gap-3 items-start">
+                    <Card key={alert.id} className="w-full">
+                      <CardContent className="p-4 md:p-6 flex gap-3 items-start w-full">
                         {alert.severity === 'critical' ? (
                           <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                         ) : alert.severity === 'warning' ? (
@@ -172,7 +180,7 @@ export function SpareScoreDetailsDialog({
                         ) : (
                            <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
                         )}
-                        <div>
+                        <div className="min-w-0 flex-1">
                            <p className="font-medium text-sm">{alert.title}</p>
                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{alert.description}</p>
                            {alert.action && (
@@ -184,14 +192,14 @@ export function SpareScoreDetailsDialog({
                  ))}
                  
                  {data.suggestions.map((suggestion) => (
-                   <Card key={suggestion.id}>
-                      <CardContent className="p-4 flex gap-3 items-start">
+                   <Card key={suggestion.id} className="w-full">
+                      <CardContent className="p-4 md:p-6 flex gap-3 items-start w-full">
                         <div className={cn(
                           "h-2 w-2 rounded-full mt-1.5 shrink-0", 
                           suggestion.impact === 'high' ? "bg-red-500" : 
                           suggestion.impact === 'medium' ? "bg-yellow-500" : "bg-green-500"
                         )} />
-                        <div>
+                        <div className="min-w-0 flex-1">
                            <p className="font-medium text-sm">{suggestion.title}</p>
                            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{suggestion.description}</p>
                         </div>
@@ -242,35 +250,37 @@ export function SpareScoreDetailsDialog({
                 <CardContent className="p-5">
                   <div className="grid grid-cols-2 gap-y-6 gap-x-4">
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Monthly Income</p>
-                      <p className="font-semibold">{formatMoney(data.monthlyIncome)}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                        Monthly Income{data.incomeIsAfterTax ? " (after tax)" : ""}
+                      </p>
+                      <p className="">{empty ? "—" : formatMoney(data.monthlyIncome)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Monthly Expenses</p>
-                      <p className="font-semibold">{formatMoney(data.monthlyExpenses)}</p>
+                      <p className="">{empty ? "—" : formatMoney(data.monthlyExpenses)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Net Flow</p>
-                      <p className={cn("font-semibold", data.netAmount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
-                        {formatMoney(data.netAmount)}
+                      <p className={cn(empty ? "" : data.netAmount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+                        {empty ? "—" : formatMoney(data.netAmount)}
                       </p>
                     </div>
                     <div>
                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Savings Rate</p>
-                       <p className={cn("font-semibold", data.savingsRate >= 20 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400")}>
-                         {data.savingsRate.toFixed(1)}%
+                       <p className={cn(empty ? "" : data.savingsRate >= 20 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400")}>
+                         {empty ? "—" : `${data.savingsRate.toFixed(1)}%`}
                        </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Emergency Fund</p>
-                      <p className={cn("font-semibold", data.emergencyFundMonths >= 6 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400")}>
-                        {data.emergencyFundMonths.toFixed(1)} months
+                      <p className={cn(empty ? "" : data.emergencyFundMonths >= 6 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400")}>
+                        {empty ? "—" : `${data.emergencyFundMonths.toFixed(1)} months`}
                       </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Debt Exposure</p>
-                      <p className={cn("font-semibold", data.debtExposure === "Low" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
-                        {data.debtExposure}
+                      <p className={cn(empty ? "" : data.debtExposure === "Low" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+                        {empty ? "—" : data.debtExposure}
                       </p>
                     </div>
                   </div>

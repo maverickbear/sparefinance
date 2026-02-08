@@ -3,7 +3,6 @@ import {
   Receipt,
   Target,
   FolderTree,
-  TrendingUp,
   FileText,
   CreditCard,
   PiggyBank,
@@ -86,7 +85,6 @@ export const baseNavSections: NavSection[] = [
       { href: "/planning/budgets", label: "Budgets", icon: Target },
       { href: "/planning/goals", label: "Goals", icon: PiggyBank },
       { href: "/debts", label: "Debts", icon: CreditCard },
-      { href: "#", label: "Investments", icon: TrendingUp, soon: true },
     ],
   },
   {
@@ -173,7 +171,6 @@ export const kbarCommandGroups: KBarCommandGroup[] = [
       { id: "budgets", label: "Budgets", icon: Target, href: "/planning/budgets" },
       { id: "goals", label: "Goals", icon: PiggyBank, href: "/planning/goals" },
       { id: "debts", label: "Debts", icon: CreditCard, href: "/debts" },
-      { id: "investments", label: "Investments", icon: TrendingUp, href: "/investments" },
     ],
   },
 ];

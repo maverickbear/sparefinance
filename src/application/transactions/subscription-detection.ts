@@ -277,7 +277,7 @@ export async function detectSubscriptionsFromTransactions(
     }>();
     
     for (const tx of transactions) {
-      // Extract merchant name from description (no longer using plaidMetadata)
+      // Extract merchant name from description
       const merchantName = decryptDescription(tx.description) || "";
       
       if (!merchantName || merchantName.trim().length === 0) {
@@ -285,8 +285,8 @@ export async function detectSubscriptionsFromTransactions(
       }
       
       const normalizedMerchant = normalizeMerchantName(merchantName);
-      const merchantEntityId = null; // No longer available from Plaid
-      const logoUrl = null; // No longer available from Plaid
+        const merchantEntityId = null;
+        const logoUrl = null;
       
       const account = accountsMap.get(tx.account_id);
       const accountId = tx.account_id;

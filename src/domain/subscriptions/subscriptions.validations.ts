@@ -88,7 +88,7 @@ export const userServiceSubscriptionFormSchema = z.object({
   subcategoryId: z.string().optional().nullable(),
   amount: z.number().positive("Amount must be positive"),
   description: z.string().optional().nullable(),
-  billingFrequency: z.enum(["monthly", "weekly", "biweekly", "semimonthly", "daily"]),
+  billingFrequency: z.enum(["monthly", "yearly", "weekly", "biweekly", "semimonthly", "daily"]),
   billingDay: z.number().int().min(1).max(31).optional().nullable(),
   accountId: z.string().min(1, "Account ID is required"),
   firstBillingDate: z.union([z.date(), z.string()]),

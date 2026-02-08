@@ -112,7 +112,7 @@ export function UpcomingPaymentsWidget({ data, loading, error }: UpcomingPayment
                     )}
                   </div>
                 </div>
-                <span className="text-xs font-semibold">{formatMoney(payment.amount)}</span>
+                <span className="text-xs">{formatMoney(payment.amount)}</span>
               </div>
             </div>
           ))}

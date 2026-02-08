@@ -64,6 +64,8 @@ export interface TransactionFilters {
   endDate?: Date;
   categoryId?: string;
   accountId?: string;
+  /** When set, only transactions for these account IDs are returned (takes precedence over accountId). */
+  accountIds?: string[];
   type?: 'income' | 'expense' | 'transfer';
   search?: string;
   isRecurring?: boolean;

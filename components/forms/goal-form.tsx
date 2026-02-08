@@ -15,13 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatMoney } from "@/components/common/money";
 import { calculateProgress, calculateIncomePercentageFromTargetMonths, type GoalForCalculation } from "@/lib/utils/goals";
 import { useToast } from "@/components/toast-provider";
@@ -336,22 +336,10 @@ export function GoalForm({
     }
   }
 
-  async function loadHoldings(accountId: string) {
-    try {
-      setLoadingHoldings(true);
-      const holdingsRes = await fetch(`/api/portfolio/holdings?accountId=${accountId}`);
-      if (holdingsRes.ok) {
-        const holdingsData = await holdingsRes.json().catch(() => []);
-        setHoldings(holdingsData);
-      } else {
-        setHoldings([]);
-      }
-    } catch (error) {
-      console.error("Error loading holdings:", error);
-      setHoldings([]);
-    } finally {
-      setLoadingHoldings(false);
-    }
+  async function loadHoldings(_accountId: string) {
+    // Investment/portfolio feature removed - no holdings to load
+    setHoldings([]);
+    setLoadingHoldings(false);
   }
 
 
@@ -497,25 +485,71 @@ export function GoalForm({
         }}
       />
       {shouldShowForm && (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
-        <DialogHeader>
-          <DialogTitle>{goal ? "Edit" : "Create"} Goal</DialogTitle>
-          <DialogDescription>
-            {goal
-              ? "Update your savings goal details"
-              : "Create a new savings goal and set how much of your income to allocate"}
-          </DialogDescription>
-        </DialogHeader>
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="right" className="sm:max-w-[600px] w-full p-0 flex flex-col gap-0 overflow-hidden bg-background border-l">
+            <SheetHeader className="p-6 pb-4 border-b shrink-0">
+              <SheetTitle className="text-xl">{goal ? "Edit" : "Create"} Goal</SheetTitle>
+              <SheetDescription>
+                {goal
+                  ? "Update your savings goal details"
+                  : "Create a new savings goal and set how much of your income to allocate"}
+              </SheetDescription>
+            </SheetHeader>
 
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col flex-1 overflow-hidden"
-        >
-          <div className="flex-1 overflow-y-auto px-6 py-6">
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-              <div className="space-y-4">
-          <div className="space-y-1">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex flex-col flex-1 overflow-hidden"
+            >
+              <ScrollArea className="flex-1">
+                <div className="p-6 space-y-6">
+                  {/* Goal Forecast - top for visibility */}
+                  <div className="rounded-lg border bg-muted/50 p-5">
+                    {forecast ? (
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-semibold">Goal Forecast</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Monthly savings</p>
+                            <p className="text-base font-semibold">{formatMoney(forecast.monthlyContribution)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Progress</p>
+                            <p className="text-base font-semibold">{forecast.progressPct.toFixed(1)}%</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs text-muted-foreground mb-1">Estimated time to goal</p>
+                            <p className="text-base font-semibold">
+                              {forecast.monthsToGoal === 0
+                                ? "Goal reached! 🎉"
+                                : forecast.monthsToGoal !== null && forecast.monthsToGoal < 12
+                                ? `${Math.round(forecast.monthsToGoal)} month${Math.round(forecast.monthsToGoal) !== 1 ? "s" : ""}`
+                                : forecast.monthsToGoal != null
+                                ? `${Math.floor(forecast.monthsToGoal / 12)}y ${Math.round(forecast.monthsToGoal % 12)}mo`
+                                : "—"}
+                            </p>
+                          </div>
+                        </div>
+                        {forecast.incomeBasis > 0 ? (
+                          <p className="text-xs text-muted-foreground pt-2 border-t">
+                            Based on {formatMoney(forecast.incomeBasis)}/mo · {forecast.totalAllocation.toFixed(1)}% of income
+                          </p>
+                        ) : (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 pt-2 border-t">
+                            ⚠️ Add income transactions for accurate forecasts.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-1">Goal Forecast</h4>
+                        <p className="text-xs text-muted-foreground">Enter goal details to see when you'll reach your target.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Form fields */}
+                  <div className="space-y-5">
+          <div className="space-y-2">
             <label className="text-sm font-medium">
               Goal Name
             </label>
@@ -692,7 +726,7 @@ export function GoalForm({
             )}
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <label className="text-sm font-medium">Description (optional)</label>
             <Textarea
               {...form.register("description")}
@@ -702,92 +736,34 @@ export function GoalForm({
             />
           </div>
 
-              </div>
+                  </div>
+                </div>
+              </ScrollArea>
 
-              {/* Forecast Panel - Right Side */}
-              <div className="lg:sticky lg:top-0 w-full lg:w-[280px]">
-          {forecast ? (
-            <div className="rounded-lg border bg-muted/50 p-6 space-y-3 h-fit">
-              <h4 className="text-sm font-semibold">Goal Forecast</h4>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Monthly savings amount</p>
-                  <p className="text-base font-semibold">
-                    {formatMoney(forecast.monthlyContribution)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Current progress</p>
-                  <p className="text-base font-semibold">
-                    {forecast.progressPct.toFixed(1)}%
-                  </p>
-                </div>
-                {forecast.monthsToGoal !== null && (
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Estimated time to reach goal</p>
-                    <p className="text-base font-semibold">
-                      {forecast.monthsToGoal === 0
-                        ? "Goal reached! 🎉"
-                        : forecast.monthsToGoal < 12
-                        ? `${Math.round(forecast.monthsToGoal)} month${Math.round(forecast.monthsToGoal) !== 1 ? "s" : ""}`
-                        : `${Math.floor(forecast.monthsToGoal / 12)} year${Math.floor(forecast.monthsToGoal / 12) !== 1 ? "s" : ""}, ${Math.round(forecast.monthsToGoal % 12)} month${Math.round(forecast.monthsToGoal % 12) !== 1 ? "s" : ""}`}
-                    </p>
-                  </div>
-                )}
-                <div className="pt-2 border-t space-y-1.5">
-                  {forecast.incomeBasis > 0 ? (
+              <div className="p-4 border-t flex justify-end gap-2 shrink-0 bg-background">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="medium"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" size="medium" disabled={isSubmitting || !!forecast?.allocationError}>
+                  {isSubmitting ? (
                     <>
-                  <div className="text-xs text-muted-foreground leading-tight">
-                    Based on your average monthly income: {formatMoney(forecast.incomeBasis)}
-                  </div>
-                  <div className="text-xs text-muted-foreground leading-tight">
-                    {forecast.totalAllocation.toFixed(2)}% of your income is allocated to this goal
-                  </div>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {goal ? "Updating..." : "Creating..."}
                     </>
                   ) : (
-                    <div className="text-xs text-amber-600 dark:text-amber-400 leading-tight">
-                      ⚠️ No income data found. Add income transactions to see accurate forecasts.
-                    </div>
-                  )}
-                </div>
+                    goal ? "Update" : "Create"
+                  )} Goal
+                </Button>
               </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border bg-muted/50 p-6 space-y-3 h-fit">
-              <h4 className="text-sm font-semibold">Goal Forecast</h4>
-              <p className="text-xs text-muted-foreground">
-                Enter goal details to see when you'll reach your target
-              </p>
-            </div>
-          )}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="medium"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" size="medium" disabled={isSubmitting || !!forecast?.allocationError}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {goal ? "Updating..." : "Creating..."}
-                </>
-              ) : (
-                goal ? "Update" : "Create"
-              )} Goal
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            </form>
+          </SheetContent>
+        </Sheet>
       )}
     </>
   );

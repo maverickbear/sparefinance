@@ -55,6 +55,10 @@ export async function invalidateUserCaches(userId: string, options?: {
       revalidateTag('accounts', 'max');
       log.debug("Invalidated account cache", { userId });
     }
+
+    // Always invalidate dashboard and reports so they reflect current data
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     log.debug("Invalidated user caches", { userId, subscriptions, accounts });
   } catch (error) {

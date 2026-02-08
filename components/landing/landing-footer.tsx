@@ -2,95 +2,47 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Logo } from "@/components/common/logo";
+import { cn } from "@/lib/utils";
+
+const FOOTER_LINKS = [
+  { label: "Features", href: "#features" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Privacy", href: "/privacy-policy" },
+  { label: "Terms", href: "/terms-of-service" },
+  { label: "Help", href: "/faq" },
+];
 
 export function LandingFooter() {
-  const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [year, setYear] = useState(2025);
+  useEffect(() => setYear(new Date().getFullYear()), []);
 
-  useEffect(() => {
-    setCurrentYear(new Date().getFullYear());
-  }, []);
   return (
-    <footer className="bg-muted/50 border-t border-border">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
-          {/* Brand */}
-          <div>
-            <Link href="/" className="flex items-center mb-4">
-              <Logo variant="wordmark" color="auto" width={200} />
-            </Link>
-            <p className="text-base text-muted-foreground max-w-md">
-              Simple, modern, and designed to put you in control of your future.
-            </p>
-          </div>
-
-          {/* Product Links */}
-          <div>
-            <h3 className="font-semibold mb-4">Product</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link
-                  href="#features"
-                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Features
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="#pricing"
-                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Pricing
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/faq"
-                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  FAQ
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal Links */}
-          <div>
-            <h3 className="font-semibold mb-4">Legal</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link
-                  href="/terms-of-service"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/privacy-policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-base text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Privacy Policy
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Bottom */}
-        <div className="pt-8 border-t border-border">
-          <p className="text-base text-center text-muted-foreground">
-            © {currentYear || 2024} Spare Finance. All rights reserved.
+    <footer className="border-t border-border bg-muted/30 py-12">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <p className="text-sm text-muted-foreground">
+            Spare Finance — Personal finance at peace.
           </p>
+          <nav className="flex flex-wrap items-center justify-center gap-6">
+            {FOOTER_LINKS.map(({ label, href }) => (
+              <Link
+                key={label}
+                href={href}
+                className={cn(
+                  "text-sm text-muted-foreground hover:text-foreground hover:underline transition-colors",
+                  href.startsWith("http") || href.startsWith("/") ? "" : ""
+                )}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+        <div className="mt-8 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">© {year} Spare Finance. All rights reserved.</p>
         </div>
       </div>
     </footer>
   );
 }
-

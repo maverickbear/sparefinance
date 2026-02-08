@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { startServerPagePerformance } from "@/lib/utils/performance";
 import { cookies } from "next/headers";
 import { OnboardingDialogWrapper } from "@/src/presentation/components/features/onboarding/onboarding-dialog-wrapper";
+import { DashboardSnapshotProvider } from "@/src/presentation/contexts/dashboard-snapshot-context";
 import { DashboardWidgetsClient } from "@/src/presentation/components/features/dashboard/dashboard-widgets-client";
 
 interface DashboardProps {
@@ -81,25 +82,27 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         <UrlCleanup />
         <TrialCelebration />
       </Suspense>
-      <DashboardRealtime />
-      <DashboardUpdateChecker />
 
       <PageHeader title="Dashboard" />
 
-      {/* Dashboard Widgets */}
-      <Suspense fallback={
-        <div className="w-full p-4 lg:p-8">
-          <div className="space-y-6">
-            <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-64 bg-muted rounded-lg animate-pulse" />
-              ))}
+      {/* Dashboard: single aggregated source, snapshot → version check → conditional refetch */}
+      <DashboardSnapshotProvider>
+        <Suspense fallback={
+          <div className="w-full p-4 lg:p-8">
+            <div className="space-y-6">
+              <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-64 bg-muted rounded-lg animate-pulse" />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      }>
-        <DashboardWidgetsClient />
-      </Suspense>
+        }>
+          <DashboardWidgetsClient />
+        </Suspense>
+        <DashboardUpdateChecker />
+        <DashboardRealtime />
+      </DashboardSnapshotProvider>
     </div>
   );
 }

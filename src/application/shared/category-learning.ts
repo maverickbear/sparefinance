@@ -34,14 +34,8 @@ export interface CategorySuggestion {
  * @returns Category suggestion with confidence level, or null if no match
  */
 /**
- * Update analytics.categoryLearning table when user confirms a category
- * 
- * @deprecated This function is deprecated. Category learning now uses direct transaction queries.
- * The analytics_category_learning table is no longer used for category suggestions.
- * This function is kept for backward compatibility but does nothing.
- * 
- * SIMPLIFIED: Removed dependency on analytics_category_learning table.
- * Category suggestions now come directly from transaction history (simpler and more reliable).
+ * Update category learning when user confirms a category.
+ * No-op: suggestions come from transaction history; no separate analytics table.
  */
 export async function updateCategoryLearning(
   userId: string,

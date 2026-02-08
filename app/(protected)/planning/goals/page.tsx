@@ -124,8 +124,7 @@ export default function GoalsPage() {
             description: "Your goal has been deleted successfully.",
             variant: "success",
           });
-          
-          loadGoals();
+          // List already updated optimistically; no refetch needed
         } catch (error) {
           console.error("Error deleting goal:", error);
           // Revert optimistic update on error
@@ -170,26 +169,25 @@ export default function GoalsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Goals"
-      >
-        {canWrite && (
-          <Button
-            size="medium"
-            onClick={() => {
-              if (!checkWriteAccess()) return;
-              setSelectedGoal(null);
-              setIsFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Goal
-          </Button>
-        )}
-      </PageHeader>
+      <PageHeader title="Goals" />
 
       <div className="w-full p-4 lg:p-8">
-
+        {/* Action Buttons */}
+        {canWrite && (
+          <div className="flex items-center gap-2 justify-end mb-6">
+            <Button
+              size="medium"
+              onClick={() => {
+                if (!checkWriteAccess()) return;
+                setSelectedGoal(null);
+                setIsFormOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Goal
+            </Button>
+          </div>
+        )}
 
         {/* Mobile Card View */}
         <div className="lg:hidden space-y-3">

@@ -17,7 +17,7 @@ interface UserSubscription {
   serviceName: string;
   amount: number;
   description: string | null;
-  billingFrequency: "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily";
+  billingFrequency: "monthly" | "yearly" | "weekly" | "biweekly" | "semimonthly" | "daily";
   billingDay: number | null;
   isActive: boolean;
   firstBillingDate: string;
@@ -50,6 +50,7 @@ export function UserSubscriptionsTable({
 }: UserSubscriptionsTableProps) {
   const billingFrequencyLabels: Record<string, string> = {
     monthly: "Monthly",
+    yearly: "Yearly",
     biweekly: "Biweekly",
     weekly: "Weekly",
     semimonthly: "Semimonthly",

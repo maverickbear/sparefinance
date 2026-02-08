@@ -107,9 +107,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Invalidate cache
+    const userId = linkResult.userId || authData.user.id;
     revalidateTag('subscriptions', 'max');
     revalidateTag('accounts', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
 
     return NextResponse.json({ 
       success: linkResult.success,

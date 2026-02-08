@@ -271,54 +271,83 @@ export class AccountsRepository implements IAccountsRepository {
   }
 
   /**
-   * Set account owners (replaces existing)
+   * Set account owners (replaces existing).
+   * Insert or re-activate; on duplicate key (e.g. soft-deleted row not visible to fetch),
+   * re-activate by updating deleted_at. Deduplicates ownerIds to avoid duplicate inserts.
    */
   async setAccountOwners(accountId: string, ownerIds: string[], now: string): Promise<void> {
     const supabase = await createServerClient();
+    const uniqueOwnerIds = [...new Set(ownerIds)];
 
-    // 1. Upsert desired owners (handles both new and re-activating soft-deleted)
-    if (ownerIds.length > 0) {
-      const accountOwners = ownerIds.map(ownerId => ({
-        account_id: accountId,
-        owner_id: ownerId,
-        created_at: now,
-        updated_at: now,
-        deleted_at: null, // Ensure they are active
-      }));
+    // 1. Fetch existing rows for this account (including soft-deleted) for deactivate step
+    const { data: existing, error: fetchError } = await supabase
+      .from("account_owners")
+      .select("id, owner_id, deleted_at")
+      .eq("account_id", accountId);
 
-      const { error: upsertError } = await supabase
-        .from("account_owners")
-        .upsert(accountOwners, {
-          onConflict: 'account_id,owner_id',
-          ignoreDuplicates: false, // Update existing records
+    if (fetchError) {
+      logger.error("[AccountsRepository] Error fetching account owners:", fetchError);
+      throw new Error(`Failed to fetch account owners: ${fetchError.message}`);
+    }
+
+    const existingByOwner = new Map((existing || []).map((r) => [r.owner_id, r]));
+
+    // 2. For each desired owner: insert if missing, or re-activate if soft-deleted (or on duplicate key)
+    for (const ownerId of uniqueOwnerIds) {
+      const row = existingByOwner.get(ownerId);
+      if (row) {
+        if (row.deleted_at != null) {
+          const { error: updateError } = await supabase
+            .from("account_owners")
+            .update({ deleted_at: null, updated_at: now })
+            .eq("id", row.id);
+          if (updateError) {
+            logger.error("[AccountsRepository] Error re-activating account owner:", updateError);
+            throw new Error(`Failed to update account owners: ${updateError.message}`);
+          }
+        }
+      } else {
+        const { error: insertError } = await supabase.from("account_owners").insert({
+          account_id: accountId,
+          owner_id: ownerId,
+          created_at: now,
+          updated_at: now,
+          deleted_at: null,
         });
-
-      if (upsertError) {
-        logger.error("[AccountsRepository] Error upserting account owners:", upsertError);
-        throw new Error(`Failed to update account owners: ${upsertError.message}`);
+        if (insertError) {
+          // Duplicate key: row exists (e.g. soft-deleted and not in fetch). Re-activate by (account_id, owner_id).
+          const isDuplicate = insertError.code === "23505" || insertError.message?.includes("duplicate key");
+          if (isDuplicate) {
+            const { error: updateError } = await supabase
+              .from("account_owners")
+              .update({ deleted_at: null, updated_at: now })
+              .eq("account_id", accountId)
+              .eq("owner_id", ownerId);
+            if (updateError) {
+              logger.error("[AccountsRepository] Error re-activating account owner after duplicate:", updateError);
+              throw new Error(`Failed to update account owners: ${updateError.message}`);
+            }
+          } else {
+            logger.error("[AccountsRepository] Error inserting account owner:", insertError);
+            throw new Error(`Failed to update account owners: ${insertError.message}`);
+          }
+        }
       }
     }
 
-    // 2. Soft-delete owners that are NOT in the new list
-    // We can't use NOT IN easily with Supabase builder in one go for a delete, 
-    // but we can update where account_id matches and owner_id is NOT in the list.
-    
-    let query = supabase
-      .from("account_owners")
-      .update({ deleted_at: now, updated_at: now })
-      .eq("account_id", accountId)
-      .is("deleted_at", null); // Only touch currently active ones
-
-    if (ownerIds.length > 0) {
-        // filter out the ones we just upserted/kept
-        query = query.not("owner_id", "in", `(${ownerIds.join(',')})`);
-    }
-
-    const { error: deleteError } = await query;
-
-    if (deleteError) {
-      logger.error("[AccountsRepository] Error deleting removed account owners:", deleteError);
-      throw new Error(`Failed to remove old account owners: ${deleteError.message}`);
+    // 3. Soft-delete owners that are NOT in the new list
+    const toDeactivate = (existing || []).filter(
+      (r) => r.deleted_at == null && !ownerIds.includes(r.owner_id)
+    );
+    for (const row of toDeactivate) {
+      const { error: updateError } = await supabase
+        .from("account_owners")
+        .update({ deleted_at: now, updated_at: now })
+        .eq("id", row.id);
+      if (updateError) {
+        logger.error("[AccountsRepository] Error soft-deleting account owner:", updateError);
+        throw new Error(`Failed to remove old account owners: ${updateError.message}`);
+      }
     }
   }
 

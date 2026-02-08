@@ -88,14 +88,15 @@ export class GoalPlannedPaymentsService {
       }
 
       try {
-        // Goal deposits are income transfers to the goal account
-        // We need a source account - for now, we'll use the goal account itself
-        // In the future, we might want to add a sourceAccountId to goals
+        // Goal deposits are transfers to the goal account (not income)
+        // accountId = source (required; same as goal account as placeholder when source is not specified)
+        // toAccountId = goal account (destination)
         const plannedPaymentData: PlannedPaymentFormData = {
           date: paymentDate,
-          type: "income", // Goal deposits are income to the goal account
+          type: "transfer",
           amount: monthlyContribution,
           accountId: goal.accountId,
+          toAccountId: goal.accountId,
           categoryId: null,
           subcategoryId: null,
           description: `Goal deposit: ${goal.name}`,

@@ -366,6 +366,30 @@ export class PlannedPaymentsService {
   }
 
   /**
+   * Unlink planned payments from the given transaction IDs.
+   * Call this before hard-deleting transactions so plannedpayments_paid_has_transaction is not violated.
+   */
+  async unlinkFromDeletedTransactions(transactionIds: string[]): Promise<void> {
+    await this.repository.unlinkFromTransactionIds(transactionIds);
+  }
+
+  /**
+   * Delete all planned payments that reference the given transaction IDs.
+   * Call this before hard-deleting transactions so related planned payments are removed.
+   */
+  async deleteByLinkedTransactionIds(transactionIds: string[]): Promise<void> {
+    await this.repository.deleteByLinkedTransactionIds(transactionIds);
+  }
+
+  /**
+   * Delete all planned payments that reference the given debt.
+   * Call this before deleting a debt so related planned payments are removed.
+   */
+  async deleteByDebtId(debtId: string): Promise<void> {
+    await this.repository.deleteByDebtId(debtId);
+  }
+
+  /**
    * Get counts by type (expense, income, transfer) in a single query
    * This is more efficient than calling getPlannedPayments 3 times
    */

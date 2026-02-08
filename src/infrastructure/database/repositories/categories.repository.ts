@@ -112,7 +112,7 @@ export class CategoriesRepository implements ICategoriesRepository {
 
     let query = supabase
       .from("categories")
-      .select("id, name")
+      .select("id, name, type")
       .in("id", ids);
 
     // If authenticated, get system categories (is_system = true) OR user's own categories

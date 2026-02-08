@@ -37,6 +37,9 @@ const config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-satoshi)", "Satoshi", "system-ui", "sans-serif"],
+      },
       colors: {
         border: "hsla(var(--border))",
         input: "hsl(var(--input))",

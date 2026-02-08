@@ -1,12 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LayoutWrapperClient } from "@/components/layout-wrapper-client";
 import { KBarWrapper } from "@/components/kbar-wrapper";
 import { ToastProvider } from "@/components/toast-provider";
 import { StripeProvider } from "@/components/stripe-provider";
-import { ServiceWorkerRegister } from "./sw-register";
 import { BreakpointLogger } from "@/components/breakpoint-logger";
 import { CookieConsentBanner } from "@/components/cookie/CookieConsentBanner";
 import { SpeedInsightsWrapper } from "@/components/speed-insights-wrapper";
@@ -14,38 +12,12 @@ import { GoogleTag } from "@/components/common/google-tag";
 import { AuthProvider } from "@/contexts/auth-context";
 // PlanLimitsProvider removed - SubscriptionProvider in protected layout handles this
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  display: "swap", // Show fallback font immediately, swap when loaded
-  fallback: ["system-ui", "arial"],
-  adjustFontFallback: true,
-  preload: true, // Enable preloading for better performance
-  variable: "--font-inter", // CSS variable for better optimization
-});
-
 export const metadata: Metadata = {
   title: "Spare Finance - Personal Finance",
   description: "Track expenses, budgets, and investments",
   icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
-    ],
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     shortcut: "/icon.svg",
-    apple: "/apple-touch-icon.png",
-  },
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Spare Finance",
-  },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "Spare Finance",
   },
 };
 
@@ -66,14 +38,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
-        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap"
+        />
         <link rel="preconnect" href="https://api.stripe.com" />
         <link rel="preconnect" href="https://js.stripe.com" />
       </head>
-      <body className={`${inter.className} bg-background text-foreground`}>
+      <body className="font-sans bg-background text-foreground">
         <GoogleTag />
         <ThemeProvider
           attribute="class"
@@ -87,7 +60,6 @@ export default function RootLayout({
               <BreakpointLogger />
               <LayoutWrapperClient>{children}</LayoutWrapperClient>
               <KBarWrapper />
-              <ServiceWorkerRegister />
               <CookieConsentBanner />
               <SpeedInsightsWrapper />
             </AuthProvider>

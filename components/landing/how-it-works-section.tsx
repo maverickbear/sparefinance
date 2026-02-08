@@ -1,62 +1,64 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link2, TrendingUp, Target } from "lucide-react";
+import { useInView } from "@/hooks/use-in-view";
+import { UserPlus, Wallet, LayoutDashboard } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const STEPS = [
+  {
+    number: "01",
+    title: "Sign up",
+    description: "Create your account. Start your 30-day free trial—no card required.",
+    icon: UserPlus,
+  },
+  {
+    number: "02",
+    title: "Add your money",
+    description: "Connect your bank or add accounts and transactions manually.",
+    icon: Wallet,
+  },
+  {
+    number: "03",
+    title: "See the picture",
+    description: "Dashboard, budgets, goals, and Spare Score in one place.",
+    icon: LayoutDashboard,
+  },
+];
 
 export function HowItWorksSection() {
-  const steps = [
-    {
-      title: "Track All Your Expenses",
-      description: "Connect your bank accounts or add transactions manually. See where every dollar goes—groceries, bills, entertainment, everything. No more wondering where your money went.",
-      icon: Link2,
-    },
-    {
-      title: "Understand Your Spending",
-      description: "Get insights based on your real spending. See your Spare Score, understand your savings rate, and learn where you can save more. Our AI helps you understand your finances.",
-      icon: TrendingUp,
-    },
-    {
-      title: "Learn to Save Together",
-      description: "Set savings goals with your family and see when you'll reach them. Create budgets that work and track progress together. Build wealth, not just pay bills.",
-      icon: Target,
-    },
-  ];
+  const { ref, inView } = useInView();
 
   return (
-    <section className="py-20 md:py-32 bg-background">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-4xl mx-auto mb-20">
-          <p className="text-sm font-medium text-muted-foreground mb-4 uppercase tracking-wide">
-            How It Works
+    <section id="how-it-works" ref={ref} className="py-16 md:py-24 bg-muted/30 scroll-mt-20">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+        <div className="text-center max-w-2xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground">How it works.</h2>
+          <p className="mt-4 text-muted-foreground text-lg">
+            Three simple steps to a clearer financial picture.
           </p>
-          <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6">
-            How Your Family<br />Can Get Organized
-          </h2>
         </div>
-
-        {/* Mobile: 1 column, MD: 2 columns (avoid overlap), LG+: 3 columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-            return (
-              <div key={index} className="text-center group">
-                <div className="p-8 rounded-2xl border border-border bg-card">
-                  <div className="w-14 h-14 rounded-xl bg-primary flex items-center justify-center mx-auto mb-6">
-                    <Icon className="w-7 h-7 text-black dark:text-black" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-4">
-                    {step.title}
-                  </h3>
-                  <p className="text-muted-foreground text-base leading-relaxed">
-                    {step.description}
-                  </p>
+        <div className="mt-12 grid md:grid-cols-3 gap-8 md:gap-12">
+          {STEPS.map(({ number, title, description, icon: Icon }, i) => (
+            <div
+              key={number}
+              className={cn(
+                "text-center transition-all duration-500",
+                inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+              )}
+              style={{ transitionDelay: inView ? `${i * 120}ms` : "0ms" }}
+            >
+              <span className="text-3xl font-bold text-primary">{number}</span>
+              <div className="mt-4 flex justify-center">
+                <div className="rounded-full bg-primary/10 p-4">
+                  <Icon className="h-8 w-8 text-primary" />
                 </div>
               </div>
-            );
-          })}
+              <h3 className="mt-4 text-lg font-semibold text-foreground">{title}</h3>
+              <p className="mt-2 text-muted-foreground text-sm leading-relaxed">{description}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
   );
 }
-

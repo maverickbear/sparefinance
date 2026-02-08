@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowRightLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Tabs,
   TabsList,
@@ -30,6 +30,7 @@ interface Account {
   id: string;
   name: string;
   type: string;
+  isDefault?: boolean;
 }
 
 interface Category {
@@ -64,12 +65,15 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
         ]);
 
         if (accountsRes.ok) {
-          const accountsData = await accountsRes.json();
+          const accountsData: Account[] = await accountsRes.json();
           setAccounts(accountsData);
           if (accountsData && accountsData.length > 0) {
-            setAccountId(accountsData[0].id);
+            const defaultAccount = accountsData.find((a) => a.isDefault);
+            const initialAccountId = defaultAccount?.id ?? accountsData[0].id;
+            setAccountId(initialAccountId);
             if (accountsData.length > 1) {
-              setToAccountId(accountsData[1].id);
+              const other = accountsData.find((a) => a.id !== initialAccountId);
+              if (other) setToAccountId(other.id);
             }
           }
         }
@@ -153,7 +157,6 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
       
       setAmount("");
       setDescription("");
-      // Don't reset accounts as user might want to add another tx for same account
       router.refresh();
       onTransactionAdded?.();
     } catch (error) {
@@ -172,110 +175,107 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
   const filteredCategories = categories.filter(c => c.type === type);
 
   return (
-    <WidgetCard title="Add a transaction" className="h-full">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 h-full">
+    <WidgetCard title="Quick Transaction" className="h-full">
+      <form onSubmit={handleSubmit} className="space-y-3">
         <Tabs value={type} onValueChange={(v) => setType(v as "expense" | "income" | "transfer")} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="expense">Expense</TabsTrigger>
-            <TabsTrigger value="income">Income</TabsTrigger>
-            <TabsTrigger value="transfer">Transfer</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 h-9">
+            <TabsTrigger value="expense" className="text-xs">Expense</TabsTrigger>
+            <TabsTrigger value="income" className="text-xs">Income</TabsTrigger>
+            <TabsTrigger value="transfer" className="text-xs">Transfer</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <div className="space-y-3 flex-1 overflow-y-auto px-1">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-2">
-               <Label htmlFor="amount" className="text-xs text-muted-foreground">Amount</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="pl-7 h-9"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="account" className="text-xs text-muted-foreground">
-                 {type === "transfer" ? "From Account" : "Account"}
-              </Label>
-              <Select value={accountId} onValueChange={setAccountId} disabled={accounts.length === 0}>
-                <SelectTrigger id="account" className="h-9">
-                  <SelectValue placeholder="Select account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="amount" className="text-xs text-muted-foreground">Amount</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="pl-6 h-9 text-sm"
+                required
+              />
             </div>
           </div>
-
-          {type === "transfer" && (
-            <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-               <Label htmlFor="toAccount" className="text-xs text-muted-foreground">To Account</Label>
-              <Select value={toAccountId} onValueChange={setToAccountId} disabled={accounts.length < 2}>
-                <SelectTrigger id="toAccount" className="h-9">
-                  <SelectValue placeholder="Select destination" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts
-                    .filter(acc => acc.id !== accountId)
-                    .map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {type !== "transfer" && (
-            <div className="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-               <Label htmlFor="category" className="text-xs text-muted-foreground">Category</Label>
-              <Select value={categoryId} onValueChange={setCategoryId} disabled={filteredCategories.length === 0}>
-                <SelectTrigger id="category" className="h-9">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-2">
-             <Label htmlFor="description" className="text-xs text-muted-foreground">Description</Label>
-            <Input
-              id="description"
-              placeholder="What was it for?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="h-9"
-            />
+          <div className="space-y-1.5">
+            <Label htmlFor="account" className="text-xs text-muted-foreground">
+              {type === "transfer" ? "From" : "Account"}
+            </Label>
+            <Select value={accountId} onValueChange={setAccountId} disabled={accounts.length === 0}>
+              <SelectTrigger id="account" className="h-9 text-sm">
+                <SelectValue placeholder="Select account" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((acc) => (
+                  <SelectItem key={acc.id} value={acc.id}>
+                    {acc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <Button 
-          type="submit" 
-          size="small"
+        {type === "transfer" && (
+          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+            <Label htmlFor="toAccount" className="text-xs text-muted-foreground">To Account</Label>
+            <Select value={toAccountId} onValueChange={setToAccountId} disabled={accounts.length < 2}>
+              <SelectTrigger id="toAccount" className="h-9 text-sm">
+                <SelectValue placeholder="Select destination" />
+              </SelectTrigger>
+              <SelectContent>
+                {accounts
+                  .filter(acc => acc.id !== accountId)
+                  .map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {type !== "transfer" && (
+          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+            <Label htmlFor="category" className="text-xs text-muted-foreground">Category</Label>
+            <Select value={categoryId} onValueChange={setCategoryId} disabled={filteredCategories.length === 0}>
+              <SelectTrigger id="category" className="h-9 text-sm">
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredCategories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <Label htmlFor="description" className="text-xs text-muted-foreground">Description</Label>
+          <Input
+            id="description"
+            placeholder="What was it for?"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="h-9 text-sm"
+          />
+        </div>
+
+        <Button
+          type="submit"
+          size="medium"
           className={cn(
-            "w-full mt-2",
+            "w-full h-9 text-sm font-medium",
             type === "expense" && "bg-indigo-500 hover:bg-indigo-600",
             type === "income" && "bg-emerald-500 hover:bg-emerald-600",
             type === "transfer" && "bg-blue-500 hover:bg-blue-600"

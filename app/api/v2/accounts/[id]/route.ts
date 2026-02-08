@@ -61,9 +61,11 @@ export async function PATCH(
     const service = makeAccountsService();
     const account = await service.updateAccount(id, data);
     
-    // Invalidate cache using tag groups (invalidates all account variants)
+    // Invalidate cache so dashboard and reports reflect changes
     revalidateTag('accounts', 'max');
     revalidateTag('subscriptions', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(account, { status: 200 });
   } catch (error) {
@@ -103,9 +105,11 @@ export async function DELETE(
     const service = makeAccountsService();
     await service.deleteAccount(id, transferToAccountId);
     
-    // Invalidate cache using tag groups (invalidates all account variants)
+    // Invalidate cache so dashboard and reports reflect changes
     revalidateTag('accounts', 'max');
     revalidateTag('subscriptions', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

@@ -4,7 +4,6 @@
  */
 
 import { IAccountsRepository } from "@/src/infrastructure/database/repositories/interfaces/accounts.repository.interface";
-import { InvestmentsRepository } from "@/src/infrastructure/database/repositories/investments.repository";
 import { AccountsMapper } from "./accounts.mapper";
 import { AccountFormData } from "../../domain/accounts/accounts.validations";
 import { AccountWithBalance, BaseAccount } from "../../domain/accounts/accounts.types";
@@ -16,10 +15,7 @@ import { logger } from "@/src/infrastructure/utils/logger";
 import { AppError } from "../shared/app-error";
 
 export class AccountsService {
-  constructor(
-    private repository: IAccountsRepository,
-    private investmentsRepository: InvestmentsRepository
-  ) {}
+  constructor(private repository: IAccountsRepository) {}
 
   /**
    * Get all accounts for the current user with balances
@@ -141,83 +137,12 @@ export class AccountsService {
   private async calculateInvestmentBalances(
     investmentAccounts: any[],
     balances: Map<string, number>,
-    includeHoldings: boolean,
-    accessToken?: string,
-    refreshToken?: string
+    _includeHoldings: boolean,
+    _accessToken?: string,
+    _refreshToken?: string
   ): Promise<void> {
-    const investmentAccountIds = investmentAccounts.map(acc => acc.id);
-
-    // 1. Try to get values from InvestmentAccount
-    const investmentAccountData = await this.investmentsRepository.getInvestmentAccountData(
-      investmentAccountIds,
-      accessToken,
-      refreshToken
-    );
-
-    investmentAccountData.forEach((ia: any) => {
-      if (ia.accountId) {
-        const totalEquity = ia.totalEquity != null ? Number(ia.totalEquity) : null;
-        const marketValue = ia.marketValue != null ? Number(ia.marketValue) : 0;
-        const cash = ia.cash != null ? Number(ia.cash) : 0;
-        const accountValue = totalEquity ?? (marketValue + cash);
-        balances.set(ia.accountId, accountValue);
-      }
-    });
-
-    // 2. For accounts without InvestmentAccount data, try AccountInvestmentValue
-    const accountsWithoutInvestmentAccount = investmentAccountIds.filter(
-      (accountId: string) => !balances.has(accountId)
-    );
-
-    if (accountsWithoutInvestmentAccount.length > 0) {
-      const investmentValues = await this.investmentsRepository.getAccountInvestmentValues(
-        accountsWithoutInvestmentAccount,
-        accessToken,
-        refreshToken
-      );
-
-      investmentValues.forEach((iv: any) => {
-        const totalValue = iv.totalValue != null ? Number(iv.totalValue) : 0;
-        balances.set(iv.accountId, totalValue);
-      });
-    }
-
-    // 3. Calculate from holdings if requested
-    if (includeHoldings) {
-      try {
-        const { makeInvestmentsService } = await import("@/src/application/investments/investments.factory");
-        const investmentsService = makeInvestmentsService();
-        const holdings = await investmentsService.getHoldings(undefined, accessToken, refreshToken);
-
-        // Create map from InvestmentAccount.id to Account.id
-        const investmentAccountMap = await this.investmentsRepository.getInvestmentAccountMapping(
-          investmentAccountIds,
-          accessToken,
-          refreshToken
-        );
-
-        // Calculate value for each account based on holdings
-        investmentAccountIds.forEach(accountId => {
-          const accountHoldings = holdings.filter((h: any) => {
-            if (h.accountId === accountId) return true;
-            const mappedAccountId = investmentAccountMap.get(h.accountId);
-            return mappedAccountId === accountId;
-          });
-
-          const holdingsValue = accountHoldings.reduce((sum: number, h: any) => {
-            return sum + (h.marketValue || 0);
-          }, 0);
-
-          const existingBalance = balances.get(accountId) || 0;
-          const finalBalance = holdingsValue > existingBalance ? holdingsValue : existingBalance;
-          balances.set(accountId, finalBalance);
-        });
-      } catch (error) {
-        logger.error("Error fetching holdings for account values:", error);
-      }
-    }
-
-    // 4. Set to 0 for accounts without any value
+    // Investment/portfolio feature removed - use transaction-based balance only (already in balances from main flow)
+    // Set to 0 for investment accounts that have no balance from transactions
     investmentAccounts.forEach((account: any) => {
       if (!balances.has(account.id)) {
         balances.set(account.id, 0);
@@ -257,7 +182,7 @@ export class AccountsService {
       type: data.type,
       userId,
       creditLimit: data.type === "credit" ? data.creditLimit : null,
-      initialBalance: (data.type === "checking" || data.type === "savings" || data.type === "cash") ? (data.initialBalance ?? 0) : null,
+      initialBalance: (data.type === "checking" || data.type === "savings" || data.type === "cash" || data.type === "other") ? (data.initialBalance ?? 0) : null,
       dueDayOfMonth: data.type === "credit" ? (data.dueDayOfMonth ?? null) : null,
       currencyCode: data.currencyCode || 'USD',
       householdId: householdId,
@@ -303,7 +228,7 @@ export class AccountsService {
 
     // Handle initialBalance based on type
     if (data.type !== undefined) {
-      if (data.type === "checking" || data.type === "savings" || data.type === "cash") {
+      if (data.type === "checking" || data.type === "savings" || data.type === "cash" || data.type === "other") {
         updateData.initialBalance = data.initialBalance ?? 0;
       } else {
         updateData.initialBalance = null;

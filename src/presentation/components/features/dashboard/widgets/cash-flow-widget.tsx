@@ -76,7 +76,7 @@ export function CashFlowWidget({ data, loading, error }: CashFlowWidgetProps) {
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Net</span>
               <span className={cn(
-                "text-xl font-bold",
+                "text-xl",
                 isPositive ? "text-sentiment-positive" : "text-sentiment-negative"
               )}>
                 {isPositive ? '+' : ''}{formatMoney(data.net)}

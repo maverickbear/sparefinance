@@ -29,6 +29,7 @@ export interface SubscriptionCardProps {
 
 const billingFrequencyLabels: Record<string, string> = {
   monthly: "Monthly",
+  yearly: "Yearly",
   biweekly: "Biweekly",
   weekly: "Weekly",
   semimonthly: "Semimonthly",
@@ -57,7 +58,7 @@ export function SubscriptionCard({
   const getBillingDayLabel = () => {
     if (!subscription.billingDay) return null;
     
-    if (subscription.billingFrequency === "monthly" || subscription.billingFrequency === "semimonthly") {
+    if (subscription.billingFrequency === "monthly" || subscription.billingFrequency === "yearly" || subscription.billingFrequency === "semimonthly") {
       return `Day ${subscription.billingDay}`;
     } else if (subscription.billingFrequency === "weekly" || subscription.billingFrequency === "biweekly") {
       return dayOfWeekLabels[subscription.billingDay] || `Day ${subscription.billingDay}`;

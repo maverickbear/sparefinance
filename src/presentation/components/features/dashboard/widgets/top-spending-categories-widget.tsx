@@ -77,7 +77,7 @@ export function TopSpendingCategoriesWidget({ data, loading, error }: TopSpendin
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-medium truncate flex-1">{category.categoryName}</span>
                   <div className="flex items-center gap-1.5 ml-2">
-                    <span className="text-xs font-semibold">{formatMoney(category.amount)}</span>
+                    <span className="text-xs">{formatMoney(category.amount)}</span>
                     {category.delta !== 0 && (
                       <div className="flex items-center gap-0.5">
                         {deltaIsPositive ? (

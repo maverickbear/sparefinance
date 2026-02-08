@@ -28,9 +28,9 @@ const obsoleteFiles: Array<{
   v2Alternative?: string;
 }> = [
   // Rotas API antigas
+  // Legacy API routes still present (use v2 instead)
   { path: 'app/api/accounts/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/accounts' },
   { path: 'app/api/accounts/[id]/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/accounts/[id]' },
-  { path: 'app/api/transactions/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/transactions' },
   { path: 'app/api/debts/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/debts' },
   { path: 'app/api/debts/[id]/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/debts/[id]' },
   { path: 'app/api/categories/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/categories' },
@@ -39,12 +39,7 @@ const obsoleteFiles: Array<{
   { path: 'app/api/goals/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/goals' },
   { path: 'app/api/goals/[id]/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/goals/[id]' },
   { path: 'app/api/goals/income-basis/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/goals/income-basis' },
-  // Rotas deletadas - não verificar mais
-  // { path: 'app/api/profile/delete-account/route.ts', reason: 'DELETADO - Tem versão v2', v2Alternative: '/api/v2/profile/delete-account' },
-  // { path: 'app/api/profile/avatar/route.ts', reason: 'DELETADO - Tem versão v2', v2Alternative: '/api/v2/profile/avatar' },
-  // { path: 'app/api/household/info/route.ts', reason: 'DELETADO - Tem versão v2', v2Alternative: '/api/v2/household/info' },
-  { path: 'app/api/user-subscriptions/route.ts', reason: 'Tem versão v2', v2Alternative: '/api/v2/user-subscriptions' },
-  // { path: 'app/api/admin/contact-forms/route.ts', reason: 'DELETADO - Tem versão v2', v2Alternative: '/api/v2/admin/contact-forms' },
+  // Already removed: app/api/transactions/*, app/api/user-subscriptions/route.ts, app/api/categories/[id]/route.ts
 ];
 
 // Arquivos em lib/api que violam arquitetura

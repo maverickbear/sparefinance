@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -734,31 +735,17 @@ export function CsvImportDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <DialogPrimitive.Content
-          className="fixed z-50 flex flex-col w-screen h-screen max-w-screen max-h-screen m-0 rounded-none border border-border bg-background p-0 overflow-clip left-0 top-0 translate-x-0 translate-y-0 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
-          onInteractOutside={(e) => {
-            e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            e.preventDefault();
-          }}
-        >
-          <DialogHeader className="px-8 pt-8 pb-6 border-b flex-shrink-0 bg-background">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-semibold">Import Transactions from CSV</DialogTitle>
-                <DialogDescription className="mt-2 text-base">
-                  Upload your CSV files and map columns to transaction fields
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col w-full sm:max-w-[640px] p-0 gap-0 overflow-hidden bg-background border-l">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0 bg-background text-left">
+          <SheetTitle className="text-xl font-semibold">Import Transactions from CSV</SheetTitle>
+          <SheetDescription className="mt-1.5 text-sm text-muted-foreground">
+            Upload your CSV files and map columns to transaction fields
+          </SheetDescription>
+        </SheetHeader>
 
         <div className="flex flex-col flex-1 overflow-hidden bg-muted/30">
-          <div className="flex-1 overflow-y-auto">
+          <ScrollArea className="flex-1">
             {importJobId && (
               <div className="px-8 pt-6">
                 <ImportProgress
@@ -1274,10 +1261,10 @@ export function CsvImportDialog({
                   )}
                 </>
               )}
-            </div>
           </div>
+          </ScrollArea>
 
-          <div className="px-8 py-5 border-t bg-background flex justify-end gap-3 flex-shrink-0">
+          <div className="px-6 py-4 border-t bg-background flex justify-end gap-3 flex-shrink-0">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isImporting}>
               Cancel
             </Button>
@@ -1301,12 +1288,7 @@ export function CsvImportDialog({
             </Button>
           </div>
         </div>
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-lg opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-10">
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

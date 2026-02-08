@@ -258,6 +258,48 @@ export class PlannedPaymentsRepository {
   }
 
   /**
+   * Unlink planned payments from the given transaction IDs.
+   * Used before hard-deleting transactions to satisfy plannedpayments_paid_has_transaction:
+   * when status is 'paid', linked_transaction_id must be non-null.
+   * Sets linked_transaction_id = null; for rows with status 'paid' also sets status = 'scheduled'.
+   */
+  async unlinkFromTransactionIds(transactionIds: string[]): Promise<void> {
+    if (transactionIds.length === 0) {
+      return;
+    }
+    const supabase = await createServerClient();
+    const now = new Date().toISOString();
+
+    // Paid rows: must clear link and set status to scheduled to satisfy check constraint
+    const { error: paidError } = await supabase
+      .from("planned_payments")
+      .update({ linked_transaction_id: null, status: "scheduled", updated_at: now })
+      .in("linked_transaction_id", transactionIds)
+      .eq("status", "paid");
+
+    if (paidError) {
+      logger.error("[PlannedPaymentsRepository] Error unlinking paid planned payments:", paidError);
+      throw new Error(`Failed to unlink planned payments: ${paidError.message}`);
+    }
+
+    // Other statuses: only clear the link
+    const { error: otherError } = await supabase
+      .from("planned_payments")
+      .update({ linked_transaction_id: null, updated_at: now })
+      .in("linked_transaction_id", transactionIds)
+      .neq("status", "paid");
+
+    if (otherError) {
+      logger.error("[PlannedPaymentsRepository] Error unlinking planned payments:", otherError);
+      throw new Error(`Failed to unlink planned payments: ${otherError.message}`);
+    }
+
+    logger.debug("[PlannedPaymentsRepository] Unlinked planned payments from transaction IDs:", {
+      transactionIdCount: transactionIds.length,
+    });
+  }
+
+  /**
    * Delete a planned payment
    */
   async delete(id: string): Promise<void> {
@@ -272,6 +314,51 @@ export class PlannedPaymentsRepository {
       logger.error("[PlannedPaymentsRepository] Error deleting planned payment:", error);
       throw new Error(`Failed to delete planned payment: ${error.message}`);
     }
+  }
+
+  /**
+   * Delete all planned payments that reference the given transaction IDs.
+   * Used when hard-deleting transactions so related planned payments are removed.
+   */
+  async deleteByLinkedTransactionIds(transactionIds: string[]): Promise<void> {
+    if (transactionIds.length === 0) {
+      return;
+    }
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("planned_payments")
+      .delete()
+      .in("linked_transaction_id", transactionIds);
+
+    if (error) {
+      logger.error("[PlannedPaymentsRepository] Error deleting planned payments by linked transaction IDs:", error);
+      throw new Error(`Failed to delete planned payments: ${error.message}`);
+    }
+
+    logger.debug("[PlannedPaymentsRepository] Deleted planned payments for transaction IDs:", {
+      transactionIdCount: transactionIds.length,
+    });
+  }
+
+  /**
+   * Delete all planned payments that reference the given debt.
+   * Used when deleting a debt so related planned payments are removed.
+   */
+  async deleteByDebtId(debtId: string): Promise<void> {
+    const supabase = await createServerClient();
+
+    const { error } = await supabase
+      .from("planned_payments")
+      .delete()
+      .eq("debt_id", debtId);
+
+    if (error) {
+      logger.error("[PlannedPaymentsRepository] Error deleting planned payments by debt ID:", error);
+      throw new Error(`Failed to delete planned payments: ${error.message}`);
+    }
+
+    logger.debug("[PlannedPaymentsRepository] Deleted planned payments for debt:", { debtId });
   }
 
   /**

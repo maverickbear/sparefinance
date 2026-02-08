@@ -90,7 +90,7 @@ export interface UserServiceSubscription {
   planId?: string | null;
   amount: number;
   description?: string | null;
-  billingFrequency: "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily";
+  billingFrequency: "monthly" | "yearly" | "weekly" | "biweekly" | "semimonthly" | "daily";
   billingDay?: number | null;
   accountId: string;
   isActive: boolean;
@@ -99,6 +99,8 @@ export interface UserServiceSubscription {
   updatedAt: string;
   // Relations
   subcategory?: { id: string; name: string; logo?: string | null } | null;
+  /** Parent category (Subscription Category the user selected, e.g. Streaming Video, Gaming) */
+  category?: { id: string; name: string } | null;
   account?: { id: string; name: string } | null;
   serviceLogo?: string | null; // Logo from SubscriptionService table
   plan?: { id: string; planName: string } | null; // Plan from SubscriptionServicePlan
@@ -109,7 +111,7 @@ export interface UserServiceSubscriptionFormData {
   subcategoryId?: string | null;
   amount: number;
   description?: string | null;
-  billingFrequency: "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily";
+  billingFrequency: "monthly" | "yearly" | "weekly" | "biweekly" | "semimonthly" | "daily";
   billingDay?: number | null;
   accountId: string;
   firstBillingDate: Date | string;

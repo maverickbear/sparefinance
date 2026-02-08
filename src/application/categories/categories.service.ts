@@ -104,6 +104,55 @@ export class CategoriesService {
   }
 
   /**
+   * Get category by ID (returns null if not found).
+   * Used by callers that need to resolve or validate a category id before creating subcategories.
+   */
+  async getCategoryById(id: string): Promise<BaseCategory | null> {
+    const row = await this.repository.findCategoryById(id);
+    return row ? CategoriesMapper.categoryToDomain(row) : null;
+  }
+
+  /**
+   * Get the first category whose name contains "subscription" (case-insensitive).
+   * Used as fallback when the client sends an external/subscription-service category id
+   * that does not exist in the categories table.
+   */
+  async getDefaultSubscriptionCategoryId(): Promise<string | null> {
+    const categories = await this.getAllCategories();
+    const match = categories.find((c) =>
+      (c.name ?? "").toLowerCase().includes("subscription")
+    );
+    return match?.id ?? null;
+  }
+
+  /**
+   * Get a category id suitable for subscription subcategories: first one with "subscription"
+   * in the name; if none, try to create "Subscription" (when user has permission);
+   * otherwise the first expense category. Never returns null if the user has any categories.
+   */
+  async getOrCreateSubscriptionCategoryId(): Promise<string> {
+    let id = await this.getDefaultSubscriptionCategoryId();
+    if (id) return id;
+
+    try {
+      await this.createCategory({ name: "Subscription", type: "expense" });
+      id = await this.getDefaultSubscriptionCategoryId();
+      if (id) return id;
+    } catch {
+      // User may not have permission to create categories; fall back to first expense category
+    }
+
+    const categories = await this.getAllCategories();
+    const firstExpense = categories.find((c) => c.type === "expense");
+    if (firstExpense?.id) return firstExpense.id;
+
+    throw new AppError(
+      "No category found. Please add at least one expense category in Settings > Categories.",
+      400
+    );
+  }
+
+  /**
    * Create a new category
    */
   async createCategory(data: CategoryFormData): Promise<CategoryWithRelations> {

@@ -8,7 +8,6 @@ import type { Transaction } from "@/src/domain/transactions/transactions.types";
 import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 import type { Account } from "@/src/domain/accounts/accounts.types";
-import type { PortfolioSummary, HistoricalDataPoint, Holding } from "@/src/domain/portfolio/portfolio.types";
 import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 export type ReportPeriod = 
@@ -27,9 +26,9 @@ export interface ReportsData {
   goals: GoalWithCalculations[];
   financialHealth: FinancialHealthData | null;
   accounts: Account[];
-  portfolioSummary: PortfolioSummary | null;
-  portfolioHoldings: Holding[];
-  portfolioHistorical: HistoricalDataPoint[];
+  portfolioSummary: null;
+  portfolioHoldings: unknown[];
+  portfolioHistorical: unknown[];
   netWorth: NetWorthData | null;
   cashFlow: CashFlowData;
   trends: TrendData[];

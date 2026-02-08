@@ -600,7 +600,7 @@ export async function loadSecondaryDashboardData(
       logger.error("Error fetching chart aggregates:", error);
       return [];
     }),
-    // Plaid integration removed - liabilities no longer available
+    // Liabilities not used
     Promise.resolve([]),
     getDebtsWithTokens(accessToken, refreshToken).catch((error) => {
       logger.error("Error fetching debts:", error);
@@ -640,9 +640,6 @@ export async function loadSecondaryDashboardData(
 
   // Calculate last month total balance
   const { calculateLastMonthBalanceFromCurrent } = await import('@/lib/services/balance-calculator');
-  // We need accounts for this calculation - but we can get it from the critical data
-  // For now, we'll calculate it here with a minimal accounts fetch if needed
-  // TODO: Pass accounts from critical data to avoid duplicate fetch
   const lastMonthTotalBalance = calculateLastMonthBalanceFromCurrent(
     0, // Will be calculated from transactions
     lastMonthTransactions

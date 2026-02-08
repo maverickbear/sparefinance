@@ -173,7 +173,6 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       "/planning/budgets": "Budgets",
       "/planning/goals": "Goals",
       "/debts": "Debts",
-      "/investments": "Investments",
       "/reports": "Reports",
       "/insights": "Insights",
       "/settings/myaccount": "My Account",

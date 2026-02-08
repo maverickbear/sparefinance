@@ -8,9 +8,7 @@ import { getCurrentUserId, guardFeatureAccess } from "@/src/application/shared/f
  * 
  * SIMPLIFIED: Now uses feature flag for AI extraction.
  * Upload always works, AI extraction is optional.
- * 
- * @deprecated Consider using /api/v2/receipts/upload + /api/v2/receipts/[id]/extract separately
- * Kept for backward compatibility.
+ * Alternative: use /api/v2/receipts/upload + /api/v2/receipts/[id]/extract separately.
  */
 export async function POST(request: NextRequest) {
   try {

@@ -12,7 +12,6 @@ import { ReportsCoreService } from "@/src/application/reports/reports-core.servi
 // CRITICAL: Use static import to ensure React cache() works correctly
 import { getAccountsForDashboard } from "@/src/application/accounts/get-dashboard-accounts";
 import { makeDebtsService } from "@/src/application/debts/debts.factory";
-import { makePortfolioService } from "@/src/application/portfolio/portfolio.factory";
 import { getCacheHeaders } from "@/src/infrastructure/utils/cache-headers";
 
 export async function GET(request: NextRequest) {
@@ -24,35 +23,18 @@ export async function GET(request: NextRequest) {
 
     const coreService = new ReportsCoreService();
 
-    // Fetch required data in parallel
-    const [accounts, debtsResult, portfolioResult] = await Promise.all([
+    const [accounts, debtsResult] = await Promise.all([
       getAccountsForDashboard(false).catch(() => []),
       makeDebtsService().getDebts().catch(() => []),
-      makePortfolioService().getPortfolioSummary(userId).catch(() => null),
     ]);
-
-    // Get session tokens for portfolio
-    let accessToken: string | undefined;
-    let refreshToken: string | undefined;
-    try {
-      const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
-      const supabase = await createServerClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        accessToken = session.access_token;
-        refreshToken = session.refresh_token;
-      }
-    } catch (error) {
-      // Continue without tokens
-    }
 
     const netWorth = await coreService.getNetWorth(
       userId,
       accounts,
       debtsResult,
-      portfolioResult,
-      accessToken,
-      refreshToken
+      null,
+      undefined,
+      undefined
     );
 
     const cacheHeaders = getCacheHeaders('computed');

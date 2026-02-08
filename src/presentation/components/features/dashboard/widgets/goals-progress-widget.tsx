@@ -27,7 +27,7 @@ export function GoalsProgressWidget({ data, className }: GoalsProgressWidgetProp
           description="Track your savings progress"
           primaryAction={{
             label: "Create Goal",
-            href: "/goals/new",
+            href: "/planning/goals",
           }}
           icon={Target}
         />
@@ -57,9 +57,12 @@ export function GoalsProgressWidget({ data, className }: GoalsProgressWidgetProp
           
           return (
              <div key={goal.id} className="flex flex-col space-y-2">
-                <div className="flex items-center justify-between">
+                <Link
+                  href="/planning/goals"
+                  className="flex items-center justify-between rounded-lg transition-colors hover:bg-muted/50 -mx-2 px-2 py-1"
+                >
                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
                         <Icon className="h-5 w-5 text-slate-700" />
                       </div>
                       <span className="font-medium text-sm">{goal.name}</span>
@@ -67,16 +70,16 @@ export function GoalsProgressWidget({ data, className }: GoalsProgressWidgetProp
                    
                    <div className="flex items-center gap-2">
                       <div className="text-right">
-                         <span className="font-bold text-sm">
+                         <span className="text-sm font-semibold">
                            ${goal.currentBalance.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                          </span>
-                         <span className="text-muted-foreground text-sm"> / ${goal.targetAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                         <span className="text-slate-400 text-sm"> / ${goal.targetAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
                       </div>
                    </div>
-                </div>
+                </Link>
 
                 <div className="flex items-center gap-4 pl-[52px]">
-                   <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                   <div className="flex-1 min-w-0 h-3 bg-slate-100 rounded-full overflow-hidden">
                       <div 
                         className="h-full rounded-full transition-all duration-500"
                         style={{ 
@@ -84,19 +87,6 @@ export function GoalsProgressWidget({ data, className }: GoalsProgressWidgetProp
                           backgroundColor: getGoalColor(goal.name)
                         }}
                       />
-                   </div>
-                   <div className="flex items-center gap-4 min-w-[120px] justify-end">
-                      <span 
-                         className="font-medium text-xs"
-                         style={{ color: getGoalColor(goal.name) }}
-                      >
-                        {goal.progressPercentage.toFixed(1)}%
-                      </span>
-                      {goal.monthsRemaining !== null && (
-                         <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            Target {getFormattedDate(goal.monthsRemaining)}
-                         </span>
-                      )}
                    </div>
                 </div>
              </div>
@@ -123,9 +113,3 @@ function getGoalColor(name: string) {
   return "#3b82f6"; // Blue
 }
 
-function getFormattedDate(monthsRemaining: number) {
-  // Simple approximation, add months to current date
-  const date = new Date();
-  date.setMonth(date.getMonth() + monthsRemaining);
-  return date.toLocaleString('default', { month: 'short', year: 'numeric' });
-}

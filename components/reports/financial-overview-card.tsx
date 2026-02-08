@@ -184,13 +184,11 @@ export function FinancialOverviewCard({
                 <div
                   className={cn(
                     "h-2 w-2 rounded-full",
-                    financialHealth.classification === "Excellent"
+                    financialHealth.classification === "Excellent" || financialHealth.classification === "Strong"
                       ? "bg-sentiment-positive"
-                      : financialHealth.classification === "Good"
-                      ? "bg-interactive-primary"
                       : financialHealth.classification === "Fair"
                       ? "bg-sentiment-warning"
-                      : financialHealth.classification === "Poor"
+                      : financialHealth.classification === "Fragile"
                       ? "bg-sentiment-warning"
                       : "bg-sentiment-negative"
                   )}

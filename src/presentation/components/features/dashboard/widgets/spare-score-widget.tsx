@@ -24,7 +24,7 @@ interface SpareScoreWidgetProps {
 export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps) {
   if (loading) {
     return (
-      <WidgetCard title="Spare Score">
+      <WidgetCard title="Spare Score" subtitle="Monthly score">
         <div className="animate-pulse space-y-3">
           <div className="h-10 bg-muted rounded w-24" />
           <div className="h-4 bg-muted rounded w-32" />
@@ -35,7 +35,7 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
 
   if (error) {
     return (
-      <WidgetCard title="Spare Score">
+      <WidgetCard title="Spare Score" subtitle="Monthly score">
         <div className="text-sm text-muted-foreground">
           <p>Error: {error}</p>
           <Button asChild variant="outline" size="small" className="mt-3">
@@ -48,7 +48,7 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
 
   if (!data) {
     return (
-      <WidgetCard title="Spare Score">
+      <WidgetCard title="Spare Score" subtitle="Monthly score">
         <WidgetEmptyState
           title="Start tracking your finances"
           description="Get your Spare Score based on income, expenses, and savings"
@@ -65,12 +65,11 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
   const getClassificationColor = (classification: string) => {
     switch (classification) {
       case "Excellent":
-        return "text-sentiment-positive";
-      case "Good":
+      case "Strong":
         return "text-sentiment-positive";
       case "Fair":
         return "text-sentiment-warning";
-      case "Poor":
+      case "Fragile":
         return "text-sentiment-warning";
       case "Critical":
         return "text-sentiment-negative";
@@ -82,12 +81,10 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
   const getClassificationBgColor = (classification: string) => {
     switch (classification) {
       case "Excellent":
-        return "bg-sentiment-positive/10 text-sentiment-positive";
-      case "Good":
+      case "Strong":
         return "bg-sentiment-positive/10 text-sentiment-positive";
       case "Fair":
-        return "bg-sentiment-warning/10 text-sentiment-warning";
-      case "Poor":
+      case "Fragile":
         return "bg-sentiment-warning/10 text-sentiment-warning";
       case "Critical":
         return "bg-sentiment-negative/10 text-sentiment-negative";
@@ -97,10 +94,10 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 91) return "text-sentiment-positive";
-    if (score >= 81) return "text-sentiment-positive";
-    if (score >= 71) return "text-sentiment-warning";
-    if (score >= 61) return "text-sentiment-warning";
+    if (score >= 85) return "text-sentiment-positive";
+    if (score >= 70) return "text-sentiment-positive";
+    if (score >= 55) return "text-sentiment-warning";
+    if (score >= 40) return "text-sentiment-warning";
     return "text-sentiment-negative";
   };
 
@@ -126,14 +123,16 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
     }
   };
 
+  const empty = data.details?.isEmptyState ?? false;
+
   return (
-    <WidgetCard title="Spare Score" compact>
+    <WidgetCard title="Spare Score" subtitle="Monthly score" compact>
       {/* Score Display */}
       <div className="flex-1 flex flex-col justify-between">
         <div className="space-y-2">
           <div className="flex items-baseline gap-2">
-            <span className={cn("text-3xl font-bold", getScoreColor(data.score))}>
-              {data.score}
+            <span className={cn("text-3xl font-bold", empty ? "text-muted-foreground" : getScoreColor(data.score))}>
+              {empty ? "—" : data.score}
             </span>
             <span className="text-xs text-muted-foreground">/100</span>
             {data.trendValue !== undefined && (
@@ -152,11 +151,11 @@ export function SpareScoreWidget({ data, loading, error }: SpareScoreWidgetProps
           </div>
           <div className={cn(
             "inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium w-fit",
-            getClassificationBgColor(data.classification),
-            getClassificationColor(data.classification)
+            empty ? "bg-muted text-muted-foreground" : getClassificationBgColor(data.classification),
+            empty ? "text-muted-foreground" : getClassificationColor(data.classification)
           )}>
-            {data.classification === "Excellent" && <CheckCircle2 className="h-3 w-3" />}
-            {data.classification}
+            {!empty && data.classification === "Excellent" && <CheckCircle2 className="h-3 w-3" />}
+            {empty ? "No data" : data.classification}
           </div>
         </div>
 

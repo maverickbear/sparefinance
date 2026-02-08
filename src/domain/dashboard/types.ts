@@ -42,7 +42,7 @@ export interface SpareScoreDriver {
 
 export interface SpareScoreDetails {
   score: number;
-  classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+  classification: "Excellent" | "Strong" | "Fair" | "Fragile" | "Critical";
   monthlyIncome: number;
   monthlyExpenses: number;
   netAmount: number;
@@ -51,6 +51,8 @@ export interface SpareScoreDetails {
   spendingDiscipline: "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Unknown";
   debtExposure: "Low" | "Moderate" | "High";
   emergencyFundMonths: number;
+  incomeIsAfterTax?: boolean;
+  isEmptyState?: boolean; // True when no transactions for the month — UI should show "—" / "No data" instead of 0
   alerts: Array<{
     id: string;
     title: string;
@@ -68,7 +70,7 @@ export interface SpareScoreDetails {
 
 export interface SpareScoreWidgetData extends BaseWidgetData {
   score: number;
-  classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+  classification: "Excellent" | "Strong" | "Fair" | "Fragile" | "Critical";
   trend: 'up' | 'down' | 'stable';
   trendValue?: number; // percentage change from last month
   lastMonthScore?: number;
@@ -221,21 +223,13 @@ export interface DebtOverviewWidgetData extends BaseWidgetData {
   totalDebts: number; // count of active debts
 }
 
-// Widget 10: Investment Portfolio
-export interface AssetAllocation {
-  assetClass: string;
-  percentage: number;
-  value: number;
-  targetPercentage?: number;
-}
-
-export interface InvestmentPortfolioWidgetData extends BaseWidgetData {
-  totalValue: number;
-  allocation: AssetAllocation[];
-  performanceYTD: number; // percentage
-  performance1Y: number; // percentage
-  targetAllocation?: AssetAllocation[];
-  isOffTarget: boolean;
+// Expected income overview (for dashboard "Income Previso" comparison)
+export interface ExpectedIncomeOverview {
+  expectedMonthlyIncome: number;
+  actualIncomeThisMonth: number;
+  spendingThisMonth: number;
+  spendingAsPercentOfExpected: number | null; // when expected > 0
+  hasExpectedIncome: boolean;
 }
 
 // Combined dashboard data
@@ -249,18 +243,19 @@ export interface DashboardWidgetsData {
   goalsProgress: GoalsProgressWidgetData | null;
   financialAlerts: FinancialAlertsWidgetData;
   debtOverview: DebtOverviewWidgetData | null;
-  investmentPortfolio: InvestmentPortfolioWidgetData | null;
   // New Widgets
   totalBudgets: TotalBudgetsWidgetData | null;
   spending: SpendingWidgetData | null;
   recentTransactions: RecentTransactionsWidgetData | null;
   recurring: RecurringWidgetData | null;
-  investmentHoldings: InvestmentHoldingsWidgetData | null;
   subscriptions: SubscriptionsWidgetData | null;
   accountStats: {
     totalChecking: number;
     totalSavings: number;
+    /** Sum of balances for checking, savings, cash, and other (liquid/available accounts) */
+    totalAvailable: number;
   } | null;
+  expectedIncomeOverview: ExpectedIncomeOverview | null;
 }
 
 // Widget: Total Budgets (Replacement for BudgetPerformance in new design)
@@ -311,19 +306,6 @@ export interface RecentTransactionsWidgetData extends BaseWidgetData {
   transactions: RecentTransactionItem[];
 }
 
-// Widget: Investment Holdings (List view)
-export interface InvestmentHoldingItem {
-  symbol: string;
-  name: string;
-  value: number;
-  change: number; // percentage
-  changeValue: number;
-}
-
-export interface InvestmentHoldingsWidgetData extends BaseWidgetData {
-  holdings: InvestmentHoldingItem[];
-}
-
 // Widget: Recurring (List view)
 export interface RecurringItem {
   id: string;
@@ -331,6 +313,7 @@ export interface RecurringItem {
   amount: number;
   frequency: string; // "Monthly", "Yearly"
   nextDate: string;
+  type: "income" | "expense" | "transfer";
   icon?: string;
 }
 

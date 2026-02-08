@@ -61,9 +61,11 @@ export async function POST(request: NextRequest) {
     const service = makeAccountsService();
     const account = await service.createAccount(data);
     
-    // Invalidate cache using tag groups (invalidates all account variants)
+    // Invalidate cache so dashboard and reports reflect new data
     revalidateTag('accounts', 'max');
     revalidateTag('subscriptions', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(account, { status: 201 });
   } catch (error) {

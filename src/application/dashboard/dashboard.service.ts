@@ -10,6 +10,7 @@ import { logger } from "@/src/infrastructure/utils/logger";
 import { UpdateCheckResult } from "@/src/domain/dashboard/dashboard.types";
 import type {
   DashboardWidgetsData,
+  ExpectedIncomeOverview,
   SpareScoreWidgetData,
   NetWorthWidgetData,
   CashFlowWidgetData,
@@ -19,14 +20,13 @@ import type {
   GoalsProgressWidgetData,
   FinancialAlertsWidgetData,
   DebtOverviewWidgetData,
-  InvestmentPortfolioWidgetData,
   TotalBudgetsWidgetData,
   SpendingWidgetData,
   RecentTransactionsWidgetData,
   RecurringWidgetData,
-  InvestmentHoldingsWidgetData,
   SubscriptionsWidgetData,
 } from "@/src/domain/dashboard/types";
+import { makeOnboardingService } from "@/src/application/onboarding/onboarding.factory";
 import { calculateFinancialHealth, FinancialHealthData } from "@/src/application/shared/financial-health";
 import { makeTransactionsService } from "@/src/application/transactions/transactions.factory";
 import { makeBudgetsService } from "@/src/application/budgets/budgets.factory";
@@ -34,8 +34,8 @@ import { makeGoalsService } from "@/src/application/goals/goals.factory";
 import { makeDebtsService } from "@/src/application/debts/debts.factory";
 import { makePlannedPaymentsService } from "@/src/application/planned-payments/planned-payments.factory";
 import { ReportsCoreService } from "@/src/application/reports/reports-core.service";
-import { makePortfolioService } from "@/src/application/portfolio/portfolio.factory";
 import { makeUserSubscriptionsService } from "@/src/application/user-subscriptions/user-subscriptions.factory";
+import { makeAccountsService } from "@/src/application/accounts/accounts.factory";
 import { getAccountsForDashboard } from "@/src/application/accounts/get-dashboard-accounts";
 import { startOfMonth, endOfMonth, subMonths, format, parseISO, differenceInDays, addDays, eachDayOfInterval, isSameDay, getDate, isAfter, isBefore } from "date-fns";
 import type { TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
@@ -45,7 +45,7 @@ import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import type { BaseFinancialEvent } from "@/src/domain/financial-events/financial-events.types";
 import { getTransactionAmount } from "@/lib/utils/transaction-encryption";
-import { getCategoryColor } from "@/lib/utils/category-colors";
+import { getCategoryColor, getCategoryColorPalette } from "@/lib/utils/category-colors";
 
 export interface TransactionUsage {
   current: number;
@@ -104,8 +104,19 @@ export class DashboardService {
   }
 
   /**
+   * Get the current dashboard version (single identifier for all dashboard-related data).
+   * Version = max(updated_at) across transactions, accounts, budgets, goals, debts,
+   * planned_payments, user_subscriptions, users, and the user's household (expected income).
+   */
+  async getDashboardVersion(userId: string): Promise<string> {
+    const { getActiveHouseholdId } = await import("@/lib/utils/household");
+    const householdId = await getActiveHouseholdId(userId);
+    return this.dashboardRepository.getDashboardVersion(userId, householdId);
+  }
+
+  /**
    * Check for dashboard updates since lastCheck timestamp
-   * 
+   *
    * SIMPLIFIED: Uses simple timestamp-based checking instead of complex hash/RPC
    * Queries transactions table (most frequently updated) to detect changes
    */
@@ -147,12 +158,14 @@ export class DashboardService {
   /**
    * Get all dashboard widgets data
    * OPTIMIZED: Pre-fetch shared data (accounts) to avoid duplicate calls
+   * @param viewAsUserId - When set, filter to this household member's accounts and transactions only
    */
   async getDashboardWidgets(
     userId: string,
     selectedDate?: Date,
     accessToken?: string,
-    refreshToken?: string
+    refreshToken?: string,
+    viewAsUserId?: string
   ): Promise<DashboardWidgetsData> {
     const date = selectedDate || new Date();
     const selectedMonth = startOfMonth(date);
@@ -166,31 +179,55 @@ export class DashboardService {
     const debtsService = makeDebtsService();
     const goalsService = makeGoalsService();
 
-    // OPTIMIZATION: Pre-fetch accounts once to reuse across widgets
-    // This prevents multiple calls to getAccountsForDashboard
+    // Pre-fetch accounts once (no cache) so dashboard always shows current balances for Everyone/household
     let accounts: AccountWithBalance[] | null = null;
     try {
-      accounts = await getAccountsForDashboard(true, accessToken, refreshToken);
+      const accountsService = makeAccountsService();
+      accounts = await accountsService.getAccounts(accessToken, refreshToken, { includeHoldings: true });
     } catch (error) {
       logger.warn("[DashboardService] Could not pre-fetch accounts, widgets will fetch individually:", error);
     }
 
+    // When viewing a specific household member, filter to that member's accounts only
+    const isAccountOwnedByMember = (a: AccountWithBalance) =>
+      a.userId === viewAsUserId ||
+      (viewAsUserId != null && (a.ownerIds?.length && a.ownerIds.includes(viewAsUserId)));
+
+    const accountIdsFilter: string[] | undefined =
+      viewAsUserId && accounts?.length
+        ? accounts.filter(isAccountOwnedByMember).map((a) => a.id)
+        : undefined;
+
+    const transactionFilterBase =
+      viewAsUserId !== undefined ? { accountIds: accountIdsFilter ?? [] } : {};
+
+    if (viewAsUserId && accounts?.length) {
+      accounts = accounts.filter(isAccountOwnedByMember);
+    }
+
     // OPTIMIZATION: Pre-fetch shared data in parallel
-    // This dramatically reduces redundant DB calls (transactions fetched 6+ times -> 2 times)
+    const onboardingService = makeOnboardingService();
     const [
       currentMonthTransactionsResult,
       previousMonthTransactionsResult,
       budgets,
       debts,
-      goals
+      goals,
+      expectedIncomeResult,
     ] = await Promise.all([
       // 1. Current Month Transactions
-      transactionsService.getTransactions({ startDate: selectedMonth, endDate: selectedMonthEnd }, accessToken, refreshToken)
-        .catch(e => { logger.error("Error pre-fetching current transactions:", e); return { transactions: [], total: 0 }; }),
-      
+      transactionsService.getTransactions(
+        { startDate: selectedMonth, endDate: selectedMonthEnd, ...transactionFilterBase },
+        accessToken,
+        refreshToken
+      ).catch(e => { logger.error("Error pre-fetching current transactions:", e); return { transactions: [], total: 0 }; }),
+
       // 2. Previous Month Transactions
-      transactionsService.getTransactions({ startDate: previousMonth, endDate: previousMonthEnd }, accessToken, refreshToken)
-        .catch(e => { logger.error("Error pre-fetching previous transactions:", e); return { transactions: [], total: 0 }; }),
+      transactionsService.getTransactions(
+        { startDate: previousMonth, endDate: previousMonthEnd, ...transactionFilterBase },
+        accessToken,
+        refreshToken
+      ).catch(e => { logger.error("Error pre-fetching previous transactions:", e); return { transactions: [], total: 0 }; }),
       
       // 3. Budgets
       budgetsService.getBudgets(selectedMonth, accessToken, refreshToken)
@@ -202,11 +239,37 @@ export class DashboardService {
 
       // 5. Goals
       goalsService.getGoals(accessToken, refreshToken)
-        .catch(e => { logger.error("Error pre-fetching goals:", e); return []; })
+        .catch(e => { logger.error("Error pre-fetching goals:", e); return []; }),
+
+      // 6. Expected income (household-level, for "Income Previso" comparison)
+      onboardingService.getExpectedIncomeWithAmount(userId, accessToken, refreshToken)
+        .catch(e => { logger.warn("[DashboardService] Error fetching expected income:", e); return { incomeRange: null, incomeAmount: null }; }),
     ]);
 
     const currentTransactions = Array.isArray(currentMonthTransactionsResult) ? currentMonthTransactionsResult : (currentMonthTransactionsResult?.transactions || []);
     const previousTransactions = Array.isArray(previousMonthTransactionsResult) ? previousMonthTransactionsResult : (previousMonthTransactionsResult?.transactions || []);
+
+    // Build expected income overview (expected vs actual income and spending this month)
+    const actualIncomeThisMonth = currentTransactions
+      .filter((t) => t.type === "income" && !t.transferFromId && !t.transferToId)
+      .reduce((sum, t) => sum + Math.abs(getTransactionAmount(t.amount) || 0), 0);
+    const spendingThisMonth = currentTransactions
+      .filter((t) => t.type === "expense" && !t.transferFromId && !t.transferToId)
+      .reduce((sum, t) => sum + Math.abs(getTransactionAmount(t.amount) || 0), 0);
+    const { incomeRange, incomeAmount } = expectedIncomeResult ?? { incomeRange: null, incomeAmount: null };
+    const expectedMonthlyIncome = incomeRange
+      ? onboardingService.getMonthlyIncomeFromRange(incomeRange, incomeAmount ?? null)
+      : 0;
+    const hasExpectedIncome = incomeRange != null;
+    const spendingAsPercentOfExpected =
+      expectedMonthlyIncome > 0 ? (spendingThisMonth / expectedMonthlyIncome) * 100 : null;
+    const expectedIncomeOverview: ExpectedIncomeOverview = {
+      expectedMonthlyIncome,
+      actualIncomeThisMonth,
+      spendingThisMonth,
+      spendingAsPercentOfExpected,
+      hasExpectedIncome,
+    };
 
     // OPTIMIZATION: Calculate Financial Health ONCE and share it
     // This avoids redundant expensive tax calculations and repeated data fetching
@@ -240,13 +303,11 @@ export class DashboardService {
       goalsProgress,
       financialAlerts,
       debtOverview,
-      investmentPortfolio,
       // New Widgets
       totalBudgets,
       spending,
       recentTransactions,
       recurring,
-      investmentHoldings,
       subscriptions,
     ] = await Promise.all([
       this.getSpareScoreWidget(userId, date, accessToken, refreshToken, accounts, goals, debts, currentTransactions, financialHealth),
@@ -258,17 +319,11 @@ export class DashboardService {
       this.getGoalsProgressWidget(userId, accessToken, refreshToken, goals),
       this.getFinancialAlertsWidget(userId, date, accessToken, refreshToken, accounts, debts, goals, currentTransactions, financialHealth),
       this.getDebtOverviewWidget(userId, accessToken, refreshToken, debts),
-
-      // Investment portfolio disabled for now
-      Promise.resolve(null),
       // New Widgets
       this.getTotalBudgetsWidget(userId, selectedMonth, accessToken, refreshToken, budgets),
       this.getSpendingWidget(userId, selectedMonth, selectedMonthEnd, previousMonth, previousMonthEnd, accessToken, refreshToken, currentTransactions, previousTransactions),
       this.getRecentTransactionsWidget(userId, accessToken, refreshToken, currentTransactions),
       this.getRecurringWidget(userId, accessToken, refreshToken),
-
-      // Investment holdings disabled for now
-      Promise.resolve(null),
       this.getSubscriptionsWidget(userId)
     ]);
 
@@ -282,18 +337,25 @@ export class DashboardService {
       goalsProgress,
       financialAlerts: financialAlerts || { alerts: [], hasAlerts: false, actions: [], insights: [] },
       debtOverview,
-      investmentPortfolio,
       // New Widgets
       totalBudgets,
       spending,
       recentTransactions,
       recurring,
-      investmentHoldings,
       subscriptions,
-      accountStats: accounts ? {
-        totalChecking: accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + (a.balance || 0), 0),
-        totalSavings: accounts.filter(a => a.type === 'savings').reduce((sum, a) => sum + (a.balance || 0), 0),
-      } : null
+      accountStats: accounts ? (() => {
+        const totalChecking = accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + (a.balance || 0), 0);
+        const totalSavings = accounts
+          .filter(a => a.type === 'savings' || a.type === 'cash')
+          .reduce((sum, a) => sum + (a.balance || 0), 0);
+        // All asset-type accounts (exclude only 'credit' which is a liability)
+        const assetTypes = ['checking', 'savings', 'cash', 'other', 'investment'];
+        const totalAvailable = accounts
+          .filter(a => assetTypes.includes(a.type))
+          .reduce((sum, a) => sum + (a.balance || 0), 0);
+        return { totalChecking, totalSavings, totalAvailable };
+      })() : null,
+      expectedIncomeOverview,
     };
   }
 
@@ -390,6 +452,8 @@ export class DashboardService {
           spendingDiscipline: financialHealth.spendingDiscipline,
           debtExposure: financialHealth.debtExposure,
           emergencyFundMonths: financialHealth.emergencyFundMonths,
+          incomeIsAfterTax: financialHealth.incomeIsAfterTax,
+          isEmptyState: financialHealth.isEmptyState,
           alerts: financialHealth.alerts,
           suggestions: financialHealth.suggestions,
         },
@@ -414,7 +478,18 @@ export class DashboardService {
   }> {
     const drivers = [];
 
-    // Driver 1: Spending discipline
+    // Pillar: Cash flow
+    if (financialHealth.netAmount < 0) {
+      drivers.push({
+        label: "Negative cash flow",
+        change: Math.abs(financialHealth.netAmount),
+        changeType: 'increase' as const,
+        impact: 'high' as const,
+        actionHref: '/transactions',
+      });
+    }
+
+    // Spending discipline (savings behavior)
     if (financialHealth.spendingDiscipline) {
       const disciplineMap: Record<string, number> = {
         'Excellent': 0,
@@ -451,7 +526,7 @@ export class DashboardService {
         change: 10 - financialHealth.savingsRate,
         changeType: 'increase' as const,
         impact: 'high' as const,
-        actionHref: '/goals',
+        actionHref: '/planning/goals',
       });
     }
 
@@ -481,7 +556,7 @@ export class DashboardService {
         change: 6 - financialHealth.emergencyFundMonths,
         changeType: 'increase' as const,
         impact: financialHealth.emergencyFundMonths < 3 ? 'high' as const : 'medium' as const,
-        actionHref: '/goals?filter=emergency-fund',
+        actionHref: '/planning/goals?filter=emergency-fund',
       });
     }
 
@@ -518,21 +593,12 @@ export class DashboardService {
         unpaidDebts = debts.filter(d => !d.isPaidOff);
       }
 
-      // Get portfolio summary if available
-      let portfolioSummary = null;
-      try {
-        // const portfolioService = makePortfolioService();
-        // portfolioSummary = await portfolioService.getPortfolioSummaryInternal(accessToken, refreshToken).catch(() => null);
-      } catch (error) {
-        // Portfolio not available, continue without it
-      }
-
       const reportsService = new ReportsCoreService();
       const netWorthData = await reportsService.getNetWorth(
         userId,
         accountsToUse,
         unpaidDebts,
-        portfolioSummary,
+        null,
         accessToken,
         refreshToken
       );
@@ -586,7 +652,7 @@ export class DashboardService {
       } else if (netWorthData.change.amount > 0) {
         actions.push({
           label: "Set Savings Goal",
-          href: "/goals/new",
+          href: "/planning/goals",
           variant: 'secondary' as const,
         });
       }
@@ -705,7 +771,7 @@ export class DashboardService {
       } else {
         actions.push({
           label: "Allocate to Goals",
-          href: "/goals",
+          href: "/planning/goals",
           variant: 'primary' as const,
         });
       }
@@ -1160,12 +1226,12 @@ export class DashboardService {
       const actions = [
         {
           label: "View All Goals",
-          href: "/goals",
+          href: "/planning/goals",
           variant: 'primary' as const,
         },
         {
           label: "Create Goal",
-          href: "/goals/new",
+          href: "/planning/goals",
           variant: 'secondary' as const,
         },
       ];
@@ -1177,7 +1243,7 @@ export class DashboardService {
         insights.push({
           type: 'warning' as const,
           message: `${behindScheduleGoals.length} goal${behindScheduleGoals.length === 1 ? '' : 's'} ${behindScheduleGoals.length === 1 ? 'is' : 'are'} behind schedule`,
-          actionHref: "/goals",
+          actionHref: "/planning/goals",
           actionLabel: "View Goals",
         });
       }
@@ -1274,7 +1340,7 @@ export class DashboardService {
           severity: financialHealth.emergencyFundMonths < 3 ? 'critical' : 'warning',
           title: 'Emergency Fund Low',
           description: `You have ${financialHealth.emergencyFundMonths.toFixed(1)} months of expenses covered. Recommended: 6 months.`,
-          actionHref: '/goals/new?type=emergency-fund',
+          actionHref: '/planning/goals?type=emergency-fund',
           actionLabel: 'Set Up Emergency Fund',
           dismissible: true,
         });
@@ -1458,109 +1524,6 @@ export class DashboardService {
   }
 
   /**
-   * Widget 10: Get Investment Portfolio Widget Data
-   */
-  async getInvestmentPortfolioWidget(
-    userId: string,
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<InvestmentPortfolioWidgetData | null> {
-    try {
-      // Check if user has access to investments
-      const { guardFeatureAccessReadOnly } = await import("@/src/application/shared/feature-guard");
-      const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
-      if (!featureGuard.allowed) {
-        return null;
-      }
-
-      const portfolioService = makePortfolioService();
-      const summary = await portfolioService.getPortfolioSummaryInternal(accessToken, refreshToken).catch(() => null);
-
-      if (!summary) {
-        return null;
-      }
-
-      // Get holdings for allocation
-      const holdings = await portfolioService.getPortfolioHoldings(accessToken, refreshToken).catch(() => []);
-
-      // Calculate allocation by asset class (simplified)
-      const allocationMap = new Map<string, number>();
-      holdings.forEach((h: any) => {
-        const assetClass = h.assetType || h.security?.class || 'Other';
-        const value = h.marketValue || 0;
-        allocationMap.set(assetClass, (allocationMap.get(assetClass) || 0) + value);
-      });
-
-      const totalValue = summary.totalValue || 0;
-      const allocation = Array.from(allocationMap.entries()).map(([assetClass, value]) => ({
-        assetClass,
-        value,
-        percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
-      }));
-
-      // Calculate performance (simplified - would need historical data for accurate YTD/1Y)
-      const performanceYTD = summary.totalReturnPercent || 0;
-      const performance1Y = summary.totalReturnPercent || 0; // Would need 1Y calculation
-
-      // Build actions
-      const actions: import("@/src/domain/dashboard/types").WidgetAction[] = [
-        {
-          label: "View Portfolio",
-          href: "/investments",
-          variant: 'primary',
-        },
-      ];
-
-      // Check if allocation is off target (simplified check)
-      const isOffTarget = allocation.some(a => {
-        // Simple check: if any single asset class is > 80% or < 5%
-        return a.percentage > 80 || (a.percentage < 5 && a.percentage > 0);
-      });
-
-      if (isOffTarget) {
-        actions.push({
-          label: "Rebalance Portfolio",
-          href: "/investments?action=rebalance",
-          variant: 'secondary' as const,
-        });
-      }
-
-      actions.push({
-        label: "Add Investment",
-        href: "/investments/new",
-        variant: 'link' as const,
-      });
-
-      // Build insights
-      const insights = [];
-      if (performanceYTD < 0) {
-        insights.push({
-          type: 'warning' as const,
-          message: `Portfolio is down ${Math.abs(performanceYTD).toFixed(1)}% YTD`,
-        });
-      } else if (performanceYTD > 0) {
-        insights.push({
-          type: 'success' as const,
-          message: `Portfolio is up ${performanceYTD.toFixed(1)}% YTD`,
-        });
-      }
-
-      return {
-        totalValue,
-        allocation,
-        performanceYTD,
-        performance1Y,
-        isOffTarget,
-        actions,
-        insights,
-      };
-    } catch (error) {
-      logger.error("[DashboardService] Error getting Investment Portfolio widget:", error);
-      return null;
-    }
-  }
-
-  /**
    * Widget (New): Total Budgets
    */
   async getTotalBudgetsWidget(
@@ -1579,6 +1542,7 @@ export class DashboardService {
 
       const totalBudgeted = budgetsList.reduce((sum, b) => sum + (b.amount || 0), 0);
       
+      const palette = getCategoryColorPalette();
       const categories = budgetsList
         .filter(b => b.categoryId && b.category)
         .map(b => {
@@ -1590,12 +1554,12 @@ export class DashboardService {
             spent,
             budget,
             percentage: budget > 0 ? (spent / budget) * 100 : 0,
-            color: getCategoryColor(b.category!.name),
             allocationPercentage: totalBudgeted > 0 ? (budget / totalBudgeted) * 100 : 0,
           };
         })
         .sort((a, b) => b.budget - a.budget) // Sort by allocation size
-        .slice(0, 4); // Limit to top 4 for the widget
+        .slice(0, 4) // Limit to top 4 for the widget
+        .map((cat, i) => ({ ...cat, color: palette[i % palette.length] })); // Assign distinct colors by index
 
         return {
           totalAmount: totalBudgeted,
@@ -1837,11 +1801,28 @@ export class DashboardService {
         return sourceLabels[p.source] ?? "Planned payment";
       };
 
-      // Format date from planned payment as date-only (avoid timezone shifting the day)
-      const formatPlannedPaymentDate = (date: Date | string): string => {
-        const dateOnly = typeof date === "string" ? date.split("T")[0] : format(date, "yyyy-MM-dd");
-        if (!dateOnly || dateOnly.length < 10) return format(new Date(date), "dd MMM");
-        return format(parseISO(dateOnly), "dd MMM");
+      // Pass date as YYYY-MM-DD so the client can show "Today", "Tomorrow", "In X days", etc.
+      const toDateOnly = (date: Date | string): string => {
+        if (typeof date === "string") {
+          const part = date.split("T")[0];
+          return part && part.length >= 10 ? part : format(new Date(date), "yyyy-MM-dd");
+        }
+        return format(date, "yyyy-MM-dd");
+      };
+
+      // Derive display type so icons match actual transaction type (income / expense / transfer)
+      const getDisplayType = (p: (typeof plannedPayments)[0]): "income" | "expense" | "transfer" => {
+        if (p.source === "goal") return "transfer";
+        // Subscriptions and debt are always expense; recurring can be income (e.g. Employment) or expense
+        if (p.source === "subscription" || p.source === "debt") return "expense";
+        // Use category type when available (e.g. Employment = income, Housing = expense)
+        if (p.category?.type === "income" || p.category?.type === "expense") {
+          return p.category.type;
+        }
+        if (p.subcategory?.category?.type === "income" || p.subcategory?.category?.type === "expense") {
+          return p.subcategory.category.type;
+        }
+        return (p.type ?? "expense") as "income" | "expense" | "transfer";
       };
 
       // Filter next few
@@ -1854,7 +1835,8 @@ export class DashboardService {
           name: getItemName(p),
           amount: p.amount || 0,
           frequency: p.source === 'recurring' || p.source === 'subscription' ? 'Recurring' : 'One-time',
-          nextDate: formatPlannedPaymentDate(p.date),
+          nextDate: toDateOnly(p.date),
+          type: getDisplayType(p),
         }));
         
        return {
@@ -1872,48 +1854,6 @@ export class DashboardService {
     } catch (error) {
        logger.error("[DashboardService] Error getting Recurring widget:", error);
        return null;
-    }
-  }
-
-  /**
-   * Widget (New): Investment Holdings
-   */
-  async getInvestmentHoldingsWidget(
-    userId: string,
-    accessToken?: string,
-    refreshToken?: string
-  ): Promise<InvestmentHoldingsWidgetData | null> {
-    try {
-       const portfolioService = makePortfolioService();
-       const holdings = await portfolioService.getPortfolioHoldings(accessToken, refreshToken);
-       
-       // Map to widget format
-       // limit to top 5 by value?
-       const items = holdings
-         .sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0))
-         .slice(0, 5)
-         .map((h) => ({
-           symbol: h.symbol,
-           name: h.name,
-           value: h.marketValue,
-           change: h.unrealizedPnLPercent, 
-           changeValue: h.unrealizedPnL
-         }));
-
-       return {
-         holdings: items,
-         actions: [
-           {
-             label: "See all",
-             href: "/investments/portfolio",
-             variant: "link"
-           }
-         ],
-         insights: []
-       };
-    } catch (error) {
-      logger.error("[DashboardService] Error getting Investment Holdings widget:", error);
-      return null;
     }
   }
 
@@ -1962,7 +1902,8 @@ export class DashboardService {
        const totalMonthly = subscriptions.reduce((sum, s) => {
          // Simple monthly normalization
          let monthlyAmount = s.amount;
-         if (s.billingFrequency === 'weekly') monthlyAmount *= 4;
+         if (s.billingFrequency === 'yearly') monthlyAmount /= 12;
+         else if (s.billingFrequency === 'weekly') monthlyAmount *= 4;
          else if (s.billingFrequency === 'biweekly') monthlyAmount *= 2;
          else if (s.billingFrequency === 'semimonthly') monthlyAmount *= 2;
          else if (s.billingFrequency === 'daily') monthlyAmount *= 30;

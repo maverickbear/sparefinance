@@ -89,14 +89,16 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json(budget, { status: 201 });
   } catch (error) {
-    console.error("Error creating budget:", error);
-    
     if (error instanceof AppError) {
+      if (error.statusCode >= 500) {
+        console.error("Error creating budget:", error);
+      }
       return NextResponse.json(
         { error: error.message },
         { status: error.statusCode }
       );
     }
+    console.error("Error creating budget:", error);
     
     if (error instanceof ZodError) {
       return NextResponse.json(

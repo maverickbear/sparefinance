@@ -39,8 +39,9 @@ export interface TransactionFilters {
   endDate?: Date;
   categoryId?: string;
   accountId?: string;
+  accountIds?: string[];
   type?: 'income' | 'expense' | 'transfer';
-    isRecurring?: boolean;
+  isRecurring?: boolean;
   page?: number;
   limit?: number;
 }
@@ -77,7 +78,9 @@ export class TransactionsRepository implements ITransactionsRepository {
       query = query.eq("category_id", filters.categoryId);
     }
 
-    if (filters?.accountId) {
+    if (filters?.accountIds?.length) {
+      query = query.in("account_id", filters.accountIds);
+    } else if (filters?.accountId) {
       query = query.eq("account_id", filters.accountId);
     }
 
@@ -150,7 +153,9 @@ export class TransactionsRepository implements ITransactionsRepository {
       query = query.eq("category_id", filters.categoryId);
     }
 
-    if (filters?.accountId) {
+    if (filters?.accountIds?.length) {
+      query = query.in("account_id", filters.accountIds);
+    } else if (filters?.accountId) {
       query = query.eq("account_id", filters.accountId);
     }
 

@@ -415,8 +415,8 @@ export class ProfileService {
         );
       }
 
-      // 2. Disconnect all Plaid items (skipped - support removed)
-      logger.info("[ProfileService] Plaid disconnection skipped (feature disabled)", { userId });
+      // External banking connections no longer used
+      logger.info("[ProfileService] Skip external connections", { userId });
 
       // 3. Cancel active subscription in Stripe (don't fail if this fails, but log it)
       const subscriptionsService = makeSubscriptionsService();
@@ -502,7 +502,7 @@ export class ProfileService {
         // Continue - session revocation is not critical
       }
 
-      // Step 3: Revoke all external tokens (Plaid, etc.)
+      // Step 3: Revoke external tokens
       try {
         await anonymizationService.revokeAllTokens(userId);
       } catch (tokenError) {
@@ -510,7 +510,7 @@ export class ProfileService {
           userId,
           error: tokenError instanceof Error ? tokenError.message : "Unknown error",
         });
-        // Continue - token revocation is handled by PlaidService
+        // Continue
       }
 
       // Step 4: Verify that anonymization was successful

@@ -2,12 +2,13 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, XCircle, Loader2, Lock, Mail, User, AlertCircle, Wallet, TrendingUp, Shield, Zap, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Lock, Mail, User, AlertCircle, Wallet, TrendingUp, Shield, Zap, Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 const passwordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -193,7 +194,7 @@ function AcceptInvitationForm() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
       {/* Left side - Branding */}
-      <div className="hidden lg:flex flex-col justify-center p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-background relative overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-center p-12 bg-[#f8f4f1] relative overflow-hidden">
         {/* Decorative background elements */}
         <div className="absolute inset-0 bg-grid-pattern opacity-5" />
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -253,8 +254,14 @@ function AcceptInvitationForm() {
       </div>
 
       {/* Right side - Form */}
-      <div className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
+      <div className="flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12">
         <div className="w-full max-w-md space-y-8">
+          <Link href="/">
+            <Button variant="ghost" size="small" className="-ml-2 text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to home
+            </Button>
+          </Link>
           {/* Mobile header */}
           <div className="lg:hidden text-center space-y-2">
             <div className="flex items-center justify-center gap-3 mb-4">
@@ -501,7 +508,7 @@ export default function AcceptInvitationPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen grid lg:grid-cols-2">
-        <div className="hidden lg:flex flex-col justify-center p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+        <div className="hidden lg:flex flex-col justify-center p-12 bg-[#f8f4f1]">
           <div className="space-y-4">
             <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
             <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />

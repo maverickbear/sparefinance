@@ -65,7 +65,7 @@ export function NetWorthWidget({ data, loading, error }: NetWorthWidgetProps) {
         <div className="space-y-2">
           <div className="flex items-baseline gap-2">
             <span className={cn(
-              "text-2xl font-bold",
+              "text-2xl",
               isPositive ? "text-sentiment-positive" : "text-sentiment-negative"
             )}>
               {formatMoney(data.netWorth)}

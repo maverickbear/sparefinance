@@ -279,6 +279,7 @@
     /* Sentiment Positive: #2F5711 */
     --sentiment-warning: 47 83% 60%;
     /* Sentiment Warning: #EDC843 */
+
   }
 }
 
@@ -287,9 +288,14 @@
     @apply border-border;
   }
 
-  /* Default body text uses content.primary, but most body text should explicitly use text-muted-foreground */
+  /* Satoshi is loaded via Fontshare in layout; fallback for CSS variable (e.g. when using next/font later) */
+  :root {
+    --font-satoshi: "Satoshi", system-ui, sans-serif;
+  }
+
+  /* Default body text uses content.primary; font-sans applies Satoshi via Tailwind */
   body {
-    @apply text-foreground;
+    @apply text-foreground font-sans;
   }
 
   /* Remove spinner buttons from number inputs */
@@ -312,15 +318,6 @@
       linear-gradient(to right, hsla(var(--border)) 1px, transparent 1px),
       linear-gradient(to bottom, hsla(var(--border)) 1px, transparent 1px);
     background-size: 20px 20px;
-  }
-
-  /* Landing page specific styles */
-  .landing-gradient-dark {
-    background: linear-gradient(135deg, hsl(var(--primary-900)) 0%, hsl(var(--primary-600)) 50%, hsl(var(--primary-900)) 100%);
-  }
-
-  .landing-gradient-light {
-    background: linear-gradient(135deg, hsl(var(--primary-500)) 0%, hsl(var(--primary-400)) 100%);
   }
 
   /* Smooth scroll for anchor links */

@@ -31,12 +31,10 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
   const getClassificationColor = (classification: string) => {
     switch (classification) {
       case "Excellent":
-        return "text-sentiment-positive";
-      case "Good":
+      case "Strong":
         return "text-sentiment-positive";
       case "Fair":
-        return "text-sentiment-warning";
-      case "Poor":
+      case "Fragile":
         return "text-sentiment-warning";
       case "Critical":
         return "text-sentiment-negative";
@@ -48,12 +46,11 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
   const getClassificationBgColor = (classification: string) => {
     switch (classification) {
       case "Excellent":
-        return "bg-green-100 dark:bg-green-900/20";
-      case "Good":
+      case "Strong":
         return "bg-green-100 dark:bg-green-900/20";
       case "Fair":
         return "bg-yellow-100 dark:bg-yellow-900/20";
-      case "Poor":
+      case "Fragile":
         return "bg-orange-100 dark:bg-orange-900/20";
       case "Critical":
         return "bg-red-100 dark:bg-red-900/20";
@@ -63,11 +60,11 @@ export function FinancialHealthWidget({ data, lastMonthIncome, lastMonthExpenses
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 91) return "text-sentiment-positive"; // Excellent
-    if (score >= 81) return "text-sentiment-positive"; // Good
-    if (score >= 71) return "text-sentiment-warning"; // Fair
-    if (score >= 61) return "text-sentiment-warning"; // Poor
-    return "text-sentiment-negative"; // Critical
+    if (score >= 85) return "text-sentiment-positive";
+    if (score >= 70) return "text-sentiment-positive";
+    if (score >= 55) return "text-sentiment-warning";
+    if (score >= 40) return "text-sentiment-warning";
+    return "text-sentiment-negative";
   };
 
   const getAlertIcon = (severity: string) => {

@@ -9,9 +9,7 @@ import { makeDebtsService } from "../debts/debts.factory";
 import { makeGoalsService } from "../goals/goals.factory";
 // CRITICAL: Use static import to ensure React cache() works correctly
 import { getAccountsForDashboard } from "../accounts/get-dashboard-accounts";
-import { makePortfolioService } from "../portfolio/portfolio.factory";
 import { calculateFinancialHealth } from "../shared/financial-health";
-import { guardFeatureAccessReadOnly } from "../shared/feature-guard";
 import { startOfMonth, endOfMonth, subMonths, eachMonthOfInterval, format } from "date-fns";
 import { logger } from "@/src/infrastructure/utils/logger";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
@@ -31,7 +29,6 @@ import type { Budget } from "@/src/domain/budgets/budgets.types";
 import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
 import type { GoalWithCalculations } from "@/src/domain/goals/goals.types";
 import type { Account } from "@/src/domain/accounts/accounts.types";
-import type { PortfolioSummary, HistoricalDataPoint, Holding } from "@/src/domain/portfolio/portfolio.types";
 import type { FinancialHealthData } from "@/src/application/shared/financial-health";
 
 // Helper function to get date range (used by cached function)
@@ -75,7 +72,7 @@ async function calculateNetWorthStandalone(
   userId: string,
   accounts: Account[],
   debts: DebtWithCalculations[],
-  portfolioSummary: PortfolioSummary | null,
+  _portfolioSummary: null,
   accessToken?: string,
   refreshToken?: string
 ): Promise<NetWorthData | null> {
@@ -89,14 +86,9 @@ async function calculateNetWorthStandalone(
     );
     totalAssets += cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
-    // Add investment accounts
+    // Add investment-type accounts (manual balances only; investment feature removed)
     const investmentAccounts = accounts.filter((acc) => acc.type === "investment");
     totalAssets += investmentAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-
-    // Add portfolio value if available
-    if (portfolioSummary) {
-      totalAssets += portfolioSummary.totalValue;
-    }
 
     // Calculate total liabilities
     let totalLiabilities = 0;
@@ -108,7 +100,7 @@ async function calculateNetWorthStandalone(
       return sum + Math.abs(Number(balance) || 0);
     }, 0);
 
-    // Liabilities tracking (no longer available from Plaid)
+    // Liabilities not used
     try {
       const liabilities: any[] = [];
       totalLiabilities += liabilities.reduce((sum, liability) => {
@@ -313,7 +305,6 @@ async function getReportsDataCached(
     const budgetsService = makeBudgetsService();
     const debtsService = makeDebtsService();
     const goalsService = makeGoalsService();
-    const portfolioService = makePortfolioService();
 
     // Fetch all data in parallel for performance
     const [
@@ -397,19 +388,15 @@ async function getReportsDataCached(
     const currentMonthTransactions: Transaction[] = currentMonthTransactionsRaw.map(convertToTransaction);
     const historicalTransactions: Transaction[] = historicalTransactionsRaw.map(convertToTransaction);
 
-    // OPTIMIZED: Fetch goals, financial health, and portfolio data in parallel
-    // All three operations are independent and can execute concurrently
+    // OPTIMIZED: Fetch goals and financial health in parallel
     const [
       goals,
       financialHealth,
-      portfolioData,
     ] = await Promise.all([
-      // Fetch goals
       goalsService.getGoals(accessToken, refreshToken, accounts).catch((error) => {
         logger.error("Error fetching goals:", error);
         return [];
       }),
-      // Calculate financial health
       calculateFinancialHealth(
         now,
         userId,
@@ -420,46 +407,10 @@ async function getReportsDataCached(
         logger.error("Error calculating financial health:", error);
         return null;
       }),
-      // Load portfolio data if user has access
-      (async () => {
-        try {
-          const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
-          if (featureGuard.allowed) {
-            // OPTIMIZED: Fetch portfolio data in parallel
-            const [summary, holdings, historical] = await Promise.all([
-              portfolioService.getPortfolioSummary(userId).catch(() => null),
-              portfolioService.getPortfolioHoldings(accessToken, refreshToken).catch(() => []),
-              portfolioService.getPortfolioHistoricalData(365, userId).catch(() => []),
-            ]);
-            return {
-              portfolioSummary: summary,
-              portfolioHoldings: holdings,
-              portfolioHistorical: historical,
-            };
-          }
-          return {
-            portfolioSummary: null,
-            portfolioHoldings: [],
-            portfolioHistorical: [],
-          };
-        } catch (error) {
-          logger.error("Error loading portfolio data:", error);
-          return {
-            portfolioSummary: null,
-            portfolioHoldings: [],
-            portfolioHistorical: [],
-          };
-        }
-      })(),
     ]);
 
-    // Extract portfolio data
-    const portfolioSummary = portfolioData.portfolioSummary;
-    const portfolioHoldings = portfolioData.portfolioHoldings;
-    const portfolioHistorical = portfolioData.portfolioHistorical;
-
-    // Calculate Net Worth
-    const netWorth = await calculateNetWorthStandalone(userId, accounts, debts, portfolioSummary, accessToken, refreshToken);
+    // Calculate Net Worth (no portfolio)
+    const netWorth = await calculateNetWorthStandalone(userId, accounts, debts, null, accessToken, refreshToken);
 
     // Calculate Cash Flow
     const cashFlow = calculateCashFlowStandalone(historicalTransactions, dateRange);
@@ -475,9 +426,9 @@ async function getReportsDataCached(
       goals,
       financialHealth,
       accounts,
-      portfolioSummary,
-      portfolioHoldings,
-      portfolioHistorical,
+      portfolioSummary: null,
+      portfolioHoldings: [],
+      portfolioHistorical: [],
       netWorth,
       cashFlow,
       trends,
@@ -540,11 +491,11 @@ export class ReportsService {
     userId: string,
     accounts: Account[],
     debts: DebtWithCalculations[],
-    portfolioSummary: PortfolioSummary | null,
+    _portfolioSummary: null,
     accessToken?: string,
     refreshToken?: string
   ): Promise<NetWorthData | null> {
-    return calculateNetWorthStandalone(userId, accounts, debts, portfolioSummary, accessToken, refreshToken);
+    return calculateNetWorthStandalone(userId, accounts, debts, null, accessToken, refreshToken);
   }
 
   /**

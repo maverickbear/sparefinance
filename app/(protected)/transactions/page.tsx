@@ -21,7 +21,7 @@ const CsvImportDialog = dynamic(() => import("@/components/forms/csv-import-dial
 const CategorySelectionDialog = dynamic(() => import("@/components/transactions/category-selection-dialog").then(m => ({ default: m.CategorySelectionDialog })), { ssr: false });
 const BlockedFeature = dynamic(() => import("@/components/common/blocked-feature").then(m => ({ default: m.BlockedFeature })), { ssr: false });
 import { formatMoney } from "@/components/common/money";
-import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, ChevronLeft, ChevronRight, Filter, Calendar, Wallet, Tag, Type, XCircle, Receipt, RefreshCw } from "lucide-react";
+import { Plus, Download, Upload, Search, Trash2, Edit, Repeat, Check, Loader2, X, ChevronLeft, ChevronRight, Filter, Calendar, Wallet, Tag, Type, XCircle, Receipt } from "lucide-react";
 import { TransactionsMobileCard } from "@/src/presentation/components/features/transactions/transactions-mobile-card";
 import {
   Select,
@@ -49,6 +49,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   SimpleTabs,
   SimpleTabsList,
@@ -187,6 +195,7 @@ export default function TransactionsPage() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isFiltersModalOpen, setIsFiltersModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [transactionSummaryModal, setTransactionSummaryModal] = useState<Transaction | null>(null);
   const [transactionForCategory, setTransactionForCategory] = useState<Transaction | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null);
@@ -209,7 +218,6 @@ export default function TransactionsPage() {
 
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [syncingAll, setSyncingAll] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingMultiple, setDeletingMultiple] = useState(false);
   const [updatingTypes, setUpdatingTypes] = useState(false);
@@ -646,96 +654,6 @@ export default function TransactionsPage() {
       logger.error("Error loading data:", error);
     }
   }
-
-  async function handleSyncAll() {
-    try {
-      setSyncingAll(true);
-      
-      // Get all Plaid connections
-      const connectionsResponse = await fetch('/api/v2/plaid/connections');
-      if (!connectionsResponse.ok) {
-        throw new Error('Failed to fetch Plaid connections');
-      }
-      
-      const { connections } = await connectionsResponse.json();
-      
-      if (!connections || connections.length === 0) {
-        toast({
-          title: 'No bank connections',
-          description: 'No connected bank accounts found. Connect a bank account to sync transactions.',
-          variant: 'default',
-        });
-        return;
-      }
-
-      // Sync all items
-      let totalTransactionsCreated = 0;
-      let totalTransactionsSkipped = 0;
-      let totalAccountsSynced = 0;
-      let errors: string[] = [];
-
-      for (const connection of connections) {
-        if (!connection.itemId) continue;
-        
-        try {
-          const syncResponse = await fetch('/api/v2/plaid/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ itemId: connection.itemId }),
-          });
-
-          if (syncResponse.ok) {
-            const data = await syncResponse.json();
-            totalTransactionsCreated += data.transactionsCreated || 0;
-            totalTransactionsSkipped += data.transactionsSkipped || 0;
-            totalAccountsSynced += data.accountsSynced || 0;
-          } else {
-            const errorData = await syncResponse.json();
-            errors.push(`${connection.institutionName || 'Bank'}: ${errorData.error || 'Sync failed'}`);
-          }
-        } catch (error: any) {
-          errors.push(`${connection.institutionName || 'Bank'}: ${error.message || 'Sync failed'}`);
-        }
-      }
-
-      // Show results
-      if (errors.length > 0 && totalTransactionsCreated === 0) {
-        toast({
-          title: 'Sync failed',
-          description: errors.join('; '),
-          variant: 'destructive',
-        });
-      } else if (errors.length > 0) {
-        toast({
-          title: 'Sync completed with errors',
-          description: `Created ${totalTransactionsCreated} transactions, skipped ${totalTransactionsSkipped} duplicates. Some accounts failed: ${errors.join('; ')}`,
-          variant: 'default',
-        });
-      } else {
-        toast({
-          title: 'Sync completed',
-          description: `Created ${totalTransactionsCreated} transactions, skipped ${totalTransactionsSkipped} duplicates from ${totalAccountsSynced} account(s).`,
-          variant: 'success',
-        });
-      }
-
-      // Reload transactions to show newly synced ones
-      await loadTransactions(true);
-      
-      // Refresh router to update dashboard and other pages
-      router.refresh();
-    } catch (error: any) {
-      console.error('Error syncing transactions:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to sync transactions',
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncingAll(false);
-    }
-  }
-
 
   async function loadTransactions(forceRefresh: boolean = false) {
     // Cancel any previous request
@@ -1738,7 +1656,75 @@ export default function TransactionsPage() {
       onValueChange={(value) => setFilters({ ...filters, type: value })}
       className="w-full"
     >
-      <PageHeader title="Transactions">
+      <PageHeader title="Transactions" />
+
+      <ImportStatusBanner />
+
+      {/* Fixed Tabs - Desktop only */}
+      <FixedTabsWrapper>
+        <SimpleTabsList>
+          <SimpleTabsTrigger value="expense">Expense</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="income">Income</SimpleTabsTrigger>
+          <SimpleTabsTrigger value="transfer">Transfer</SimpleTabsTrigger>
+        </SimpleTabsList>
+      </FixedTabsWrapper>
+
+      {/* Mobile/Tablet Tabs - Sticky at top */}
+      <div 
+        className="lg:hidden sticky top-0 z-40 bg-card dark:bg-transparent border-b"
+      >
+        <div 
+          className="overflow-x-auto scrollbar-hide" 
+          style={{ 
+            WebkitOverflowScrolling: 'touch',
+            scrollSnapType: 'x mandatory',
+            touchAction: 'pan-x',
+          }}
+        >
+          <SimpleTabsList className="min-w-max px-4" style={{ scrollSnapAlign: 'start' }}>
+            <SimpleTabsTrigger value="expense" className="flex-shrink-0 whitespace-nowrap">
+              Expense
+            </SimpleTabsTrigger>
+            <SimpleTabsTrigger value="income" className="flex-shrink-0 whitespace-nowrap">
+              Income
+            </SimpleTabsTrigger>
+            <SimpleTabsTrigger value="transfer" className="flex-shrink-0 whitespace-nowrap">
+              Transfer
+            </SimpleTabsTrigger>
+          </SimpleTabsList>
+        </div>
+      </div>
+
+      <div className="w-full p-4 lg:p-8">
+        {/* Search + Action Buttons - same row */}
+        <div className="flex items-center gap-2 justify-between mb-6 flex-wrap">
+          <div className="relative flex-1 min-w-0 max-w-[220px] sm:max-w-[260px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search transactions..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              className="h-9 pl-9 pr-9 text-sm"
+            />
+            {filters.search && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setFilters({ ...filters, search: "" })}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                aria-label="Clear search"
+              >
+                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
+            {searchLoading && !filters.search && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
           {selectedTransactionIds.size > 0 && (
             <>
               <Select
@@ -1845,20 +1831,6 @@ export default function TransactionsPage() {
               </Button>
             </>
           )}
-          <Button 
-            variant="outline"
-            size="icon"
-            onClick={handleSyncAll}
-            disabled={syncingAll}
-            className="h-9 w-9"
-            title="Sync Accounts"
-          >
-            {syncingAll ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -1926,46 +1898,8 @@ export default function TransactionsPage() {
               <span className="hidden md:inline">Add Transaction</span>
             </Button>
           )}
-      </PageHeader>
-
-      <ImportStatusBanner />
-
-      {/* Fixed Tabs - Desktop only */}
-      <FixedTabsWrapper>
-        <SimpleTabsList>
-          <SimpleTabsTrigger value="expense">Expense</SimpleTabsTrigger>
-          <SimpleTabsTrigger value="income">Income</SimpleTabsTrigger>
-          <SimpleTabsTrigger value="transfer">Transfer</SimpleTabsTrigger>
-        </SimpleTabsList>
-      </FixedTabsWrapper>
-
-      {/* Mobile/Tablet Tabs - Sticky at top */}
-      <div 
-        className="lg:hidden sticky top-0 z-40 bg-card dark:bg-transparent border-b"
-      >
-        <div 
-          className="overflow-x-auto scrollbar-hide" 
-          style={{ 
-            WebkitOverflowScrolling: 'touch',
-            scrollSnapType: 'x mandatory',
-            touchAction: 'pan-x',
-          }}
-        >
-          <SimpleTabsList className="min-w-max px-4" style={{ scrollSnapAlign: 'start' }}>
-            <SimpleTabsTrigger value="expense" className="flex-shrink-0 whitespace-nowrap">
-              Expense
-            </SimpleTabsTrigger>
-            <SimpleTabsTrigger value="income" className="flex-shrink-0 whitespace-nowrap">
-              Income
-            </SimpleTabsTrigger>
-            <SimpleTabsTrigger value="transfer" className="flex-shrink-0 whitespace-nowrap">
-              Transfer
-            </SimpleTabsTrigger>
-          </SimpleTabsList>
+          </div>
         </div>
-      </div>
-
-      <div className="w-full p-4 lg:p-8">
 
         {/* Mobile Card View */}
         <div className="lg:hidden" ref={pullToRefreshRef}>
@@ -2008,14 +1942,7 @@ export default function TransactionsPage() {
                 transaction={tx}
                 isSelected={selectedTransactionIds.has(tx.id)}
                 onSelect={(checked) => handleSelectTransaction(tx.id, checked)}
-                onEdit={() => {
-                  // Check if user can perform write operations
-                  if (!checkWriteAccess()) {
-                    return;
-                  }
-                  setSelectedTransaction(tx);
-                  setIsFormOpen(true);
-                }}
+                onEdit={() => setTransactionSummaryModal(tx)}
                 onDelete={() => handleDelete(tx.id)}
                 deleting={deletingId === tx.id}
                 onCategoryClick={() => {
@@ -2073,32 +2000,34 @@ export default function TransactionsPage() {
               <TableHead className="text-xs md:text-sm hidden sm:table-cell">Category</TableHead>
               <TableHead className="text-xs md:text-sm hidden lg:table-cell">Description</TableHead>
               <TableHead className="text-right text-xs md:text-sm">Amount</TableHead>
-              <TableHead className="text-xs md:text-sm">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && !searchLoading ? (
               <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Loading transactions...
                 </TableCell>
               </TableRow>
             ) : transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No transactions found
                 </TableCell>
               </TableRow>
             ) : (
               paginatedTransactions.map((tx) => {
-                // Plaid metadata no longer available
                 const isPending = false;
                 const authorizedDate = null;
                 const currencyCode = null;
                 
                 return (
-              <TableRow key={tx.id}>
-                <TableCell>
+              <TableRow
+                key={tx.id}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setTransactionSummaryModal(tx)}
+              >
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={selectedTransactionIds.has(tx.id)}
                     onCheckedChange={(checked) => handleSelectTransaction(tx.id, checked as boolean)}
@@ -2145,6 +2074,7 @@ export default function TransactionsPage() {
                       className="flex flex-col gap-0.5 cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
                       onMouseDown={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         handleStartEditingDate(tx);
                       }}
                       title="Click to edit date"
@@ -2181,7 +2111,8 @@ export default function TransactionsPage() {
                   {tx.category?.name ? (
                     <span 
                       className="text-blue-600 dark:text-blue-400 underline decoration-dashed underline-offset-2 cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setTransactionForCategory(tx);
                         setSelectedCategoryId(tx.categoryId || null);
                         setSelectedSubcategoryId(tx.subcategoryId || null);
@@ -2240,7 +2171,8 @@ export default function TransactionsPage() {
                       variant="link"
                       size="medium"
                       className="text-blue-600 dark:text-blue-400 underline decoration-dashed underline-offset-2"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setTransactionForCategory(tx);
                         setSelectedCategoryId(tx.categoryId || null);
                         setSelectedSubcategoryId(tx.subcategoryId || null);
@@ -2291,6 +2223,7 @@ export default function TransactionsPage() {
                       className="truncate block cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors"
                       onMouseDown={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         handleStartEditingDescription(tx);
                       }}
                       title="Click to edit description"
@@ -2311,40 +2244,6 @@ export default function TransactionsPage() {
                       </span>
                     )}
                   </div>
-                </TableCell>
-                <TableCell>
-                  {canWrite && (
-                    <div className="flex space-x-1 md:space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 md:h-10 md:w-10"
-                        onClick={() => {
-                          // Check if user can perform write operations
-                          if (!checkWriteAccess()) {
-                            return;
-                          }
-                          setSelectedTransaction(tx);
-                          setIsFormOpen(true);
-                        }}
-                      >
-                        <Edit className="h-3 w-3 md:h-4 md:w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 md:h-10 md:w-10"
-                        onClick={() => handleDelete(tx.id)}
-                        disabled={deletingId === tx.id}
-                      >
-                        {deletingId === tx.id ? (
-                          <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  )}
                 </TableCell>
               </TableRow>
               );
@@ -2457,6 +2356,74 @@ export default function TransactionsPage() {
       </div>
 
 
+      {/* Transaction summary modal: click row → summary with Edit / Delete */}
+      <Dialog open={!!transactionSummaryModal} onOpenChange={(open) => !open && setTransactionSummaryModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-lg font-semibold">Transaction</DialogTitle>
+          </DialogHeader>
+          {transactionSummaryModal && (
+            <>
+              <div className="space-y-3 py-4 px-6">
+                <div className="grid grid-cols-[100px_1fr] gap-x-4 gap-y-1 text-sm">
+                  <span className="text-muted-foreground">Date</span>
+                  <span>{formatTransactionDate(transactionSummaryModal.date)}</span>
+                  <span className="text-muted-foreground">Type</span>
+                  <span className="capitalize">{transactionSummaryModal.type}</span>
+                  <span className="text-muted-foreground">Account</span>
+                  <span>{transactionSummaryModal.account?.name ?? "—"}</span>
+                  <span className="text-muted-foreground">Category</span>
+                  <span>
+                    {transactionSummaryModal.category?.name
+                      ? [transactionSummaryModal.category.name, transactionSummaryModal.subcategory?.name].filter(Boolean).join(" / ")
+                      : "—"}
+                  </span>
+                  <span className="text-muted-foreground">Description</span>
+                  <span className="break-words">{transactionSummaryModal.description || "—"}</span>
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className={`font-medium ${transactionSummaryModal.type === "income" ? "text-green-600 dark:text-green-400" : transactionSummaryModal.type === "expense" ? "text-red-600 dark:text-red-400" : ""}`}>
+                    {transactionSummaryModal.type === "expense" ? "-" : ""}{formatMoney(transactionSummaryModal.amount)}
+                  </span>
+                </div>
+              </div>
+              <DialogFooter className="flex flex-row gap-2 sm:gap-2 border-t pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!checkWriteAccess()) return;
+                    setSelectedTransaction(transactionSummaryModal);
+                    setTransactionSummaryModal(null);
+                    setIsFormOpen(true);
+                  }}
+                  disabled={!canWrite}
+                  className="gap-2"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    const id = transactionSummaryModal.id;
+                    setTransactionSummaryModal(null);
+                    handleDelete(id);
+                  }}
+                  disabled={deletingId === transactionSummaryModal.id}
+                  className="gap-2"
+                >
+                  {deletingId === transactionSummaryModal.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <TransactionForm
         open={isFormOpen}
         onOpenChange={(open) => {
@@ -2516,28 +2483,29 @@ export default function TransactionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Filters Modal */}
-      <Dialog open={isFiltersModalOpen} onOpenChange={setIsFiltersModalOpen}>
-        <DialogContent className="max-w-md flex flex-col p-0 max-h-[90vh]">
-          <DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0 text-left border-b">
+      {/* Filters Drawer */}
+      <Sheet open={isFiltersModalOpen} onOpenChange={setIsFiltersModalOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[420px] p-0 flex flex-col gap-0 overflow-hidden bg-background border-l">
+          <SheetHeader className="px-6 pt-6 pb-4 flex-shrink-0 text-left border-b">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <DialogTitle className="text-xl font-semibold">Filters</DialogTitle>
+                  <SheetTitle className="text-xl font-semibold">Filters</SheetTitle>
                   {activeFiltersCount > 0 && (
                     <Badge variant="secondary" className="h-5 px-2 text-xs font-medium">
                       {activeFiltersCount} active
                     </Badge>
                   )}
                 </div>
-                <DialogDescription className="mt-1.5 text-sm text-muted-foreground">
+                <SheetDescription className="mt-1.5 text-sm text-muted-foreground">
                   Filter your transactions by date, account, type, and search terms
-                </DialogDescription>
+                </SheetDescription>
               </div>
             </div>
-          </DialogHeader>
-          
-          <div className="space-y-6 px-6 py-4 overflow-y-auto flex-1">
+          </SheetHeader>
+
+          <ScrollArea className="flex-1">
+            <div className="space-y-6 px-6 py-4">
             {/* Date Range */}
             <div className="space-y-2.5">
               <div className="flex items-center gap-2">
@@ -2595,40 +2563,6 @@ export default function TransactionsPage() {
                   <SelectItem value="transfer">Transfer</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Search */}
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <label className="text-sm font-medium">Search</label>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                <Input
-                  placeholder="Search transactions..."
-                  value={filters.search}
-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                  className="h-10 w-full pl-9 pr-10"
-                />
-                {filters.search && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setFilters({ ...filters, search: "" })}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
-                    aria-label="Clear search"
-                  >
-                    <XCircle className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                )}
-                {searchLoading && !filters.search && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Category */}
@@ -2703,9 +2637,10 @@ export default function TransactionsPage() {
                 </Select>
               </div>
             </div>
-          </div>
+            </div>
+          </ScrollArea>
 
-          <DialogFooter className="px-6 pb-6 pt-4 border-t flex-shrink-0 bg-background flex-row gap-3">
+          <div className="px-6 pb-6 pt-4 border-t flex-shrink-0 bg-background flex flex-row gap-3">
             <Button
               variant="outline"
               onClick={() => {
@@ -2733,9 +2668,9 @@ export default function TransactionsPage() {
             >
               Apply Filters
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Category Selection Modal */}
       <CategorySelectionDialog

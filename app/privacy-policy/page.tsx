@@ -6,7 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SimpleFooter } from "@/components/common/simple-footer";
-import { LandingHeader } from "@/components/landing/landing-header";
+import { PublicHeader } from "@/components/public-header";
 import { Shield } from "lucide-react";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
 
@@ -36,7 +36,7 @@ export default async function PrivacyPolicyPage() {
   }
   return (
     <div className="min-h-screen bg-background">
-      <LandingHeader isAuthenticated={false} />
+      <PublicHeader isAuthenticated={false} />
 
       {/* Content */}
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">

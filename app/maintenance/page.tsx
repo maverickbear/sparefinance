@@ -1,4 +1,4 @@
-import { LandingHeader } from "@/components/landing/landing-header";
+import { PublicHeader } from "@/components/public-header";
 import { Wrench, Clock } from "lucide-react";
 import { makeAuthService } from "@/src/application/auth/auth.factory";
 import { unstable_noStore as noStore } from "next/cache";
@@ -19,7 +19,7 @@ export default async function MaintenancePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <LandingHeader isAuthenticated={isAuthenticated} />
+      <PublicHeader isAuthenticated={isAuthenticated} />
       <div className="flex-1 flex items-center justify-center p-4 pt-24 md:pt-28">
         <div className="max-w-md w-full space-y-8 text-center">
 

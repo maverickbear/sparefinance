@@ -22,22 +22,22 @@ export default function CategoriesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Categories"
-      >
-        <Button
-          onClick={() => {
-            if (!checkWriteAccess()) return;
-            setIsCreateDialogOpen(true);
-          }}
-          size="medium"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create New
-        </Button>
-      </PageHeader>
+      <PageHeader title="Categories" />
 
       <div className="w-full p-4 lg:p-8">
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 justify-end mb-6">
+          <Button
+            onClick={() => {
+              if (!checkWriteAccess()) return;
+              setIsCreateDialogOpen(true);
+            }}
+            size="medium"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create New
+          </Button>
+        </div>
         <CategoriesModule 
           isCreateDialogOpen={isCreateDialogOpen}
           onCreateDialogChange={setIsCreateDialogOpen}

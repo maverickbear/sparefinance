@@ -4,19 +4,18 @@ import { useState, useEffect } from "react";
 import { usePagePerformance } from "@/hooks/use-page-performance";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wallet, Plus } from "lucide-react";
+import { Wallet, Loader2, Plus, Trash2 } from "lucide-react";
 import { CategoryBudgetSlider } from "@/src/presentation/components/features/budgets/category-budget-slider";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/toast-provider";
 
 interface Budget {
@@ -207,18 +206,19 @@ export default function BudgetsPage() {
 
   return (
     <div>
-      <PageHeader title="Budgets">
-        <Button
-          size="medium"
-          onClick={handleOpenDialog}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Budget
-        </Button>
-      </PageHeader>
+      <PageHeader title="Budgets" />
 
       <div className="w-full p-4 lg:p-8">
-
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 justify-end mb-6">
+          <Button
+            size="medium"
+            onClick={handleOpenDialog}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Budget
+          </Button>
+        </div>
 
         {loading && !hasLoaded ? (
           <Card>
@@ -274,75 +274,75 @@ export default function BudgetsPage() {
         )}
       </div>
 
-      {/* Category Selection Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Manage Budget Categories</DialogTitle>
-            <DialogDescription>
+      {/* Manage Budget Categories - lateral drawer */}
+      <Sheet open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <SheetContent side="right" className="sm:max-w-[600px] w-full p-0 flex flex-col gap-0 overflow-hidden bg-background border-l">
+          <SheetHeader className="p-6 pb-4 border-b shrink-0">
+            <SheetTitle className="text-xl">Manage Budget Categories</SheetTitle>
+            <SheetDescription>
               Create or delete budgets for categories. Changes are saved immediately.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4 px-6">
-            {categories.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                No categories available
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {categories.map((category) => {
-                  const hasBudget = budgets.some(
-                    (b) => b.categoryId === category.id && !b.subcategoryId
-                  );
-                  const isProcessing = processingCategoryId === category.id;
-                  
-                  return (
-                    <div
-                      key={category.id}
-                      className="flex items-center justify-between p-3 rounded-md border hover:bg-muted/50"
-                    >
-                      <span className="text-sm font-medium flex-1">
-                        {category.name}
-                      </span>
-                      <Button
-                        size="small"
-                        variant={hasBudget ? "destructive" : "default"}
-                        onClick={() => {
-                          if (hasBudget) {
-                            handleDeleteBudget(category.id);
-                          } else {
-                            handleCreateBudget(category.id);
-                          }
-                        }}
-                        disabled={isProcessing}
-                      >
-                        {isProcessing ? (
-                          <>
-                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                            {hasBudget ? "Deleting..." : "Creating..."}
-                          </>
-                        ) : (
-                          hasBudget ? "Delete" : "Create"
-                        )}
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            </SheetDescription>
+          </SheetHeader>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleCloseDialog}
-            >
+          <ScrollArea className="flex-1">
+            <div className="p-6">
+              {categories.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  No categories available
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {categories.map((category) => {
+                    const hasBudget = budgets.some(
+                      (b) => b.categoryId === category.id && !b.subcategoryId
+                    );
+                    const isProcessing = processingCategoryId === category.id;
+
+                    return (
+                      <div
+                        key={category.id}
+                        className="flex flex-col items-center justify-center gap-2 p-3 rounded-md border hover:bg-muted/50 aspect-square"
+                      >
+                        <span className="text-sm font-medium text-center line-clamp-2">
+                          {category.name}
+                        </span>
+                        <Button
+                          size="icon"
+                          variant={hasBudget ? "destructive" : "outline"}
+                          className="shrink-0 h-8 w-8"
+                          onClick={() => {
+                            if (hasBudget) {
+                              handleDeleteBudget(category.id);
+                            } else {
+                              handleCreateBudget(category.id);
+                            }
+                          }}
+                          disabled={isProcessing}
+                          aria-label={hasBudget ? "Delete budget" : "Create budget"}
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : hasBudget ? (
+                            <Trash2 className="h-4 w-4" />
+                          ) : (
+                            <Plus className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          <div className="p-4 border-t flex justify-end shrink-0 bg-background">
+            <Button variant="outline" onClick={handleCloseDialog}>
               Close
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

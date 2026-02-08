@@ -16,10 +16,23 @@ import type { AccountWithBalance } from "../../domain/accounts/accounts.types";
 import type { BaseGoal, GoalWithCalculations } from "../../domain/goals/goals.types";
 import type { TransactionWithRelations } from "../../domain/transactions/transactions.types";
 import type { DebtWithCalculations } from "../../domain/debts/debts.types";
+import {
+  penaltyCashFlow,
+  penaltyEmergencyFund,
+  penaltyDebtFromMDLR,
+  penaltySavings,
+  penaltyStability,
+  getClassificationFromScore,
+  getMessageFromClassification,
+  computeEffectiveMonthlyDebtPayment,
+} from "./spare-score-calculator";
+import type { SpareScoreClassification } from "./spare-score-calculator";
+
+export type { SpareScoreClassification } from "./spare-score-calculator";
 
 export interface FinancialHealthData {
   score: number;
-  classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
+  classification: SpareScoreClassification;
   monthlyIncome: number;
   monthlyExpenses: number;
   netAmount: number;
@@ -30,6 +43,8 @@ export interface FinancialHealthData {
   emergencyFundMonths: number;
   lastMonthScore?: number;
   isProjected?: boolean; // Flag indicating if this is a projected score based on expected income
+  incomeIsAfterTax?: boolean; // True when monthlyIncome was converted to after-tax using household location
+  isEmptyState?: boolean; // True when there are no transactions for the month (score/metrics are placeholders, not real values)
   alerts: Array<{
     id: string;
     title: string;
@@ -98,6 +113,7 @@ async function calculateFinancialHealthInternal(
     }, 0);
 
   // Adjust income to after-tax if location is available
+  let incomeIsAfterTax = false;
   if (monthlyIncome > 0 && accessToken && refreshToken) {
     try {
       const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
@@ -123,6 +139,7 @@ async function calculateFinancialHealthInternal(
               settings.stateOrProvince
             );
             monthlyIncome = monthlyAfterTax;
+            incomeIsAfterTax = true;
             log.debug(`[calculateFinancialHealthInternal] Using after-tax income: $${monthlyAfterTax.toFixed(2)}/month (from $${(annualIncome / 12).toFixed(2)}/month gross)`);
           }
         }
@@ -148,55 +165,30 @@ async function calculateFinancialHealthInternal(
   
   // Handle case when there are no transactions
   if (transactions.length === 0 || (monthlyIncome === 0 && monthlyExpenses === 0)) {
-    // If we have projected income, calculate projected score
+    // If we have projected income, calculate projected score (penalty-based)
     if (projectedIncome && projectedIncome > 0) {
       const projectedExpenses = projectedIncome * 0.8; // 80% of income
       const projectedNet = projectedIncome - projectedExpenses;
       const projectedSavingsRate = (projectedNet / projectedIncome) * 100;
-      const expenseRatio = (projectedExpenses / projectedIncome) * 100;
 
-      // Calculate score based on expense ratio (same logic as below)
-      let score: number;
-      if (expenseRatio <= 60) {
-        score = 100 - (expenseRatio / 60) * 9; // 100-91
-      } else if (expenseRatio <= 70) {
-        score = 90 - ((expenseRatio - 60) / 10) * 9; // 90-81
-      } else if (expenseRatio <= 80) {
-        score = 80 - ((expenseRatio - 70) / 10) * 9; // 80-71
-      } else if (expenseRatio <= 90) {
-        score = 70 - ((expenseRatio - 80) / 10) * 9; // 70-61
-      } else {
-        score = 60 - ((expenseRatio - 90) / 10) * 60; // 60-0
-      }
-
-      let classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
-      if (score >= 91) {
-        classification = "Excellent";
-      } else if (score >= 81) {
-        classification = "Good";
-      } else if (score >= 71) {
-        classification = "Fair";
-      } else if (score >= 61) {
-        classification = "Poor";
-      } else {
-        classification = "Critical";
-      }
+      const pCF = penaltyCashFlow(projectedIncome, projectedExpenses, projectedNet);
+      const pEF = penaltyEmergencyFund(0); // no emergency fund yet
+      const pDebt = 0; // no debt in projection
+      const pSav = penaltySavings(projectedSavingsRate);
+      const pStab = penaltyStability();
+      const rawScore = 100 + pCF + pEF + pDebt + pSav + pStab;
+      const score = Math.max(0, Math.min(100, Math.round(rawScore)));
+      const classification: SpareScoreClassification = getClassificationFromScore(score);
 
       let spendingDiscipline: "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Unknown";
-      if (expenseRatio <= 60) {
-        spendingDiscipline = "Excellent";
-      } else if (expenseRatio <= 70) {
-        spendingDiscipline = "Good";
-      } else if (expenseRatio <= 80) {
-        spendingDiscipline = "Fair";
-      } else if (expenseRatio <= 90) {
-        spendingDiscipline = "Poor";
-      } else {
-        spendingDiscipline = "Critical";
-      }
+      if (projectedSavingsRate >= 30) spendingDiscipline = "Excellent";
+      else if (projectedSavingsRate >= 20) spendingDiscipline = "Good";
+      else if (projectedSavingsRate >= 10) spendingDiscipline = "Fair";
+      else if (projectedSavingsRate >= 0) spendingDiscipline = "Poor";
+      else spendingDiscipline = "Critical";
 
       return {
-        score: Math.round(score),
+        score,
         classification,
         monthlyIncome: projectedIncome,
         monthlyExpenses: projectedExpenses,
@@ -223,18 +215,19 @@ async function calculateFinancialHealthInternal(
       };
     }
 
-    // No projected income, return default empty state
+    // No projected income: empty state — do NOT penalize (per doc: absence of data does not generate penalties)
     return {
-      score: 0,
-      classification: "Critical" as const,
+      score: 100,
+      classification: "Excellent" as const,
       monthlyIncome: 0,
       monthlyExpenses: 0,
       netAmount: 0,
       savingsRate: 0,
-      message: "No transactions found for this month. Add income and expense transactions to calculate your Spare Score.",
+      message: "Add income and expense transactions to calculate your Spare Score.",
       spendingDiscipline: "Unknown" as const,
       debtExposure: "Low" as const,
       emergencyFundMonths: 0,
+      isEmptyState: true,
       alerts: [{
         id: "no_transactions",
         title: "No Transactions",
@@ -258,87 +251,176 @@ async function calculateFinancialHealthInternal(
     : monthlyExpenses > 0 
     ? -100 // If expenses but no income, savings rate is -100%
     : 0; // No income and no expenses
-  
-  // Calculate expense ratio (expenses as percentage of income)
-  // This is the key metric for the new classification system
-  let expenseRatio: number;
-  if (monthlyIncome > 0) {
-    expenseRatio = (monthlyExpenses / monthlyIncome) * 100;
-  } else if (monthlyExpenses > 0) {
-    // If expenses but no income, ratio is 100%+ (we'll cap it at 200% for calculation purposes)
-    expenseRatio = 100;
-  } else {
-    // No income and no expenses
-    expenseRatio = 0;
+
+  // Debt: effective monthly payment and MDLR (before penalty-based score)
+  let debtExposure: "Low" | "Moderate" | "High" = "Low";
+  let penaltyDebt = 0;
+  try {
+    const { createServerClient } = await import("@/lib/supabase-server");
+    const supabase = await createServerClient(accessToken, refreshToken);
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+
+    if (userId && monthlyIncome > 0) {
+      let debts: DebtWithCalculations[] = [];
+      if (preFetchedDebts) {
+        debts = preFetchedDebts;
+      } else {
+        const debtsService = makeDebtsService();
+        debts = await debtsService.getDebts(accessToken, refreshToken);
+      }
+
+      const effectiveMonthlyPayment = computeEffectiveMonthlyDebtPayment(debts);
+      const mdlrPct = (effectiveMonthlyPayment / monthlyIncome) * 100;
+      penaltyDebt = penaltyDebtFromMDLR(mdlrPct);
+
+      if (mdlrPct > 36) {
+        debtExposure = "High";
+      } else if (mdlrPct >= 20) {
+        debtExposure = "Moderate";
+      } else {
+        debtExposure = "Low";
+      }
+    }
+  } catch (error) {
+    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate debt exposure:", error);
   }
-  
-  // Calculate score based on expense ratio
-  // Score ranges from 0-100 based on expense ratio
-  // 0-60% expense ratio = 100-91 score (Excellent)
-  // 61-70% expense ratio = 90-81 score (Good)
-  // 71-80% expense ratio = 80-71 score (Fair)
-  // 81-90% expense ratio = 70-61 score (Poor)
-  // 91-100%+ expense ratio = 60-0 score (Critical)
-  let score: number;
-  
-  // Ensure expenseRatio is a valid number
-  if (isNaN(expenseRatio) || !isFinite(expenseRatio)) {
-    log.warn("Invalid expenseRatio for score calculation:", expenseRatio);
-    score = 0;
-  } else if (expenseRatio <= 60) {
-    // Excellent: 0-60% expenses, score 100-91
-    score = Math.max(91, 100 - (expenseRatio / 60) * 9);
-  } else if (expenseRatio <= 70) {
-    // Good: 61-70% expenses, score 90-81
-    score = Math.max(81, 90 - ((expenseRatio - 60) / 10) * 9);
-  } else if (expenseRatio <= 80) {
-    // Fair: 71-80% expenses, score 80-71
-    score = Math.max(71, 80 - ((expenseRatio - 70) / 10) * 9);
-  } else if (expenseRatio <= 90) {
-    // Poor: 81-90% expenses, score 70-61
-    score = Math.max(61, 70 - ((expenseRatio - 80) / 10) * 9);
-  } else {
-    // Critical: 91-100%+ expenses, score 60-0
-    // For ratios > 100%, we cap the score at 0
-    const cappedRatio = Math.min(expenseRatio, 200); // Cap at 200% for calculation
-    score = Math.max(0, 60 - ((cappedRatio - 90) / 10) * 60);
+
+  // Emergency fund months (before penalty-based score)
+  let emergencyFundMonths = 0;
+  let emergencyFundGoal: BaseGoal | null = null;
+  let accountsToUse = accounts && accounts.length > 0 ? accounts : null;
+  try {
+    const { createServerClient } = await import("@/lib/supabase-server");
+    const supabase = await createServerClient(accessToken, refreshToken);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { getActiveHouseholdId } = await import("@/lib/utils/household");
+      const householdId = await getActiveHouseholdId(user.id, accessToken, refreshToken);
+
+      if (householdId) {
+        if (preFetchedGoals) {
+          const goal = preFetchedGoals.find(g =>
+            g.householdId === householdId &&
+            g.name === "Emergency Funds" &&
+            g.isSystemGoal
+          );
+          if (goal) emergencyFundGoal = goal;
+        } else {
+          const { data: goal } = await supabase
+            .from("goals")
+            .select("*")
+            .eq("household_id", householdId)
+            .eq("name", "Emergency Funds")
+            .eq("is_system_goal", true)
+            .maybeSingle();
+          emergencyFundGoal = goal;
+        }
+
+        if (emergencyFundGoal) {
+          const goalBalance = emergencyFundGoal.currentBalance || 0;
+          if (monthlyExpenses > 0) emergencyFundMonths = goalBalance / monthlyExpenses;
+        } else {
+          if (!accountsToUse) {
+            const { getAccountsForDashboard } = await import("../accounts/get-dashboard-accounts");
+            accountsToUse = await getAccountsForDashboard(true);
+          }
+          const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
+          if (monthlyExpenses > 0) emergencyFundMonths = totalBalance / monthlyExpenses;
+        }
+      } else {
+        if (!accountsToUse) {
+          const { getAccountsForDashboard } = await import("../accounts/get-dashboard-accounts");
+          accountsToUse = await getAccountsForDashboard(true);
+        }
+        const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
+        if (monthlyExpenses > 0) emergencyFundMonths = totalBalance / monthlyExpenses;
+      }
+    } else {
+      if (!accountsToUse) {
+        const { getAccountsForDashboard } = await import("../accounts/get-dashboard-accounts");
+        accountsToUse = await getAccountsForDashboard(true);
+      }
+      const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
+      if (monthlyExpenses > 0) emergencyFundMonths = totalBalance / monthlyExpenses;
+    }
+  } catch (error) {
+    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate emergency fund months:", error);
+    if (accountsToUse && monthlyExpenses > 0) {
+      const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+      emergencyFundMonths = totalBalance / monthlyExpenses;
+    }
   }
-  
-  // Round score to nearest integer and ensure it's between 0 and 100
-  score = Math.max(0, Math.min(100, Math.round(score)));
-  
-  // Determine classification based on expense ratio
-  let classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
-  if (expenseRatio <= 60) classification = "Excellent";
-  else if (expenseRatio <= 70) classification = "Good";
-  else if (expenseRatio <= 80) classification = "Fair";
-  else if (expenseRatio <= 90) classification = "Poor";
-  else classification = "Critical";
-  
-  // Generate personalized message based on classification
-  let message: string;
-  switch (classification) {
-    case "Excellent":
-      message = "You're living below your means — great job!";
-      break;
-    case "Good":
-    case "Fair":
-      message = "Your expenses are balanced but close to your limit.";
-      break;
-    case "Poor":
-    case "Critical":
-      message = "Warning: you're spending more than you earn!";
-      break;
-    default:
-      message = "";
+
+  // Penalty-based score (Spare Score = 100 - sum(penalties), docs/Spare_Score.md)
+  const penaltyCF = penaltyCashFlow(monthlyIncome, monthlyExpenses, netAmount);
+  const penaltyEF = penaltyEmergencyFund(emergencyFundMonths);
+  const penaltySav = penaltySavings(savingsRate);
+  const penaltyStab = penaltyStability();
+  let rawScore = 100 + penaltyCF + penaltyEF + penaltyDebt + penaltySav + penaltyStab;
+
+  // Last month score (same penalty formula) for trend and smoothing
+  let lastMonthScore: number | undefined;
+  try {
+    const lastMonth = subMonths(selectedMonth, 1);
+    let lastMonthTransactions: TransactionWithRelations[] = [];
+    if (preFetchedPreviousTransactions) {
+      lastMonthTransactions = preFetchedPreviousTransactions;
+    } else {
+      const transactionsService = makeTransactionsService();
+      const lastMonthEnd = endOfMonth(lastMonth);
+      const lastMonthResult = await transactionsService.getTransactions(
+        { startDate: lastMonth, endDate: lastMonthEnd },
+        accessToken,
+        refreshToken
+      );
+      lastMonthTransactions = Array.isArray(lastMonthResult)
+        ? lastMonthResult
+        : (lastMonthResult?.transactions || []);
+    }
+
+    const lastMonthIncome = lastMonthTransactions
+      .filter((t) => {
+        const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+        return t.type === "income" && !isTransfer;
+      })
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    const lastMonthExpenses = lastMonthTransactions
+      .filter((t) => {
+        const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
+        return t.type === "expense" && !isTransfer;
+      })
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    const lastMonthNet = lastMonthIncome - lastMonthExpenses;
+    const lastMonthSavingsRate = lastMonthIncome > 0
+      ? (lastMonthNet / lastMonthIncome) * 100
+      : lastMonthExpenses > 0 ? -100 : 0;
+
+    const lmPenaltyCF = penaltyCashFlow(lastMonthIncome, lastMonthExpenses, lastMonthNet);
+    const lmPenaltySav = penaltySavings(lastMonthSavingsRate);
+    const lastMonthRawScore = 100 + lmPenaltyCF + penaltyEF + penaltyDebt + lmPenaltySav + penaltyStab;
+    lastMonthScore = Math.max(0, Math.min(100, Math.round(lastMonthRawScore)));
+  } catch (error) {
+    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate last month score:", error);
   }
-  
+
+  // Smoothing: max monthly drop 15 points
+  if (lastMonthScore !== undefined && rawScore < lastMonthScore) {
+    rawScore = Math.max(rawScore, lastMonthScore - 15);
+  }
+  const score = Math.max(0, Math.min(100, Math.round(rawScore)));
+  const classification: SpareScoreClassification = getClassificationFromScore(score);
+  const message = getMessageFromClassification(classification);
+
   // Identify alerts
   let alerts = identifyAlerts({
     monthlyIncome,
     monthlyExpenses,
     netAmount,
     savingsRate,
+    emergencyFundMonths,
+    debtExposure,
   });
   
   // Validate against budget rule if provided
@@ -389,80 +471,9 @@ async function calculateFinancialHealthInternal(
     savingsRate,
     score,
     classification,
+    emergencyFundMonths,
+    debtExposure,
   });
-
-  // Calculate last month's score
-  let lastMonthScore: number | undefined;
-  try {
-    const lastMonth = subMonths(selectedMonth, 1);
-    
-    let lastMonthTransactions: TransactionWithRelations[] = [];
-    if (preFetchedPreviousTransactions) {
-      lastMonthTransactions = preFetchedPreviousTransactions;
-    } else {
-      const transactionsService = makeTransactionsService();
-      const lastMonthEnd = endOfMonth(lastMonth);
-      const lastMonthTransactionsResult = await transactionsService.getTransactions(
-        {
-          startDate: lastMonth,
-          endDate: lastMonthEnd,
-        },
-        accessToken,
-        refreshToken
-      );
-
-      // Extract transactions array from result
-      lastMonthTransactions = Array.isArray(lastMonthTransactionsResult)
-        ? lastMonthTransactionsResult
-        : (lastMonthTransactionsResult?.transactions || []);
-    }
-
-    const lastMonthIncome = lastMonthTransactions
-      .filter((t) => {
-        // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
-        const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
-        return t.type === "income" && !isTransfer;
-      })
-      .reduce((sum, t) => {
-        const amount = Number(t.amount) || 0;
-        return sum + Math.abs(amount);
-      }, 0);
-
-    const lastMonthExpenses = lastMonthTransactions
-      .filter((t) => {
-        // Exclude transfers (transactions with type 'transfer' or with transferFromId/transferToId)
-        const isTransfer = t.type === "transfer" || !!(t as any).transferFromId || !!(t as any).transferToId;
-        return t.type === "expense" && !isTransfer;
-      })
-      .reduce((sum, t) => {
-        const amount = Number(t.amount) || 0;
-        return sum + Math.abs(amount);
-      }, 0);
-
-    if (lastMonthIncome > 0 || lastMonthExpenses > 0) {
-      const lastMonthExpenseRatio = lastMonthIncome > 0
-        ? (lastMonthExpenses / lastMonthIncome) * 100
-        : lastMonthExpenses > 0
-        ? 100
-        : 0;
-
-      // Calculate score using same logic
-      if (lastMonthExpenseRatio <= 60) {
-        lastMonthScore = Math.max(91, 100 - (lastMonthExpenseRatio / 60) * 9);
-      } else if (lastMonthExpenseRatio <= 70) {
-        lastMonthScore = Math.max(81, 90 - ((lastMonthExpenseRatio - 60) / 10) * 9);
-      } else if (lastMonthExpenseRatio <= 80) {
-        lastMonthScore = Math.max(71, 80 - ((lastMonthExpenseRatio - 70) / 10) * 9);
-      } else if (lastMonthExpenseRatio <= 90) {
-        lastMonthScore = Math.max(61, 70 - ((lastMonthExpenseRatio - 80) / 10) * 9);
-      } else {
-        lastMonthScore = Math.max(0, 60 - ((lastMonthExpenseRatio - 90) / 10) * 60);
-      }
-      lastMonthScore = Math.round(lastMonthScore);
-    }
-  } catch (error) {
-    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate last month score:", error);
-  }
 
   // Calculate spending discipline based on savings rate
   // Excellent: >= 30%, Good: 20-29%, Fair: 10-19%, Poor: 0-9%, Critical: < 0%
@@ -484,223 +495,6 @@ async function calculateFinancialHealthInternal(
     spendingDiscipline = "Critical";
   }
 
-  // Calculate debt exposure
-  let debtExposure: "Low" | "Moderate" | "High" = "Low";
-  try {
-    const { createServerClient } = await import("@/lib/supabase-server");
-    const supabase = await createServerClient(accessToken, refreshToken);
-    const { data: { user } } = await supabase.auth.getUser();
-    const userId = user?.id;
-
-    if (userId) {
-      // Get total debts
-      let debts: DebtWithCalculations[] = [];
-      if (preFetchedDebts) {
-        debts = preFetchedDebts;
-      } else {
-        const debtsService = makeDebtsService();
-        debts = await debtsService.getDebts(accessToken, refreshToken);
-      }
-
-      let totalDebts = 0;
-
-      // Calculate from Debt table (only debts that are not paid off)
-      const debtsTotal = debts
-        .filter((debt) => !debt.isPaidOff)
-        .reduce((sum, debt) => {
-          const balance = debt.currentBalance ?? 0;
-          return sum + Math.abs(Number(balance) || 0);
-        }, 0);
-      totalDebts += debtsTotal;
-
-      // Calculate debt-to-income ratio (annual)
-      const annualIncome = monthlyIncome * 12;
-      const debtToIncomeRatio = annualIncome > 0 ? (totalDebts / annualIncome) * 100 : 0;
-
-      // Low: < 20%, Moderate: 20-40%, High: > 40%
-      if (debtToIncomeRatio >= 40) {
-        debtExposure = "High";
-      } else if (debtToIncomeRatio >= 20) {
-        debtExposure = "Moderate";
-      } else {
-        debtExposure = "Low";
-      }
-    }
-  } catch (error) {
-    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate debt exposure:", error);
-  }
-
-  // Calculate emergency fund months
-  // Priority: Always use the system Goal "Emergency Funds" if it exists
-  // Otherwise, fall back to total balance calculation
-  let emergencyFundMonths = 0;
-  let emergencyFundGoal: BaseGoal | null = null;
-  const RECOMMENDED_MONTHS = 6; // Minimum recommended emergency fund months
-  
-  // CRITICAL OPTIMIZATION: Use provided accounts to avoid duplicate getAccounts() calls
-  // Only fetch accounts if absolutely necessary (not provided or empty)
-  let accountsToUse = accounts && accounts.length > 0 ? accounts : null;
-  
-  try {
-    // First, try to get emergency fund goal from system
-    const { createServerClient } = await import("@/lib/supabase-server");
-    const supabase = await createServerClient(accessToken, refreshToken);
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      // Get active household ID (pass tokens to ensure proper auth context for RLS)
-      const { getActiveHouseholdId } = await import("@/lib/utils/household");
-      const householdId = await getActiveHouseholdId(user.id, accessToken, refreshToken);
-      
-      if (householdId) {
-        if (preFetchedGoals) {
-          // Use pre-fetched goals if available
-          const goal = preFetchedGoals.find(g => 
-            g.householdId === householdId && 
-            g.name === "Emergency Funds" && 
-            g.isSystemGoal
-          );
-          if (goal) {
-            emergencyFundGoal = goal;
-          }
-        } else {
-          // Fallback to DB fetch
-          const { data: goal } = await supabase
-            .from("goals")
-            .select("*")
-            .eq("household_id", householdId)
-            .eq("name", "Emergency Funds")
-            .eq("is_system_goal", true)
-            .maybeSingle();
-          
-          emergencyFundGoal = goal;
-        }
-        
-        // If emergency fund goal exists, always use its currentBalance
-        // This is the preferred method - use the Goal value from the system
-        if (emergencyFundGoal) {
-          const goalBalance = emergencyFundGoal.currentBalance || 0;
-          if (monthlyExpenses > 0) {
-            emergencyFundMonths = goalBalance / monthlyExpenses;
-          }
-        } else {
-          // Fallback to total balance calculation - use provided accounts
-          if (!accountsToUse) {
-            // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
-            const { getAccountsForDashboard } = await import("../accounts/get-dashboard-accounts");
-            accountsToUse = await getAccountsForDashboard(true);
-          }
-          
-          const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
-          
-          // Emergency fund months = total balance / monthly expenses
-          if (monthlyExpenses > 0) {
-            emergencyFundMonths = totalBalance / monthlyExpenses;
-          }
-        }
-      } else {
-        // No household, use total balance calculation - use provided accounts
-        if (!accountsToUse) {
-          // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
-          accountsToUse = await getAccountsForDashboard(true);
-        }
-        
-        const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
-        
-        if (monthlyExpenses > 0) {
-          emergencyFundMonths = totalBalance / monthlyExpenses;
-        }
-      }
-    } else {
-      // No user, use total balance calculation - use provided accounts
-      if (!accountsToUse) {
-        // CRITICAL: Use cached getAccountsForDashboard to avoid duplicate calls
-        accountsToUse = await getAccountsForDashboard(true);
-      }
-      
-      const totalBalance = accountsToUse?.reduce((sum, acc) => sum + (acc.balance || 0), 0) ?? 0;
-      
-      if (monthlyExpenses > 0) {
-        emergencyFundMonths = totalBalance / monthlyExpenses;
-      }
-    }
-  } catch (error) {
-    console.warn("⚠️ [calculateFinancialHealthInternal] Could not calculate emergency fund months:", error);
-    // Fallback: use provided accounts if available
-    if (accountsToUse && monthlyExpenses > 0) {
-      const totalBalance = accountsToUse.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-      emergencyFundMonths = totalBalance / monthlyExpenses;
-    }
-  }
-  
-  // Adjust score based on Emergency Fund status
-  // This considers:
-  // 1. If the user has the Emergency Funds Goal
-  // 2. If they meet the recommended minimum (6 months)
-  // 3. The target amount set in the Goal
-  let emergencyFundAdjustment = 0;
-  
-  if (!emergencyFundGoal) {
-    // No Emergency Fund Goal exists: penalize score by 10 points
-    emergencyFundAdjustment = -10;
-    log.debug("Emergency Fund Goal not found - penalizing score by 10 points");
-  } else {
-    // Emergency Fund Goal exists - check if it meets recommendations
-    const targetAmount = emergencyFundGoal.targetAmount || 0;
-    const currentBalance = emergencyFundGoal.currentBalance || 0;
-    
-    // Calculate target months based on goal target amount
-    const targetMonths = monthlyExpenses > 0 ? targetAmount / monthlyExpenses : 0;
-    
-    // Check if current balance meets recommended minimum (6 months)
-    if (emergencyFundMonths >= RECOMMENDED_MONTHS) {
-      // Meets or exceeds recommended minimum: bonus points
-      if (emergencyFundMonths >= 12) {
-        // Excellent: 12+ months - bonus of 10 points
-        emergencyFundAdjustment = 10;
-        log.debug(`Emergency Fund excellent (${emergencyFundMonths.toFixed(1)} months) - bonus +10 points`);
-      } else {
-        // Good: 6-12 months - bonus of 5 points
-        emergencyFundAdjustment = 5;
-        log.debug(`Emergency Fund good (${emergencyFundMonths.toFixed(1)} months) - bonus +5 points`);
-      }
-    } else {
-      // Below recommended minimum: penalize based on how far below
-      // Penalty ranges from -1 to -9 points based on coverage
-      const monthsBelow = RECOMMENDED_MONTHS - emergencyFundMonths;
-      const penaltyPercentage = Math.min(monthsBelow / RECOMMENDED_MONTHS, 1); // Max 100% penalty
-      emergencyFundAdjustment = Math.round(-9 * penaltyPercentage) - 1; // -1 to -10 points
-      log.debug(`Emergency Fund below minimum (${emergencyFundMonths.toFixed(1)} months, need ${RECOMMENDED_MONTHS}) - penalty ${emergencyFundAdjustment} points`);
-    }
-    
-    // Additional check: if target is set but not reached, apply small additional penalty
-    if (targetAmount > 0 && currentBalance < targetAmount) {
-      const progressToTarget = currentBalance / targetAmount;
-      if (progressToTarget < 0.5) {
-        // Less than 50% of target: additional -2 points
-        emergencyFundAdjustment -= 2;
-        log.debug(`Emergency Fund less than 50% of target - additional -2 points`);
-      }
-    }
-  }
-  
-  // Apply emergency fund adjustment to score
-  score = Math.max(0, Math.min(100, score + emergencyFundAdjustment));
-  
-  // Recalculate classification if score changed significantly
-  // This ensures classification reflects the adjusted score
-  if (score >= 91) {
-    classification = "Excellent";
-  } else if (score >= 81) {
-    classification = "Good";
-  } else if (score >= 71) {
-    classification = "Fair";
-  } else if (score >= 61) {
-    classification = "Poor";
-  } else {
-    classification = "Critical";
-  }
-  
   const result = {
     score,
     classification,
@@ -713,6 +507,7 @@ async function calculateFinancialHealthInternal(
     debtExposure,
     emergencyFundMonths,
     lastMonthScore,
+    incomeIsAfterTax,
     alerts,
     suggestions,
   };
@@ -913,60 +708,19 @@ export async function recalculateFinancialHealthFromTransactions(
     ? -100
     : 0;
 
-  // Calculate expense ratio
-  let expenseRatio: number;
-  if (monthlyIncome > 0) {
-    expenseRatio = (monthlyExpenses / monthlyIncome) * 100;
-  } else if (monthlyExpenses > 0) {
-    expenseRatio = 100;
-  } else {
-    expenseRatio = 0;
-  }
-
-  // Calculate score based on expense ratio
-  let score: number;
-  if (isNaN(expenseRatio) || !isFinite(expenseRatio)) {
-    score = 0;
-  } else if (expenseRatio <= 60) {
-    score = Math.max(91, 100 - (expenseRatio / 60) * 9);
-  } else if (expenseRatio <= 70) {
-    score = Math.max(81, 90 - ((expenseRatio - 60) / 10) * 9);
-  } else if (expenseRatio <= 80) {
-    score = Math.max(71, 80 - ((expenseRatio - 70) / 10) * 9);
-  } else if (expenseRatio <= 90) {
-    score = Math.max(61, 70 - ((expenseRatio - 80) / 10) * 9);
-  } else {
-    const cappedRatio = Math.min(expenseRatio, 200);
-    score = Math.max(0, 60 - ((cappedRatio - 90) / 10) * 60);
-  }
-
-  score = Math.max(0, Math.min(100, Math.round(score)));
-
-  // Determine classification
-  let classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
-  if (expenseRatio <= 60) classification = "Excellent";
-  else if (expenseRatio <= 70) classification = "Good";
-  else if (expenseRatio <= 80) classification = "Fair";
-  else if (expenseRatio <= 90) classification = "Poor";
-  else classification = "Critical";
-
-  // Generate message
-  let message: string;
-  switch (classification) {
-    case "Excellent":
-      message = "You're living below your means — great job!";
-      break;
-    case "Good":
-    case "Fair":
-      message = "Your expenses are balanced but close to your limit.";
-      break;
-    case "Poor":
-    case "Critical":
-      message = "Warning: you're spending more than you earn!";
-      break;
-    default:
-      message = "";
-  }
+  // Penalty-based score (preserve debt/emergency from original)
+  const penaltyCF = penaltyCashFlow(monthlyIncome, monthlyExpenses, netAmount);
+  const penaltyEF = penaltyEmergencyFund(originalFinancialHealth.emergencyFundMonths);
+  const penaltyDebtFromExposure =
+    originalFinancialHealth.debtExposure === "High" ? -20
+    : originalFinancialHealth.debtExposure === "Moderate" ? -8
+    : 0;
+  const penaltySav = penaltySavings(savingsRate);
+  const penaltyStab = penaltyStability();
+  const rawScore = 100 + penaltyCF + penaltyEF + penaltyDebtFromExposure + penaltySav + penaltyStab;
+  const score = Math.max(0, Math.min(100, Math.round(rawScore)));
+  const classification: SpareScoreClassification = getClassificationFromScore(score);
+  const message = getMessageFromClassification(classification);
 
   // Calculate spending discipline
   let spendingDiscipline: "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Unknown";
@@ -990,6 +744,8 @@ export async function recalculateFinancialHealthFromTransactions(
     monthlyExpenses,
     netAmount,
     savingsRate,
+    emergencyFundMonths: originalFinancialHealth.emergencyFundMonths,
+    debtExposure: originalFinancialHealth.debtExposure,
   });
 
   const suggestions = generateSuggestions({
@@ -999,15 +755,13 @@ export async function recalculateFinancialHealthFromTransactions(
     savingsRate,
     score,
     classification,
+    emergencyFundMonths: originalFinancialHealth.emergencyFundMonths,
+    debtExposure: originalFinancialHealth.debtExposure,
   });
 
   // Recalculate emergency fund months using the system Goal "Emergency Funds"
-  // Priority: Use emergency fund goal if it exists
-  // Otherwise, fall back to total balance calculation
   let emergencyFundMonths = 0;
   let emergencyFundGoal: BaseGoal | null = null;
-  const RECOMMENDED_MONTHS = 6; // Minimum recommended emergency fund months
-  
   try {
     const { createServerClient } = await import("@/lib/supabase-server");
     const supabase = await createServerClient(accessToken, refreshToken);
@@ -1086,62 +840,7 @@ export async function recalculateFinancialHealthFromTransactions(
     }
   } catch (error) {
     console.warn("⚠️ [recalculateFinancialHealthFromTransactions] Could not calculate emergency fund months:", error);
-    // Fall back to original value if calculation fails
     emergencyFundMonths = originalFinancialHealth.emergencyFundMonths;
-  }
-
-  // Adjust score based on Emergency Fund status (same logic as main calculation)
-  let emergencyFundAdjustment = 0;
-  
-  if (!emergencyFundGoal) {
-    // No Emergency Fund Goal exists: penalize score by 10 points
-    emergencyFundAdjustment = -10;
-  } else {
-    // Emergency Fund Goal exists - check if it meets recommendations
-    const targetAmount = emergencyFundGoal.targetAmount || 0;
-    const currentBalance = emergencyFundGoal.currentBalance || 0;
-    
-    // Check if current balance meets recommended minimum (6 months)
-    if (emergencyFundMonths >= RECOMMENDED_MONTHS) {
-      // Meets or exceeds recommended minimum: bonus points
-      if (emergencyFundMonths >= 12) {
-        // Excellent: 12+ months - bonus of 10 points
-        emergencyFundAdjustment = 10;
-      } else {
-        // Good: 6-12 months - bonus of 5 points
-        emergencyFundAdjustment = 5;
-      }
-    } else {
-      // Below recommended minimum: penalize based on how far below
-      const monthsBelow = RECOMMENDED_MONTHS - emergencyFundMonths;
-      const penaltyPercentage = Math.min(monthsBelow / RECOMMENDED_MONTHS, 1);
-      emergencyFundAdjustment = Math.round(-9 * penaltyPercentage) - 1; // -1 to -10 points
-    }
-    
-    // Additional check: if target is set but not reached, apply small additional penalty
-    if (targetAmount > 0 && currentBalance < targetAmount) {
-      const progressToTarget = currentBalance / targetAmount;
-      if (progressToTarget < 0.5) {
-        // Less than 50% of target: additional -2 points
-        emergencyFundAdjustment -= 2;
-      }
-    }
-  }
-  
-  // Apply emergency fund adjustment to score
-  score = Math.max(0, Math.min(100, score + emergencyFundAdjustment));
-  
-  // Recalculate classification if score changed
-  if (score >= 91) {
-    classification = "Excellent";
-  } else if (score >= 81) {
-    classification = "Good";
-  } else if (score >= 71) {
-    classification = "Fair";
-  } else if (score >= 61) {
-    classification = "Poor";
-  } else {
-    classification = "Critical";
   }
 
   // Return updated financial health with recalculated metrics
@@ -1176,6 +875,8 @@ function identifyAlerts(data: {
   monthlyExpenses: number;
   netAmount: number;
   savingsRate: number;
+  emergencyFundMonths?: number;
+  debtExposure?: "Low" | "Moderate" | "High";
 }): Array<{
   id: string;
   title: string;
@@ -1184,20 +885,28 @@ function identifyAlerts(data: {
   action: string;
 }> {
   const alerts = [];
-  
-  // Expenses exceeding income
-  if (data.monthlyExpenses > data.monthlyIncome) {
+
+  // Cash flow: expenses exceeding income
+  if (data.monthlyIncome > 0 && data.monthlyExpenses > data.monthlyIncome) {
     const excessPercentage = ((data.monthlyExpenses / data.monthlyIncome - 1) * 100).toFixed(1);
     alerts.push({
       id: "expenses_exceeding_income",
-      title: "Expenses Exceeding Income",
-      description: `Your monthly expenses (${formatMoney(data.monthlyExpenses)}) are ${excessPercentage}% higher than your monthly income (${formatMoney(data.monthlyIncome)}).`,
+      title: "Negative Cash Flow",
+      description: `Your monthly expenses (${formatMoney(data.monthlyExpenses)}) are ${excessPercentage}% higher than your income (${formatMoney(data.monthlyIncome)}).`,
       severity: "critical" as const,
       action: "Review your expenses and identify where you can reduce costs.",
     });
+  } else if (data.monthlyIncome === 0 && data.monthlyExpenses > 0) {
+    alerts.push({
+      id: "expenses_exceeding_income",
+      title: "Negative Cash Flow",
+      description: `You have monthly expenses (${formatMoney(data.monthlyExpenses)}) but no income recorded for this month.`,
+      severity: "critical" as const,
+      action: "Add income transactions or review your expenses.",
+    });
   }
-  
-  // Negative savings rate
+
+  // Savings: negative or low rate
   if (data.savingsRate < 0) {
     alerts.push({
       id: "negative_savings_rate",
@@ -1207,19 +916,15 @@ function identifyAlerts(data: {
       action: "Create a strict budget and increase your income or reduce expenses.",
     });
   }
-  
-  // Low savings rate (but positive)
   if (data.savingsRate > 0 && data.savingsRate < 10) {
     alerts.push({
       id: "low_savings_rate",
       title: "Low Savings Rate",
-      description: `You are saving only ${data.savingsRate.toFixed(1)}% of your income (${formatMoney(data.netAmount)}/month).`,
+      description: `You are saving only ${data.savingsRate.toFixed(1)}% of your income. Aim for at least 20%.`,
       severity: "warning" as const,
       action: "Try to increase your savings rate to at least 20%.",
     });
   }
-  
-  // Very low savings rate (positive but < 5%)
   if (data.savingsRate > 0 && data.savingsRate < 5) {
     alerts.push({
       id: "very_low_savings_rate",
@@ -1229,7 +934,29 @@ function identifyAlerts(data: {
       action: "Consider reviewing your expenses to increase your savings capacity.",
     });
   }
-  
+
+  // Emergency fund (pillar 2)
+  if (data.emergencyFundMonths !== undefined && data.emergencyFundMonths < 6) {
+    alerts.push({
+      id: "emergency_fund_low",
+      title: "Low Emergency Fund",
+      description: `You have ${data.emergencyFundMonths.toFixed(1)} months of expenses covered. Recommended: 6 months.`,
+      severity: (data.emergencyFundMonths < 1 ? "critical" : data.emergencyFundMonths < 2 ? "warning" : "info") as "critical" | "warning" | "info",
+      action: "Build your emergency fund to cover at least 6 months of essential expenses.",
+    });
+  }
+
+  // Debt load (pillar 3)
+  if (data.debtExposure === "High") {
+    alerts.push({
+      id: "debt_load_high",
+      title: "High Debt Load",
+      description: "Your monthly debt payments are a high share of your income.",
+      severity: "warning" as const,
+      action: "Review your debts and consider reducing the load below 30% of income.",
+    });
+  }
+
   return alerts;
 }
 
@@ -1240,6 +967,8 @@ function generateSuggestions(data: {
   savingsRate: number;
   score: number;
   classification: string;
+  emergencyFundMonths?: number;
+  debtExposure?: "Low" | "Moderate" | "High";
 }): Array<{
   id: string;
   title: string;
@@ -1247,74 +976,91 @@ function generateSuggestions(data: {
   impact: "high" | "medium" | "low";
 }> {
   const suggestions = [];
-  
-  // High impact suggestions
+
+  // Cash flow: recovery +8 to +12 for positive cash flow next month (doc)
   if (data.monthlyExpenses > data.monthlyIncome) {
     const reductionNeeded = data.monthlyExpenses - data.monthlyIncome;
     suggestions.push({
       id: "reduce_expenses",
-      title: "Urgently Reduce Expenses",
-      description: `You need to reduce ${formatMoney(reductionNeeded)} per month to balance your income and expenses.`,
+      title: "Reach Positive Cash Flow",
+      description: `Reduce expenses by ${formatMoney(reductionNeeded)}/month to balance income and expenses. This can recover about 8–12 points on your Spare Score.`,
       impact: "high" as const,
     });
   }
-  
   if (data.savingsRate < 0) {
     suggestions.push({
       id: "increase_income_or_reduce_expenses",
       title: "Increase Income or Reduce Expenses",
-      description: `You are spending ${formatMoney(Math.abs(data.netAmount))} more than you earn. Prioritize increasing your income or reducing expenses.`,
+      description: "Prioritize increasing income or reducing expenses. Positive cash flow next month can recover 8–12 points.",
       impact: "high" as const,
     });
   }
-  
+
+  // Savings: 20% target
   if (data.savingsRate >= 0 && data.savingsRate < 10) {
     const targetSavings = data.monthlyIncome * 0.2;
     suggestions.push({
       id: "increase_savings_rate",
-      title: "Increase Savings Rate",
-      description: `Try to save at least 20% of your income. This means saving ${formatMoney(targetSavings)} per month.`,
+      title: "Aim for 20% Savings Rate",
+      description: `Save at least 20% of income (${formatMoney(targetSavings)}/month) to avoid penalties on the Savings Behavior pillar.`,
       impact: "high" as const,
     });
   }
-  
-  // Medium impact suggestions
   if (data.savingsRate >= 10 && data.savingsRate < 20) {
     suggestions.push({
       id: "review_spending",
       title: "Review Expenses",
-      description: "Analyze your expense categories and identify where you can reduce without affecting your quality of life.",
+      description: "Analyze expense categories and find ways to reduce without affecting quality of life.",
       impact: "medium" as const,
     });
   }
-  
+
+  // Emergency fund: build 1-month can recover +6 (doc)
+  if (data.emergencyFundMonths !== undefined && data.emergencyFundMonths < 6) {
+    suggestions.push({
+      id: "build_emergency_fund",
+      title: "Build Emergency Fund",
+      description: data.emergencyFundMonths < 1
+        ? "Building even 1 month of essential expenses can recover about 6 points."
+        : "Reaching 6 months of expenses covered removes emergency fund penalties.",
+      impact: data.emergencyFundMonths < 2 ? "high" as const : "medium" as const,
+    });
+  }
+
+  // Debt: reduce load below 20% +6, remove high-interest +8 (doc)
+  if (data.debtExposure === "High" || data.debtExposure === "Moderate") {
+    suggestions.push({
+      id: "reduce_debt_load",
+      title: "Reduce Debt Load",
+      description: "Reducing monthly debt payments below 20% of income can recover about 6 points. Paying off high-interest debt can recover about 8.",
+      impact: data.debtExposure === "High" ? "high" as const : "medium" as const,
+    });
+  }
+
   if (data.monthlyExpenses > data.monthlyIncome * 0.9) {
     suggestions.push({
       id: "create_budget",
       title: "Create Budget",
-      description: "Create a detailed budget to better control your expenses and ensure you save regularly.",
+      description: "Create a detailed budget to control expenses and save regularly.",
       impact: "medium" as const,
     });
   }
-  
-  // Low impact suggestions
   if (data.savingsRate >= 20 && data.savingsRate < 30) {
     suggestions.push({
       id: "optimize_savings",
       title: "Optimize Savings",
-      description: "You're on the right track! Consider automating your savings and investing in low-risk applications.",
+      description: "You're on the right track. Consider automating savings.",
       impact: "low" as const,
     });
   }
-  
   if (data.savingsRate >= 30) {
     suggestions.push({
       id: "maintain_good_habits",
       title: "Maintain Good Practices",
-      description: "Excellent! You're maintaining a very healthy savings rate. Keep it up!",
+      description: "You're maintaining a healthy savings rate. Keep it up!",
       impact: "low" as const,
     });
   }
-  
+
   return suggestions;
 }

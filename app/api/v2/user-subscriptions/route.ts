@@ -58,9 +58,11 @@ export async function POST(request: NextRequest) {
     const service = makeUserSubscriptionsService();
     const subscription = await service.createUserSubscription(userId, validatedData);
 
-    // Invalidate cache using tag groups
+    // Invalidate cache so dashboard and reports reflect new data
     revalidateTag('subscriptions', 'max');
     revalidateTag('accounts', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
 
     return NextResponse.json(subscription, { status: 201 });
   } catch (error) {

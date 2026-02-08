@@ -166,7 +166,6 @@ export interface HealthCheckResult {
   checks: {
     database: boolean;
     externalApis?: {
-      plaid?: boolean;
       stripe?: boolean;
     };
   };

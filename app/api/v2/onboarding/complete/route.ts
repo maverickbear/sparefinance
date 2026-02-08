@@ -124,10 +124,12 @@ export async function POST(request: NextRequest) {
         // Subscription already exists, consider it success
         console.log("[ONBOARDING-COMPLETE] Subscription already exists:", existingSubscription.id);
         
-        // Invalidate cache using tag groups (subscription may have been updated)
+        // Invalidate cache so dashboard and reports reflect subscription state
         const { revalidateTag } = await import("next/cache");
         revalidateTag('subscriptions', 'max');
         revalidateTag('accounts', 'max');
+        revalidateTag(`dashboard-${userId}`, 'max');
+        revalidateTag(`reports-${userId}`, 'max');
       } else {
         // Create new subscription
         const { makeStripeService } = await import("@/src/application/stripe/stripe.factory");
@@ -154,10 +156,12 @@ export async function POST(request: NextRequest) {
         } else {
           console.log("[ONBOARDING-COMPLETE] Subscription created successfully:", result.subscriptionId);
           
-          // Invalidate cache using tag groups
+          // Invalidate cache so dashboard and reports reflect new subscription
           const { revalidateTag } = await import("next/cache");
           revalidateTag('subscriptions', 'max');
           revalidateTag('accounts', 'max');
+          revalidateTag(`dashboard-${userId}`, 'max');
+          revalidateTag(`reports-${userId}`, 'max');
         }
       }
     } catch (error) {
@@ -174,10 +178,12 @@ export async function POST(request: NextRequest) {
           console.log("[ONBOARDING-COMPLETE] Subscription exists after duplicate error, continuing:", existingSubscription.id);
           // Continue - subscription exists, that's fine
           
-          // Invalidate cache using tag groups
+          // Invalidate cache so dashboard and reports reflect subscription
           const { revalidateTag } = await import("next/cache");
           revalidateTag('subscriptions', 'max');
           revalidateTag('accounts', 'max');
+          revalidateTag(`dashboard-${userId}`, 'max');
+          revalidateTag(`reports-${userId}`, 'max');
         } else {
           throw new AppError(
             error.message || "Failed to create subscription",

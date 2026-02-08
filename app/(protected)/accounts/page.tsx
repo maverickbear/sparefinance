@@ -341,20 +341,11 @@ export default function AccountsPage() {
 
   return (
     <div>
-        <PageHeader title="Accounts">
-          {canWrite && (
-            <AddAccountDropdown
-              onSuccess={() => {
-                loadAccounts(true);
-              }}
-              canWrite={canWrite}
-            />
-          )}
-        </PageHeader>
+      <PageHeader title="Accounts" />
 
       <div className="w-full p-4 lg:p-8">
-
-        <div className="space-y-4">
+        {/* Filters and Action Button - same row */}
+        <div className="flex flex-row flex-wrap items-center justify-between gap-4 mb-6">
           {/* Filters - Only show when we have accounts or are loading */}
           {(accounts.length > 0 || loading) && (
             <div className="flex flex-row gap-2 sm:gap-4 items-center">
@@ -387,7 +378,17 @@ export default function AccountsPage() {
               </Select>
             </div>
           )}
+          {canWrite && (
+            <AddAccountDropdown
+              onSuccess={() => {
+                loadAccounts(true);
+              }}
+              canWrite={canWrite}
+            />
+          )}
+        </div>
 
+        <div className="space-y-4">
           {/* Desktop Table */}
           <div className="hidden lg:block rounded-md border">
             <Table>

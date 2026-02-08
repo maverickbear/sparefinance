@@ -593,15 +593,13 @@ API routes are organized by feature. **All routes follow the `/api/v2/` pattern*
 - `/api/v2/categories` - Category management
 - `/api/v2/debts` - Debt tracking
 - `/api/v2/members` - Household member management
-- `/api/v2/portfolio` - Portfolio data
 - `/api/v2/billing` - Billing and subscriptions
 - `/api/v2/profile` - User profile management
 - And many more...
 
-**Legacy Routes (Deprecated):**
-- `/api/transactions` - ⚠️ Deprecated, use `/api/v2/transactions`
-- `/api/accounts` - ⚠️ Deprecated, use `/api/v2/accounts`
-- `/api/stripe` - Still in use (will be migrated to v2)
+**Legacy / other API:**
+- Remaining `app/api/` routes (e.g. billing, stripe, auth, admin) — use v2 where available.
+- `/api/v2/*` is the preferred pattern for new and migrated features.
 
 > 📖 **Note**: All new API routes must use the `/api/v2/` pattern and Application Services. See [`.cursorrules`](.cursorrules) for detailed patterns.
 

@@ -418,6 +418,7 @@ export class MembersService {
    */
   async removeMember(memberId: string): Promise<void> {
     const supabase = await createServerClient();
+    const serviceRole = createServiceRoleClient();
 
     // Get member info before deleting
     const member = await this.repository.findById(memberId);
@@ -425,11 +426,12 @@ export class MembersService {
       throw new AppError("Member not found", 404);
     }
 
-    // If member has userId, create personal household if needed
+    const householdId = member.household_id;
+
+    // If member has userId, create personal household if needed (using service role to bypass RLS)
     if (member.user_id) {
       const { data: existingPersonalHousehold } = await supabase
         .from("household_members")
-        // FIX: Schema is public, not core
         .select("household_id, household:households(type)")
         .eq("user_id", member.user_id)
         .eq("is_default", true)
@@ -443,10 +445,9 @@ export class MembersService {
             .eq("id", member.user_id)
             .single();
 
-          await this.createHousehold(
+          await this.createPersonalHouseholdForUserWithServiceRole(
             member.user_id,
-            user?.name || user?.email || "Minha Conta",
-            'personal'
+            user?.name || user?.email || "Minha Conta"
           );
         } catch (createError) {
           logger.error("Error creating personal household for removed member:", createError);
@@ -454,7 +455,106 @@ export class MembersService {
       }
     }
 
-    await this.repository.delete(memberId);
+    // Delete member with service role so RLS cannot block (e.g. owner removing another user's row)
+    const { error: deleteMemberError } = await serviceRole
+      .from("household_members")
+      .delete()
+      .eq("id", memberId);
+
+    if (deleteMemberError) {
+      logger.error("[MembersRepository] Error deleting member:", deleteMemberError);
+      throw new AppError(`Failed to remove member: ${deleteMemberError.message}`, 500);
+    }
+
+    // If household has no members left, delete the household (service role to bypass RLS)
+    const { count: remainingCount, error: countError } = await serviceRole
+      .from("household_members")
+      .select("*", { count: "exact", head: true })
+      .eq("household_id", householdId);
+
+    if (!countError && (remainingCount ?? 0) === 0) {
+      const { error: deleteHouseholdError } = await serviceRole
+        .from("households")
+        .delete()
+        .eq("id", householdId);
+
+      if (deleteHouseholdError) {
+        logger.warn("Error deleting empty household (non-critical):", deleteHouseholdError);
+      }
+    }
+  }
+
+  /**
+   * Create a personal household for a user using service role (bypasses RLS).
+   * Used when removing a member so they have a place to land; the current request user
+   * cannot insert rows "for" another user under RLS.
+   */
+  private async createPersonalHouseholdForUserWithServiceRole(
+    userId: string,
+    displayName: string
+  ): Promise<void> {
+    const serviceRole = createServiceRoleClient();
+    const now = formatTimestamp(new Date());
+
+    const { data: household, error: householdError } = await serviceRole
+      .from("households")
+      .insert({
+        name: displayName,
+        type: "personal",
+        created_by: userId,
+        created_at: now,
+        updated_at: now,
+        settings: {},
+      })
+      .select("id")
+      .single();
+
+    if (householdError || !household) {
+      logger.error("[HouseholdRepository] Error creating household:", householdError);
+      throw new Error(`Failed to create household: ${householdError?.message || "Unknown error"}`);
+    }
+
+    const memberId = crypto.randomUUID();
+    const { error: memberError } = await serviceRole
+      .from("household_members")
+      .insert({
+        id: memberId,
+        household_id: household.id,
+        user_id: userId,
+        email: null,
+        name: null,
+        role: "owner",
+        status: "active",
+        invitation_token: null,
+        invited_at: now,
+        accepted_at: now,
+        joined_at: now,
+        invited_by: userId,
+        is_default: true,
+        created_at: now,
+        updated_at: now,
+      });
+
+    if (memberError) {
+      logger.error("[MembersRepository] Error creating household member:", memberError);
+      await serviceRole.from("households").delete().eq("id", household.id);
+      throw new Error(`Failed to create household member: ${memberError.message}`);
+    }
+
+    const { error: activeError } = await serviceRole
+      .from("system_user_active_households")
+      .upsert(
+        {
+          user_id: userId,
+          household_id: household.id,
+          updated_at: now,
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (activeError) {
+      logger.warn("Error setting active household for removed member (non-critical):", activeError);
+    }
   }
 
   /**

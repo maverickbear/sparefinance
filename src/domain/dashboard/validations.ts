@@ -37,7 +37,7 @@ export const spareScoreDriverSchema = z.object({
 
 export const spareScoreWidgetDataSchema = z.object({
   score: z.number().min(0).max(100),
-  classification: z.enum(["Excellent", "Good", "Fair", "Poor", "Critical"]),
+  classification: z.enum(["Excellent", "Strong", "Fair", "Fragile", "Critical"]),
   trend: z.enum(['up', 'down', 'stable']),
   trendValue: z.number().optional(),
   lastMonthScore: z.number().min(0).max(100).optional(),

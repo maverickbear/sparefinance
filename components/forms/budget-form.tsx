@@ -14,13 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/toast-provider";
 import { Loader2 } from "lucide-react";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
@@ -301,26 +301,28 @@ export function BudgetForm({
         }}
       />
       {shouldShowForm && (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
-        <DialogHeader>
-          <DialogTitle>{budget ? "Edit" : "Add"} Budget</DialogTitle>
-          <DialogDescription>
-            {budget 
-              ? "Update the budget details"
-              : "Select a category and set the budget amount"}
-          </DialogDescription>
-        </DialogHeader>
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="right" className="sm:max-w-[600px] w-full p-0 flex flex-col gap-0 overflow-hidden bg-background border-l">
+            <SheetHeader className="p-6 pb-4 border-b shrink-0">
+              <SheetTitle className="text-xl">{budget ? "Edit" : "Add"} Budget</SheetTitle>
+              <SheetDescription>
+                {budget
+                  ? "Update the budget details"
+                  : "Select a category and set the budget amount"}
+              </SheetDescription>
+            </SheetHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
-          console.error("Form validation errors:", errors);
-          alert("Please fix the form errors before submitting");
-        })} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              console.error("Form validation errors:", errors);
+              alert("Please fix the form errors before submitting");
+            })} className="flex flex-col flex-1 overflow-hidden">
+              <ScrollArea className="flex-1">
+                <div className="p-6 space-y-6">
           {budget ? (
             // Editing mode: show category and subcategory (read-only)
+            <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Category</label>
                 <Select
                   value={form.watch("categoryId")}
@@ -339,7 +341,7 @@ export function BudgetForm({
                 </Select>
               </div>
               {form.watch("subcategoryId") && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <label className="text-sm font-medium">Subcategory</label>
                   <Select
                     value={form.watch("subcategoryId")}
@@ -364,8 +366,10 @@ export function BudgetForm({
                 </div>
               )}
             </div>
+            </div>
           ) : (
             // Creating mode: show category/subcategory selection
+            <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">
@@ -435,9 +439,10 @@ export function BudgetForm({
                 </div>
               )}
             </div>
+            </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <label className="text-sm font-medium">
               Amount {(!form.watch("amount") || form.watch("amount") === 0) && <span className="text-gray-400 text-[12px]">required</span>}
             </label>
@@ -454,26 +459,27 @@ export function BudgetForm({
             )}
           </div>
 
-          </div>
+                </div>
+              </ScrollArea>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" size="medium" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button type="submit" size="medium" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+              <div className="p-4 border-t flex justify-end gap-2 shrink-0 bg-background">
+                <Button type="button" variant="outline" size="medium" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                  Cancel
+                </Button>
+                <Button type="submit" size="medium" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </SheetContent>
+        </Sheet>
       )}
     </>
   );

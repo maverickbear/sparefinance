@@ -13,6 +13,13 @@ import { logger } from "@/src/infrastructure/utils/logger";
 import { BudgetGenerator } from "./budget-generator";
 import { CategoryHelper } from "./category-helper";
 import { FinancialHealthData } from "../shared/financial-health";
+import {
+  penaltyCashFlow,
+  penaltyEmergencyFund,
+  penaltySavings,
+  penaltyStability,
+  getClassificationFromScore,
+} from "../shared/spare-score-calculator";
 // CRITICAL: Use static import to ensure React cache() works correctly
 import { getAccountsForDashboard } from "../accounts/get-dashboard-accounts";
 import { makeProfileService } from "../profile/profile.factory";
@@ -597,63 +604,33 @@ export class OnboardingService {
   }
 
   /**
-   * Calculate initial health score based on projected income
+   * Calculate initial health score based on projected income (penalty-based, docs/Spare_Score.md)
    */
   calculateInitialHealthScore(monthlyIncome: number): FinancialHealthData {
-    // Projected expenses: 80% of income (standard rule)
     const monthlyExpenses = monthlyIncome * 0.8;
     const netAmount = monthlyIncome - monthlyExpenses;
     const savingsRate = (netAmount / monthlyIncome) * 100;
-    const expenseRatio = (monthlyExpenses / monthlyIncome) * 100;
 
-    // Calculate score based on expense ratio (same logic as financial-health.ts)
-    let score: number;
-    if (expenseRatio <= 60) {
-      score = 100 - (expenseRatio / 60) * 9; // 100-91
-    } else if (expenseRatio <= 70) {
-      score = 90 - ((expenseRatio - 60) / 10) * 9; // 90-81
-    } else if (expenseRatio <= 80) {
-      score = 80 - ((expenseRatio - 70) / 10) * 9; // 80-71
-    } else if (expenseRatio <= 90) {
-      score = 70 - ((expenseRatio - 80) / 10) * 9; // 70-61
-    } else {
-      score = 60 - ((expenseRatio - 90) / 10) * 60; // 60-0
-    }
+    const pCF = penaltyCashFlow(monthlyIncome, monthlyExpenses, netAmount);
+    const pEF = penaltyEmergencyFund(0);
+    const pDebt = 0;
+    const pSav = penaltySavings(savingsRate);
+    const pStab = penaltyStability();
+    const rawScore = 100 + pCF + pEF + pDebt + pSav + pStab;
+    const score = Math.max(0, Math.min(100, Math.round(rawScore)));
+    const classification = getClassificationFromScore(score);
 
-    // Determine classification
-    let classification: "Excellent" | "Good" | "Fair" | "Poor" | "Critical";
-    if (score >= 91) {
-      classification = "Excellent";
-    } else if (score >= 81) {
-      classification = "Good";
-    } else if (score >= 71) {
-      classification = "Fair";
-    } else if (score >= 61) {
-      classification = "Poor";
-    } else {
-      classification = "Critical";
-    }
-
-    // Determine spending discipline
     let spendingDiscipline: "Excellent" | "Good" | "Fair" | "Poor" | "Critical" | "Unknown";
-    if (expenseRatio <= 60) {
-      spendingDiscipline = "Excellent";
-    } else if (expenseRatio <= 70) {
-      spendingDiscipline = "Good";
-    } else if (expenseRatio <= 80) {
-      spendingDiscipline = "Fair";
-    } else if (expenseRatio <= 90) {
-      spendingDiscipline = "Poor";
-    } else {
-      spendingDiscipline = "Critical";
-    }
+    if (savingsRate >= 30) spendingDiscipline = "Excellent";
+    else if (savingsRate >= 20) spendingDiscipline = "Good";
+    else if (savingsRate >= 10) spendingDiscipline = "Fair";
+    else if (savingsRate >= 0) spendingDiscipline = "Poor";
+    else spendingDiscipline = "Critical";
 
-    // Calculate emergency fund months (assuming 6 months expenses target)
-    const emergencyFundTarget = monthlyExpenses * 6;
-    const emergencyFundMonths = 0; // No actual emergency fund yet
+    const emergencyFundMonths = 0;
 
     return {
-      score: Math.round(score),
+      score,
       classification,
       monthlyIncome,
       monthlyExpenses,

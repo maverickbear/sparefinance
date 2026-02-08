@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LandingHeader } from "@/components/landing/landing-header";
+import { PublicHeader } from "@/components/public-header";
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BaseUser } from "@/src/domain/auth/auth.types";
@@ -33,7 +33,7 @@ export default function AccountDeletedPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <LandingHeader isAuthenticated={false} />
+      <PublicHeader isAuthenticated={false} />
       <div className="flex-1 flex items-center justify-center p-4 pt-24 md:pt-28">
         <div className="max-w-md w-full space-y-8 text-center">
           {/* Deleted Icon */}

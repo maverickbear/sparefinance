@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 
 interface WidgetCardProps {
   title: string;
+  /** Optional subtitle (e.g. "Monthly score") shown below the title */
+  subtitle?: string;
   children: ReactNode;
   className?: string;
   headerAction?: ReactNode;
@@ -18,6 +20,7 @@ interface WidgetCardProps {
  */
 export function WidgetCard({ 
   title, 
+  subtitle,
   children, 
   className,
   headerAction,
@@ -27,9 +30,14 @@ export function WidgetCard({
     <Card className={cn("w-full flex flex-col", compact ? "min-h-[280px]" : "min-h-[320px]", className)}>
       <CardHeader className={cn("pb-3", compact && "pb-2")}>
         <div className="flex items-center justify-between">
-          <CardTitle className={cn("text-base font-semibold", compact && "text-sm")}>
-            {title}
-          </CardTitle>
+          <div>
+            <CardTitle className={cn("text-base font-semibold", compact && "text-sm")}>
+              {title}
+            </CardTitle>
+            {subtitle && (
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            )}
+          </div>
           {headerAction}
         </div>
       </CardHeader>

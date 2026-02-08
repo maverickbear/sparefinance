@@ -27,7 +27,6 @@ import type {
 import type { Transaction, TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
 import type { Account } from "@/src/domain/accounts/accounts.types";
 import type { DebtWithCalculations } from "@/src/domain/debts/debts.types";
-import type { PortfolioSummary } from "@/src/domain/portfolio/portfolio.types";
 
 // Helper function to get date range
 function getDateRangeForPeriod(period: ReportPeriod, now: Date): { startDate: Date; endDate: Date } {
@@ -73,7 +72,7 @@ async function calculateNetWorth(
   userId: string,
   accounts: Account[],
   debts: DebtWithCalculations[],
-  portfolioSummary: PortfolioSummary | null,
+  _portfolioSummary: null,
   accessToken?: string,
   refreshToken?: string
 ): Promise<NetWorthData | null> {
@@ -87,14 +86,9 @@ async function calculateNetWorth(
     );
     totalAssets += cashAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
 
-    // Add investment accounts
+    // Add investment-type accounts (manual balances only; investment feature removed)
     const investmentAccounts = accounts.filter((acc) => acc.type === "investment");
     totalAssets += investmentAccounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-
-    // Add portfolio value if available
-    if (portfolioSummary) {
-      totalAssets += portfolioSummary.totalValue;
-    }
 
     // Calculate total liabilities
     let totalLiabilities = 0;
@@ -303,7 +297,7 @@ export class ReportsCoreService {
     userId: string,
     accounts: Account[],
     debts: DebtWithCalculations[],
-    portfolioSummary: PortfolioSummary | null,
+    portfolioSummary: null,
     accessToken?: string,
     refreshToken?: string
   ): Promise<NetWorthData | null> {

@@ -136,7 +136,7 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
             <AlertDescription>
               <ul className="list-disc list-inside space-y-1 mt-2">
                 <li><strong>Personal information will be removed:</strong> Your name, email, phone number, date of birth, and profile photo will be anonymized</li>
-                <li><strong>Account access will be revoked:</strong> All bank connections (Plaid) will be disconnected and your active subscription will be cancelled immediately</li>
+                <li><strong>Account access will be revoked:</strong> Your active subscription will be cancelled immediately</li>
                 <li><strong>Data retention:</strong> Some records required by law (such as transaction history and subscription records) will be kept for legal and fiscal compliance, but will no longer be linked to your identity</li>
                 <li><strong>Email reuse:</strong> Your email address can be used immediately to create a new account, but your previous data will remain anonymized and cannot be recovered</li>
                 <li><strong>This action cannot be undone</strong> - there is no recovery period</li>

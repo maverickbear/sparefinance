@@ -38,7 +38,7 @@ export function AddAccountDropdown({
   };
 
   const defaultTrigger = (
-    <Button variant="outline" size="medium" disabled={!canWrite}>
+    <Button size="medium" disabled={!canWrite}>
       Add Account
       <Wallet className="h-4 w-4 ml-1.5" />
     </Button>

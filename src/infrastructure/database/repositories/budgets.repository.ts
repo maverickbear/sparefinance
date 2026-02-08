@@ -216,7 +216,9 @@ export class BudgetsRepository implements IBudgetsRepository {
 
     if (error) {
       logger.error("[BudgetsRepository] Error creating budget:", error);
-      throw new Error(`Failed to create budget: ${error.message}`);
+      const err = new Error(`Failed to create budget: ${error.message}`) as Error & { code?: string };
+      err.code = (error as { code?: string }).code;
+      throw err;
     }
 
     return budget as BudgetRow;

@@ -5,6 +5,7 @@ import { WidgetCard } from "./widget-card";
 import { ChevronRight, RefreshCw, Music, MonitorPlay, MessageSquare, Zap } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatMoney } from "@/components/common/money";
 
 interface SubscriptionsWidgetProps {
   data: SubscriptionsWidgetData | null;
@@ -16,7 +17,7 @@ export function SubscriptionsWidget({ data, className }: SubscriptionsWidgetProp
 
   const SeeAllLink = () => (
     <Link 
-      href="/planning/subscriptions" 
+      href="/subscriptions" 
       className="flex items-center text-sm font-medium hover:underline"
     >
       See all <ChevronRight className="ml-1 h-4 w-4" />
@@ -32,7 +33,7 @@ export function SubscriptionsWidget({ data, className }: SubscriptionsWidgetProp
       <div className="space-y-4">
         <div className="flex items-baseline justify-between border-b border-border pb-3">
              <span className="text-sm text-muted-foreground">Monthly Total</span>
-             <span className="text-2xl font-bold">${data.totalMonthly.toFixed(2)}</span>
+             <span className="text-2xl font-bold">{formatMoney(data.totalMonthly)}</span>
         </div>
 
         {data.items.length === 0 ? (
@@ -40,33 +41,28 @@ export function SubscriptionsWidget({ data, className }: SubscriptionsWidgetProp
             No active subscriptions found.
           </div>
         ) : (
-          data.items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center p-2 overflow-hidden shadow-sm border border-slate-100">
-                {item.logo ? (
-                  <img src={item.logo} alt={item.name} className="h-full w-full object-cover" />
-                ) : (
-                  <ServiceIcon name={item.name} />
-                )}
-              </div>
-              <span className="font-medium text-sm truncate max-w-[100px] sm:max-w-[140px]">{item.name}</span>
-            </div>
-            
-            <div className="flex items-center gap-3">
-               <span className="text-xs text-muted-foreground hidden sm:inline-block">
-                 {item.nextDate}
-               </span>
-
-               <span className="font-bold text-sm">
-                 ${item.amount.toFixed(2)}
-               </span>
-               <span className="text-[10px] text-muted-foreground uppercase bg-slate-100 px-1.5 py-0.5 rounded">
-                 {item.frequency === 'Monthly' ? 'MO' : 'YR'}
-               </span>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            {data.items.map((item) => (
+              <Link
+                key={item.id}
+                href="/subscriptions"
+                className="flex flex-col rounded-lg border border-border bg-muted/30 p-3 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-9 w-9 shrink-0 rounded-full bg-slate-100 flex items-center justify-center p-1.5 overflow-hidden border border-slate-100">
+                    {item.logo ? (
+                      <img src={item.logo} alt={item.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <ServiceIcon name={item.name} />
+                    )}
+                  </div>
+                  <span className="font-medium text-sm truncate min-w-0">{item.name}</span>
+                </div>
+                <span className="text-xs text-slate-400 mb-1">{item.frequency ?? "—"}</span>
+                <span className="text-sm font-semibold">{formatMoney(item.amount)}</span>
+              </Link>
+            ))}
           </div>
-        ))
         )}
       </div>
     </WidgetCard>

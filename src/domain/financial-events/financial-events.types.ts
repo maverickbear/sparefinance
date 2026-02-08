@@ -35,8 +35,8 @@ export interface BaseFinancialEvent {
   // Enriched fields (from relations)
   account?: { id: string; name: string } | null;
   toAccount?: { id: string; name: string } | null;
-  category?: { id: string; name: string } | null;
-  subcategory?: { id: string; name: string; logo?: string | null } | null;
+  category?: { id: string; name: string; type?: "income" | "expense" } | null;
+  subcategory?: { id: string; name: string; logo?: string | null; category?: { type?: "income" | "expense" } } | null;
   debt?: { id: string; name: string } | null;
 }
 

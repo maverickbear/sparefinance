@@ -13,16 +13,13 @@
  */
 
 import { makeTransactionsService } from "../transactions/transactions.factory";
-import { makePortfolioService } from "../portfolio/portfolio.factory";
 import { guardFeatureAccessReadOnly } from "../shared/feature-guard";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { logger } from "@/src/infrastructure/utils/logger";
 import type {
   ReportPeriod,
   TrendData,
 } from "@/src/domain/reports/reports.types";
 import type { Transaction, TransactionWithRelations } from "@/src/domain/transactions/transactions.types";
-import type { PortfolioSummary, HistoricalDataPoint, Holding } from "@/src/domain/portfolio/portfolio.types";
 
 // Helper function to get date range
 function getDateRangeForPeriod(period: ReportPeriod, now: Date): { startDate: Date; endDate: Date } {
@@ -180,63 +177,6 @@ export class ReportsAdvancedService {
       historicalTransactions as TransactionWithRelations[],
       currentMonth
     );
-  }
-
-  /**
-   * Get Portfolio Report (Advanced)
-   * Detailed investment portfolio analysis
-   */
-  async getPortfolioReport(
-    userId: string
-  ): Promise<{
-    summary: PortfolioSummary | null;
-    holdings: Holding[];
-    historical: HistoricalDataPoint[];
-  }> {
-    // Check feature access
-    const featureGuard = await guardFeatureAccessReadOnly(userId, "hasInvestments");
-    if (!featureGuard.allowed) {
-      throw new Error("Investments feature not available");
-    }
-
-    try {
-      const portfolioService = makePortfolioService();
-
-      // Get session tokens
-      let accessToken: string | undefined;
-      let refreshToken: string | undefined;
-      try {
-        const { createServerClient } = await import("@/src/infrastructure/database/supabase-server");
-        const supabase = await createServerClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          accessToken = session.access_token;
-          refreshToken = session.refresh_token;
-        }
-      } catch (error) {
-        logger.warn("[ReportsAdvancedService] Could not get session tokens:", error);
-      }
-
-      // Fetch portfolio data in parallel
-      const [summary, holdings, historical] = await Promise.all([
-        portfolioService.getPortfolioSummaryInternal(accessToken, refreshToken).catch(() => null),
-        portfolioService.getPortfolioHoldings(accessToken, refreshToken).catch(() => []),
-        portfolioService.getPortfolioHistoricalData(365, userId).catch(() => []),
-      ]);
-
-      return {
-        summary,
-        holdings,
-        historical,
-      };
-    } catch (error) {
-      logger.error("Error fetching portfolio report:", error);
-      return {
-        summary: null,
-        holdings: [],
-        historical: [],
-      };
-    }
   }
 
   /**

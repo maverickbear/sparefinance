@@ -78,7 +78,7 @@ export default function SignUpPage() {
       
       <Suspense fallback={
       <div className="min-h-screen grid lg:grid-cols-2">
-        <div className="hidden lg:flex flex-col justify-center p-12 bg-gradient-to-br from-primary/10 via-primary/5 to-background">
+        <div className="hidden lg:flex flex-col justify-center p-12 bg-[#f8f4f1]">
           <div className="space-y-4">
             <div className="h-8 w-48 bg-muted animate-pulse rounded-lg" />
             <div className="h-4 w-64 bg-muted animate-pulse rounded-lg" />

@@ -90,9 +90,16 @@ export class UserSubscriptionsService {
       // If creating a new subcategory
       if (data.newSubcategoryName && data.categoryId) {
         const categoriesService = makeCategoriesService();
+        // Resolve category id: client may send subscription-service category id (e.g. "Streaming Video")
+        // which is not in the categories table; fallback to first category whose name contains "subscription"
+        let resolvedCategoryId = data.categoryId;
+        const category = await categoriesService.getCategoryById(resolvedCategoryId);
+        if (!category) {
+          resolvedCategoryId = await categoriesService.getOrCreateSubscriptionCategoryId();
+        }
         const newSubcategory = await categoriesService.createSubcategory({
           name: data.newSubcategoryName,
-          categoryId: data.categoryId,
+          categoryId: resolvedCategoryId,
         });
         subcategoryId = newSubcategory.id;
       }
@@ -106,7 +113,22 @@ export class UserSubscriptionsService {
       const id = crypto.randomUUID();
       const now = formatTimestamp(new Date());
       const firstBillingDate = formatDateOnly(new Date(data.firstBillingDate));
+      const firstBillingDateObj = new Date(data.firstBillingDate);
 
+      // Satisfy DB check constraint on billing_day: either NULL or integer 1-31. Derive from firstBillingDate for monthly/yearly when missing; never send 0 or NaN.
+      let billingDay: number | null = data.billingDay ?? null;
+      if (billingDay != null) {
+        const n = Number(billingDay);
+        if (Number.isNaN(n) || n < 1 || n > 31) billingDay = null;
+        else billingDay = Math.floor(n);
+      }
+      if (billingDay == null && (data.billingFrequency === "monthly" || data.billingFrequency === "yearly")) {
+        const dayOfMonth = firstBillingDateObj.getDate();
+        if (!Number.isNaN(dayOfMonth) && dayOfMonth >= 1 && dayOfMonth <= 31) {
+          billingDay = dayOfMonth;
+        }
+      }
+      // If constraint allows only NULL, repository will omit or coerce; if it requires 1-31, we've ensured a valid value or null.
       const subscriptionData = {
         id,
         userId,
@@ -117,7 +139,7 @@ export class UserSubscriptionsService {
         amount: data.amount,
         description: data.description?.trim() || null,
         billingFrequency: data.billingFrequency,
-        billingDay: data.billingDay || null,
+        billingDay,
         accountId: data.accountId,
         isActive: true,
         firstBillingDate,
@@ -161,7 +183,7 @@ export class UserSubscriptionsService {
       row.subcategory_id
         ? supabase
             .from("subcategories")
-            .select("id, name, logo")
+            .select("id, name, logo, category_id")
             .eq("id", row.subcategory_id)
             .single()
         : Promise.resolve({ data: null, error: null }),
@@ -186,6 +208,22 @@ export class UserSubscriptionsService {
         : Promise.resolve({ data: null, error: null }),
     ]);
 
+    // Fetch parent category (Subscription Category the user selected) for display
+    const categoryId = subcategoryResult.data && "category_id" in subcategoryResult.data
+      ? (subcategoryResult.data as { category_id: string }).category_id
+      : null;
+    const categoryResult = categoryId
+      ? await supabase
+          .from("categories")
+          .select("id, name")
+          .eq("id", categoryId)
+          .single()
+      : { data: null, error: null };
+
+    const subcategoryData = subcategoryResult.data
+      ? { id: subcategoryResult.data.id, name: subcategoryResult.data.name, logo: subcategoryResult.data.logo ?? null }
+      : null;
+
     // Map snake_case database fields to camelCase domain fields
     return {
       id: row.id,
@@ -195,7 +233,7 @@ export class UserSubscriptionsService {
       planId: row.plan_id || null,
       amount: Number(row.amount),
       description: row.description || null,
-      billingFrequency: row.billing_frequency as "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily",
+      billingFrequency: row.billing_frequency as "monthly" | "yearly" | "weekly" | "biweekly" | "semimonthly" | "daily",
       billingDay: row.billing_day || null,
       accountId: row.account_id,
       isActive: row.is_active,
@@ -203,7 +241,8 @@ export class UserSubscriptionsService {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       // Relations
-      subcategory: subcategoryResult.data || null,
+      subcategory: subcategoryData,
+      category: categoryResult.data ? { id: categoryResult.data.id, name: categoryResult.data.name } : null,
       account: accountResult.data || null,
       serviceLogo: serviceResult.data?.logo || null,
       plan: planResult.data ? {
@@ -273,6 +312,8 @@ export class UserSubscriptionsService {
           const lastDay = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 0);
           currentDate = lastDay;
         }
+      } else if (billingFrequency === "yearly") {
+        currentDate = addMonths(currentDate, 12);
       } else {
         // Default to monthly for other frequencies (can be extended)
         currentDate = addMonths(currentDate, 1);
@@ -369,8 +410,26 @@ export class UserSubscriptionsService {
       if (data.firstBillingDate !== undefined) {
         updateData.firstBillingDate = formatDateOnly(new Date(data.firstBillingDate));
       }
+      // DB constraint: monthly/yearly require billing_day 1-31. Set or derive when updating frequency to monthly/yearly.
       if (data.billingDay !== undefined) {
-        updateData.billingDay = data.billingDay || null;
+        const n = Number(data.billingDay);
+        updateData.billingDay =
+          data.billingDay != null && !Number.isNaN(n) && n >= 1 && n <= 31 ? Math.floor(n) : null;
+      } else if (
+        updateData.billingFrequency === "monthly" ||
+        updateData.billingFrequency === "yearly"
+      ) {
+        const dateSource = data.firstBillingDate !== undefined
+          ? new Date(data.firstBillingDate)
+          : new Date(existing.first_billing_date);
+        const dayOfMonth = dateSource.getDate();
+        if (!Number.isNaN(dayOfMonth) && dayOfMonth >= 1 && dayOfMonth <= 31) {
+          updateData.billingDay = dayOfMonth;
+        } else {
+          updateData.billingDay = existing.billing_day != null && existing.billing_day >= 1 && existing.billing_day <= 31
+            ? existing.billing_day
+            : 1;
+        }
       }
       if (data.isActive !== undefined) {
         updateData.isActive = data.isActive;

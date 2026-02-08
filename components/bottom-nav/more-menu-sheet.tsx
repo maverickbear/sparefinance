@@ -18,7 +18,6 @@ import {
   Wallet,
   PiggyBank,
   CreditCard,
-  TrendingUp,
   FolderTree,
   Users,
   Settings,
@@ -89,7 +88,6 @@ function buildNavCategories(isSuperAdmin: boolean): NavCategory[] {
         { href: "/planning/budgets", label: "Budgets", icon: Target },
         { href: "/planning/goals", label: "Goals", icon: PiggyBank },
         { href: "/debts", label: "Debts", icon: CreditCard },
-        { href: "#", label: "Investments", icon: TrendingUp, soon: true },
       ],
     },
     {

@@ -25,7 +25,6 @@ export interface BaseTransaction {
   updatedAt?: string;
   suggestedCategoryId?: string | null;
   suggestedSubcategoryId?: string | null;
-  plaidMetadata?: Record<string, unknown> | null;
 }
 
 export interface TransactionWithRelations extends BaseTransaction {

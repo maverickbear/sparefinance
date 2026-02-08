@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useDashboardSnapshot } from "@/src/presentation/contexts/dashboard-snapshot-context";
 
 /**
  * Component that sets up real-time subscriptions for dashboard data
@@ -28,8 +29,8 @@ const CIRCUIT_BREAKER_CONFIG = {
 const POLLING_INTERVAL = 300000; // 300 seconds (5 minutes) - increased since manual refresh button is available
 
 export function DashboardRealtime() {
-  const router = useRouter();
   const pathname = usePathname();
+  const { markStale } = useDashboardSnapshot();
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const subscriptionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -41,15 +42,11 @@ export function DashboardRealtime() {
     lastFailureTime: 0,
     isOpen: false,
   });
-  const lastRefreshTimeRef = useRef(0);
-  const mountTimeRef = useRef<number>(Date.now());
+  const markStaleDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Only set up subscriptions on dashboard page
     if (pathname !== "/dashboard") {
-      // Cleanup if navigating away from dashboard
       if (subscriptionRef.current) {
-        console.log(`[DashboardRealtime-${instanceIdRef.current}] Cleaning up subscription (navigated away)`);
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
       }
@@ -60,45 +57,17 @@ export function DashboardRealtime() {
       return;
     }
 
-    // CRITICAL FIX: Prevent multiple subscriptions from being created
     if (subscriptionRef.current || isSubscribingRef.current) {
-      console.log(`[DashboardRealtime-${instanceIdRef.current}] Subscription already exists or in progress, skipping`);
       return;
     }
 
-    // Debounce refresh calls to avoid too many refreshes
-    // OPTIMIZED: Increased debounce to prevent excessive refreshes
-    let refreshTimeout: NodeJS.Timeout | null = null;
-    const MIN_REFRESH_INTERVAL = 5000; // Minimum 5 seconds between refreshes
-    const MIN_TIME_BEFORE_REFRESH = 10000; // Minimum 10 seconds after mount before allowing refresh
-    
-    const scheduleRefresh = async () => {
-      const now = Date.now();
-      const timeSinceMount = now - mountTimeRef.current;
-      
-      // CRITICAL: Prevent refreshes during initial load period
-      // This prevents unnecessary refreshes right after page load
-      if (timeSinceMount < MIN_TIME_BEFORE_REFRESH) {
-        console.debug(`[DashboardRealtime-${instanceIdRef.current}] Skipping refresh - too soon after mount (${Math.round(timeSinceMount / 1000)}s)`);
-        return;
-      }
-      
-      // Prevent refreshes if we just refreshed recently
-      if (now - lastRefreshTimeRef.current < MIN_REFRESH_INTERVAL) {
-        console.debug(`[DashboardRealtime-${instanceIdRef.current}] Skipping refresh - too soon since last refresh (${Math.round((now - lastRefreshTimeRef.current) / 1000)}s ago)`);
-        return;
-      }
-      
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-      }
-      refreshTimeout = setTimeout(async () => {
-        // Only refresh the router - cache invalidation is handled by revalidateTag in API functions
-        // This avoids invalidating cache on initial page load
-        lastRefreshTimeRef.current = Date.now();
-        console.debug(`[DashboardRealtime-${instanceIdRef.current}] Refreshing dashboard`);
-        router.refresh();
-      }, 2000); // Debounce for 2 seconds to prevent excessive refreshes
+    /** Realtime only marks snapshot stale; next version check (poll or Refresh) will refetch. */
+    const scheduleMarkStale = () => {
+      if (markStaleDebounceRef.current) clearTimeout(markStaleDebounceRef.current);
+      markStaleDebounceRef.current = setTimeout(() => {
+        markStale();
+        markStaleDebounceRef.current = null;
+      }, 2000);
     };
 
     // Performance logging disabled
@@ -140,12 +109,9 @@ export function DashboardRealtime() {
       }
     };
 
-    // OPTIMIZED: Hybrid approach - Polling for Goal (less critical, change less frequently)
-    // Budget now uses Realtime for immediate updates when created
-    // This reduces load on Realtime system while ensuring critical data updates immediately
     const startPolling = () => {
       pollingIntervalRef.current = setInterval(() => {
-        scheduleRefresh();
+        markStale();
       }, POLLING_INTERVAL);
     };
 
@@ -180,11 +146,11 @@ export function DashboardRealtime() {
             {
               event: "*",
               schema: "public",
-              table: "Transaction",
+              table: "transactions",
             },
             () => {
               recordSuccess();
-              scheduleRefresh();
+              scheduleMarkStale();
             }
           )
           .on(
@@ -192,11 +158,11 @@ export function DashboardRealtime() {
             {
               event: "*",
               schema: "public",
-              table: "Account",
+              table: "accounts",
             },
             () => {
               recordSuccess();
-              scheduleRefresh();
+              scheduleMarkStale();
             }
           )
           .on(
@@ -204,11 +170,11 @@ export function DashboardRealtime() {
             {
               event: "*",
               schema: "public",
-              table: "Budget",
+              table: "budgets",
             },
             () => {
               recordSuccess();
-              scheduleRefresh();
+              scheduleMarkStale();
             }
           )
           .on(
@@ -216,11 +182,11 @@ export function DashboardRealtime() {
             {
               event: "*",
               schema: "public",
-              table: "UserServiceSubscription",
+              table: "user_subscriptions",
             },
             () => {
               recordSuccess();
-              scheduleRefresh();
+              scheduleMarkStale();
             }
           )
           .subscribe((status) => {
@@ -260,12 +226,11 @@ export function DashboardRealtime() {
       }, 1000);
     }
 
-    // Cleanup function to close WebSocket connections
     const cleanup = () => {
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
+      if (markStaleDebounceRef.current) {
+        clearTimeout(markStaleDebounceRef.current);
+        markStaleDebounceRef.current = null;
       }
-      
       // Clear timeouts
       if (subscriptionTimeoutRef.current) {
         clearTimeout(subscriptionTimeoutRef.current);
@@ -311,7 +276,7 @@ export function DashboardRealtime() {
       cleanup();
       window.removeEventListener('pagehide', handlePageHide);
     };
-  }, [router, pathname]);
+  }, [pathname, markStale]);
 
   // This component doesn't render anything
   return null;

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { SimpleFooter } from "@/components/common/simple-footer";
-import { LandingHeader } from "@/components/landing/landing-header";
+import { PublicHeader } from "@/components/public-header";
 import { HelpCircle, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -256,7 +256,7 @@ export default function FAQPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <LandingHeader isAuthenticated={false} />
+      <PublicHeader isAuthenticated={false} />
 
       {/* Content */}
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 md:py-16 lg:py-20">

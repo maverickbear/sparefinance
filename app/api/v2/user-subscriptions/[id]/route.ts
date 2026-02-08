@@ -68,9 +68,11 @@ export async function PUT(
     const service = makeUserSubscriptionsService();
     const subscription = await service.updateUserSubscription(userId, id, body);
     
-    // Invalidate cache using tag groups
+    // Invalidate cache so dashboard and reports reflect changes
     revalidateTag('subscriptions', 'max');
     revalidateTag('accounts', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json(subscription, { status: 200 });
   } catch (error) {
@@ -108,9 +110,11 @@ export async function DELETE(
     const service = makeUserSubscriptionsService();
     await service.deleteUserSubscription(userId, id);
     
-    // Invalidate cache using tag groups
+    // Invalidate cache so dashboard and reports reflect changes
     revalidateTag('subscriptions', 'max');
     revalidateTag('accounts', 'max');
+    revalidateTag(`dashboard-${userId}`, 'max');
+    revalidateTag(`reports-${userId}`, 'max');
     
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
@@ -153,15 +157,17 @@ export async function POST(
 
     if (action === "pause") {
       const subscription = await service.pauseUserSubscription(userId, id);
-      // Invalidate cache using tag groups
       revalidateTag('subscriptions', 'max');
       revalidateTag('accounts', 'max');
+      revalidateTag(`dashboard-${userId}`, 'max');
+      revalidateTag(`reports-${userId}`, 'max');
       return NextResponse.json(subscription, { status: 200 });
     } else if (action === "resume") {
       const subscription = await service.resumeUserSubscription(userId, id);
-      // Invalidate cache using tag groups
       revalidateTag('subscriptions', 'max');
       revalidateTag('accounts', 'max');
+      revalidateTag(`dashboard-${userId}`, 'max');
+      revalidateTag(`reports-${userId}`, 'max');
       return NextResponse.json(subscription, { status: 200 });
     } else {
       return NextResponse.json(

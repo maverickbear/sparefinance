@@ -345,7 +345,7 @@ export class TransactionsService {
       }
 
       // Merchant information is now stored directly in description or handled separately
-      // No longer using plaidMetadata
+      // Use description only
     } else {
       // Regular transaction or transfer with transferFromId
       transactionRow = await this.repository.create({
@@ -386,7 +386,7 @@ export class TransactionsService {
       }
 
       // Merchant information is now stored directly in description or handled separately
-      // No longer using plaidMetadata
+      // Use description only
     }
 
     // Fetch related data (account, category, subcategory) to return complete transaction
@@ -476,7 +476,7 @@ export class TransactionsService {
     if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl || null;
 
     // Merchant information is now stored directly in description or handled separately
-    // No longer using plaidMetadata
+    // Use description only
 
     const row = await this.repository.update(id, updateData);
 
@@ -541,11 +541,15 @@ export class TransactionsService {
 
   /**
    * Delete a transaction (hard delete - permanent)
-   * Note: includeDeleted=true because transaction may be soft-deleted
+   * Note: includeDeleted=true because transaction may be soft-deleted.
+   * Deletes any planned payments linked to this transaction before deleting the transaction.
    */
   async deleteTransaction(id: string): Promise<void> {
     // Verify ownership (include deleted transactions since they may be soft-deleted)
     await requireTransactionOwnership(id, true);
+
+    const plannedPaymentsService = makePlannedPaymentsService();
+    await plannedPaymentsService.deleteByLinkedTransactionIds([id]);
 
     await this.repository.delete(id);
   }
@@ -564,13 +568,17 @@ export class TransactionsService {
 
   /**
    * Delete multiple transactions (hard delete - permanent)
-   * Note: includeDeleted=true because transactions may be soft-deleted
+   * Note: includeDeleted=true because transactions may be soft-deleted.
+   * Deletes any planned_payments linked to these transactions before deleting the transactions.
    */
   async deleteMultipleTransactions(ids: string[]): Promise<void> {
     // Verify ownership of all transactions (include deleted since they may be soft-deleted)
     for (const id of ids) {
       await requireTransactionOwnership(id, true);
     }
+
+    const plannedPaymentsService = makePlannedPaymentsService();
+    await plannedPaymentsService.deleteByLinkedTransactionIds(ids);
 
     await this.repository.deleteMultiple(ids);
   }

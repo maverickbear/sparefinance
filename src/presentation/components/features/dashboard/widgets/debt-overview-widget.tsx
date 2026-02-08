@@ -58,7 +58,7 @@ export function DebtOverviewWidget({ data, loading, error }: DebtOverviewWidgetP
           {/* Total Debt */}
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">Total</p>
-            <p className="text-xl font-bold text-sentiment-negative">
+            <p className="text-xl text-sentiment-negative">
               {formatMoney(data.totalDebt)}
             </p>
           </div>
@@ -66,7 +66,7 @@ export function DebtOverviewWidget({ data, loading, error }: DebtOverviewWidgetP
           {/* Monthly Payments */}
           <div className="p-2 rounded border bg-muted/30">
             <p className="text-xs text-muted-foreground mb-0.5">Monthly</p>
-            <p className="text-sm font-semibold">{formatMoney(data.monthlyPayments)}</p>
+            <p className="text-sm">{formatMoney(data.monthlyPayments)}</p>
           </div>
 
           {/* Payoff Timeline */}

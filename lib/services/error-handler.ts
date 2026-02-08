@@ -49,7 +49,6 @@ export const ERROR_CODES = {
   // External Services
   EXTERNAL_SERVICE_ERROR: 'EXTERNAL_SERVICE_ERROR',
   STRIPE_ERROR: 'STRIPE_ERROR',
-  PLAID_ERROR: 'PLAID_ERROR',
   
   // Rate Limiting
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
@@ -292,26 +291,6 @@ export function convertStripeError(error: any): AppError {
       type: error.type,
       code: error.code,
       param: error.param,
-    }
-  );
-}
-
-/**
- * Convert banking service errors to AppError (legacy - Plaid removed)
- * @deprecated Plaid integration removed - kept for backward compatibility
- */
-export function convertPlaidError(error: any): AppError {
-  const message = error.message || 'Banking service error';
-  
-  return new AppError(
-    message,
-    ERROR_CODES.PLAID_ERROR,
-    error.status_code || 500,
-    true,
-    {
-      error_type: error.error_type,
-      error_code: error.error_code,
-      display_message: error.display_message,
     }
   );
 }

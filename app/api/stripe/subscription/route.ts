@@ -80,9 +80,10 @@ export async function POST(request: NextRequest) {
         throw new AppError(error || "Failed to cancel subscription", 500);
       }
 
-      // Invalidate cache using tag groups
       revalidateTag('subscriptions', 'max');
       revalidateTag('accounts', 'max');
+      revalidateTag(`dashboard-${userId}`, 'max');
+      revalidateTag(`reports-${userId}`, 'max');
 
       return NextResponse.json({ success: true });
     } else if (action === "reactivate") {
@@ -94,9 +95,10 @@ export async function POST(request: NextRequest) {
         throw new AppError(error || "Failed to reactivate subscription", 500);
       }
 
-      // Invalidate cache using tag groups
       revalidateTag('subscriptions', 'max');
       revalidateTag('accounts', 'max');
+      revalidateTag(`dashboard-${userId}`, 'max');
+      revalidateTag(`reports-${userId}`, 'max');
 
       return NextResponse.json({ success: true });
     } else {

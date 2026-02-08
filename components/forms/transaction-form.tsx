@@ -19,6 +19,14 @@ import { Loader2, Info, Plus, Receipt, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -252,8 +260,6 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
           type: transaction.type,
         });
         
-        // Merchant information is no longer available from Plaid metadata
-        // Extract from description if needed
         const merchantName = undefined;
 
         // Extended transaction type for form data (includes fields that may not be in Transaction type)
@@ -833,20 +839,21 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
         }}
       />
       {shouldShowForm && (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
-        <DialogHeader>
-          <DialogTitle>{transaction ? "Edit" : "Add"} Transaction</DialogTitle>
-          <DialogDescription>
-            {transaction ? "Update the transaction details" : "Create a new transaction"}
-          </DialogDescription>
-        </DialogHeader>
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent side="right" className="sm:max-w-[600px] w-full p-0 flex flex-col gap-0 overflow-hidden bg-background border-l">
+            <SheetHeader className="p-6 pb-4 border-b shrink-0">
+              <SheetTitle className="text-xl">{transaction ? "Edit" : "Add"} Transaction</SheetTitle>
+              <SheetDescription>
+                {transaction ? "Update the transaction details" : "Create a new transaction"}
+              </SheetDescription>
+            </SheetHeader>
 
-        <form 
-          onSubmit={form.handleSubmit(onSubmit)} 
-          className="flex flex-col flex-1 overflow-hidden"
-        >
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+            <form 
+              onSubmit={form.handleSubmit(onSubmit)} 
+              className="flex flex-col flex-1 overflow-hidden"
+            >
+              <ScrollArea className="flex-1">
+                <div className="p-6 space-y-4">
           {/* Show limit warning for new transactions */}
           {!transaction && transactionLimit && transactionLimit.limit !== -1 && (
             <LimitWarning
@@ -1388,49 +1395,50 @@ export function TransactionForm({ open, onOpenChange, transaction, onSuccess, de
             })()}
           </div>
 
-          </div>
+                </div>
+              </ScrollArea>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            {!transaction && (
-              <Button 
-                type="button" 
-                variant="outline"
-                disabled={isSubmitting}
-                onClick={(e) => {
-                  e.preventDefault();
-                  form.handleSubmit(onSubmitAndNew)();
-                }}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save and New"
+              <div className="p-4 border-t flex flex-wrap justify-end gap-2 shrink-0 bg-background">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                  Cancel
+                </Button>
+                {!transaction && (
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    disabled={isSubmitting}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      form.handleSubmit(onSubmitAndNew)();
+                    }}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save and New"
+                    )}
+                  </Button>
                 )}
-              </Button>
-            )}
-            <Button 
-              type="submit" 
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-      </Dialog>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </SheetContent>
+        </Sheet>
       )}
 
       {/* Add Category Dialog */}

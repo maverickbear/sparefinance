@@ -37,7 +37,7 @@ const CardTitle = React.forwardRef<
     ref={ref}
     className={cn(
       // Uses content.primary to emphasise primary content (titles)
-      "text-lg md:text-xl font-semibold leading-none tracking-tight text-foreground",
+      "text-lg md:text-xl font-semibold leading-none tracking-normal text-foreground",
       className
     )}
     {...props}

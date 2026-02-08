@@ -72,7 +72,7 @@ export function BudgetPerformanceWidget({ data, loading, error }: BudgetPerforma
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Spent</span>
               <span className={cn(
-                "text-sm font-semibold",
+                "text-sm",
                 data.totalDifference > 0 ? "text-sentiment-negative" : "text-sentiment-positive"
               )}>
                 {formatMoney(data.totalActual)}
@@ -105,7 +105,7 @@ export function BudgetPerformanceWidget({ data, loading, error }: BudgetPerforma
                 <div className="flex items-center justify-between text-xs text-muted-foreground mt-0.5">
                   <span>{category.percentage.toFixed(0)}%</span>
                   {category.isOverspending && (
-                    <span className="text-sentiment-negative font-medium">
+                    <span className="text-sentiment-negative">
                       +{formatMoney(category.difference)}
                     </span>
                   )}

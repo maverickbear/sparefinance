@@ -17,13 +17,13 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { DollarAmountInput } from "@/components/common/dollar-amount-input";
 import { formatTransactionDate, parseDateInput, formatDateInput } from "@/src/infrastructure/utils/timestamp";
 import { useToast } from "@/components/toast-provider";
@@ -159,7 +159,7 @@ export function SubscriptionForm({
     
     return grouped;
   };
-  const [billingFrequency, setBillingFrequency] = useState<"monthly" | "weekly" | "biweekly" | "semimonthly" | "daily">("monthly");
+  const [billingFrequency, setBillingFrequency] = useState<"monthly" | "yearly" | "weekly" | "biweekly" | "semimonthly" | "daily">("monthly");
 
   const form = useForm<UserServiceSubscriptionFormData>({
     defaultValues: {
@@ -444,6 +444,9 @@ export function SubscriptionForm({
             });
             if (subscriptionsCategories.length > 0) {
               targetCategoryId = subscriptionsCategories[0].id;
+            } else {
+              // Server will resolve: create "Subscription" or use first expense category
+              targetCategoryId = selectedCategoryId;
             }
          }
          
@@ -544,18 +547,18 @@ export function SubscriptionForm({
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] flex flex-col !p-0 !gap-0">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex flex-col w-full !p-0 !gap-0 sm:max-w-xl overflow-hidden">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b border-border text-left">
+          <SheetTitle>
             {subscription ? "Edit Subscription" : "Create Subscription"}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {subscription
               ? "Update your subscription details"
               : "Create a new subscription to track recurring payments"}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
@@ -635,7 +638,7 @@ export function SubscriptionForm({
               <Tabs
                 value={form.watch("billingFrequency")}
                 onValueChange={(value) => {
-                  form.setValue("billingFrequency", value as "monthly" | "weekly" | "biweekly" | "semimonthly" | "daily");
+                  form.setValue("billingFrequency", value as "monthly" | "yearly" | "weekly" | "biweekly" | "semimonthly" | "daily");
                 }}
                 className="w-full"
               >
@@ -667,7 +670,7 @@ export function SubscriptionForm({
           </div>
           </div>
 
-          <DialogFooter>
+          <SheetFooter className="px-6 py-4 border-t border-border">
             <Button
               type="button"
               variant="outline"
@@ -686,10 +689,10 @@ export function SubscriptionForm({
                 subscription ? "Update" : "Create"
               )}
             </Button>
-          </DialogFooter>
+          </SheetFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 

@@ -19,6 +19,7 @@ import {
 } from "@/lib/utils/debts";
 import { AppError } from "../shared/app-error";
 import { DebtPlannedPaymentsService } from "../planned-payments/debt-planned-payments.service";
+import { makePlannedPaymentsService } from "../planned-payments/planned-payments.factory";
 
 export class DebtsService {
   private debtPlannedPaymentsService: DebtPlannedPaymentsService;
@@ -336,13 +337,16 @@ export class DebtsService {
 
   /**
    * Delete a debt
+   * Deletes all planned payments linked to this debt before deleting the debt.
    */
   async deleteDebt(id: string): Promise<void> {
     // Verify ownership
     await requireDebtOwnership(id);
 
-    await this.repository.delete(id);
+    const plannedPaymentsService = makePlannedPaymentsService();
+    await plannedPaymentsService.deleteByDebtId(id);
 
+    await this.repository.delete(id);
   }
 
   /**

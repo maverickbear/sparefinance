@@ -318,22 +318,28 @@ export class BudgetsService {
     const id = crypto.randomUUID();
     const now = formatTimestamp(new Date());
 
-    const budgetRow = await this.repository.create({
-      id,
-      period: periodStr,
-      amount: data.amount,
-      categoryId: data.categoryId || null,
-      subcategoryId: data.subcategoryId || null,
-      userId,
-      householdId,
-      note: null,
-      isRecurring: false,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-
-    return BudgetsMapper.toDomain(budgetRow);
+    try {
+      const budgetRow = await this.repository.create({
+        id,
+        period: periodStr,
+        amount: data.amount,
+        categoryId: data.categoryId || null,
+        subcategoryId: data.subcategoryId || null,
+        userId,
+        householdId,
+        note: null,
+        isRecurring: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return BudgetsMapper.toDomain(budgetRow);
+    } catch (err) {
+      const code = (err as Error & { code?: string }).code;
+      if (code === "23505") {
+        throw new AppError("Budget already exists for this period and category", 409);
+      }
+      throw err;
+    }
   }
 
   /**
