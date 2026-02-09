@@ -67,18 +67,14 @@ export class DashboardRepository {
       table: string,
       extraFilter?: { column: string; value: string }
     ): Promise<number | null> => {
-      let query = supabase
-        .from(table)
-        .select("updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
+      let query = supabase.from(table).select("updated_at");
       if (extraFilter) {
         query = query.eq(extraFilter.column, extraFilter.value);
       }
-
-      const { data, error } = await query;
+      const { data, error } = await query
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
       if (error) {
         logger.debug(`[DashboardRepository] ${table} max updated_at: ${error.message}`);
         return null;

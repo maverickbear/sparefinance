@@ -1,0 +1,5 @@
+# Local Docker-based services (e.g. Postgres, Supabase local).
+# Root docker-compose.yml symlinks here.
+# Used by: npm run db:start | db:stop | db:logs | db:status
+# Add your service definitions below when needed.
+services: {}
