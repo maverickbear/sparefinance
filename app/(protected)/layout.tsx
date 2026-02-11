@@ -125,9 +125,10 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
     
     // Note: SubscriptionsService already handles household member subscription inheritance
     // No need for manual retry - the service checks household membership internally
-    // If no subscription found, user needs to complete onboarding (handled by onboarding dialog)
+    // If no subscription, require user to choose a plan (pricing modal blocks access)
     if (!subscription) {
-      shouldOpenModal = false; // Don't open pricing dialog, let onboarding handle it
+      shouldOpenModal = true;
+      reason = "no_subscription";
     } else {
       // Check if subscription status allows access
       const isActiveStatus = subscription.status === "active";
@@ -144,8 +145,10 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
         } else if (subscription.status === "past_due") {
           shouldOpenModal = true;
           reason = "subscription_inactive";
+        } else if (subscription.status === "unpaid") {
+          shouldOpenModal = true;
+          reason = "subscription_inactive";
         } else {
-          // Allow access for other statuses (unpaid, etc.)
           shouldOpenModal = false;
         }
       }
@@ -170,12 +173,12 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Determine subscription status for dialog
-  // Only show pricing dialog for cancelled subscriptions
-  // For no subscription, let onboarding dialog handle it
-  const subscriptionStatus = 
-    subscription && subscription.status === "cancelled" 
-      ? "cancelled" 
-      : null;
+  const subscriptionStatus: "no_subscription" | "cancelled" | "past_due" | "unpaid" | null =
+    !subscription
+      ? "no_subscription"
+      : subscription.status === "cancelled" || subscription.status === "past_due" || subscription.status === "unpaid"
+        ? (subscription.status as "cancelled" | "past_due" | "unpaid")
+        : null;
 
   return (
     <SubscriptionProvider initialData={{ subscription, plan }}>
@@ -193,18 +196,16 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
 
 /**
  * Protected Layout
- * 
- * This layout protects routes that require both authentication and subscription.
- * It verifies:
+ *
+ * Protects routes that require authentication. It verifies:
  * 1. User is authenticated
  * 2. User exists in User table
- * 3. User has an active subscription (at least "free" plan)
- * 
- * If user is not authenticated, redirects to /auth/login with redirect parameter
- * If user doesn't exist in User table, logs out and redirects to /auth/login
- * If user is authenticated but has no subscription, redirects to pricing page
- * 
- * Uses Suspense to prevent blocking page render while checking authentication
+ *
+ * Subscription requirement: when the user has no active subscription (none, cancelled,
+ * past_due, unpaid), the pricing modal is shown and blocks full access until they
+ * subscribe or reactivate. Onboarding is hidden until they have a subscription.
+ *
+ * Uses Suspense to prevent blocking page render while checking authentication.
  */
 export default function ProtectedLayout({
   children,

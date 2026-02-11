@@ -2,21 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { createServiceRoleClient } from "@/src/infrastructure/database/supabase-server";
 import { makeStripeService } from "@/src/application/stripe/stripe.factory";
-import Stripe from "stripe";
+import { getStripeClient } from "@/src/infrastructure/external/stripe/stripe-client";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error("STRIPE_SECRET_KEY is not set");
-}
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2025-10-29.clover",
-  typescript: true,
-});
-
-// This endpoint syncs the subscription from Stripe to Supabase
-// It can be called after checkout to ensure subscription is created
+// Syncs the subscription from Stripe to Supabase (app_subscriptions).
+// In sandbox or when the Stripe webhook is not configured, this endpoint is the
+// only way the subscription gets created in Supabase after checkout. The success
+// page calls this when the user lands on /subscription/success.
 export async function POST(request: NextRequest) {
   try {
+    const stripe = getStripeClient();
     console.log("[SYNC] Starting subscription sync");
     const supabase = await createServerClient();
     
@@ -250,21 +244,44 @@ export async function POST(request: NextRequest) {
       .eq("id", subscriptionId)
       .maybeSingle();
 
-    // Prepare subscription data
-    // FIX: Use snake_case column names for app_subscriptions table
+    const now = new Date().toISOString();
+    // For trialing subscriptions Stripe may not set current_period_start/end; use trial dates as fallback
+    const subAny = activeSubscription as any;
+    const periodStart = subAny.current_period_start ?? subAny.trial_start;
+    const periodEnd = subAny.current_period_end ?? subAny.trial_end;
+    const toIsoIfValid = (unix: number | undefined): string | null =>
+      unix != null && Number.isFinite(unix) ? new Date(unix * 1000).toISOString() : null;
+
+    const currentPeriodStart = toIsoIfValid(periodStart);
+    const currentPeriodEnd = toIsoIfValid(periodEnd);
+    if (!currentPeriodStart || !currentPeriodEnd) {
+      console.warn("[SYNC] Missing period dates from Stripe (trialing?), using fallbacks:", {
+        subscriptionId,
+        current_period_start: subAny.current_period_start,
+        current_period_end: subAny.current_period_end,
+        trial_start: subAny.trial_start,
+        trial_end: subAny.trial_end,
+      });
+    }
+
+    // Prepare subscription data (snake_case for app_subscriptions)
     const subscriptionData: any = {
       id: subscriptionId,
       user_id: authUser.id,
-      household_id: householdId, // Link to active household (null if not found)
+      household_id: householdId,
       plan_id: plan.id,
       status: status,
       stripe_subscription_id: activeSubscription.id,
       stripe_customer_id: customerId,
-      current_period_start: new Date((activeSubscription as any).current_period_start * 1000).toISOString(),
-      current_period_end: new Date((activeSubscription as any).current_period_end * 1000).toISOString(),
-      cancel_at_period_end: (activeSubscription as any).cancel_at_period_end,
-      updated_at: new Date().toISOString(),
+      current_period_start: currentPeriodStart ?? now,
+      current_period_end: currentPeriodEnd ?? now,
+      cancel_at_period_end: Boolean(subAny.cancel_at_period_end ?? false),
+      updated_at: now,
     };
+    // Set created_at when inserting a new row (e.g. when webhook was not received)
+    if (!existingSubData) {
+      subscriptionData.created_at = now;
+    }
 
     // Preserve trial start date if it exists
     if (existingSubData?.trial_start_date) {
@@ -335,9 +352,10 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (upsertError) {
+      const message = upsertError?.message ?? "Failed to sync subscription";
       console.error("[SYNC] Error upserting subscription:", upsertError);
       return NextResponse.json(
-        { error: "Failed to sync subscription" },
+        { error: "Failed to sync subscription", details: process.env.NODE_ENV === "development" ? message : undefined },
         { status: 500 }
       );
     }
@@ -354,9 +372,10 @@ export async function POST(request: NextRequest) {
       subscription: upsertedSub?.[0],
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to sync subscription";
     console.error("[SYNC] Error syncing subscription:", error);
     return NextResponse.json(
-      { error: "Failed to sync subscription" },
+      { error: "Failed to sync subscription", details: process.env.NODE_ENV === "development" ? message : undefined },
       { status: 500 }
     );
   }

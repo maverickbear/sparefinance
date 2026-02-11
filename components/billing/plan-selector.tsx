@@ -354,7 +354,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
                         </Button>
                         {!isCurrent && plan.priceMonthly > 0 && !alreadyHadTrial && (
                           <p className="text-xs text-center text-muted-foreground mt-2">
-                            No credit card required for trial
+                            Charged after trial ends. Cancel anytime.
                           </p>
                         )}
                       </td>
@@ -497,7 +497,7 @@ export function PlanSelector({ plans, currentPlanId, currentInterval, onSelectPl
                   </Button>
                   {!isCurrent && plan.priceMonthly > 0 && !alreadyHadTrial && (
                     <p className="text-xs text-center text-muted-foreground">
-                      No credit card required for trial
+                      Charged after trial ends. Cancel anytime.
                     </p>
                   )}
                 </CardFooter>

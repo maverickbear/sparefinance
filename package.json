@@ -26,6 +26,7 @@
     "test:watch": "jest --watch --config config/jest.config.js",
     "test:coverage": "jest --config config/jest.config.js --coverage",
     "test:subscription": "jest --config config/jest.config.js tests/subscription-scenarios.test.ts",
+    "test:subscription-registration": "jest --config config/jest.config.js tests/user-subscription-registration.test.ts",
     "db:start": "docker compose up -d",
     "db:stop": "docker compose down",
     "db:restart": "docker compose restart",

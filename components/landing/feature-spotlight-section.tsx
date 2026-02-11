@@ -24,7 +24,7 @@ export function FeatureSpotlightSection({
   title,
   tagline,
   description,
-  ctaText = "Start free trial",
+  ctaText = "Start 30-day free trial",
   ctaHref = "/auth/signup",
   reverse = false,
 }: FeatureSpotlightProps) {

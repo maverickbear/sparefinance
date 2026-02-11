@@ -15,10 +15,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
-import { SimpleFooter } from "@/components/common/simple-footer";
-import { PublicHeader } from "@/components/public-header";
-import { HelpCircle, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ContentPageLayout } from "@/components/common/content-page-layout";
+import { HelpCircle, Search, X } from "lucide-react";
 
 export default function FAQPage() {
   const [plans, setPlans] = useState<Array<{ id: string; name: string; priceMonthly: number; priceYearly: number }>>([]);
@@ -52,7 +51,7 @@ export default function FAQPage() {
         },
         {
           question: "How does Spare Finance work?",
-          answer: "It's really simple! You can connect your bank account (it's safe and secure), or you can add your transactions manually. The app automatically sorts your spending into categories, helps you create budgets, and shows you how much you're saving. Everything is organized so you can see your finances at a glance.",
+          answer: "It's really simple! You add your accounts and transactions manually or import from CSV. The app automatically sorts your spending into categories, helps you create budgets, and shows you how much you're saving. Everything is organized so you can see your finances at a glance.",
         },
         {
           question: "Do I need to be tech-savvy to use it?",
@@ -69,19 +68,19 @@ export default function FAQPage() {
       questions: [
         {
           question: "What plans do you offer?",
-          answer: `We offer the ${proPlanName} plan ($${proPriceMonthly.toFixed(2)} per month or $${proPriceYearly.toFixed(2)} per year) with unlimited access to all features. The plan comes with a 30-day free trial so you can try it risk-free. You get unlimited transactions, unlimited accounts, and access to all features including investments, advanced reports, CSV import/export, bank integration, budgets, goals, and more.`,
+          answer: `We offer the ${proPlanName} plan ($${proPriceMonthly.toFixed(2)} per month or $${proPriceYearly.toFixed(2)} per year) with unlimited access to all features. The plan comes with a 30-day free trial so you can try it risk-free. You get unlimited transactions, unlimited accounts, and access to all features including investments, advanced reports, CSV import/export, budgets, goals, and more.`,
         },
         {
           question: "Can I try it for free?",
-          answer: `Yes! The ${proPlanName} plan comes with a 30-day free trial. That means you can use all the features for a full month without paying anything. If you decide it's not for you, just cancel before the trial ends and you won't be charged. If you love it, your subscription will start automatically after 30 days.`,
+          answer: `Yes! The ${proPlanName} plan comes with a 30-day free trial. You'll add your card to start the trial; you're only charged after the trial ends. If you decide it's not for you, cancel anytime and you won't be charged. If you cancel after subscribing, your plan stays active until the end of your billing cycle (monthly or annual). If you love it, your subscription will start automatically after 30 days.`,
         },
         {
           question: "What happens after my free trial ends?",
-          answer: "If you don't cancel, your subscription will start automatically and you'll be charged for the plan you chose. Don't worry—you can cancel anytime! If you cancel, you'll still have access until the end of the period you already paid for. No surprises!",
+          answer: "If you don't cancel, your subscription will start automatically and you'll be charged for the plan you chose. You can cancel anytime; if you cancel, your plan stays active until the end of your current billing cycle (monthly or annual). No surprises!",
         },
         {
           question: `What do I get with the ${proPlanName} plan?`,
-          answer: `The ${proPlanName} plan includes everything: unlimited transactions, unlimited accounts, track your investments, see detailed reports, import and export your data, connect your bank account automatically, get smart category suggestions, budgets, goals, receipt scanner, household members, and more.`,
+          answer: `The ${proPlanName} plan includes everything: unlimited transactions, unlimited accounts, track your investments, see detailed reports, import and export your data, add and import transactions manually or via CSV, get smart category suggestions, budgets, goals, receipt scanner, household members, and more.`,
         },
         {
           question: "Can I switch plans later?",
@@ -93,7 +92,7 @@ export default function FAQPage() {
         },
         {
           question: "Can I cancel anytime?",
-          answer: "Yes! You can cancel your subscription anytime from your account settings. When you cancel, you'll still have access until the end of the period you've already paid for. After that, you won't be charged again. It's that simple!",
+          answer: "Yes! You can cancel your subscription anytime from your account settings. When you cancel, your plan stays active until the end of your current billing cycle (monthly or annual). After that, you won't be charged again. It's that simple!",
         },
         {
           question: "Can I change my plan after I subscribe?",
@@ -105,12 +104,12 @@ export default function FAQPage() {
       title: "Features",
       questions: [
         {
-          question: "How do I add my bank account?",
-          answer: `You can manually add your bank accounts in the Accounts section. Simply click "Add Account" and enter your account details (name, type, initial balance). You can then add transactions manually or import them via CSV file.`,
+          question: "How do I add my accounts?",
+          answer: `In the Accounts section, click "Add Account" and enter your account details (name, type, initial balance). You can then add transactions manually or import them via CSV file.`,
         },
         {
-          question: "Can I sync my bank account automatically?",
-          answer: "Automatic bank account syncing is currently not available. You can add transactions manually or import them via CSV file. We're always working on improving our features, so stay tuned for updates!",
+          question: "Can I sync my accounts automatically?",
+          answer: "We don't offer automatic bank or account syncing. You add transactions manually or import them via CSV file.",
         },
         {
           question: "Can I import my transactions from a file?",
@@ -142,11 +141,11 @@ export default function FAQPage() {
         },
         {
           question: "How does the app know which category to use?",
-          answer: "The app is smart! It learns from how you've categorized transactions before. It looks at your past transactions (up to 12 months) and learns your patterns. When you add a new transaction or import bank data, it suggests the most likely category. You can just click to accept it or change it if it's wrong. The more you use it, the smarter it gets!",
+          answer: "The app is smart! It learns from how you've categorized transactions before. It looks at your past transactions (up to 12 months) and learns your patterns. When you add a new transaction or import from CSV, it suggests the most likely category. You can just click to accept it or change it if it's wrong. The more you use it, the smarter it gets!",
         },
         {
-          question: "Can I disconnect my bank account?",
-          answer: "Yes, anytime! Just go to your account settings and disconnect your bank. When you disconnect, we'll stop syncing new transactions, but all your old transactions will stay in your account. You can always reconnect later if you want!",
+          question: "How do I remove an account?",
+          answer: "You can delete an account from the Accounts section. Your transactions for that account stay until you delete them. You can add the account again later if you want.",
         },
         {
           question: "How do I add or remove family members?",
@@ -159,7 +158,7 @@ export default function FAQPage() {
       questions: [
         {
           question: "How do I sign up?",
-          answer: "It's free and easy! Just click 'Get Started' on the homepage. You'll need to provide your email address and create a password, then confirm your email. That's it! No credit card needed to get started.",
+          answer: "It's free and easy! Just click 'Get Started' on the homepage. You'll need to provide your email address and create a password, then confirm your email. You'll add your card when you start your 30-day free trial—you're only charged after the trial ends. Cancel anytime; your plan stays active until the end of your billing cycle.",
         },
         {
           question: "I forgot my password. What do I do?",
@@ -185,16 +184,18 @@ export default function FAQPage() {
           question: "What happens if I delete my account?",
           answer: (
             <>
-              If you delete your account, all your data will be permanently deleted from our system within 30 days, as explained in our{" "}
-              <Link 
-                href="/privacy-policy" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-foreground hover:underline"
+              If you delete your account, all your data will be permanently
+              deleted from our system immediately, as explained in our{" "}
+              <Link
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-foreground underline underline-offset-4 hover:text-primary"
               >
                 Privacy Policy
               </Link>
-              . This can't be undone, so make sure to export your data first if you want to keep a copy!
+              . This can&apos;t be undone, so make sure to export your data first
+              if you want to keep a copy!
             </>
           ),
         },
@@ -255,133 +256,147 @@ export default function FAQPage() {
   }, [searchQuery, faqCategories]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <PublicHeader isAuthenticated={false} />
-
-      {/* Content */}
-      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 md:py-16 lg:py-20">
-        <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 md:space-y-10 lg:space-y-12">
-          {/* Header */}
-          <div className="text-center mb-6 sm:mb-8 md:mb-10">
-            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-              <HelpCircle className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-primary" />
-              <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold">
-                Frequently Asked Questions
-              </h1>
-            </div>
-            <p className="text-xs xs:text-sm sm:text-base md:text-lg text-muted-foreground mb-4 sm:mb-6 px-2">
-              Find answers to the most common questions about Spare Finance
-            </p>
-
-            {/* Search Bar */}
-            <div className="max-w-2xl mx-auto relative px-2 sm:px-0">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search for questions or answers..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 sm:pl-10 pr-9 sm:pr-10 h-10 sm:h-12 text-sm sm:text-base"
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="medium"
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 p-0"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <X className="h-3 w-3 sm:h-4 sm:w-4" />
-                  </Button>
-                )}
-              </div>
-              {searchQuery && (
-                <p className="text-xs sm:text-sm text-muted-foreground mt-2 text-left">
-                  {filteredCategories.reduce((acc, cat) => acc + cat.questions.length, 0)} result(s) found
-                </p>
-              )}
-            </div>
+    <ContentPageLayout
+      hero={{
+        icon: (
+          <HelpCircle className="h-10 w-10 shrink-0 text-primary sm:h-12 sm:w-12" />
+        ),
+        title: "Frequently Asked Questions",
+        subtitle: "Find answers to the most common questions about Spare Finance",
+      }}
+    >
+      <div className="space-y-8 sm:space-y-10">
+        {/* Search */}
+        <div className="max-w-2xl mx-auto">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground sm:h-5 sm:w-5"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              placeholder="Search for questions or answers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-11 pl-10 pr-10 text-sm sm:h-12 sm:pl-11 sm:pr-11 sm:text-base"
+              aria-label="Search FAQ"
+            />
+            {searchQuery && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="medium"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-
-          {/* FAQ Categories */}
-          {filteredCategories.length === 0 ? (
-            <Card className="bg-muted/50">
-              <CardContent className="py-8 sm:py-10 md:py-12 text-center px-4 sm:px-6">
-                <p className="text-sm sm:text-base text-muted-foreground">
-                  No results found for "{searchQuery}". Try different keywords or{" "}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto text-sm sm:text-base"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    clear your search
-                  </Button>
-                  .
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredCategories.map((category, categoryIndex) => (
-            <div key={categoryIndex} className="space-y-3 sm:space-y-4 md:space-y-5">
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold mb-3 sm:mb-4 md:mb-5">{category.title}</h2>
-              <Accordion type="single" collapsible className="w-full space-y-2 sm:space-y-3">
-                {category.questions.map((faq, faqIndex) => {
-                  const itemId = `${categoryIndex}-${faqIndex}`;
-                  return (
-                    <AccordionItem key={faqIndex} value={itemId}>
-                      <AccordionTrigger className="text-left text-sm sm:text-base md:text-lg font-medium pr-4 sm:pr-6">
-                        {faq.question}
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-2 sm:pt-3">
-                        {typeof faq.answer === 'string' ? (
-                          <p className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed pr-4 sm:pr-6">
-                            {faq.answer}
-                          </p>
-                        ) : (
-                          <div className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed pr-4 sm:pr-6">
-                            {faq.answer}
-                          </div>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            </div>
-          ))
+          {searchQuery && (
+            <p className="mt-2 text-left text-sm text-muted-foreground">
+              {filteredCategories.reduce(
+                (acc, cat) => acc + cat.questions.length,
+                0
+              )}{" "}
+              result(s) found
+            </p>
           )}
+        </div>
 
-          {/* Still have questions */}
+        {/* FAQ list */}
+        {filteredCategories.length === 0 ? (
           <Card className="bg-muted/50">
-            <CardHeader className="px-4 sm:px-6 md:px-8 pt-4 sm:pt-6 pb-3 sm:pb-4">
-              <CardTitle className="text-lg sm:text-xl md:text-2xl">Still have questions?</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4 md:space-y-5 px-4 sm:px-6 md:px-8 pb-4 sm:pb-6 md:pb-8">
-              <p className="text-xs sm:text-sm md:text-base text-muted-foreground">
-                Didn't find the answer you were looking for? Our support team is ready to help!
+            <CardContent className="px-6 py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                No results found for &quot;{searchQuery}&quot;. Try different
+                keywords or{" "}
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-sm"
+                  onClick={() => setSearchQuery("")}
+                >
+                  clear your search
+                </Button>
+                .
               </p>
-              <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm md:text-base">
-                <p>
-                  <strong>Email:</strong>{" "}
-                  <a
-                    href="mailto:support@sparefinance.com"
-                    className="text-primary hover:underline break-all"
-                  >
-                    support@sparefinance.com
-                  </a>
-                </p>
-                <p className="text-muted-foreground">
-                  For additional help, you can also visit the Help & Support page after signing in to your account.
-                </p>
-              </div>
             </CardContent>
           </Card>
-        </div>
-      </main>
+        ) : (
+          <div className="space-y-10">
+            {filteredCategories.map((category, categoryIndex) => (
+              <section key={categoryIndex} className="space-y-4">
+                <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                  {category.title}
+                </h2>
+                <Accordion
+                  type="single"
+                  collapsible
+                  className="w-full space-y-2 rounded-lg border border-border bg-card"
+                >
+                  {category.questions.map((faq, faqIndex) => {
+                    const itemId = `${categoryIndex}-${faqIndex}`;
+                    return (
+                      <AccordionItem
+                        key={faqIndex}
+                        value={itemId}
+                        className="border-border px-4 last:border-b-0 sm:px-6"
+                      >
+                        <AccordionTrigger className="text-left text-sm font-medium hover:no-underline sm:text-base [&[data-state=open]>svg]:rotate-180">
+                          {faq.question}
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-4">
+                          {typeof faq.answer === "string" ? (
+                            <p className="text-sm leading-relaxed text-muted-foreground">
+                              {faq.answer}
+                            </p>
+                          ) : (
+                            <div className="text-sm leading-relaxed text-muted-foreground">
+                              {faq.answer}
+                            </div>
+                          )}
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
+              </section>
+            ))}
+          </div>
+        )}
 
-      {/* Simple Footer */}
-      <SimpleFooter />
-    </div>
+        {/* CTA */}
+        <Card className="rounded-lg border border-border bg-muted/50">
+          <CardHeader className="px-6 pb-2 pt-6 sm:px-8">
+            <CardTitle className="text-lg font-semibold sm:text-xl">
+              Still have questions?
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 px-6 pb-6 sm:px-8 sm:pb-8">
+            <p className="text-sm text-muted-foreground">
+              Didn&apos;t find the answer you were looking for? Our support team
+              is ready to help!
+            </p>
+            <div className="space-y-2 text-sm">
+              <p>
+                <strong className="text-foreground">Email:</strong>{" "}
+                <a
+                  href="mailto:support@sparefinance.com"
+                  className="break-all text-primary underline underline-offset-4 hover:text-primary/90"
+                >
+                  support@sparefinance.com
+                </a>
+              </p>
+              <p className="text-muted-foreground">
+                For additional help, you can also visit the Help &amp; Support
+                page after signing in to your account.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </ContentPageLayout>
   );
 }
 

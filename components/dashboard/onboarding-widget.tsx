@@ -303,7 +303,7 @@ export function OnboardingWidget({ initialStatus }: OnboardingWidgetProps) {
     {
       id: "account",
       stepNumber: 3,
-      title: "Connect Bank Account",
+      title: "Add an account",
       description: "Add at least one account to start tracking your finances",
       icon: Wallet,
       completed: status.hasAccount,

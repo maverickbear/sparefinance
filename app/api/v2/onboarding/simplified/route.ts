@@ -4,7 +4,6 @@ import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
 import { simplifiedOnboardingSchema } from "@/src/domain/onboarding/onboarding.validations";
 import { getActiveHouseholdId } from "@/lib/utils/household";
-import { makeTrialService } from "@/src/application/trial/trial.factory";
 import { makeOnboardingService } from "@/src/application/onboarding/onboarding.factory";
 import { makeProfileService } from "@/src/application/profile/profile.factory";
 import { makeStripeService } from "@/src/application/stripe/stripe.factory";
@@ -152,24 +151,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Create trial subscription
-    const trialService = makeTrialService();
-    const trialResult = await trialService.startTrial(userId, planId);
+    // Step 3: Create trial subscription via Checkout (card required, 30-day trial)
+    const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
+    const subscriptionsRepository = new SubscriptionsRepository();
+    const subscriptionId = `${userId}-${planId}`;
+    const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
 
-    if (!trialResult.success) {
-      // Check if subscription was created by another request (race condition)
-      const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
-      const subscriptionsRepository = new SubscriptionsRepository();
-      const subscriptionId = `${userId}-${planId}`;
-      const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
-      
-      if (existingSubscription) {
-        console.log("[SIMPLIFIED-ONBOARDING] Subscription already exists:", existingSubscription.id);
+    if (existingSubscription) {
+      console.log("[SIMPLIFIED-ONBOARDING] Subscription already exists:", existingSubscription.id);
+    } else {
+      const stripeService = makeStripeService();
+      const billingInterval = interval === "year" ? "year" : "month";
+      const returnUrl = "/dashboard?trial_started=1";
+      const result = await stripeService.createTrialCheckoutSessionForUser(
+        userId,
+        planId,
+        billingInterval,
+        returnUrl,
+        undefined,
+        undefined
+      );
+      if (result.error || !result.url) {
+        const checkAgain = await subscriptionsRepository.findById(subscriptionId);
+        if (checkAgain) {
+          console.log("[SIMPLIFIED-ONBOARDING] Subscription was created by another request:", checkAgain.id);
+        } else {
+          throw new AppError(
+            result.error || "Failed to create checkout session",
+            500
+          );
+        }
       } else {
-        throw new AppError(
-          trialResult.error || "Failed to start trial",
-          500
-        );
+        return NextResponse.json({
+          success: true,
+          checkoutUrl: result.url,
+          message: "Redirect to checkout to add your card and start your 30-day trial.",
+        });
       }
     }
 
@@ -210,22 +227,18 @@ export async function POST(request: NextRequest) {
       // Non-critical - continue
     }
 
-    // Step 5: Invalidate subscription cache (for subscription data, not for onboarding decision)
-    // Note: Onboarding decision no longer depends on subscription, but we still invalidate
-    // subscription cache so subscription data is fresh for other parts of the app
+    // Step 5: Invalidate subscription cache
     try {
-      revalidateTag("subscriptions", "max");
-      revalidateTag(`subscription-${userId}`, "max");
+      revalidateTag("subscriptions");
+      revalidateTag(`subscription-${userId}`);
       console.log("[SIMPLIFIED-ONBOARDING] Subscription cache invalidated");
     } catch (cacheError) {
       console.warn("[SIMPLIFIED-ONBOARDING] Error invalidating subscription cache (non-critical):", cacheError);
-      // Continue anyway - not critical for onboarding completion
     }
 
     return NextResponse.json({
       success: true,
-      subscription: trialResult.subscription,
-      trialEndDate: trialResult.trialEndDate,
+      message: "Onboarding complete. Subscription already active.",
     });
   } catch (error) {
     console.error("[SIMPLIFIED-ONBOARDING] Error:", error);

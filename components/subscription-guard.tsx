@@ -1,22 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { PricingDialog } from "@/components/billing/pricing-dialog";
+import { getLandingPlan, clearLandingPlan } from "@/lib/constants/landing-plan";
 
 interface SubscriptionGuardProps {
   shouldOpenModal: boolean;
   reason?: "no_subscription" | "trial_expired" | "subscription_inactive";
   currentPlanId?: string;
   currentInterval?: "month" | "year" | null;
-  subscriptionStatus?: "no_subscription" | "cancelled" | null;
+  subscriptionStatus?: "no_subscription" | "cancelled" | "past_due" | "unpaid" | null;
 }
 
 /**
- * Component that opens pricing dialog when subscription is required
+ * Component that opens pricing dialog when subscription is required.
+ * If user came from landing with a pre-selected plan (monthly/yearly), redirects straight to Stripe checkout.
  */
-export function SubscriptionGuard({ 
-  shouldOpenModal, 
+export function SubscriptionGuard({
+  shouldOpenModal,
   reason,
   currentPlanId,
   currentInterval,
@@ -24,6 +26,7 @@ export function SubscriptionGuard({
 }: SubscriptionGuardProps) {
   const searchParams = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const redirectAttempted = useRef(false);
 
   useEffect(() => {
     // Check if modal should be opened from query params (for direct navigation)
@@ -35,11 +38,40 @@ export function SubscriptionGuard({
       return;
     }
 
-    // Only show pricing dialog if:
-    // 1. subscriptionStatus is "cancelled" (user had subscription but cancelled it)
-    // 2. OR openFromQuery is true (explicit request via URL)
-    // For new users without subscription, onboarding dialog will handle it
-    if (propSubscriptionStatus === "cancelled" || openFromQuery) {
+    // When user has no subscription and pre-selected plan on landing, redirect to Stripe once
+    if (
+      shouldOpenModal &&
+      reason === "no_subscription" &&
+      !redirectAttempted.current
+    ) {
+      const landing = getLandingPlan();
+      if (landing?.planId && landing?.interval) {
+        redirectAttempted.current = true;
+        clearLandingPlan();
+        fetch("/api/billing/checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planId: landing.planId,
+            interval: landing.interval,
+            returnUrl: "/subscription/success",
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.url && typeof data.url === "string") {
+              window.location.href = data.url;
+              return;
+            }
+            setDialogOpen(true);
+          })
+          .catch(() => setDialogOpen(true));
+        return;
+      }
+    }
+
+    // Open pricing dialog when layout decided (cancelled, past_due, unpaid) or URL asks for it
+    if (shouldOpenModal || openFromQuery) {
       setDialogOpen(true);
     } else {
       setDialogOpen(false);

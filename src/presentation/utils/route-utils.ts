@@ -37,7 +37,8 @@ export function getRouteInfo(pathname: string | null): RouteInfo {
   const isSubscriptionSuccessPage = pathname === "/subscription/success";
   const isMaintenancePage = pathname === "/maintenance";
   const isDesignPage = pathname.startsWith("/design");
-  
+  const isBlogPage = pathname === "/blog" || pathname.startsWith("/blog/");
+
   const isPublicPage =
     isAuthPage ||
     isAcceptPage ||
@@ -47,7 +48,8 @@ export function getRouteInfo(pathname: string | null): RouteInfo {
     isFAQPage ||
     isSubscriptionSuccessPage ||
     isMaintenancePage ||
-    isDesignPage;
+    isDesignPage ||
+    isBlogPage;
   
   const isDashboardRoute = !isPublicPage && !isApiRoute && !isWelcomePage;
 

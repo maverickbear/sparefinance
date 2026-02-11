@@ -17,7 +17,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "How does it work?",
-    a: "You can connect your bank or add transactions manually. The app sorts your spending into categories, helps you create budgets, and shows your financial health with the Spare Score.",
+    a: "You add accounts and transactions manually or import from CSV. The app sorts your spending into categories, helps you create budgets, and shows your financial health with the Spare Score.",
   },
   {
     q: "Is my data safe?",
@@ -25,7 +25,7 @@ const FAQ_ITEMS = [
   },
   {
     q: "What's the free trial?",
-    a: "You get a 30-day free trial with full access. No credit card required. Cancel anytime.",
+    a: "You get a 30-day free trial with full access. You'll only be charged after the trial ends. Cancel anytime—your plan stays active until the end of your billing cycle (monthly or annual).",
   },
   {
     q: "What's included?",

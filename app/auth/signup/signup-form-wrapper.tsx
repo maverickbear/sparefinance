@@ -1,16 +1,26 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SignUpForm } from "@/components/auth/signup-form";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Shield, Zap, ArrowLeft } from "lucide-react";
 import { Logo } from "@/components/common/logo";
+import { setLandingPlan } from "@/lib/constants/landing-plan";
 
 export function SignUpFormWrapperContent() {
   const searchParams = useSearchParams();
   const planId = searchParams.get("planId") || undefined;
-  const interval = (searchParams.get("interval") as "month" | "year") || undefined;
+  const intervalParam = searchParams.get("interval");
+  const interval = (intervalParam === "year" || intervalParam === "month" ? intervalParam : undefined) as "month" | "year" | undefined;
+
+  // Persist landing plan so after signup -> verify-otp -> dashboard we can redirect straight to Stripe
+  useEffect(() => {
+    if (planId && interval) {
+      setLandingPlan(planId, interval);
+    }
+  }, [planId, interval]);
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">

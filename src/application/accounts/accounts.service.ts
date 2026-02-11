@@ -48,7 +48,7 @@ export class AccountsService {
     const accountRows = await this.repository.findAll(accessToken, refreshToken);
 
     if (accountRows.length === 0) {
-      logger.warn("[AccountsService] No accounts found for user:", userId);
+      logger.debug("[AccountsService] No accounts found for user:", userId);
       return [];
     }
 

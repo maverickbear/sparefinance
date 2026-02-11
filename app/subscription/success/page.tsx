@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { SubscriptionProvider } from "@/contexts/subscription-context";
 import { SubscriptionSuccessDialog } from "@/src/presentation/components/features/billing/subscription-success-dialog";
 import { Loader2 } from "lucide-react";
 
@@ -42,13 +43,15 @@ function SuccessContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <SubscriptionSuccessDialog
-        open={showDialog}
-        onOpenChange={handleDialogClose}
-        onSuccess={handleSuccess}
-      />
-    </div>
+    <SubscriptionProvider initialData={{ subscription: null, plan: null }}>
+      <div className="min-h-screen flex items-center justify-center">
+        <SubscriptionSuccessDialog
+          open={showDialog}
+          onOpenChange={handleDialogClose}
+          onSuccess={handleSuccess}
+        />
+      </div>
+    </SubscriptionProvider>
   );
 }
 

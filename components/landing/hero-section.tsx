@@ -27,10 +27,10 @@ export function HeroSection() {
                 size="large"
                 className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform"
               >
-                <Link href="/auth/signup">Start free trial</Link>
+                <Link href="/auth/signup">Start 30-day free trial</Link>
               </Button>
               <Button asChild variant="outline" size="large">
-                <Link href="#how-it-works">See how it works</Link>
+                <Link href="#pricing">See pricing</Link>
               </Button>
             </div>
           </div>

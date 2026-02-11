@@ -37,12 +37,19 @@ interface OnboardingDialogWrapperProps {
  */
 export function OnboardingDialogWrapper({ shouldShow, initialStatus }: OnboardingDialogWrapperProps) {
   const [open, setOpen] = useState(shouldShow);
-  const { refetch } = useSubscriptionContext();
+  const { subscription, refetch } = useSubscriptionContext();
 
-  // Update open state when shouldShow changes
+  // When there is no subscription or subscription needs billing action, pricing modal takes precedence
+  const subscriptionNeedsBillingAction =
+    subscription?.status === "cancelled" ||
+    subscription?.status === "past_due" ||
+    subscription?.status === "unpaid";
+  const hasNoSubscription = subscription == null;
+  const effectiveShow = shouldShow && !subscriptionNeedsBillingAction && !hasNoSubscription;
+
   useEffect(() => {
-    setOpen(shouldShow);
-  }, [shouldShow]);
+    setOpen(effectiveShow);
+  }, [effectiveShow]);
 
   function handleComplete() {
     setOpen(false);

@@ -127,45 +127,52 @@ export async function POST(request: NextRequest) {
           throw new AppError("Step 3 data is required for subscription step", 400);
         }
 
-        // Check if subscription already exists using SubscriptionsRepository
         const { SubscriptionsRepository } = await import("@/src/infrastructure/database/repositories/subscriptions.repository");
         const subscriptionsRepository = new SubscriptionsRepository();
         const subscriptionId = `${userId}-${validated.data.step3.planId}`;
-        
         const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
 
         if (existingSubscription) {
-          // Subscription already exists, consider it success
           console.log("[ONBOARDING-STEP] Subscription already exists:", existingSubscription.id);
-        } else {
-          // Start trial without payment method using TrialService
-          // This creates a trial subscription in Stripe and database without requiring a card
-          const { makeTrialService } = await import("@/src/application/trial/trial.factory");
-          const trialService = makeTrialService();
-          
-          const result = await trialService.startTrial(userId, validated.data.step3.planId);
+          return NextResponse.json({
+            success: true,
+            step: "subscription",
+            message: "Subscription already active",
+          });
+        }
 
-          if (!result.success) {
-            // Check if subscription was created in the meantime (race condition)
-            const checkAgain = await subscriptionsRepository.findById(subscriptionId);
-            
-            if (checkAgain) {
-              console.log("[ONBOARDING-STEP] Subscription was created by another request:", checkAgain.id);
-            } else {
-              throw new AppError(
-                result.error || "Failed to start trial",
-                500
-              );
-            }
-          } else {
-            console.log("[ONBOARDING-STEP] Trial started successfully:", result.subscription?.id);
+        const returnUrl = "/dashboard?trial_started=1";
+        const { makeStripeService } = await import("@/src/application/stripe/stripe.factory");
+        const stripeService = makeStripeService();
+        const result = await stripeService.createTrialCheckoutSessionForUser(
+          userId,
+          validated.data.step3.planId,
+          validated.data.step3.interval,
+          returnUrl,
+          undefined,
+          undefined
+        );
+
+        if (result.error || !result.url) {
+          const checkAgain = await subscriptionsRepository.findById(subscriptionId);
+          if (checkAgain) {
+            return NextResponse.json({
+              success: true,
+              step: "subscription",
+              message: "Subscription already active",
+            });
           }
+          throw new AppError(
+            result.error || "Failed to create checkout session",
+            500
+          );
         }
 
         return NextResponse.json({
           success: true,
           step: "subscription",
-          message: "Trial started successfully",
+          message: "Redirect to checkout to add your card and start your 30-day trial.",
+          checkoutUrl: result.url,
         });
       }
 

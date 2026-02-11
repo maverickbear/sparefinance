@@ -20,6 +20,12 @@ export function SimpleFooter() {
           </p>
           <div className="flex items-center gap-6">
             <Link
+              href="/blog"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Blog
+            </Link>
+            <Link
               href="/faq"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >

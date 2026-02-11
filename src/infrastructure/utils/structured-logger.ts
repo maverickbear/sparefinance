@@ -94,8 +94,10 @@ function formatLogEntry(
     entry.correlationId = context.correlationId;
     entry.userId = context.userId;
     
-    // Add other context fields (redacted)
-    const { correlationId, userId, ...otherContext } = context;
+    // Add other context fields (redacted); correlationId/userId already on entry
+    const otherContext = Object.fromEntries(
+      Object.entries(context).filter(([key]) => key !== "correlationId" && key !== "userId")
+    ) as Omit<LogContext, "correlationId" | "userId">;
     if (Object.keys(otherContext).length > 0) {
       entry.context = redactSensitiveFields(otherContext);
     }

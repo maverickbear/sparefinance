@@ -13,14 +13,14 @@ export function CTASection() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl text-center">
         <h2 className="text-2xl md:text-3xl font-bold">Ready to take control?</h2>
         <p className="mt-4 text-lg text-white/80 max-w-xl mx-auto">
-          Start your 30-day free trial. No credit card required. Cancel anytime.
+          Start your 30-day free trial. You'll only be charged after the trial ends. Cancel anytime—your plan stays active until the end of your billing cycle (monthly or annual).
         </p>
         <Button
           asChild
           size="large"
           className="mt-8 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform"
         >
-          <Link href="/auth/signup">Start free trial</Link>
+          <Link href="/auth/signup">Start 30-day free trial</Link>
         </Button>
         <p className="mt-4 text-sm text-white/60">Encrypted. Private. Yours.</p>
       </div>

@@ -1,13 +1,33 @@
 import { MetadataRoute } from "next";
+import { makeBlogService } from "@/src/application/blog/blog.factory";
 
 /**
  * Sitemap configuration
- * 
+ *
  * Generates XML sitemap for search engines with all public pages
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.sparefinance.com";
   const currentDate = new Date();
+  const blogService = makeBlogService();
+  const posts = blogService.getAllPosts();
+
+  const blogEntries: MetadataRoute.Sitemap = [
+    {
+      url: `${baseUrl}/blog`,
+      lastModified: currentDate,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    ...posts.map((post) => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: post.dateModified
+        ? new Date(post.dateModified + (post.dateModified.includes("T") ? "" : "T12:00:00Z"))
+        : new Date(post.datePublished + (post.datePublished.includes("T") ? "" : "T12:00:00Z")),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
+  ];
 
   // Public pages that should be indexed
   const publicPages: MetadataRoute.Sitemap = [
@@ -47,6 +67,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.6,
     },
+    ...blogEntries,
   ];
 
   return publicPages;

@@ -3,6 +3,9 @@ import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { logger } from "@/lib/utils/logger";
 
+/** Shape used to read optional code from Supabase/auth errors (not always on the public type). */
+type AuthErrorWithCode = { message?: string; code?: string };
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 // New format (sb_publishable_...) is preferred, fallback to old format (anon JWT) for backward compatibility
 // Publishable keys are safe to expose and have the same privileges as anon keys
@@ -29,14 +32,6 @@ function isPublishableKey(key: string): boolean {
  */
 function isSecretKey(key: string): boolean {
   return key.startsWith("sb_secret_");
-}
-
-/**
- * Helper function to detect if a key is an old format anon key (JWT)
- */
-function isAnonKey(key: string): boolean {
-  // Old anon keys are JWTs (long strings, typically start with eyJ)
-  return key.startsWith("eyJ") && key.length > 100;
 }
 
 /**
@@ -83,7 +78,7 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
 
     try {
       // Set session with tokens - this is critical for RLS to work
-      const { data: sessionData, error: sessionError } = await client.auth.setSession({
+      const { error: sessionError } = await client.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       });
@@ -92,7 +87,7 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
       if (sessionError) {
         // Only log if it's not an expected token error
         const errorMessage = sessionError.message?.toLowerCase() || "";
-        const errorCode = (sessionError as any)?.code?.toLowerCase() || "";
+        const errorCode = (sessionError as AuthErrorWithCode)?.code?.toLowerCase() || "";
       const isExpectedError = errorCode === "refresh_token_not_found" ||
         errorMessage.includes("refresh_token_not_found") ||
         errorMessage.includes("refresh token not found") ||
@@ -119,7 +114,7 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
       if (userError || !user) {
         // Only log if it's not an expected token error
         const errorMessage = userError?.message?.toLowerCase() || "";
-        const errorCode = (userError as any)?.code?.toLowerCase() || "";
+        const errorCode = (userError as AuthErrorWithCode)?.code?.toLowerCase() || "";
         const isExpectedError = errorCode === "refresh_token_not_found" ||
           errorMessage.includes("refresh_token_not_found") ||
           errorMessage.includes("refresh token not found") ||
@@ -138,10 +133,11 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
         // The calling code should handle authentication errors appropriately.
       }
       // Removed verbose success logging - authentication is expected and happens frequently
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle refresh token errors gracefully - don't log expected errors
-      const errorMessage = error?.message?.toLowerCase() || "";
-      const errorCode = error?.code?.toLowerCase() || "";
+      const err = error as AuthErrorWithCode;
+      const errorMessage = err?.message?.toLowerCase() || "";
+      const errorCode = err?.code?.toLowerCase() || "";
       const isExpectedError = errorCode === "refresh_token_not_found" ||
         errorMessage.includes("refresh_token_not_found") ||
         errorMessage.includes("refresh token not found") ||
@@ -151,17 +147,17 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
         errorMessage.includes("user does not exist");
       if (!isExpectedError) {
         // Check if the error is due to HTML response (misconfigured URL)
-        const errorMsg = error?.message || "";
+        const errorMsg = err?.message || "";
         if (errorMsg.includes("Unexpected token '<'") || 
             errorMsg.includes("is not valid JSON") ||
             errorMsg.includes("<html>")) {
           logger.error("[createServerClient] Supabase returned HTML instead of JSON. This usually means:", {
-            error: error?.message,
+            error: err?.message,
             supabaseUrl: supabaseUrl.substring(0, 50) + "...",
             suggestion: "Check if NEXT_PUBLIC_SUPABASE_URL is correct and points to a valid Supabase project (should end with .supabase.co)",
           });
         } else {
-          logger.warn("[createServerClient] Unexpected error:", error?.message);
+          logger.warn("[createServerClient] Unexpected error:", err?.message);
         }
       }
       // Session will be invalid, but continue with unauthenticated client
@@ -173,13 +169,14 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
   // If tokens are not provided, try to access cookies
   // If we're inside unstable_cache() or "use cache", this will throw an error
   // In that case, return an unauthenticated client
-  let cookieStore;
+  let cookieStore: Awaited<ReturnType<typeof cookies>>;
   try {
     cookieStore = await cookies();
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If we can't access cookies (e.g., inside unstable_cache(), "use cache", or during prerendering), return unauthenticated client
-    const errorMessage = error?.message || '';
-    const errorString = String(error || '');
+    const err = error as { message?: string };
+    const errorMessage = err?.message || '';
+    const errorString = String(error ?? '');
     
     // Check for various patterns that indicate cookies() can't be used in this context
     const isCacheError = 
@@ -241,12 +238,12 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
     });
 
     // Try to get user to check if session is valid
-    const { data: { user }, error: authError } = await client.auth.getUser();
+    const { error: authError } = await client.auth.getUser();
     
     // If we get a refresh token error, clear invalid cookies silently
     // Check both error code and message (case-insensitive) to catch all variations
     const errorMessage = authError?.message?.toLowerCase() || "";
-    const errorCode = (authError as any)?.code?.toLowerCase() || "";
+    const errorCode = (authError as AuthErrorWithCode)?.code?.toLowerCase() || "";
     const isExpectedError = authError && (
       errorCode === "refresh_token_not_found" ||
       errorMessage.includes("refresh_token_not_found") ||
@@ -291,11 +288,12 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
         logger.warn("[createServerClient] Unexpected auth error:", authError.message);
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // If there's an error, clear cookies and return unauthenticated client
     // Check both error code and message (case-insensitive) to catch all variations
-    const errorMessage = error?.message?.toLowerCase() || "";
-    const errorCode = error?.code?.toLowerCase() || "";
+    const err = error as AuthErrorWithCode;
+    const errorMessage = err?.message?.toLowerCase() || "";
+    const errorCode = err?.code?.toLowerCase() || "";
     const isExpectedError = errorMessage.includes("refresh_token_not_found") ||
       errorMessage.includes("refresh token not found") ||
       errorMessage.includes("invalid refresh token") ||
@@ -314,7 +312,7 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
       
       authCookieNames.forEach((cookieName) => {
         try {
-          cookieStore.delete(cookieName);
+          cookieStore!.delete(cookieName);
         } catch (e) {
           // Ignore errors
         }

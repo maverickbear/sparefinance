@@ -47,7 +47,7 @@ export function SpareScoreSection() {
               ))}
             </ul>
             <Button asChild size="medium" className="mt-8 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Link href="/auth/signup">Start free trial</Link>
+              <Link href="/auth/signup">Start 30-day free trial</Link>
             </Button>
           </div>
         </div>

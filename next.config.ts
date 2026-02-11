@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+import bundleAnalyzer from "@next/bundle-analyzer";
 
 // Bundle analyzer
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
 });
 
 // Get and increment version from version.json
@@ -24,7 +25,6 @@ try {
     const newVersion = `${major}.${minor}.${newPatch}`;
     
     // Write incremented version back to file
-    const { writeFileSync } = require('fs');
     writeFileSync(
       versionFilePath,
       JSON.stringify({ version: newVersion }, null, 2) + '\n',
@@ -34,11 +34,11 @@ try {
     console.log(`Version incremented: ${appVersion} → ${newVersion}`);
     appVersion = newVersion;
   }
-} catch (error: any) {
+} catch (error: unknown) {
   // If version.json doesn't exist, create it with default version
-  if (error?.code === 'ENOENT') {
+  const err = error as { code?: string };
+  if (err?.code === "ENOENT") {
     try {
-      const { writeFileSync } = require('fs');
       writeFileSync(
         versionFilePath,
         JSON.stringify({ version: '0.0.1' }, null, 2) + '\n',
@@ -50,7 +50,7 @@ try {
       console.warn('Could not create version.json:', writeError);
     }
   } else {
-    console.warn('Could not read version from version.json:', error);
+    console.warn("Could not read version from version.json:", error);
   }
 }
 
@@ -110,6 +110,11 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
         pathname: '/**',
       },
     ],
@@ -233,9 +238,9 @@ const nextConfig: NextConfig = {
               // Allow Vercel Live feedback script (only loads when deployed on Vercel)
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://va.vercel-scripts.com https://challenges.cloudflare.com", // Note: 'unsafe-eval' and 'unsafe-inline' may be needed for Next.js, js.stripe.com for Stripe Pricing Table, vercel.live for Vercel Live feedback, www.googletagmanager.com for Google Analytics, va.vercel-scripts.com for Vercel Speed Insights, challenges.cloudflare.com for Turnstile
               "worker-src 'self' blob:", // Allow web workers (needed for canvas-confetti)
-              "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind CSS
+              "style-src 'self' 'unsafe-inline' https://api.fontshare.com", // 'unsafe-inline' for Tailwind; api.fontshare.com for Satoshi
               "img-src 'self' data: https: blob:", // blob: needed for image previews (receipt scanner, file uploads)
-              "font-src 'self' data:",
+              "font-src 'self' data: https://api.fontshare.com https://cdn.fontshare.com", // Fontshare for Satoshi
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://app.sparefinance.com wss://app.sparefinance.com https://api.stripe.com https://js.stripe.com https://vercel.live https://www.googletagmanager.com https://*.google-analytics.com https://va.vercel-scripts.com https://challenges.cloudflare.com", // Allow API connections
               "frame-src 'self' https://js.stripe.com https://checkout.stripe.com https://vercel.live https://challenges.cloudflare.com", // Allow iframes
               "object-src 'none'",
@@ -282,7 +287,7 @@ const nextConfig: NextConfig = {
 };
 
 // Wrap with Sentry if DSN is configured
-let configWithSentry = process.env.NEXT_PUBLIC_SENTRY_DSN
+const configWithSentry = process.env.NEXT_PUBLIC_SENTRY_DSN
   ? withSentryConfig(nextConfig, {
       // For all available options, see:
       // https://github.com/getsentry/sentry-webpack-plugin#options

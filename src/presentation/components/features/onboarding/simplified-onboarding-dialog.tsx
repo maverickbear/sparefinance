@@ -123,16 +123,20 @@ export function SimplifiedOnboardingDialog({
         throw new Error(error.error || "Failed to complete onboarding");
       }
 
+      const data = await response.json();
+
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
       toast({
         title: "Welcome to Spare Finance!",
         description: "Your 30-day free trial has started. Enjoy full access to all features!",
         variant: "success",
       });
 
-      // Close dialog
       onOpenChange(false);
-      
-      // Call onComplete callback (triggers subscription refresh if needed)
       if (onComplete) {
         onComplete();
       }

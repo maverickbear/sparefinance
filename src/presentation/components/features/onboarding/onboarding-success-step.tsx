@@ -65,7 +65,7 @@ export function OnboardingSuccessStep({
                     </li>
                     <li className="flex items-start gap-2">
                       <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                      <span>No credit card required during trial period</span>
+                      <span>You'll only be charged after your trial ends. Cancel anytime—your plan stays active until the end of your billing cycle.</span>
                     </li>
                     {trialEndDate && (
                       <li className="flex items-start gap-2">

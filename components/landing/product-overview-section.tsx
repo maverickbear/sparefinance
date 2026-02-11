@@ -16,7 +16,7 @@ export function ProductOverviewSection() {
             One app for accounts, transactions, budgets, goals, debts, and insights.
           </p>
         </div>
-        <div className="relative mt-12 rounded-[32px] overflow-hidden aspect-video max-w-4xl mx-auto">
+        <div className="relative mt-12 w-full rounded-[32px] overflow-hidden aspect-video">
           {/* Dedicated background layer so color is not overridden when image loads */}
           <div
             className="absolute inset-0 rounded-[32px] z-0"
@@ -28,7 +28,7 @@ export function ProductOverviewSection() {
             alt="One app view: dashboard with accounts, transactions, budgets and goals"
             fill
             className="rounded-[32px] relative z-10"
-            sizes="(max-width: 896px) 100vw, 896px"
+            sizes="(max-width: 1152px) 100vw, 1152px"
           />
         </div>
       </div>

@@ -628,7 +628,7 @@ export default function AccountsPage() {
                     </div>
                     <h3 className="text-xl font-semibold mb-2">No accounts yet</h3>
                     <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                      Connect your bank account or create a manual account to get started tracking your finances.
+                      Create an account and add transactions manually or import from CSV to get started tracking your finances.
                     </p>
                   </div>
                 </div>

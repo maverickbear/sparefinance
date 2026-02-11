@@ -1,20 +1,21 @@
 "use client";
 
 import { useInView } from "@/hooks/use-in-view";
-import { Wallet, Smartphone, Receipt, LayoutDashboard } from "lucide-react";
+import { PenLine, FileSpreadsheet, Download, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BULLETS = [
-  "Connect your bank safely.",
-  "Add accounts manually.",
+  "Add accounts and transactions manually.",
+  "Import from CSV when you have it.",
   "Export when you need.",
 ];
 
+// Icons map 1:1 to the "your data, your control" message: how you add data, import, export, and access anywhere.
 const ICONS = [
-  { icon: Wallet, label: "Bank" },
-  { icon: Smartphone, label: "Phone" },
-  { icon: Receipt, label: "Receipt" },
-  { icon: LayoutDashboard, label: "Dashboard" },
+  { icon: PenLine, label: "Add manually" },
+  { icon: FileSpreadsheet, label: "Import CSV" },
+  { icon: Download, label: "Export" },
+  { icon: Smartphone, label: "Any device" },
 ];
 
 export function IntegrationsSection() {
@@ -27,7 +28,7 @@ export function IntegrationsSection() {
           <div className={cn("transition-all duration-700", inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6")}>
             <h2 className="text-2xl md:text-3xl font-bold text-foreground">Your data, your control.</h2>
             <p className="mt-4 text-muted-foreground text-lg">
-              We work the way you do. Connect, add manually, or export—you choose.
+              We work the way you do. Add manually or import CSV, export when you need—you're in control.
             </p>
             <ul className="mt-6 space-y-3">
               {BULLETS.map((text) => (

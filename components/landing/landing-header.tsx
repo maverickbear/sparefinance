@@ -2,21 +2,44 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/common/logo";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthSafe } from "@/contexts/auth-context";
+import { supabase } from "@/lib/supabase";
 
 const NAV_LINKS = [
-  { label: "Features", href: "#features" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "FAQ", href: "#faq" },
+  { label: "Home", href: "/" },
+  { label: "Features", href: "/#features" },
+  { label: "Pricing", href: "/#pricing" },
+  { label: "Blog", href: "/blog" },
 ];
 
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isAuthenticated } = useAuthSafe();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/v2/auth/sign-out", { method: "POST" });
+      await supabase.auth.signOut();
+      router.push("/");
+      router.refresh();
+      window.location.href = "/";
+    } catch {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore
+      }
+      window.location.href = "/";
+    }
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -56,12 +79,25 @@ export function LandingHeader() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button asChild variant="outline" size="medium" className="hidden sm:inline-flex">
-                <Link href="/auth/login">Sign in</Link>
-              </Button>
-              <Button asChild size="medium" className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform">
-                <Link href="/auth/signup">Start free trial</Link>
-              </Button>
+              {isAuthenticated ? (
+                <>
+                  <Button asChild variant="ghost" size="medium" className="hidden sm:inline-flex text-muted-foreground">
+                    <Link href="/dashboard">Dashboard</Link>
+                  </Button>
+                  <Button variant="ghost" size="medium" onClick={handleLogout}>
+                    Log out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild variant="outline" size="medium" className="hidden sm:inline-flex">
+                    <Link href="/auth/login">Sign in</Link>
+                  </Button>
+                  <Button asChild size="medium" className="bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform">
+                    <Link href="/auth/signup">Start 30-day free trial</Link>
+                  </Button>
+                </>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -92,12 +128,25 @@ export function LandingHeader() {
               </li>
             ))}
             <li className="pt-4 border-t border-border flex flex-col gap-2">
-              <Button asChild variant="outline" size="medium" className="w-full">
-                <Link href="/auth/login">Sign in</Link>
-              </Button>
-              <Button asChild size="medium" className="w-full bg-primary text-primary-foreground">
-                <Link href="/auth/signup">Start free trial</Link>
-              </Button>
+              {isAuthenticated ? (
+                <>
+                  <Button asChild variant="outline" size="medium" className="w-full">
+                    <Link href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                  </Button>
+                  <Button variant="outline" size="medium" className="w-full" onClick={() => { setMobileOpen(false); handleLogout(); }}>
+                    Log out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild variant="outline" size="medium" className="w-full">
+                    <Link href="/auth/login" onClick={() => setMobileOpen(false)}>Sign in</Link>
+                  </Button>
+                  <Button asChild size="medium" className="w-full bg-primary text-primary-foreground">
+                    <Link href="/auth/signup" onClick={() => setMobileOpen(false)}>Start 30-day free trial</Link>
+                  </Button>
+                </>
+              )}
             </li>
           </ul>
         </SheetContent>

@@ -350,6 +350,8 @@ export function OnboardingLoadingStep({
             throw new Error(errorMessage);
           }
 
+          const stepData = await stepResponse.json();
+
           // Mark current step as success
           setSteps((prev) =>
             prev.map((s) =>
@@ -362,6 +364,12 @@ export function OnboardingLoadingStep({
           // Step succeeded, so not all steps are auth errors
           allStepsAuthError = false;
           logger.info(`[OnboardingLoadingStep] Step ${step} completed successfully`);
+
+          // Subscription step returns checkoutUrl: redirect to Stripe Checkout (trial with card)
+          if (step === "subscription" && stepData.checkoutUrl) {
+            window.location.href = stepData.checkoutUrl;
+            return;
+          }
         } catch (error) {
           // If it's a network error or fetch failed completely, check if it's a 401 scenario
           if (error instanceof TypeError && error.message.includes("fetch")) {

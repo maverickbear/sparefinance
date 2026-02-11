@@ -455,7 +455,7 @@ function getCheckoutPendingEmailTemplate(data: {
                   <li>Create your account password</li>
                   <li>Access all pro features</li>
                   <li>Start tracking your finances</li>
-                  <li>No credit card required during trial</li>
+                  <li>You'll only be charged after your 30-day trial ends. Cancel anytime.</li>
                 </ul>
               </div>
               

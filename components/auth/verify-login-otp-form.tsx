@@ -6,10 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Loader2, AlertCircle, Mail, HelpCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, HelpCircle, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { setTrustedBrowser } from "@/lib/utils/trusted-browser";
+
+/** Window augmentation for global caches used by nav/profile/billing (set by layout/header). */
+interface WindowWithCaches extends Window {
+  navUserDataCache?: { data: unknown; timestamp: number; role?: string; roleTimestamp?: number };
+  profileDataCache?: { data: unknown; timestamp: number };
+  billingDataCache?: { data: unknown; timestamp: number };
+}
 
 interface VerifyLoginOtpFormProps {
   email: string;
@@ -39,11 +47,12 @@ async function preloadUserData() {
             subscription: userData.subscription,
           };
           const role = membersData.userRole;
-          if (typeof window !== 'undefined' && (window as any).navUserDataCache) {
-            (window as any).navUserDataCache.data = userDataFormatted;
-            (window as any).navUserDataCache.timestamp = Date.now();
-            (window as any).navUserDataCache.role = role;
-            (window as any).navUserDataCache.roleTimestamp = Date.now();
+          const navCache = typeof window !== "undefined" ? (window as WindowWithCaches).navUserDataCache : undefined;
+          if (navCache) {
+            navCache.data = userDataFormatted;
+            navCache.timestamp = Date.now();
+            navCache.role = role;
+            navCache.roleTimestamp = Date.now();
           }
           return userDataFormatted;
         } catch {
@@ -53,13 +62,14 @@ async function preloadUserData() {
       // Preload profile data using API route
       (async () => {
         const { cachedFetch } = await import("@/lib/utils/cached-fetch");
-        try {
-          const profile = await cachedFetch("/api/v2/profile");
-          if (typeof window !== 'undefined' && (window as any).profileDataCache) {
-            (window as any).profileDataCache.data = profile;
-            (window as any).profileDataCache.timestamp = Date.now();
-          }
-          return profile;
+          try {
+            const profile = await cachedFetch("/api/v2/profile");
+            const profileCache = typeof window !== "undefined" ? (window as WindowWithCaches).profileDataCache : undefined;
+            if (profileCache) {
+              profileCache.data = profile;
+              profileCache.timestamp = Date.now();
+            }
+            return profile;
         } catch {
           return null;
         }
@@ -78,9 +88,10 @@ async function preloadUserData() {
           accountLimit: null,
           interval: subData.interval || null,
         };
-        if (typeof window !== 'undefined' && (window as any).billingDataCache) {
-          (window as any).billingDataCache.data = billingData;
-          (window as any).billingDataCache.timestamp = Date.now();
+        const billingCache = typeof window !== "undefined" ? (window as WindowWithCaches).billingDataCache : undefined;
+        if (billingCache) {
+          billingCache.data = billingData;
+          billingCache.timestamp = Date.now();
         }
         return billingData;
       }).catch(() => null),
@@ -219,8 +230,8 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
 
       // Verify OTP with Supabase
       // Try "email" type first (for numeric OTP), then "magiclink", then "recovery" as fallbacks
-      let data: any = null;
-      let verifyError: any = null;
+      let data: { user: User | null; session: Session | null } | null = null;
+      let verifyError: AuthError | null = null;
 
       // Try email type first (for numeric OTP sent via email)
       console.log("[LOGIN-OTP] Verifying OTP with email type...");
@@ -334,7 +345,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
       }
 
       // Check if email is confirmed
-      if (!data.user.email_confirmed_at) {
+      if (!data.user?.email_confirmed_at) {
         setError("Email verification failed. Please try again.");
         return;
       }
@@ -523,11 +534,12 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
       // Wrap in try-catch to handle "Session not found" errors gracefully
       try {
         await preloadUserData();
-      } catch (preloadError: any) {
+      } catch (preloadError: unknown) {
+        const err = preloadError as { message?: string; status?: number } | null;
         // If it's a session error, wait a bit more and try again
-        if (preloadError?.message?.includes("Session not found") || 
-            preloadError?.message?.includes("session") ||
-            preloadError?.status === 401) {
+        if (err?.message?.includes("Session not found") ||
+            err?.message?.includes("session") ||
+            err?.status === 401) {
           console.warn("[LOGIN-OTP] Session not ready for preload, waiting and retrying...");
           await new Promise(resolve => setTimeout(resolve, 1000));
           try {
@@ -568,7 +580,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
       setSuccessMessage(null);
 
       // Call resend-login-otp API route
-      const requestBody: any = { email };
+      const requestBody: { email: string } = { email };
 
       // Use API route to resend login OTP (doesn't require password)
       const response = await fetch("/api/auth/resend-login-otp", {
@@ -684,7 +696,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
               htmlFor="trust-browser"
               className="text-sm text-foreground cursor-pointer select-none"
             >
-              Don't ask again for this browser
+              Don&apos;t ask again for this browser
             </label>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -698,7 +710,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-[280px] whitespace-normal">
-                Only enable this on personal or trusted devices. We'll still ask for your password on future logins, but we won't require a verification code on this browser for a while.
+                Only enable this on personal or trusted devices. We&apos;ll still ask for your password on future logins, but we won&apos;t require a verification code on this browser for a while.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -708,7 +720,7 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
 
       <div className="text-center">
         <p className="text-sm text-muted-foreground inline">
-          Didn't receive the code?{" "}
+          Didn&apos;t receive the code?{" "}
           <button
             type="button"
             onClick={handleResend}

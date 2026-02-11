@@ -38,15 +38,18 @@ export function SubscriptionSuccessDialog({
     }
   }, [open]);
 
+  // When webhook is not configured (e.g. sandbox), this sync is the only way the subscription
+  // is created in Supabase. We retry several times because Stripe can take a few seconds to
+  // make the subscription listable after checkout.
   async function syncSubscription(retryCount = 0) {
-    const maxRetries = 3;
-    const retryDelay = 2000; // 2 seconds
-    
+    const maxRetries = 5;
+    const retryDelay = 2500; // 2.5s – give Stripe time to propagate in sandbox
+
     try {
       setSyncing(true);
       setLoading(true);
       logger.info("[SUCCESS-DIALOG] Syncing subscription from Stripe...", { retryCount });
-      
+
       const response = await fetch("/api/stripe/sync-subscription", {
         method: "POST",
         headers: {
@@ -54,39 +57,35 @@ export function SubscriptionSuccessDialog({
         },
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ error: "Invalid response" }));
 
       if (response.ok && data.success) {
         logger.info("[SUCCESS-DIALOG] Subscription synced successfully:", data.subscription);
-        
-        // Refetch subscription from Context to get latest status
         await refetch();
       } else {
-        console.error("[SUCCESS-DIALOG] Failed to sync subscription:", data.error);
-        
-        // If the error indicates we should retry and we haven't exceeded max retries
+        const errMsg = data.details ? `${data.error}: ${data.details}` : data.error;
+        console.error("[SUCCESS-DIALOG] Failed to sync subscription:", errMsg);
+
         if (data.retry && retryCount < maxRetries) {
           logger.info(`[SUCCESS-DIALOG] Retrying sync in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
           return syncSubscription(retryCount + 1);
         }
-        
-        // If it's a 404 and we haven't retried yet, try once more after a delay
-        if (response.status === 404 && retryCount === 0) {
-          logger.info(`[SUCCESS-DIALOG] Subscription not found, retrying once after ${retryDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
+
+        if (response.status === 404 && retryCount < maxRetries) {
+          logger.info(`[SUCCESS-DIALOG] Subscription not found yet, retrying in ${retryDelay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
           return syncSubscription(retryCount + 1);
         }
-        
+
         console.warn("[SUCCESS-DIALOG] Subscription sync failed after retries:", data.error);
       }
     } catch (error) {
       console.error("[SUCCESS-DIALOG] Error syncing subscription:", error);
-      
-      // Retry on network errors if we haven't exceeded max retries
+
       if (retryCount < maxRetries) {
         logger.info(`[SUCCESS-DIALOG] Network error, retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
         return syncSubscription(retryCount + 1);
       }
     } finally {
@@ -208,7 +207,7 @@ export function SubscriptionSuccessDialog({
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                        <span>No credit card required during trial period</span>
+                        <span>You'll only be charged after your trial ends. Cancel anytime—your plan stays active until the end of your billing cycle.</span>
                       </li>
                       {trialEndDate && (
                         <li className="flex items-start gap-2">

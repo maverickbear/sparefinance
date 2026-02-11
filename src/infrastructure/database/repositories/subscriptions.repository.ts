@@ -40,6 +40,24 @@ export interface PlanRow {
   updated_at: string;
 }
 
+/**
+ * Apply Stripe test/sandbox ID overrides when env vars are set (localhost only).
+ * In production these vars are not set, so the database (live IDs) is used.
+ */
+function applyStripeTestOverrides(plan: PlanRow): PlanRow {
+  if (plan.id !== "pro") return plan;
+  const productId = process.env.STRIPE_TEST_PRODUCT_ID_PRO;
+  const priceMonthly = process.env.STRIPE_TEST_PRICE_ID_MONTHLY_PRO;
+  const priceYearly = process.env.STRIPE_TEST_PRICE_ID_YEARLY_PRO;
+  if (!productId || !priceMonthly || !priceYearly) return plan;
+  return {
+    ...plan,
+    stripe_product_id: productId,
+    stripe_price_id_monthly: priceMonthly,
+    stripe_price_id_yearly: priceYearly,
+  };
+}
+
 export class SubscriptionsRepository {
   /**
    * Find subscription by household ID
@@ -259,7 +277,8 @@ export class SubscriptionsRepository {
         return [];
       }
 
-      return (plans || []) as PlanRow[];
+      const rows = (plans || []) as PlanRow[];
+      return rows.map(applyStripeTestOverrides);
     } catch (error) {
       // Catch any unexpected errors during build/prerender
       console.error("[SubscriptionsRepository] Error fetching plans:", error);
@@ -334,13 +353,13 @@ export class SubscriptionsRepository {
           return null;
         }
         
-        return planData as PlanRow;
+        return applyStripeTestOverrides(planData as PlanRow);
       }
       logger.error("[SubscriptionsRepository] Error fetching plan:", error);
       return null;
     }
 
-    return plan as PlanRow;
+    return applyStripeTestOverrides(plan as PlanRow);
   }
 
   /**

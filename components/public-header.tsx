@@ -13,6 +13,7 @@ interface PublicHeaderProps {
 
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
+  { label: "Blog", href: "/blog" },
   { label: "FAQ", href: "/faq" },
   { label: "Contact", href: "/contact" },
 ];
@@ -39,21 +40,37 @@ export function PublicHeader({ isAuthenticated: _initialAuth }: PublicHeaderProp
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200/80">
-      <nav className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
-        <div className="flex items-center justify-between h-16 md:h-[72px]">
-          <Link href="/" className="flex items-center shrink-0" aria-label="Spare Finance home">
-            <Logo variant="icon" color="auto" width={32} height={32} className="md:hidden" />
-            <Logo variant="full" color="auto" width={160} height={36} className="hidden md:block" />
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background">
+      <nav className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between md:h-[4.5rem]">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center"
+            aria-label="Spare Finance home"
+          >
+            <Logo
+              variant="icon"
+              color="auto"
+              width={32}
+              height={32}
+              className="md:hidden"
+            />
+            <Logo
+              variant="full"
+              color="auto"
+              width={160}
+              height={36}
+              className="hidden md:block"
+            />
           </Link>
 
-          <div className="hidden md:flex items-center justify-center absolute left-1/2 -translate-x-1/2">
-            <ul className="flex items-center gap-8">
+          <div className="absolute left-1/2 hidden -translate-x-1/2 md:flex md:items-center md:justify-center">
+            <ul className="flex items-center gap-6 lg:gap-8">
               {NAV_ITEMS.map((item) => (
                 <li key={item.label}>
                   <Link
                     href={item.href}
-                    className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                   >
                     {item.label}
                   </Link>
@@ -62,10 +79,15 @@ export function PublicHeader({ isAuthenticated: _initialAuth }: PublicHeaderProp
             </ul>
           </div>
 
-          <div className="flex items-center justify-end shrink-0">
+          <div className="flex shrink-0 items-center justify-end">
             {isAuthenticated ? (
               <>
-                <Button asChild variant="ghost" size="medium" className="text-gray-700">
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="medium"
+                  className="text-muted-foreground"
+                >
                   <Link href="/dashboard">Dashboard</Link>
                 </Button>
                 <Button variant="ghost" size="medium" onClick={handleLogout}>
@@ -73,7 +95,11 @@ export function PublicHeader({ isAuthenticated: _initialAuth }: PublicHeaderProp
                 </Button>
               </>
             ) : (
-              <Button asChild size="medium" className="bg-gray-900 text-white hover:bg-gray-800 rounded-lg">
+              <Button
+                asChild
+                size="medium"
+                className="rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+              >
                 <Link href="/auth/signup">Sign Up</Link>
               </Button>
             )}

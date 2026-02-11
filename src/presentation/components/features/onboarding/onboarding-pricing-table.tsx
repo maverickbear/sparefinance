@@ -211,7 +211,7 @@ export function OnboardingPricingTable({
                   </Button>
                   {!isCurrent && showTrial && (
                     <p className="text-sm text-muted-foreground text-center mt-2">
-                      No credit card required
+                      You'll only be charged after your trial ends. Cancel anytime.
                     </p>
                   )}
                 </div>

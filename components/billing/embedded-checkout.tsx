@@ -110,10 +110,10 @@ export function EmbeddedCheckout({
             </p>
             <div className="pt-4 space-y-2">
               <p className="text-sm text-muted-foreground">
-                ✓ 30-day free trial - No charge until trial ends
+                ✓ 30-day free trial—you'll only be charged after the trial ends
               </p>
               <p className="text-sm text-muted-foreground">
-                ✓ Cancel anytime during trial
+                ✓ Cancel anytime; your plan stays active until the end of your billing cycle (monthly or annual)
               </p>
               <p className="text-sm text-muted-foreground">
                 ✓ Full access to all features

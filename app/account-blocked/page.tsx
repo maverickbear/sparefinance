@@ -1,4 +1,4 @@
-import { PublicHeader } from "@/components/public-header";
+import { LandingHeader } from "@/components/landing/landing-header";
 import { Shield, Mail, AlertCircle } from "lucide-react";
 import { makeAuthService } from "@/src/application/auth/auth.factory";
 import Link from "next/link";
@@ -16,7 +16,7 @@ export default async function AccountBlockedPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <PublicHeader isAuthenticated={isAuthenticated} />
+      <LandingHeader />
       <div className="flex-1 flex items-center justify-center p-4 pt-24 md:pt-28">
         <div className="max-w-md w-full space-y-8 text-center">
           {/* Blocked Icon */}

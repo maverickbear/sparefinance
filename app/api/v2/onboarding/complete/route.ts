@@ -121,47 +121,44 @@ export async function POST(request: NextRequest) {
       const existingSubscription = await subscriptionsRepository.findById(subscriptionId);
 
       if (existingSubscription) {
-        // Subscription already exists, consider it success
         console.log("[ONBOARDING-COMPLETE] Subscription already exists:", existingSubscription.id);
-        
-        // Invalidate cache so dashboard and reports reflect subscription state
         const { revalidateTag } = await import("next/cache");
-        revalidateTag('subscriptions', 'max');
-        revalidateTag('accounts', 'max');
-        revalidateTag(`dashboard-${userId}`, 'max');
-        revalidateTag(`reports-${userId}`, 'max');
+        revalidateTag("subscriptions");
+        revalidateTag("accounts");
+        revalidateTag(`dashboard-${userId}`);
+        revalidateTag(`reports-${userId}`);
       } else {
-        // Create new subscription
         const { makeStripeService } = await import("@/src/application/stripe/stripe.factory");
         const stripeService = makeStripeService();
-        
-        const result = await stripeService.createEmbeddedCheckoutSession(
+        const returnUrl = "/dashboard?trial_started=1";
+        const result = await stripeService.createTrialCheckoutSessionForUser(
           userId,
           validated.step3.planId,
-          validated.step3.interval
+          validated.step3.interval,
+          returnUrl,
+          undefined,
+          undefined
         );
 
-        if (!result.success || !result.subscriptionId) {
-          // Check if subscription was created in the meantime (race condition)
+        if (result.error || !result.url) {
           const checkAgain = await subscriptionsRepository.findById(subscriptionId);
-          
           if (checkAgain) {
-            console.log("[ONBOARDING-COMPLETE] Subscription was created by another request:", checkAgain.id);
+            const { revalidateTag } = await import("next/cache");
+            revalidateTag("subscriptions");
+            revalidateTag("accounts");
+            revalidateTag(`dashboard-${userId}`);
+            revalidateTag(`reports-${userId}`);
           } else {
             throw new AppError(
-              result.error || "Failed to create subscription",
+              result.error || "Failed to create checkout session",
               500
             );
           }
         } else {
-          console.log("[ONBOARDING-COMPLETE] Subscription created successfully:", result.subscriptionId);
-          
-          // Invalidate cache so dashboard and reports reflect new subscription
-          const { revalidateTag } = await import("next/cache");
-          revalidateTag('subscriptions', 'max');
-          revalidateTag('accounts', 'max');
-          revalidateTag(`dashboard-${userId}`, 'max');
-          revalidateTag(`reports-${userId}`, 'max');
+          return NextResponse.json(
+            { success: true, message: "Redirect to checkout.", checkoutUrl: result.url },
+            { status: 200 }
+          );
         }
       }
     } catch (error) {
