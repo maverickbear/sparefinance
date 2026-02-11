@@ -700,6 +700,7 @@ export class StripeService {
     const status = this.mapStripeStatus(subscription.status);
     const appSubscriptionId = `${userId}-${plan.id}`;
     const now = new Date().toISOString();
+    const sub = subscription as Stripe.Subscription & { current_period_start?: number; current_period_end?: number };
     const row = {
       id: appSubscriptionId,
       user_id: userId,
@@ -710,11 +711,11 @@ export class StripeService {
       stripe_customer_id: typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id ?? null,
       trial_start_date: subscription.trial_start ? new Date(subscription.trial_start * 1000).toISOString() : null,
       trial_end_date: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
-      current_period_start: subscription.current_period_start
-        ? new Date(subscription.current_period_start * 1000).toISOString()
+      current_period_start: sub.current_period_start
+        ? new Date(sub.current_period_start * 1000).toISOString()
         : now,
-      current_period_end: subscription.current_period_end
-        ? new Date(subscription.current_period_end * 1000).toISOString()
+      current_period_end: sub.current_period_end
+        ? new Date(sub.current_period_end * 1000).toISOString()
         : now,
       cancel_at_period_end: !!subscription.cancel_at_period_end,
       updated_at: now,

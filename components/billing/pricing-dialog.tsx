@@ -213,7 +213,7 @@ export function PricingDialog({
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="small"
               onClick={() => setShowPlanSelector(true)}
               className="text-muted-foreground"
             >

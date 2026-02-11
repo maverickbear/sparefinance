@@ -123,10 +123,10 @@ export async function POST(request: NextRequest) {
       if (existingSubscription) {
         console.log("[ONBOARDING-COMPLETE] Subscription already exists:", existingSubscription.id);
         const { revalidateTag } = await import("next/cache");
-        revalidateTag("subscriptions");
-        revalidateTag("accounts");
-        revalidateTag(`dashboard-${userId}`);
-        revalidateTag(`reports-${userId}`);
+        revalidateTag("subscriptions", "max");
+        revalidateTag("accounts", "max");
+        revalidateTag(`dashboard-${userId}`, "max");
+        revalidateTag(`reports-${userId}`, "max");
       } else {
         const { makeStripeService } = await import("@/src/application/stripe/stripe.factory");
         const stripeService = makeStripeService();
@@ -144,10 +144,10 @@ export async function POST(request: NextRequest) {
           const checkAgain = await subscriptionsRepository.findById(subscriptionId);
           if (checkAgain) {
             const { revalidateTag } = await import("next/cache");
-            revalidateTag("subscriptions");
-            revalidateTag("accounts");
-            revalidateTag(`dashboard-${userId}`);
-            revalidateTag(`reports-${userId}`);
+            revalidateTag("subscriptions", "max");
+            revalidateTag("accounts", "max");
+            revalidateTag(`dashboard-${userId}`, "max");
+            revalidateTag(`reports-${userId}`, "max");
           } else {
             throw new AppError(
               result.error || "Failed to create checkout session",

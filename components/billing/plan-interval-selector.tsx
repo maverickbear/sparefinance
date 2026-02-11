@@ -104,7 +104,7 @@ export function PlanIntervalSelector({
         : null;
 
   function handleSubmit() {
-    onSelectPlan?.(plan.id, selectedInterval);
+    if (plan) onSelectPlan?.(plan.id, selectedInterval);
   }
 
   return (

@@ -229,8 +229,8 @@ export async function POST(request: NextRequest) {
 
     // Step 5: Invalidate subscription cache
     try {
-      revalidateTag("subscriptions");
-      revalidateTag(`subscription-${userId}`);
+      revalidateTag("subscriptions", "max");
+      revalidateTag(`subscription-${userId}`, "max");
       console.log("[SIMPLIFIED-ONBOARDING] Subscription cache invalidated");
     } catch (cacheError) {
       console.warn("[SIMPLIFIED-ONBOARDING] Error invalidating subscription cache (non-critical):", cacheError);
