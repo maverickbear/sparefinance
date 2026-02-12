@@ -19,8 +19,10 @@ const NAV_ITEMS = [
 ];
 
 export function PublicHeader({ isAuthenticated: _initialAuth }: PublicHeaderProps = {}) {
-  const { isAuthenticated } = useAuthSafe();
+  const { isAuthenticated, role } = useAuthSafe();
   const router = useRouter();
+  // Show Dashboard/Logout only for Consumer users (in users table). Portal admins (super_admin) use /admin only.
+  const isConsumer = isAuthenticated && role !== "super_admin";
 
   const handleLogout = async () => {
     try {
@@ -80,7 +82,7 @@ export function PublicHeader({ isAuthenticated: _initialAuth }: PublicHeaderProp
           </div>
 
           <div className="flex shrink-0 items-center justify-end">
-            {isAuthenticated ? (
+            {isConsumer ? (
               <>
                 <Button
                   asChild

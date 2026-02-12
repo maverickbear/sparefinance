@@ -21,8 +21,10 @@ const NAV_LINKS = [
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAuthenticated } = useAuthSafe();
+  const { isAuthenticated, role } = useAuthSafe();
   const router = useRouter();
+  // Show Dashboard/Logout only for Consumer users (in users table). Portal admins (super_admin) use /admin only.
+  const isConsumer = isAuthenticated && role !== "super_admin";
 
   const handleLogout = async () => {
     try {
@@ -79,7 +81,7 @@ export function LandingHeader() {
             </div>
 
             <div className="flex items-center gap-3">
-              {isAuthenticated ? (
+              {isConsumer ? (
                 <>
                   <Button asChild variant="ghost" size="medium" className="hidden sm:inline-flex text-muted-foreground">
                     <Link href="/dashboard">Dashboard</Link>
@@ -128,7 +130,7 @@ export function LandingHeader() {
               </li>
             ))}
             <li className="pt-4 border-t border-border flex flex-col gap-2">
-              {isAuthenticated ? (
+              {isConsumer ? (
                 <>
                   <Button asChild variant="outline" size="medium" className="w-full">
                     <Link href="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>

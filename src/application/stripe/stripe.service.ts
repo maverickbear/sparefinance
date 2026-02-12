@@ -979,8 +979,8 @@ export class StripeService {
     }
 
     const currentPriceId = typeof item.price === "string" ? item.price : item.price.id;
-    const currentPeriodEnd = subscription.current_period_end;
-    const currentPeriodStart = subscription.current_period_start;
+    const currentPeriodEnd = item.current_period_end;
+    const currentPeriodStart = item.current_period_start;
 
     const phase1 = {
       start_date: currentPeriodStart,
