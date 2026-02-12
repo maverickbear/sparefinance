@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useEffect, createContext, useContext, memo, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 import { Button } from "@/components/ui/button";
-import { useAuthSafe } from "@/contexts/auth-context";
 import { UserMenuClient } from "@/components/nav/user-menu-client";
 import {
   Tooltip,
@@ -41,19 +40,11 @@ export const useSidebar = () => useContext(SidebarContext);
  */
 function NavComponent() {
   const pathname = usePathname();
-  const router = useRouter();
-
-  // Use Context only for reading state (role for portal management visibility)
-  // All other user/subscription data is handled by UserMenuClient
-  const { role } = useAuthSafe();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  const [showPortalManagementItems, setShowPortalManagementItems] = useState(false);
-
-  const isSuperAdmin = role === "super_admin";
 
   // Load collapsed state from localStorage on mount
   useEffect(() => {
@@ -71,17 +62,6 @@ function NavComponent() {
   }, [isCollapsed]);
 
 
-  // Set Portal Management section as collapsed by default when user is super admin
-  useEffect(() => {
-    if (isSuperAdmin) {
-      setCollapsedSections(prev => {
-        const next = new Set(prev);
-        next.add("Portal Management");
-        return next;
-      });
-    }
-  }, [isSuperAdmin]);
-
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -92,10 +72,8 @@ function NavComponent() {
   }, []);
 
 
-  // Build nav sections using centralized configuration
-  const navSections = useMemo((): NavSection[] => {
-    return getNavSections(isSuperAdmin);
-  }, [isSuperAdmin]);
+  // Build nav sections using centralized configuration (consumer app only)
+  const navSections = useMemo((): NavSection[] => getNavSections(), []);
 
   return (
     <SidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
@@ -176,120 +154,6 @@ function NavComponent() {
                     )}>
                       {section.items.map((item) => {
                         const Icon = item.icon;
-                        const isToggle = item.isToggle;
-                        const isBack = item.isBack;
-
-                        // Handle Portal Management toggle button (show normal items)
-                        if (isToggle && !isBack) {
-                          const isActive = pathname.startsWith("/portal-management");
-
-                          if (isCollapsed) {
-                            const toggleButton = (
-                              <button
-                                onClick={() => {
-                                  setShowPortalManagementItems(!showPortalManagementItems);
-                                  if (!showPortalManagementItems) {
-                                    router.push("/portal-management/dashboard");
-                                  }
-                                }}
-                                className={cn(
-                                  "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full",
-                                  isActive
-                                    ? "bg-primary text-primary-foreground"
-                                    : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                                )}
-                              >
-                                <Icon className="h-4 w-4 flex-shrink-0" />
-                              </button>
-                            );
-                            return (
-                              <Tooltip key="portal-management-toggle">
-                                <TooltipTrigger asChild>
-                                  <div className="relative">
-                                    {toggleButton}
-                                    <TooltipContent side="right">
-                                      Portal Management
-                                    </TooltipContent>
-                                  </div>
-                                </TooltipTrigger>
-                              </Tooltip>
-                            );
-                          }
-
-                          return (
-                            <button
-                              key="portal-management-toggle"
-                              onClick={() => {
-                                setShowPortalManagementItems(!showPortalManagementItems);
-                                if (!showPortalManagementItems) {
-                                  router.push("/portal-management/dashboard");
-                                }
-                              }}
-                              className={cn(
-                                "flex items-center justify-between w-full rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2",
-                                isActive
-                                  ? "bg-primary text-primary-foreground"
-                                  : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                              )}
-                            >
-                              <div className="flex items-center space-x-3">
-                                <Icon className="h-4 w-4 flex-shrink-0" />
-                                <span>{item.label}</span>
-                              </div>
-                              <ChevronDown
-                                className={cn(
-                                  "h-4 w-4 transition-transform duration-200",
-                                  showPortalManagementItems && "rotate-180"
-                                )}
-                              />
-                            </button>
-                          );
-                        }
-
-                        // Handle back button (show normal items again)
-                        if (isToggle && isBack) {
-                          if (isCollapsed) {
-                            const backButton = (
-                              <button
-                                onClick={() => {
-                                  setShowPortalManagementItems(false);
-                                  router.push("/dashboard");
-                                }}
-                                className="flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out justify-center px-3 py-2 w-full text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                              >
-                                <ChevronLeft className="h-4 w-4 flex-shrink-0" />
-                              </button>
-                            );
-                            return (
-                              <Tooltip key="portal-management-back">
-                                <TooltipTrigger asChild>
-                                  <div className="relative">
-                                    {backButton}
-                                    <TooltipContent side="right">
-                                      Back to Main Menu
-                                    </TooltipContent>
-                                  </div>
-                                </TooltipTrigger>
-                              </Tooltip>
-                            );
-                          }
-
-                          return (
-                            <button
-                              key="portal-management-back"
-                              onClick={() => {
-                                setShowPortalManagementItems(false);
-                                router.push("/dashboard");
-                              }}
-                              className="flex items-center space-x-3 rounded-lg text-sm font-medium transition-all duration-200 ease-in-out px-3 py-2 text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-                            >
-                              <ChevronLeft className="h-5 w-5 flex-shrink-0" />
-                              <span>Back to Main Menu</span>
-                            </button>
-                          );
-                        }
-
-                        // Handle Portal Management items (regular links now)
 
                         // Regular link item
                         const basePath = item.href.split("?")[0];

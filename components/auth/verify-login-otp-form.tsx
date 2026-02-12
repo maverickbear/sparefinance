@@ -23,6 +23,8 @@ interface VerifyLoginOtpFormProps {
   email: string;
   invitationToken?: string | null;
   onBack?: () => void;
+  /** When set, redirect here after successful verification instead of /dashboard */
+  redirectTo?: string;
 }
 
 /**
@@ -102,7 +104,7 @@ async function preloadUserData() {
   }
 }
 
-export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLoginOtpFormProps) {
+export function VerifyLoginOtpForm({ email, invitationToken, onBack, redirectTo }: VerifyLoginOtpFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -554,11 +556,23 @@ export function VerifyLoginOtpForm({ email, invitationToken, onBack }: VerifyLog
         }
       }
 
-      // Always redirect to dashboard after login
-      // Use window.location.replace with cache-busting to ensure fresh page load
-      // This bypasses service worker cache and ensures new session is loaded
+      // Redirect after login: use redirectTo when provided, else super_admin → /admin, others → /dashboard
+      let target = redirectTo;
+      if (!target) {
+        try {
+          const res = await fetch("/api/v2/members");
+          if (res.ok) {
+            const { userRole } = await res.json();
+            target = userRole === "super_admin" ? "/admin" : "/dashboard";
+          } else {
+            target = "/dashboard";
+          }
+        } catch {
+          target = "/dashboard";
+        }
+      }
       const timestamp = Date.now();
-      window.location.replace(`/dashboard?_t=${timestamp}`);
+      window.location.replace(`${target}?_t=${timestamp}`);
     } catch (error) {
       console.error("Error verifying OTP:", error);
       setError("An unexpected error occurred. Please try again.");

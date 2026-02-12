@@ -6,11 +6,11 @@ import { makeBlogService } from "@/src/application/blog/blog.factory";
  *
  * Generates XML sitemap for search engines with all public pages
  */
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.sparefinance.com";
   const currentDate = new Date();
   const blogService = makeBlogService();
-  const posts = blogService.getAllPosts();
+  const posts = await blogService.getAllPosts();
 
   const blogEntries: MetadataRoute.Sitemap = [
     {

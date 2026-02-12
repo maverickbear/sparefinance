@@ -2,6 +2,7 @@ import type { BlogPost } from "@/src/domain/blog/blog.types";
 import { format } from "date-fns";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { BlogPortableText } from "./blog-portable-text";
 
 interface BlogPostContentProps {
   post: BlogPost;
@@ -9,7 +10,7 @@ interface BlogPostContentProps {
 
 /**
  * Renders a single blog post with semantic HTML (article, header, time, body).
- * Body paragraphs are split by double newline for accessibility and readability.
+ * Uses Portable Text when bodyBlocks is present (Sanity); otherwise falls back to plain body.
  */
 export function BlogPostContent({ post }: BlogPostContentProps) {
   const publishedDate = post.datePublished.includes("T")
@@ -21,33 +22,42 @@ export function BlogPostContent({ post }: BlogPostContentProps) {
       : new Date(post.dateModified + "T12:00:00Z")
     : null;
 
-  const paragraphs = post.body
-    .trim()
-    .split(/\n\n+/)
-    .filter(Boolean);
+  const hasRichBody = post.bodyBlocks && post.bodyBlocks.length > 0;
+  const paragraphs = hasRichBody
+    ? []
+    : post.body
+        .trim()
+        .split(/\n\n+/)
+        .filter(Boolean);
+
+  const showHeader = !post.image;
 
   return (
     <article className="max-w-[65ch] mx-auto">
-      <header className="mb-8">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-3">
-          {post.title}
-        </h1>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span>{post.author}</span>
-          <time dateTime={post.datePublished}>
-            {format(publishedDate, "MMMM d, yyyy")}
-          </time>
-          {modifiedDate && modifiedDate.getTime() !== publishedDate.getTime() && (
-            <span>
-              Updated {format(modifiedDate, "MMMM d, yyyy")}
-            </span>
-          )}
-        </div>
-      </header>
+      {showHeader && (
+        <header className="mb-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-3">
+            {post.title}
+          </h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span>{post.author}</span>
+            <time dateTime={post.datePublished}>
+              {format(publishedDate, "MMMM d, yyyy")}
+            </time>
+            {modifiedDate && modifiedDate.getTime() !== publishedDate.getTime() && (
+              <span>
+                Updated {format(modifiedDate, "MMMM d, yyyy")}
+              </span>
+            )}
+          </div>
+        </header>
+      )}
       <div className="prose prose-neutral dark:prose-invert prose-p:text-muted-foreground prose-p:leading-relaxed">
-        {paragraphs.map((p, i) => (
-          <p key={i}>{p}</p>
-        ))}
+        {hasRichBody ? (
+          <BlogPortableText value={post.bodyBlocks!} />
+        ) : (
+          paragraphs.map((p, i) => <p key={i}>{p}</p>)
+        )}
       </div>
       <footer className="mt-12 pt-8 border-t border-border">
         <p className="text-sm text-muted-foreground mb-4">

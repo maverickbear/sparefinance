@@ -77,7 +77,7 @@ export function BlogGridCard({ post }: BlogGridCardProps) {
                 {post.author}
               </p>
               <p className="text-xs text-muted-foreground">
-                Atualizado em: {format(date, "d MMM yyyy")}
+                Updated on: {format(date, "d MMM yyyy")}
               </p>
             </div>
           </div>

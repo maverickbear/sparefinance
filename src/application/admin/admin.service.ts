@@ -1483,5 +1483,148 @@ export class AdminService {
 
     return result;
   }
+
+  /**
+   * Validate an admin invite token. Returns email if valid and not expired/used.
+   */
+  async validateAdminInvite(token: string): Promise<{ email: string } | null> {
+    const invite = await this.repository.getAdminInvitationByToken(token);
+    if (!invite) return null;
+    if (invite.usedAt) return null;
+    if (invite.expiresAt < new Date()) return null;
+    return { email: invite.email };
+  }
+
+  /**
+   * Create an admin invitation (super_admin only). Returns invite with token for link.
+   */
+  async createAdminInvite(
+    email: string,
+    createdBy: string
+  ): Promise<{ id: string; email: string; token: string; expiresAt: Date }> {
+    const isSuper = await this.repository.isSuperAdmin(createdBy);
+    if (!isSuper) {
+      throw new AppError("Only super admins can create admin invites", 403);
+    }
+    const crypto = await import("crypto");
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+    return this.repository.createAdminInvitation({
+      email,
+      token,
+      createdBy,
+      expiresAt,
+    });
+  }
+
+  /**
+   * Register a new admin (super_admin) using a valid invite token.
+   */
+  async registerAdminWithInvite(
+    token: string,
+    name: string,
+    password: string
+  ): Promise<{ userId: string }> {
+    const invite = await this.repository.getAdminInvitationByToken(token);
+    if (!invite) {
+      throw new AppError("Invalid or expired invite", 400);
+    }
+    if (invite.usedAt) {
+      throw new AppError("This invite has already been used", 400);
+    }
+    if (invite.expiresAt < new Date()) {
+      throw new AppError("This invite has expired", 400);
+    }
+
+    const serviceRoleClient = createServiceRoleClient();
+    const { data: authData, error: authError } = await serviceRoleClient.auth.admin.createUser({
+      email: invite.email,
+      password,
+      email_confirm: true,
+      user_metadata: { name: name || undefined, full_name: name || undefined },
+    });
+
+    if (authError || !authData.user) {
+      logger.error("[AdminService] registerAdminWithInvite auth error:", authError);
+      const msg = authError?.message?.toLowerCase() || "";
+      if (msg.includes("already been registered") || msg.includes("already exists")) {
+        throw new AppError("An account with this email already exists", 400);
+      }
+      throw new AppError(authError?.message || "Failed to create account", 400);
+    }
+
+    const userId = authData.user.id;
+    const now = new Date().toISOString();
+
+    try {
+      await this.authRepository.createUser({
+        id: userId,
+        email: invite.email,
+        name: name || null,
+        role: "super_admin",
+      });
+    } catch (createErr) {
+      logger.error("[AdminService] registerAdminWithInvite createUser error:", createErr);
+      // Auth user already exists; try to update users row role if row was created by trigger
+      const supabase = createServiceRoleClient();
+      await supabase.from("users").update({ role: "super_admin", name: name || null, updated_at: now }).eq("id", userId);
+    }
+
+    await this.repository.markAdminInvitationUsed(invite.id);
+    return { userId };
+  }
+
+  /**
+   * Register a new portal admin with name, email, and password only.
+   * No invite. User is created only in auth + admin table (not in users table).
+   * They get access to Portal Management via isSuperAdmin (checks admin table).
+   */
+  async registerAdminDirect(
+    name: string,
+    email: string,
+    password: string
+  ): Promise<{ userId: string }> {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !name?.trim() || !password) {
+      throw new AppError("Name, email, and password are required", 400);
+    }
+
+    const serviceRoleClient = createServiceRoleClient();
+    const { data: authData, error: authError } = await serviceRoleClient.auth.admin.createUser({
+      email: trimmedEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { name: name.trim() || undefined, full_name: name.trim() || undefined },
+    });
+
+    if (authError || !authData.user) {
+      logger.error("[AdminService] registerAdminDirect auth error:", authError);
+      const msg = authError?.message?.toLowerCase() || "";
+      if (msg.includes("already been registered") || msg.includes("already exists")) {
+        throw new AppError("An account with this email already exists", 400);
+      }
+      throw new AppError(authError?.message || "Failed to create account", 400);
+    }
+
+    const userId = authData.user.id;
+
+    const supabaseAdmin = createServiceRoleClient();
+    const { error: insertError } = await supabaseAdmin.from("admin").insert({
+      user_id: userId,
+      email: trimmedEmail,
+      name: name.trim() || null,
+    });
+
+    if (insertError) {
+      logger.error("[AdminService] registerAdminDirect admin insert error:", insertError);
+      if (insertError.code === "23505") {
+        throw new AppError("An account with this email already exists", 400);
+      }
+      throw new AppError(insertError.message || "Failed to create admin record", 400);
+    }
+
+    return { userId };
+  }
 }
 

@@ -92,7 +92,12 @@ async function preloadUserData() {
   }
 }
 
-function LoginFormContent() {
+interface LoginFormProps {
+  /** When set, redirect here after successful login instead of /dashboard (e.g. "/admin") */
+  redirectTo?: string;
+}
+
+function LoginFormContent({ redirectTo }: LoginFormProps = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const invitationToken = searchParams.get("invitation_token");
@@ -272,14 +277,41 @@ function LoginFormContent() {
             localStorage.setItem("lastAuthMethod", "password");
           }
 
-          // Redirect to dashboard
+          // Redirect: use redirectTo when provided, else super_admin → /admin, others → /dashboard
+          let target = redirectTo;
+          if (!target) {
+            try {
+              const res = await fetch("/api/v2/members");
+              if (res.ok) {
+                const { userRole } = await res.json();
+                target = userRole === "super_admin" ? "/admin" : "/dashboard";
+              } else {
+                target = "/dashboard";
+              }
+            } catch {
+              target = "/dashboard";
+            }
+          }
           const timestamp = Date.now();
-          window.location.replace(`/dashboard?_t=${timestamp}`);
+          window.location.replace(`${target}?_t=${timestamp}`);
         } catch (error) {
           console.error("Error after trusted login:", error);
-          // Even if there's an error, try to redirect
+          let target = redirectTo;
+          if (!target) {
+            try {
+              const res = await fetch("/api/v2/members");
+              if (res.ok) {
+                const { userRole } = await res.json();
+                target = userRole === "super_admin" ? "/admin" : "/dashboard";
+              } else {
+                target = "/dashboard";
+              }
+            } catch {
+              target = "/dashboard";
+            }
+          }
           const timestamp = Date.now();
-          window.location.replace(`/dashboard?_t=${timestamp}`);
+          window.location.replace(`${target}?_t=${timestamp}`);
         }
       } else {
         // Browser is not trusted - proceed with OTP flow
@@ -336,6 +368,7 @@ function LoginFormContent() {
         <VerifyLoginOtpForm 
           email={loginEmail}
           invitationToken={invitationToken}
+          redirectTo={redirectTo}
           onBack={() => {
             setShowOtpForm(false);
             setLoginEmail("");
@@ -492,7 +525,7 @@ function LoginFormContent() {
 }
 
 // Export LoginForm with Suspense wrapper for useSearchParams
-export function LoginForm() {
+export function LoginForm(props: LoginFormProps = {}) {
   return (
     <Suspense fallback={
       <div className="space-y-6">
@@ -503,7 +536,7 @@ export function LoginForm() {
         </div>
       </div>
     }>
-      <LoginFormContent />
+      <LoginFormContent {...props} />
     </Suspense>
   );
 }

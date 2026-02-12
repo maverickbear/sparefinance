@@ -29,17 +29,10 @@ async function MaintenanceCheck() {
       const user = await authService.getCurrentUser();
       
       if (user) {
-        // Check if user is super_admin
-        const { makeMembersService } = await import("@/src/application/members/members.factory");
-        const membersService = makeMembersService();
-        const userRole = await membersService.getUserRole(user.id);
-        
-        // If not super_admin, redirect to maintenance page
-        if (userRole !== "super_admin") {
-          redirect("/maintenance");
-        }
-        // super_admin can continue - redirect to dashboard
-        redirect("/dashboard");
+        const adminService = makeAdminService();
+        const isPortalAdmin = await adminService.isSuperAdmin(user.id);
+        if (!isPortalAdmin) redirect("/maintenance");
+        redirect("/admin");
       } else {
         // Not authenticated - redirect to maintenance
         redirect("/maintenance");

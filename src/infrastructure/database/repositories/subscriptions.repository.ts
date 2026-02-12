@@ -10,6 +10,7 @@
 
 import { createServerClient, createServiceRoleClient } from "../supabase-server";
 import { logger } from "@/src/infrastructure/utils/logger";
+import { isAbortError } from "@/src/infrastructure/utils/supabase-error";
 
 export interface SubscriptionRow {
   id: string;
@@ -259,9 +260,9 @@ export class SubscriptionsRepository {
         .order("price_monthly", { ascending: true });
 
       if (error) {
-        // Check if the error is due to HTML response (misconfigured Supabase URL)
+        if (isAbortError(error)) return [];
         const errorMessage = error.message || "";
-        if (errorMessage.includes("<html>") || 
+        if (errorMessage.includes("<html>") ||
             errorMessage.includes("500 Internal Server Error") ||
             errorMessage.includes("cloudflare") ||
             errorMessage.includes("Unexpected token '<'")) {
@@ -280,7 +281,7 @@ export class SubscriptionsRepository {
       const rows = (plans || []) as PlanRow[];
       return rows.map(applyStripeTestOverrides);
     } catch (error) {
-      // Catch any unexpected errors during build/prerender
+      if (isAbortError(error)) return [];
       console.error("[SubscriptionsRepository] Error fetching plans:", error);
       return [];
     }
@@ -346,15 +347,15 @@ export class SubscriptionsRepository {
           .single();
         
         if (serviceError) {
-          if (serviceError.code === 'PGRST116') {
-            return null;
-          }
+          if (serviceError.code === 'PGRST116') return null;
+          if (isAbortError(serviceError)) return null;
           logger.error("[SubscriptionsRepository] Error fetching plan with service role client:", serviceError);
           return null;
         }
         
         return applyStripeTestOverrides(planData as PlanRow);
       }
+      if (isAbortError(error)) return null;
       logger.error("[SubscriptionsRepository] Error fetching plan:", error);
       return null;
     }

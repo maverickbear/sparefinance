@@ -34,18 +34,13 @@ export const LayoutWrapper = memo(function LayoutWrapper({
   
   // Determine route types using centralized utility
   const routeInfo = useMemo(() => getRouteInfo(pathname), [pathname]);
-  const { isApiRoute, isPublicPage, isWelcomePage, isDashboardRoute } = routeInfo;
+  const { isApiRoute, isPublicPage, isWelcomePage, isDashboardRoute, isAdminRoute } = routeInfo;
   
   // Manage sidebar state
   const { isSidebarCollapsed } = useSidebarState();
   
-  // Manage fixed layout classes
-  const shouldUseFixedLayout =
-    !isApiRoute &&
-    !isPublicPage &&
-    !isWelcomePage &&
-    (hasSubscription || isDashboardRoute);
-  useLayoutFixed(shouldUseFixedLayout);
+  // Headers scroll with the page; body is allowed to scroll (no layout-fixed).
+  useLayoutFixed(false);
   
   const log = logger.withPrefix("LAYOUT-WRAPPER");
   
@@ -91,8 +86,8 @@ export const LayoutWrapper = memo(function LayoutWrapper({
     return <>{children}</>;
   }
 
-  // Render API routes and public pages without nav
-  if (isApiRoute || isPublicPage) {
+  // Render API routes, public pages, and admin portal without consumer nav (admin has its own layout)
+  if (isApiRoute || isPublicPage || isAdminRoute) {
     return <>{children}</>;
   }
 

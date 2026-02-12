@@ -4,7 +4,7 @@ import { z } from "zod";
  * Password validation helper
  * Validates password complexity: 12+ characters, uppercase, lowercase, number, special character
  */
-const passwordValidation = z
+export const passwordValidation = z
   .string()
   .min(12, "Password must be at least 12 characters")
   .refine(

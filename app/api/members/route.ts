@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeMembersService } from "@/src/application/members/members.factory";
+import { makeAdminService } from "@/src/application/admin/admin.factory";
 import { memberInviteSchema, MemberInviteFormData } from "@/src/domain/members/members.validations";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
@@ -8,7 +9,7 @@ import { ZodError } from "zod";
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
-    
+
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -16,9 +17,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const service = makeMembersService();
+    const adminService = makeAdminService();
+    if (await adminService.isSuperAdmin(userId)) {
+      return NextResponse.json({ members: [], userRole: "super_admin" }, { status: 200 });
+    }
 
-    // OPTIMIZED: Fetch members and user role in parallel
+    const service = makeMembersService();
     const [members, userRole] = await Promise.all([
       service.getHouseholdMembers(userId),
       service.getUserRole(userId),

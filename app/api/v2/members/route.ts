@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { makeMembersService } from "@/src/application/members/members.factory";
+import { makeAdminService } from "@/src/application/admin/admin.factory";
 import { MemberInviteFormData, memberInviteSchema } from "@/src/domain/members/members.validations";
 import { getCurrentUserId } from "@/src/application/shared/feature-guard";
 import { AppError } from "@/src/application/shared/app-error";
@@ -8,12 +9,18 @@ import { ZodError } from "zod";
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
-    
+
     if (!userId) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
+    }
+
+    const adminService = makeAdminService();
+    const isPortalAdmin = await adminService.isSuperAdmin(userId);
+    if (isPortalAdmin) {
+      return NextResponse.json({ members: [], userRole: "super_admin" }, { status: 200 });
     }
 
     const service = makeMembersService();

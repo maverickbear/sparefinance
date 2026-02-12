@@ -6,6 +6,7 @@
 import { createServerClient, createServiceRoleClient } from "../supabase-server";
 import { AdminUser, PromoCode, SystemCategory, SystemSubcategory } from "../../../domain/admin/admin.types";
 import { logger } from "@/src/infrastructure/utils/logger";
+import { isAbortError } from "@/src/infrastructure/utils/supabase-error";
 
 // Database row types (snake_case from Supabase)
 type SubscriptionRow = {
@@ -210,9 +211,25 @@ type SeoSettings = Record<string, unknown>;
 
 export class AdminRepository {
   /**
-   * Check if user is super_admin
+   * Check if user exists in admin table (portal admin created via /admin/register only; no users row).
+   */
+  async isInAdminTable(userId: string): Promise<boolean> {
+    const supabase = createServiceRoleClient();
+    const { data } = await supabase
+      .from("admin")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return !!data;
+  }
+
+  /**
+   * Check if user can access Portal Management: in admin table OR has role super_admin in users table.
    */
   async isSuperAdmin(userId: string): Promise<boolean> {
+    const inAdmin = await this.isInAdminTable(userId);
+    if (inAdmin) return true;
+
     const supabase = await createServerClient();
     const { data: userData } = await supabase
       .from("users")
@@ -236,6 +253,7 @@ export class AdminRepository {
       .order("created_at", { ascending: false });
 
     if (usersError) {
+      if (isAbortError(usersError)) return [];
       logger.error("[AdminRepository] Error fetching users:", usersError);
       throw new Error(`Failed to fetch users: ${usersError.message}`);
     }
@@ -447,6 +465,7 @@ export class AdminRepository {
       .order("created_at", { ascending: false });
 
     if (error) {
+      if (isAbortError(error)) return [];
       logger.error("[AdminRepository] Error fetching promo codes:", error);
       throw new Error(`Failed to fetch promo codes: ${error.message}`);
     }
@@ -617,6 +636,7 @@ export class AdminRepository {
       .order("name", { ascending: true });
 
     if (error) {
+      if (isAbortError(error)) return [];
       logger.error("[AdminRepository] Error fetching system categories:", error);
       throw new Error(`Failed to fetch system categories: ${error.message}`);
     }
@@ -765,6 +785,7 @@ export class AdminRepository {
       .order("name", { ascending: true });
 
     if (error) {
+      if (isAbortError(error)) return [];
       logger.error("[AdminRepository] Error fetching system subcategories:", error);
       throw new Error(`Failed to fetch system subcategories: ${error.message}`);
     }
@@ -891,6 +912,9 @@ export class AdminRepository {
       .select("*", { count: "exact", head: true });
 
     if (usersError) {
+      if (isAbortError(usersError)) {
+        return { totalUsers: 0, subscriptions: [], plans: [] };
+      }
       logger.error("[AdminRepository] Error fetching users count:", usersError);
       throw new Error(`Failed to fetch users count: ${usersError.message}`);
     }
@@ -921,6 +945,9 @@ export class AdminRepository {
       .order("created_at", { ascending: false });
 
     if (subsError) {
+      if (isAbortError(subsError)) {
+        return { totalUsers: totalUsers ?? 0, subscriptions: [], plans: [] };
+      }
       logger.error("[AdminRepository] Error fetching subscriptions:", subsError);
       throw new Error(`Failed to fetch subscriptions: ${subsError.message}`);
     }
@@ -932,6 +959,13 @@ export class AdminRepository {
       .order("price_monthly", { ascending: true });
 
     if (plansError) {
+      if (isAbortError(plansError)) {
+        return {
+          totalUsers: totalUsers ?? 0,
+          subscriptions: (subscriptions || []) as unknown as SubscriptionWithPlanRow[],
+          plans: [],
+        };
+      }
       logger.error("[AdminRepository] Error fetching plans:", plansError);
       throw new Error(`Failed to fetch plans: ${plansError.message}`);
     }
@@ -959,15 +993,13 @@ export class AdminRepository {
     if (error && error.code !== "PGRST116") {
       // PGRST116 is "not found" - we'll return default if it doesn't exist
       
-      // Check if this is a prerendering error - if so, return default silently
       const errorMessage = error.message || "";
-      if (errorMessage.includes("prerender") || 
+      if (isAbortError(error) ||
+          errorMessage.includes("prerender") ||
           errorMessage.includes("HANGING_PROMISE") ||
           errorMessage.includes("fetch() rejects")) {
-        // During prerendering, return default settings
         return { maintenanceMode: false };
       }
-      
       logger.error("[AdminRepository] Error fetching system settings:", error);
       
       // Check if the error is due to HTML response (misconfigured Supabase URL)
@@ -1067,6 +1099,7 @@ export class AdminRepository {
       .order("price_monthly", { ascending: true });
 
     if (error) {
+      if (isAbortError(error)) return [];
       logger.error("[AdminRepository] Error fetching plans:", error);
       throw new Error(`Failed to fetch plans: ${error.message}`);
     }
@@ -1159,6 +1192,13 @@ export class AdminRepository {
       .range(offset, offset + limit - 1);
 
     if (feedbacksError) {
+      if (isAbortError(feedbacksError)) {
+        return {
+          feedbacks: [],
+          total: 0,
+          metrics: { total: 0, averageRating: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } },
+        };
+      }
       logger.error("[AdminRepository] Error fetching feedbacks:", feedbacksError);
       throw new Error(`Failed to fetch feedbacks: ${feedbacksError.message}`);
     }
@@ -1168,7 +1208,7 @@ export class AdminRepository {
       .from("system_support_feedback")
       .select("*", { count: "exact", head: true });
 
-    if (countError) {
+    if (countError && !isAbortError(countError)) {
       logger.error("[AdminRepository] Error fetching feedback count:", countError);
     }
 
@@ -1177,7 +1217,7 @@ export class AdminRepository {
       .from("system_support_feedback")
       .select("rating");
 
-    if (allFeedbacksError) {
+    if (allFeedbacksError && !isAbortError(allFeedbacksError)) {
       logger.error("[AdminRepository] Error fetching all feedbacks for metrics:", allFeedbacksError);
     }
 
@@ -1253,6 +1293,7 @@ export class AdminRepository {
     const { data, error } = await query;
 
     if (error) {
+      if (isAbortError(error)) return { contactForms: [], total: 0 };
       logger.error("[AdminRepository] Error fetching contact forms:", error);
       throw new Error(`Failed to fetch contact forms: ${error.message}`);
     }
@@ -1264,7 +1305,7 @@ export class AdminRepository {
     }
     const { count, error: countError } = await countQuery;
 
-    if (countError) {
+    if (countError && !isAbortError(countError)) {
       logger.error("[AdminRepository] Error fetching contact form count:", countError);
     }
 
@@ -1327,7 +1368,7 @@ export class AdminRepository {
       .from("users")
       .select("*", { count: "exact", head: true });
 
-    if (usersError) {
+    if (usersError && !isAbortError(usersError)) {
       logger.error("[AdminRepository] Error fetching users count:", usersError);
     }
 
@@ -1356,7 +1397,7 @@ export class AdminRepository {
       `)
       .order("created_at", { ascending: false });
 
-    if (subsError) {
+    if (subsError && !isAbortError(subsError)) {
       logger.error("[AdminRepository] Error fetching subscriptions:", subsError);
     }
 
@@ -1366,7 +1407,7 @@ export class AdminRepository {
       .select("id, name, price_monthly, price_yearly")
       .order("price_monthly", { ascending: true });
 
-    if (plansError) {
+    if (plansError && !isAbortError(plansError)) {
       logger.error("[AdminRepository] Error fetching plans:", plansError);
     }
 
@@ -1955,6 +1996,77 @@ export class AdminRepository {
       cancelOption,
       cancelAt: cancelAt?.toISOString(),
     };
+  }
+
+  /**
+   * Create an admin invitation (super_admin only via RLS)
+   */
+  async createAdminInvitation(data: {
+    email: string;
+    token: string;
+    createdBy: string;
+    expiresAt: Date;
+  }): Promise<{ id: string; email: string; token: string; expiresAt: Date }> {
+    const supabase = await createServerClient();
+    const { data: row, error } = await supabase
+      .from("admin_invitations")
+      .insert({
+        email: data.email,
+        token: data.token,
+        created_by: data.createdBy,
+        expires_at: data.expiresAt.toISOString(),
+      })
+      .select("id, email, token, expires_at")
+      .single();
+    if (error) {
+      logger.error("[AdminRepository] createAdminInvitation error:", error);
+      throw new Error(`Failed to create admin invitation: ${error.message}`);
+    }
+    return {
+      id: row.id,
+      email: row.email,
+      token: row.token,
+      expiresAt: new Date(row.expires_at),
+    };
+  }
+
+  /**
+   * Get admin invitation by token (service role for unauthenticated validate/register)
+   */
+  async getAdminInvitationByToken(token: string): Promise<{
+    id: string;
+    email: string;
+    expiresAt: Date;
+    usedAt: Date | null;
+  } | null> {
+    const supabase = createServiceRoleClient();
+    const { data, error } = await supabase
+      .from("admin_invitations")
+      .select("id, email, expires_at, used_at")
+      .eq("token", token)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      email: data.email,
+      expiresAt: new Date(data.expires_at),
+      usedAt: data.used_at ? new Date(data.used_at) : null,
+    };
+  }
+
+  /**
+   * Mark admin invitation as used (service role)
+   */
+  async markAdminInvitationUsed(id: string): Promise<void> {
+    const supabase = createServiceRoleClient();
+    const { error } = await supabase
+      .from("admin_invitations")
+      .update({ used_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) {
+      logger.error("[AdminRepository] markAdminInvitationUsed error:", error);
+      throw new Error(`Failed to mark invitation used: ${error.message}`);
+    }
   }
 }
 

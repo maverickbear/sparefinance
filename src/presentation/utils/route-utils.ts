@@ -8,6 +8,8 @@ export interface RouteInfo {
   isPublicPage: boolean;
   isWelcomePage: boolean;
   isDashboardRoute: boolean;
+  /** Admin portal routes use their own layout (no consumer sidebar) */
+  isAdminRoute: boolean;
 }
 
 /**
@@ -23,8 +25,11 @@ export function getRouteInfo(pathname: string | null): RouteInfo {
       isPublicPage: false,
       isWelcomePage: false,
       isDashboardRoute: false,
+      isAdminRoute: false,
     };
   }
+
+  const isAdminRoute = pathname.startsWith("/admin");
 
   const isApiRoute = pathname.startsWith("/api");
   const isAuthPage = pathname.startsWith("/auth");
@@ -38,7 +43,6 @@ export function getRouteInfo(pathname: string | null): RouteInfo {
   const isMaintenancePage = pathname === "/maintenance";
   const isDesignPage = pathname.startsWith("/design");
   const isBlogPage = pathname === "/blog" || pathname.startsWith("/blog/");
-
   const isPublicPage =
     isAuthPage ||
     isAcceptPage ||
@@ -51,13 +55,14 @@ export function getRouteInfo(pathname: string | null): RouteInfo {
     isDesignPage ||
     isBlogPage;
   
-  const isDashboardRoute = !isPublicPage && !isApiRoute && !isWelcomePage;
+  const isDashboardRoute = !isPublicPage && !isApiRoute && !isWelcomePage && !isAdminRoute;
 
   return {
     isApiRoute,
     isPublicPage,
     isWelcomePage,
     isDashboardRoute,
+    isAdminRoute,
   };
 }
 

@@ -35,8 +35,14 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
     redirect(redirectUrl);
   }
 
+  // Portal admins (admin table or users.role super_admin) go to /admin; they don't use consumer app
+  const adminService = makeAdminService();
+  const isPortalAdmin = await adminService.isSuperAdmin(user.id);
+  if (isPortalAdmin) {
+    redirect("/admin");
+  }
+
   // PERFORMANCE OPTIMIZATION: Combine user verification and data fetching into single query
-  // This avoids multiple sequential queries to the User table
   let userData: { id: string; isBlocked: boolean; role: string } | null = null;
   try {
     const { data, error: userError } = await supabase
@@ -46,7 +52,6 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
       .single();
 
     if (userError || !data) {
-      // User doesn't exist in User table, log out
       console.warn(`[PROTECTED-LAYOUT] User ${user.id} authenticated but not found in User table. Logging out.`);
       try {
         await supabase.auth.signOut();
@@ -59,7 +64,6 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
       redirect(redirectUrl);
     }
 
-    // Map snake_case to camelCase for consistency
     userData = {
       id: data.id,
       isBlocked: data.is_blocked,
@@ -76,9 +80,8 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
   const userId = userData.id;
 
   // Check if user is blocked
-  if (userData.isBlocked && userData.role !== "super_admin") {
+  if (userData.isBlocked) {
     log.debug("User is blocked, redirecting to account blocked page");
-    // Sign out the user
     await supabase.auth.signOut();
     redirect("/account-blocked");
   }
@@ -86,7 +89,6 @@ async function AuthGuard({ children }: { children: React.ReactNode }) {
   // Check maintenance mode
   let isMaintenanceMode = false;
   try {
-    const adminService = makeAdminService();
     const settings = await adminService.getPublicSystemSettings();
     isMaintenanceMode = settings.maintenanceMode || false;
   } catch (error) {

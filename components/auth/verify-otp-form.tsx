@@ -83,6 +83,19 @@ async function preloadUserData() {
   }
 }
 
+/** Returns /admin for super_admin, otherwise /dashboard (for post-login redirect). */
+async function getPostLoginPath(): Promise<string> {
+  try {
+    const res = await fetch("/api/v2/members");
+    if (res.ok) {
+      const { userRole } = await res.json();
+      return userRole === "super_admin" ? "/admin" : "/dashboard";
+    }
+  } catch {
+  }
+  return "/dashboard";
+}
+
 interface VerifyOtpFormProps {
   email?: string;
 }
@@ -617,9 +630,10 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
           return;
         }
 
-        // Redirect to dashboard
+        // Redirect based on role: super_admin → /admin, others → /dashboard
+        const path = await getPostLoginPath();
         const timestamp = Date.now();
-        window.location.replace(`/dashboard?_t=${timestamp}`);
+        window.location.replace(`${path}?_t=${timestamp}`);
         return;
       }
 
@@ -669,10 +683,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
             
             // Verify subscription is available before redirecting
             // This ensures the household subscription is properly inherited
-            // Redirect to dashboard after completing invitation
-            // Protected layout will check subscription status and handle onboarding if needed
-            // No need to check subscription here - Context will handle it
-            window.location.href = "/dashboard";
+            // Redirect after completing invitation (super_admin → /admin, others → /dashboard)
+            const path = await getPostLoginPath();
+            window.location.href = path;
             return;
           } else {
             const errorData = await completeResponse.json();
@@ -705,7 +718,8 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
             const linkData = await linkResponse.json();
             if (linkData.success) {
               console.log("[OTP] Subscription linked successfully");
-              router.push("/dashboard");
+              const path = await getPostLoginPath();
+              router.push(path);
               return;
             }
           }
@@ -726,8 +740,9 @@ export function VerifyOtpForm({ email: propEmail }: VerifyOtpFormProps) {
         sessionStorage.setItem("onboarding-temp-data", JSON.stringify(onboardingData));
       }
 
-      // Redirect to dashboard - onboarding dialog will handle plan selection and trial start
-      router.push("/dashboard");
+      // Redirect (super_admin → /admin, others → /dashboard) - onboarding dialog will handle plan selection and trial start
+      const path = await getPostLoginPath();
+      router.push(path);
     } catch (error) {
       console.error("Error verifying OTP:", error);
       setError("An unexpected error occurred. Please try again.");

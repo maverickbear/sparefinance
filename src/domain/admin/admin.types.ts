@@ -92,3 +92,14 @@ export interface AdminDashboardMetrics {
   }>;
 }
 
+/** Admin invite for staff registration (creates super_admin users) */
+export interface AdminInvitation {
+  id: string;
+  email: string;
+  token: string;
+  createdBy: string;
+  expiresAt: Date;
+  usedAt: Date | null;
+  createdAt: Date;
+}
+

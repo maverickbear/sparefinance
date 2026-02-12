@@ -104,7 +104,7 @@ export function PageHeader({ title, description, children, className }: PageHead
           lineHeight: '64px',
         } as React.CSSProperties : { height: '64px', lineHeight: '64px' }}
         className={cn(
-          "sticky top-0 z-30 bg-card border-b border-border transition-all duration-300",
+          "z-30 bg-card border-b border-border transition-all duration-300",
           "hidden lg:block",
           "box-border overflow-hidden",
           className

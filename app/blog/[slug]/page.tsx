@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { makeBlogService } from "@/src/application/blog/blog.factory";
 import { BlogPostContent } from "@/components/blog/blog-post-content";
+import { BlogPostHero } from "@/components/blog/blog-post-hero";
 import { BlogPostStructuredData } from "@/components/blog/blog-structured-data";
 
 const BASE_URL =
@@ -13,7 +14,7 @@ interface BlogPostPageProps {
 
 export async function generateStaticParams() {
   const blogService = makeBlogService();
-  const slugs = blogService.getAllSlugs();
+  const slugs = await blogService.getAllSlugs();
   return slugs.map((slug) => ({ slug }));
 }
 
@@ -22,7 +23,7 @@ export async function generateMetadata({
 }: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
   const blogService = makeBlogService();
-  const post = blogService.getPostBySlug(slug);
+  const post = await blogService.getPostBySlug(slug);
   if (!post) {
     return { title: "Post not found" };
   }
@@ -53,12 +54,13 @@ export async function generateMetadata({
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
   const blogService = makeBlogService();
-  const post = blogService.getPostBySlug(slug);
+  const post = await blogService.getPostBySlug(slug);
   if (!post) notFound();
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
       <BlogPostStructuredData post={post} />
+      <BlogPostHero post={post} />
       <BlogPostContent post={post} />
     </div>
   );

@@ -94,30 +94,32 @@ export async function verifyUserExists(user?: User | null): Promise<{ exists: bo
       .is("deleted_at", null) // Exclude deleted users
       .single();
 
-    // If user doesn't exist in User table or is deleted, log out
-    if (userError || !userData || userData.deleted_at) {
-      const reason = userData?.deleted_at 
-        ? `User ${authUser.id} account has been deleted. Logging out.`
-        : `User ${authUser.id} authenticated but not found in User table. Logging out.`;
-      console.warn(`[verifyUserExists] ${reason}`);
-      
-      // Cache negative result
-      setCachedVerification(authUser.id, false);
-      
-      // Log out to clear session
-      try {
-        await supabase.auth.signOut();
-      } catch (signOutError) {
-        console.error("[verifyUserExists] Error signing out:", signOutError);
-      }
-      
-      return { exists: false, userId: authUser.id };
+    // If user exists in users table and is not deleted, valid
+    if (!userError && userData && !userData.deleted_at) {
+      setCachedVerification(authUser.id, true);
+      return { exists: true, userId: authUser.id };
     }
 
-    // Cache positive result
-    setCachedVerification(authUser.id, true);
+    // Not in users table (or deleted): portal admins (admin table only) are still valid — don't log out
+    const { makeAdminService } = await import("@/src/application/admin/admin.factory");
+    const isPortalAdmin = await makeAdminService().isSuperAdmin(authUser.id);
+    if (isPortalAdmin) {
+      setCachedVerification(authUser.id, true);
+      return { exists: true, userId: authUser.id };
+    }
 
-    return { exists: true, userId: authUser.id };
+    // User doesn't exist in User table and is not a portal admin — log out
+    const reason = userData?.deleted_at
+      ? `User ${authUser.id} account has been deleted. Logging out.`
+      : `User ${authUser.id} authenticated but not found in User table. Logging out.`;
+    console.warn(`[verifyUserExists] ${reason}`);
+    setCachedVerification(authUser.id, false);
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutError) {
+      console.error("[verifyUserExists] Error signing out:", signOutError);
+    }
+    return { exists: false, userId: authUser.id };
   } catch (error) {
     console.error("[verifyUserExists] Error verifying user exists:", error);
     return { exists: false, userId: null };

@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { logger } from "@/lib/utils/logger";
+import { isAbortError } from "@/src/infrastructure/utils/supabase-error";
 
 /** Shape used to read optional code from Supabase/auth errors (not always on the public type). */
 type AuthErrorWithCode = { message?: string; code?: string };
@@ -283,8 +284,7 @@ export async function createServerClient(accessToken?: string, refreshToken?: st
           supabaseUrl: supabaseUrl.substring(0, 50) + "...",
           suggestion: "Check if NEXT_PUBLIC_SUPABASE_URL is correct and points to a valid Supabase project (should end with .supabase.co)",
         });
-      } else {
-        // Only log unexpected auth errors
+      } else if (!isAbortError(authError)) {
         logger.warn("[createServerClient] Unexpected auth error:", authError.message);
       }
     }

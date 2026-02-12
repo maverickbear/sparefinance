@@ -7,111 +7,111 @@ import type { BlogPost } from "@/src/domain/blog/blog.types";
 
 export const BLOG_POSTS: BlogPost[] = [
   {
-    slug: "como-construir-um-orcamento-mensal-que-funciona",
-    title: "Como Construir um Orçamento Mensal Que Realmente Funciona",
+    slug: "how-to-build-a-simple-monthly-budget",
+    title: "How to Build a Simple Monthly Budget That Actually Works",
     description:
-      "Um guia passo a passo para criar um orçamento mensal realista, acompanhar gastos e manter o controle sem se sentir sobrecarregado. Dicas práticas de finanças pessoais.",
+      "A step-by-step guide to creating a realistic monthly budget, tracking spending, and staying on track without feeling overwhelmed.",
     datePublished: "2025-02-01",
     dateModified: "2025-02-09",
     author: "Cody Fisher",
     authorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Cody",
     image: {
       src: "/landing/hero.jpg",
-      alt: "Pessoas planejando finanças em reunião",
+      alt: "People planning finances in a meeting",
       width: 800,
       height: 500,
     },
-    tags: ["Orçamento", "Dicas"],
+    tags: ["Budget", "Tips"],
     keywords: ["budget", "monthly budget", "personal finance", "saving money", "expense tracking"],
-    body: `Acompanhar seu dinheiro não precisa ser complicado. Um orçamento mensal simples ajuda você a ver para onde vai seu dinheiro e abrir espaço para o que importa.
+    body: `Tracking your money doesn't have to be complicated. A simple monthly budget helps you see where your money goes and make room for what matters.
 
-Comece listando sua renda: salário, bicos e qualquer outra entrada regular. Use o valor líquido para trabalhar com números reais.
+Start by listing your income: salary, side gigs, and any other regular cash coming in. Use your take-home amount so you're working with real numbers.
 
-Em seguida, liste as despesas fixas: aluguel ou financiamento, contas, seguros, assinaturas e parcelas. São valores iguais (ou próximos) todo mês.
+Next, list fixed expenses: rent or mortgage, utilities, insurance, subscriptions, and loan payments. These are the same (or close) every month.
 
-Depois, as despesas variáveis: mercado, combustível, restaurantes, lazer. Use os últimos meses para definir valores realistas.
+Then add variable expenses: groceries, gas, dining out, entertainment. Look at the last few months of spending to set realistic amounts. Don't guess—use real data if you have it.
 
-Por fim, defina uma meta de economia ou redução de dívidas. Mesmo um valor pequeno por mês cria o hábito e faz diferença no longo prazo.
+Finally, set a goal for saving or paying off debt. Even a small amount each month builds the habit and adds up over time.
 
-Revise seu orçamento pelo menos uma vez por mês e ajuste conforme a vida mudar. O objetivo não é perfeição—é consciência e controle para sair da ansiedade e ganhar clareza.`,
+Review your budget at least once a month. Adjust categories as life changes. The goal isn't perfection—it's awareness and control so you can move from anxiety to clarity.`,
   },
   {
-    slug: "por-que-rastrear-gastos-e-o-primeiro-passo-para-paz-financeira",
-    title: "Por Que Rastrear Gastos É o Primeiro Passo para a Paz Financeira",
+    slug: "why-tracking-expenses-leads-to-financial-peace",
+    title: "Why Tracking Your Expenses Is the First Step to Financial Peace",
     description:
-      "Entender para onde vai seu dinheiro reduz estresse e melhora suas decisões. Veja por que o controle de gastos funciona e como começar.",
+      "Understanding where your money goes reduces stress and helps you make better decisions. Here's why expense tracking works and how to start.",
     datePublished: "2025-02-05",
     author: "Guy Hawkins",
     authorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Guy",
     image: {
       src: "/landing/dashboard.jpg",
-      alt: "Dashboard de controle financeiro",
+      alt: "Financial control dashboard",
       width: 600,
       height: 400,
     },
-    tags: ["Gastos", "Dicas"],
+    tags: ["Spending", "Tips"],
     keywords: ["expense tracking", "personal finance", "money management", "financial health", "spending"],
-    body: `Você não melhora o que não mede. Quando você rastreia seus gastos, para de adivinhar e passa a saber.
+    body: `You can't improve what you don't measure. When you track your expenses, you stop guessing and start knowing.
 
-Muita gente evita olhar o que gasta porque parece estressante. Mas o estresse vem de não saber—ficar na dúvida se dá ou não, ou para onde foi tudo. Rastrear troca essa incerteza por clareza.
+Many people avoid looking at their spending because it feels stressful. But the real stress comes from not knowing—wondering if there's enough, or where it all went. Tracking turns that uncertainty into clarity.
 
-Não é preciso anotar cada centavo para sempre. Algumas semanas de registro já mostram padrões: onde você mais gasta, onde vazam pequenos valores e onde já está indo bem.
+You don't need to track every penny forever. Even a few weeks of honest logging will show patterns: where you spend the most, where small leaks add up, and where you're already doing well.
 
-Use categorias que façam sentido para sua vida: mercado, transporte, assinaturas, restaurantes etc. O objetivo é enxergar o quadro geral, não julgar cada café.
+Use categories that match your life: groceries, transport, subscriptions, eating out, and so on. The goal is to see the big picture, not to judge every coffee.
 
-Com o quadro claro, você pode definir metas simples: gastar um pouco menos em uma categoria, poupar um valor fixo por mês ou reduzir dívidas. Pequenos passos consistentes geram mudança real.`,
+Once you see the picture, you can set simple goals: spend a bit less on one category, save a fixed amount each month, or pay down debt. Small, consistent steps lead to real change.`,
   },
   {
-    slug: "como-sair-das-dividas-sem-desespero",
-    title: "Como Sair das Dívidas Sem Desespero",
+    slug: "how-to-get-out-of-debt-without-desperation",
+    title: "How to Get Out of Debt Without Desperation",
     description:
-      "Estratégias práticas para reduzir dívidas de forma sustentável: método bola de neve, priorização e mudança de hábitos sem sacrificar tudo.",
+      "Practical strategies to pay down debt sustainably: snowball method, prioritization, and habit changes without sacrificing everything.",
     datePublished: "2025-02-07",
     dateModified: "2025-02-09",
     author: "Floyd Miles",
     authorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Floyd",
     image: {
       src: "/landing/planning.jpg",
-      alt: "Planejamento financeiro e metas",
+      alt: "Financial planning and goals",
       width: 600,
       height: 400,
     },
-    tags: ["Dívidas", "Planejamento"],
+    tags: ["Debt", "Planning"],
     keywords: ["debt", "pay off debt", "personal finance", "financial freedom"],
-    body: `Sair das dívidas é mais sobre consistência do que sobre milagres. O primeiro passo é ter uma visão clara: liste todas as dívidas, taxas de juros e parcelas mínimas.
+    body: `Getting out of debt is more about consistency than miracles. The first step is to get a clear picture: list all debts, interest rates, and minimum payments.
 
-Duas abordagens comuns: a "bola de neve" (quitar primeiro a menor dívida para ganhar motivação) e a "avalanche" (atacar primeiro a que tem maior juro). Ambas funcionam; escolha a que você vai conseguir manter.
+Two common approaches: the "snowball" (pay off the smallest debt first for motivation) and the "avalanche" (tackle the highest-interest debt first). Both work; choose the one you'll stick with.
 
-Proteja uma reserva de emergência mínima antes de jogar todo o dinheiro extra na dívida. Assim você evita novos empréstimos quando algo inesperado acontecer.
+Protect a minimal emergency fund before throwing every extra dollar at debt. That way you avoid new loans when the unexpected happens.
 
-Ajuste hábitos aos poucos: corte uma assinatura, reduza um hábito de consumo, mas não tente mudar tudo de uma vez. Pequenas vitórias sustentam o processo.
+Adjust habits gradually: cut one subscription, trim one spending habit, but don't try to change everything at once. Small wins keep you going.
 
-Celebre cada dívida quitada. Reconhecer o progresso mantém você no jogo até a última parcela.`,
+Celebrate each debt you clear. Acknowledging progress keeps you in the game until the last payment.`,
   },
   {
-    slug: "reserva-de-emergencia-por-onde-comecar",
-    title: "Reserva de Emergência: Por Onde Começar",
+    slug: "emergency-fund-where-to-start",
+    title: "Emergency Fund: Where to Start",
     description:
-      "Por que todo mundo precisa de uma reserva de emergência e como construir a sua, mesmo com orçamento apertado. Metas realistas e onde guardar o dinheiro.",
+      "Why everyone needs an emergency fund and how to build yours, even on a tight budget. Realistic targets and where to keep the money.",
     datePublished: "2025-02-08",
     author: "Maria Silva",
     authorAvatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maria",
     image: {
       src: "/landing/family.jpg",
-      alt: "Família e planejamento financeiro",
+      alt: "Family and financial planning",
       width: 600,
       height: 400,
     },
-    tags: ["Reserva", "Poupança"],
+    tags: ["Savings", "Emergency Fund"],
     keywords: ["emergency fund", "savings", "personal finance", "financial security"],
-    body: `A reserva de emergência é a base da segurança financeira. Ela cobre imprevistos—desemprego, saúde, reparos—sem precisar entrar no cheque especial ou em empréstimos.
+    body: `An emergency fund is the foundation of financial security. It covers the unexpected—job loss, health issues, repairs—without relying on credit cards or loans.
 
-Uma meta comum é ter de 3 a 6 meses de despesas essenciais guardados. Se isso parecer distante, comece com um objetivo menor: um mês, ou até as primeiras mil unidades da moeda. O importante é começar.
+A common target is 3 to 6 months of essential expenses. If that feels far off, start smaller: one month, or even your first thousand. What matters is starting.
 
-Onde guardar: em conta que renda um pouco e permita resgate rápido—poupança ou aplicações de liquidez diária. Evite investimentos de longo prazo para esse dinheiro.
+Where to keep it: in an account that earns a little and allows quick access—savings or a liquid investment. Avoid locking this money in long-term investments.
 
-Separe um valor fixo todo mês, mesmo que pequeno. Automatize o débito para uma conta separada assim que o salário cair. Com o tempo, a reserva cresce sem você depender só da “sobra”.
+Set aside a fixed amount every month, even if it's small. Automate a transfer to a separate account as soon as you get paid. Over time, the fund grows without depending on "what's left over."
 
-Revise o valor da reserva quando suas despesas ou renda mudarem. Esse hábito simples reduz ansiedade e abre espaço para outros objetivos, como investir ou realizar sonhos.`,
+Revisit the size of your fund when your expenses or income change. This simple habit reduces anxiety and frees you for other goals, like investing or big life plans.`,
   },
 ];

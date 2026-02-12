@@ -181,17 +181,18 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
       "/settings/categories": "Categories",
       "/feedback": "Feedback",
       "/help-support": "Help & Support",
-      "/portal-management": "Portal Management",
-      "/portal-management/dashboard": "Portal Dashboard",
-      "/portal-management/users": "Users",
-      "/portal-management/promo-codes": "Promo Codes",
-      "/portal-management/system-entities": "System Entities",
-      "/portal-management/contact-forms": "Contact Forms",
-      "/portal-management/feedback": "Feedback",
-      "/portal-management/plans": "Plans",
-      "/portal-management/subscription-services": "Subscription Services",
-      "/portal-management/tax-rates": "Tax Rates",
-      "/portal-management/seo": "SEO Settings",
+      "/admin": "Admin",
+      "/admin/dashboard": "Admin Dashboard",
+      "/admin/users": "Users",
+      "/admin/promo-codes": "Promo Codes",
+      "/admin/system-entities": "System Entities",
+      "/admin/contact-forms": "Contact Forms",
+      "/admin/feedback": "Feedback",
+      "/admin/plans": "Plans",
+      "/admin/subscription-services": "Subscription Services",
+      "/admin/tax-rates": "Tax Rates",
+      "/admin/seo": "SEO Settings",
+      "/admin/studio": "Sanity Studio",
       "/design": "Design System",
     };
 
@@ -213,7 +214,7 @@ export function MobileHeader({ hasSubscription = true }: MobileHeaderProps) {
 
   return (
     <header 
-      className="bg-card lg:hidden sticky top-0 z-40" 
+      className="bg-card lg:hidden z-40" 
       id="mobile-header"
       style={{ 
         '--mobile-header-height': '3rem',

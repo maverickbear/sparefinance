@@ -240,8 +240,44 @@ export async function middleware(request: NextRequest) {
     );
   }
 
+  // Redirect old /studio to admin studio (studio is now under /admin)
+  if (pathname.startsWith("/studio")) {
+    const adminStudioUrl = new URL(pathname.replace(/^\/studio/, "/admin/studio"), request.url);
+    return NextResponse.redirect(adminStudioUrl);
+  }
+
+  // Admin area: only /admin/login and /admin/register are public; rest require auth + portal admin (admin table or users.role super_admin)
+  if (pathname.startsWith("/admin")) {
+    const isAdminPublic = pathname === "/admin/login" || pathname === "/admin/register";
+    if (!isAdminPublic) {
+      try {
+        const supabase = createMiddlewareClient(request);
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error || !user) {
+          const redirectUrl = new URL("/admin/login", request.url);
+          redirectUrl.searchParams.set("redirect", pathname);
+          return NextResponse.redirect(redirectUrl);
+        }
+        const serviceSupabase = createServiceRoleClient();
+        const { data: adminRow } = await serviceSupabase.from("admin").select("id").eq("user_id", user.id).maybeSingle();
+        if (adminRow) {
+          // Portal admin (only in admin table) — allow
+        } else {
+          const { data: userData } = await supabase.from("core.users").select("role").eq("id", user.id).single();
+          if (userData?.role !== "super_admin") {
+            return NextResponse.redirect(new URL("/dashboard", request.url));
+          }
+        }
+      } catch {
+        const redirectUrl = new URL("/admin/login", request.url);
+        redirectUrl.searchParams.set("redirect", pathname);
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+  }
+
   // Check authentication for protected routes
-  const protectedPaths = ["/dashboard", "/settings", "/reports", "/portal-management", "/transactions", "/planning", "/members", "/insights"];
+  const protectedPaths = ["/dashboard", "/settings", "/reports", "/transactions", "/planning", "/members", "/insights"];
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
 
   if (isProtectedPath) {
@@ -315,8 +351,17 @@ export async function middleware(request: NextRequest) {
           }
 
           if (user) {
-            // User is authenticated - redirect to dashboard
-            return NextResponse.redirect(new URL("/dashboard", request.url));
+            // Redirect portal admins (admin table or users.role super_admin) to /admin, others to /dashboard
+            const serviceSupabase = createServiceRoleClient();
+            const { data: adminRow } = await serviceSupabase.from("admin").select("id").eq("user_id", user.id).maybeSingle();
+            let redirectPath = "/dashboard";
+            if (adminRow) {
+              redirectPath = "/admin";
+            } else {
+              const { data: userData } = await supabase.from("core.users").select("role").eq("id", user.id).single();
+              if (userData?.role === "super_admin") redirectPath = "/admin";
+            }
+            return NextResponse.redirect(new URL(redirectPath, request.url));
           } else {
             // Not authenticated - redirect to landing page
             return NextResponse.redirect(new URL("/", request.url));
@@ -363,26 +408,25 @@ export async function middleware(request: NextRequest) {
           }
 
           if (user) {
-            // User is authenticated - check if super_admin and if blocked
-            const { data: userData } = await supabase
-              .from("core.users")
-              .select("role, isBlocked")
-              .eq("id", user.id)
-              .single();
-
-            // Check if user is blocked (super_admin cannot be blocked)
-            if (userData?.isBlocked && userData?.role !== "super_admin") {
-              // User is blocked - sign them out and redirect to account blocked page
-              await supabase.auth.signOut();
-              return NextResponse.redirect(new URL("/account-blocked", request.url));
-            }
-
-            // If super_admin, allow access to all pages (landing, auth, protected routes)
-            if (userData?.role === "super_admin") {
-              // Continue to rate limiting check
+            const serviceSupabase = createServiceRoleClient();
+            const { data: adminRow } = await serviceSupabase.from("admin").select("id").eq("user_id", user.id).maybeSingle();
+            if (adminRow) {
+              // Portal admin (admin table only) — allow access during maintenance
             } else {
-              // Not super_admin - redirect to maintenance (blocks landing page, auth pages, and protected routes)
-              return NextResponse.redirect(new URL("/maintenance", request.url));
+              const { data: userData } = await supabase
+                .from("core.users")
+                .select("role, is_blocked")
+                .eq("id", user.id)
+                .single();
+              const role = (userData as { role?: string })?.role;
+              const isBlocked = (userData as { is_blocked?: boolean })?.is_blocked === true;
+              if (isBlocked && role !== "super_admin") {
+                await supabase.auth.signOut();
+                return NextResponse.redirect(new URL("/account-blocked", request.url));
+              }
+              if (role !== "super_admin") {
+                return NextResponse.redirect(new URL("/maintenance", request.url));
+              }
             }
           } else {
             // Not authenticated - redirect to maintenance (blocks landing page and auth pages)

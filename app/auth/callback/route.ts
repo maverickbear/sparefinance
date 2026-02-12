@@ -206,9 +206,13 @@ export async function GET(request: NextRequest) {
         console.warn("[OAUTH-CALLBACK] Failed to sync session:", syncError);
       }
       
-      // Redirect to dashboard
-      const dashboardUrl = new URL("/dashboard", requestUrl.origin);
-      return NextResponse.redirect(dashboardUrl);
+      // Redirect portal admins (admin table or users.role super_admin) → /admin, others → /dashboard
+      const { makeAdminService } = await import("@/src/application/admin/admin.factory");
+      const adminService = makeAdminService();
+      const isPortalAdmin = await adminService.isSuperAdmin(authUser.id);
+      const redirectPath = isPortalAdmin ? "/admin" : "/dashboard";
+      const redirectUrl = new URL(redirectPath, requestUrl.origin);
+      return NextResponse.redirect(redirectUrl);
     }
     
     // For signin or unconfirmed signup, require OTP verification

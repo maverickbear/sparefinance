@@ -27,7 +27,7 @@ export function BlogFeaturedSection({ post }: BlogFeaturedSectionProps) {
               alt={post.image.alt}
               width={post.image.width ?? 800}
               height={post.image.height ?? 500}
-              className="object-cover transition-opacity group-hover:opacity-95"
+              className="h-full object-cover transition-opacity group-hover:opacity-95"
               sizes="(max-width: 768px) 100vw, 55vw"
             />
           ) : (
@@ -35,7 +35,7 @@ export function BlogFeaturedSection({ post }: BlogFeaturedSectionProps) {
           )}
         </div>
         <div className="flex flex-col justify-center p-6 md:p-8 lg:p-10">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex flex-nowrap justify-start items-start gap-2">
             {(post.tags ?? []).map((tag, i) => (
               <span
                 key={tag}
@@ -50,7 +50,7 @@ export function BlogFeaturedSection({ post }: BlogFeaturedSectionProps) {
             ))}
             <time
               dateTime={post.datePublished}
-              className="text-sm text-muted-foreground ml-auto"
+              className="text-sm text-muted-foreground ml-auto w-full"
             >
               {format(date, "d MMM yyyy")}
             </time>
@@ -58,11 +58,11 @@ export function BlogFeaturedSection({ post }: BlogFeaturedSectionProps) {
           <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl lg:text-3xl mb-3 group-hover:text-primary transition-colors">
             {post.title}
           </h2>
-          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed line-clamp-4 mb-4">
+          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed line-clamp-2 mb-4">
             {post.description}
           </p>
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
-            Ler artigo
+            Read article
             <ArrowUpRight className="h-4 w-4" aria-hidden />
           </span>
         </div>

@@ -116,7 +116,12 @@ async function AuthCheck() {
     const isMaintenanceMode = settings.maintenanceMode || false;
 
     if (isMaintenanceMode) return null;
-    if (user) redirect("/dashboard");
+    if (user) {
+      const { makeAdminService } = await import("@/src/application/admin/admin.factory");
+      const adminService = makeAdminService();
+      const isPortalAdmin = await adminService.isSuperAdmin(user.id);
+      redirect(isPortalAdmin ? "/admin" : "/dashboard");
+    }
   } catch (error: unknown) {
     if (error && typeof error === "object" && "digest" in error && typeof (error as { digest?: string }).digest === "string" && (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")) {
       throw error;
@@ -155,10 +160,9 @@ async function LandingOrMaintenance(): Promise<ReactNode> {
       const authService = makeAuthService();
       const user = await authService.getCurrentUser();
       if (user) {
-        const { makeMembersService } = await import("@/src/application/members/members.factory");
-        const membersService = makeMembersService();
-        const userRole = await membersService.getUserRole(user.id);
-        if (userRole !== "super_admin") redirect("/maintenance");
+        const adminService = makeAdminService();
+        const isPortalAdmin = await adminService.isSuperAdmin(user.id);
+        if (!isPortalAdmin) redirect("/maintenance");
       } else {
         redirect("/maintenance");
       }

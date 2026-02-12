@@ -47,7 +47,6 @@ import {
   LogOut,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { portalManagementItems } from "@/src/presentation/config/navigation.config";
 import { logger } from "@/src/infrastructure/utils/logger";
 
 interface NavItem {
@@ -62,8 +61,8 @@ interface NavCategory {
   items: NavItem[];
 }
 
-// Helper function to build nav categories dynamically based on user role
-function buildNavCategories(isSuperAdmin: boolean): NavCategory[] {
+// Helper function to build nav categories for the consumer app
+function buildNavCategories(): NavCategory[] {
   const categories: NavCategory[] = [
     {
       title: "Overview",
@@ -101,30 +100,12 @@ function buildNavCategories(isSuperAdmin: boolean): NavCategory[] {
     },
   ];
 
-  // Add Portal Management section for super admins
-  if (isSuperAdmin) {
-    const portalItems: NavItem[] = portalManagementItems.map((item) => ({
-      href: item.href,
-      label: item.label,
-      icon: item.icon,
-    }));
-
-    categories.push({
-      title: "Portal Management",
-      items: portalItems,
-    });
-  }
-
-  // Add Legal & Preferences section
+  // Add Legal & Preferences section (theme toggle for all users)
   const legalItems: NavItem[] = [
     { href: "/privacy-policy", label: "Privacy Policy", icon: Shield },
     { href: "/terms-of-service", label: "Terms of Service", icon: FileText },
+    { href: "#", label: "Theme", icon: Sun },
   ];
-
-  // Add theme toggle for super admins
-  if (isSuperAdmin) {
-    legalItems.push({ href: "#", label: "Theme", icon: Sun });
-  }
 
   categories.push({
     title: "Legal & Preferences",
@@ -195,16 +176,15 @@ export function MoreMenuSheet({
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   
   // Use Context instead of local state and fetch
-  const { user, role, checking: checkingAuth } = useAuthSafe();
+  const { user, checking: checkingAuth } = useAuthSafe();
   const { subscription, plan, checking: checkingSubscription } = useSubscriptionSafe();
   
   // Derive data from Context
   const loading = checkingAuth || checkingSubscription;
-  const isSuperAdmin = role === "super_admin";
   const log = logger.withPrefix("MORE-MENU");
   
-  // Build nav categories dynamically based on user role
-  const navCategories = buildNavCategories(isSuperAdmin);
+  // Build nav categories for consumer app
+  const navCategories = buildNavCategories();
   
   // Build userProfile from Context
   const userProfile: UserProfile | null = user ? {
@@ -406,8 +386,8 @@ export function MoreMenuSheet({
                   const active = isActive(item.href);
                   const isLast = index === category.items.length - 1;
                   
-                  // Handle theme toggle specially (only for super admins in Legal & Preferences)
-                  if (category.title === "Legal & Preferences" && item.label === "Theme" && isSuperAdmin) {
+                  // Handle theme toggle in Legal & Preferences
+                  if (category.title === "Legal & Preferences" && item.label === "Theme") {
                     return (
                       <button
                         key="theme-toggle"

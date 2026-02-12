@@ -24,41 +24,36 @@ export function DashboardLayout({
   hasSubscription,
 }: DashboardLayoutProps) {
   return (
-    <div className="fixed inset-0 overflow-hidden bg-background">
+    <div className="min-h-screen bg-background">
       {/* Sidebar - Fixed Left (full height, desktop only) */}
       <Suspense fallback={<div className="w-64 lg:w-16 border-r bg-card" />}>
         <Nav />
       </Suspense>
 
-      {/* Main Content Area */}
+      {/* Main Content Area - scrolls with the page (header + content) */}
       <div
         className={cn(
-          "flex flex-col h-full overflow-hidden transition-all duration-300",
+          "min-h-screen transition-all duration-300",
           "lg:ml-64",
           isSidebarCollapsed && "lg:!ml-16"
         )}
+        style={{
+          paddingBottom: "var(--bottom-nav-height, 0px)",
+        }}
       >
-        {/* Headers - Fixed Top */}
+        {/* Header - scrolls with content (not fixed/sticky) */}
         <MobileHeader hasSubscription={hasSubscription} />
 
-        {/* Content Container - Scrollable */}
-        <main
-          className="flex-1 overflow-y-auto overflow-x-hidden bg-white dark:bg-background"
-          style={{
-            paddingBottom: "var(--bottom-nav-height, 0px)",
-          }}
-        >
-          <div className="w-full max-w-full">
-            {/* Cancelled Subscription Banner - Inside Content Container */}
-            {hasSubscription && (
-              <CancelledSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />
-            )}
-            {/* Paused Subscription Banner - Inside Content Container */}
-            {hasSubscription && (
-              <PausedSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />
-            )}
-            {children}
-          </div>
+        <main className="w-full max-w-full bg-white dark:bg-background">
+          {/* Cancelled Subscription Banner - Inside Content Container */}
+          {hasSubscription && (
+            <CancelledSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />
+          )}
+          {/* Paused Subscription Banner - Inside Content Container */}
+          {hasSubscription && (
+            <PausedSubscriptionBanner isSidebarCollapsed={isSidebarCollapsed} />
+          )}
+          {children}
         </main>
       </div>
 

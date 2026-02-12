@@ -38,11 +38,11 @@ export function BlogFilters({
         />
         <Input
           type="search"
-          placeholder="Buscar artigos..."
+          placeholder="Search articles..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="pl-9 rounded-xl border-border bg-background"
-          aria-label="Buscar artigos por título ou descrição"
+          aria-label="Search articles by title or description"
         />
       </div>
       {allTags.length > 0 && (
@@ -57,7 +57,7 @@ export function BlogFilters({
                 : "bg-muted text-muted-foreground hover:bg-muted/80"
             )}
           >
-            Todos
+            All
           </button>
           {allTags.map((tag) => (
             <button

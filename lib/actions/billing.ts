@@ -2,14 +2,11 @@
 
 import { createServerClient } from "@/src/infrastructure/database/supabase-server";
 import { makeSubscriptionsService } from "@/src/application/subscriptions/subscriptions.factory";
-import type { BaseLimitCheckResult as LimitCheckResult } from "@/src/domain/subscriptions/subscriptions.types";
-
-// Re-export LimitCheckResult from domain
-export type { LimitCheckResult };
+import type { BaseLimitCheckResult } from "@/src/domain/subscriptions/subscriptions.types";
 
 export interface BillingLimitsResult {
-  transactionLimit: LimitCheckResult;
-  accountLimit: LimitCheckResult;
+  transactionLimit: BaseLimitCheckResult;
+  accountLimit: BaseLimitCheckResult;
 }
 
 /**

@@ -4,8 +4,6 @@ import { type ReactNode } from "react";
 import { LandingHeader } from "@/components/landing/landing-header";
 import { SimpleFooter } from "@/components/common/simple-footer";
 
-const MAIN_TOP_PADDING = "pt-16 md:pt-[4.5rem]";
-
 export interface ContentPageHeroProps {
   icon: ReactNode;
   title: string;
@@ -19,14 +17,14 @@ interface ContentPageLayoutProps {
 
 /**
  * Layout for public content pages (Terms, Privacy, FAQ).
- * Provides consistent header, main area with safe top padding for fixed nav, and footer.
+ * Provides consistent header (scrolls with page), main area, and footer.
  */
 export function ContentPageLayout({ children, hero }: ContentPageLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <LandingHeader />
       <main
-        className={`flex-1 w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 md:py-12 ${MAIN_TOP_PADDING}`}
+        className="flex-1 w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 md:py-12"
       >
         <div className="max-w-4xl mx-auto">
           {hero && (

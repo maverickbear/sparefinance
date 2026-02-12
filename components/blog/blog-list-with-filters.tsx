@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { BlogFeaturedSection } from "./blog-featured-section";
 import { BlogGridCard } from "./blog-grid-card";
-import { BlogFilters } from "./blog-filters";
+import { BlogHeroBanner } from "./blog-hero-banner";
 import type { BlogPostListItem } from "@/src/domain/blog/blog.types";
 
 interface BlogListWithFiltersProps {
@@ -40,8 +40,8 @@ export function BlogListWithFilters({ posts, allTags }: BlogListWithFiltersProps
   const gridPosts = filtered.slice(1);
 
   return (
-    <div className="space-y-10">
-      <BlogFilters
+    <>
+      <BlogHeroBanner
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         selectedTag={selectedTag}
@@ -49,32 +49,34 @@ export function BlogListWithFilters({ posts, allTags }: BlogListWithFiltersProps
         allTags={allTags}
       />
 
-      {filtered.length === 0 ? (
-        <section aria-label="Resultados da busca" className="py-12 text-center">
-          <p className="text-muted-foreground">
-            Nenhum artigo encontrado. Tente outro termo ou remova o filtro.
-          </p>
-        </section>
-      ) : (
-        <>
-          {featured && (
-            <section aria-label="Artigo em destaque">
-              <BlogFeaturedSection post={featured} />
-            </section>
-          )}
+      <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10 md:py-12 space-y-10">
+        {filtered.length === 0 ? (
+          <section aria-label="Search results" className="py-12 text-center">
+            <p className="text-muted-foreground">
+              No articles found. Try a different term or clear the filter.
+            </p>
+          </section>
+        ) : (
+          <>
+            {featured && (
+              <section aria-label="Featured article">
+                <BlogFeaturedSection post={featured} />
+              </section>
+            )}
 
-          {gridPosts.length > 0 && (
-            <section
-              aria-label="Outros artigos"
-              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-            >
-              {gridPosts.map((post) => (
-                <BlogGridCard key={post.slug} post={post} />
-              ))}
-            </section>
-          )}
-        </>
-      )}
-    </div>
+            {gridPosts.length > 0 && (
+              <section
+                aria-label="More articles"
+                className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                {gridPosts.map((post) => (
+                  <BlogGridCard key={post.slug} post={post} />
+                ))}
+              </section>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }

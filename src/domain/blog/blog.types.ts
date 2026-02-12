@@ -3,6 +3,12 @@
  * Pure TypeScript types with no external dependencies.
  */
 
+/**
+ * Raw Portable Text blocks from Sanity (same shape as @portabletext/types).
+ * Typed loosely in domain to avoid external deps; cast to PortableTextBlock[] in UI.
+ */
+export type BlogPostBodyBlock = unknown;
+
 export interface BlogPost {
   slug: string;
   title: string;
@@ -19,7 +25,10 @@ export interface BlogPost {
   };
   tags?: string[];
   keywords?: string[];
+  /** Plain text body (used for meta, list, fallback). */
   body: string;
+  /** Raw Portable Text blocks for rich rendering on detail page. When present, use instead of body. */
+  bodyBlocks?: BlogPostBodyBlock[];
 }
 
 export interface BlogPostListItem {

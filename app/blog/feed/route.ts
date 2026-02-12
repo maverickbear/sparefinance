@@ -21,7 +21,7 @@ function toRfc822Date(dateStr: string): string {
 
 export async function GET() {
   const blogService = makeBlogService();
-  const posts = blogService.getAllPosts();
+  const posts = await blogService.getAllPosts();
 
   const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">

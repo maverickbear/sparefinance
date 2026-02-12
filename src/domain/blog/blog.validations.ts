@@ -23,6 +23,7 @@ export const blogPostSchema = z.object({
   tags: z.array(z.string().min(1).max(30)).max(10).optional(),
   keywords: z.array(z.string().max(50)).max(20).optional(),
   body: z.string().min(1, "Body is required"),
+  bodyBlocks: z.array(z.unknown()).optional(),
 });
 
 export type BlogPostInput = z.infer<typeof blogPostSchema>;

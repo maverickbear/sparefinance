@@ -10,6 +10,17 @@ export interface SupabaseError {
 }
 
 /**
+ * Check if an error is an AbortError (e.g. Next.js dev aborting in-flight requests on cache miss).
+ * These are expected in development and should not be logged as errors.
+ */
+export function isAbortError(error: unknown): boolean {
+  if (!error) return false;
+  const code = (error as { code?: string })?.code;
+  const message = error instanceof Error ? error.message : String(error);
+  return code === "20" || message.includes("aborted") || message.includes("AbortError");
+}
+
+/**
  * Check if an error is a connection error (should be suppressed from logs)
  */
 export function isConnectionError(error: unknown): boolean {
