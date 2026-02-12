@@ -8,9 +8,6 @@ import { BlogPostStructuredData } from "@/components/blog/blog-structured-data";
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL || "https://app.sparefinance.com";
 
-/** Revalidate blog posts periodically so production shows fresh content after deploy. */
-export const revalidate = 60;
-
 interface BlogPostPageProps {
   params: Promise<{ slug: string }>;
 }
