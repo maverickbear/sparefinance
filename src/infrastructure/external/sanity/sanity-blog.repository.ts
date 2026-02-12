@@ -65,8 +65,13 @@ const POST_FULL_PROJECTION = groq`{
   body
 }`;
 
+/** Use a client that bypasses Sanity CDN so production always gets fresh content. */
+function getFreshClient() {
+  return getSanityClient().withConfig({ useCdn: false });
+}
+
 export async function sanityFetchAllPosts(): Promise<SanityBlogPostDto[]> {
-  const client = getSanityClient();
+  const client = getFreshClient();
   const raw = await client.fetch<
     Array<Omit<SanityBlogPostDto, "body"> & { body?: SanityBlock[] }>
   >(groq`*[_type == "post"] | order(datePublished desc) ${POST_FULL_PROJECTION}`);
@@ -94,7 +99,7 @@ export async function sanityFetchAllPosts(): Promise<SanityBlogPostDto[]> {
 }
 
 export async function sanityFetchPostBySlug(slug: string): Promise<SanityBlogPostDto | null> {
-  const client = getSanityClient();
+  const client = getFreshClient();
   const raw = await client.fetch<
     (Omit<SanityBlogPostDto, "body"> & { body?: SanityBlock[] }) | null
   >(groq`*[_type == "post" && slug.current == $slug][0] ${POST_FULL_PROJECTION}`, { slug });
@@ -125,7 +130,7 @@ export async function sanityFetchPostBySlug(slug: string): Promise<SanityBlogPos
 }
 
 export async function sanityFetchAllSlugs(): Promise<string[]> {
-  const client = getSanityClient();
+  const client = getFreshClient();
   const slugs = await client.fetch<string[]>(groq`*[_type == "post"].slug.current`);
   return Array.isArray(slugs) ? slugs : [];
 }

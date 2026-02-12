@@ -278,6 +278,25 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Blog: avoid caching so Sanity content updates show in production
+        source: "/blog",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, must-revalidate, proxy-revalidate",
+          },
+        ],
+      },
+      {
+        source: "/blog/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=0, must-revalidate, proxy-revalidate",
+          },
+        ],
+      },
+      {
         // Allow back/forward cache for landing page
         source: "/",
         headers: [
