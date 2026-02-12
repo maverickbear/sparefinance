@@ -784,6 +784,28 @@ export class SubscriptionsRepository {
   }
 
   /**
+   * Find all active or trialing subscriptions for a plan (with Stripe subscription ID).
+   * Used for reporting or cross-checking which users are on a plan when scheduling price changes.
+   */
+  async findActiveByPlanId(planId: string, useServiceRole: boolean = false): Promise<SubscriptionRow[]> {
+    const supabase = useServiceRole ? createServiceRoleClient() : await createServerClient();
+
+    const { data, error } = await supabase
+      .from("app_subscriptions")
+      .select("*")
+      .eq("plan_id", planId)
+      .in("status", ["active", "trialing"])
+      .not("stripe_subscription_id", "is", null);
+
+    if (error) {
+      logger.error("[SubscriptionsRepository] Error finding active subscriptions by plan ID:", error);
+      return [];
+    }
+
+    return (data ?? []) as SubscriptionRow[];
+  }
+
+  /**
    * Find plan by Stripe price ID
    */
   async findPlanByPriceId(priceId: string, useServiceRole: boolean = false): Promise<PlanRow | null> {

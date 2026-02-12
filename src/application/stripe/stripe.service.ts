@@ -813,14 +813,21 @@ export class StripeService {
               currency: currency,
               recurring: { interval: "month" },
             });
-            
+
+            await this.schedulePlanPriceChangeForSubscriptions(
+              plan.stripe_price_id_monthly,
+              newMonthlyPrice.id,
+              "month",
+              warnings
+            );
+
             await stripe.prices.update(plan.stripe_price_id_monthly, { active: false });
-            
+
             await supabase
               .from("app_plans")
               .update({ stripe_price_id_monthly: newMonthlyPrice.id })
               .eq("id", planId);
-            
+
             logger.info(`[StripeService] Updated monthly price: ${newMonthlyPrice.id}`);
           }
         } catch (error) {
@@ -860,14 +867,21 @@ export class StripeService {
               currency: currency,
               recurring: { interval: "year" },
             });
-            
+
+            await this.schedulePlanPriceChangeForSubscriptions(
+              plan.stripe_price_id_yearly,
+              newYearlyPrice.id,
+              "year",
+              warnings
+            );
+
             await stripe.prices.update(plan.stripe_price_id_yearly, { active: false });
-            
+
             await supabase
               .from("app_plans")
               .update({ stripe_price_id_yearly: newYearlyPrice.id })
               .eq("id", planId);
-            
+
             logger.info(`[StripeService] Updated yearly price: ${newYearlyPrice.id}`);
           }
         } catch (error) {
@@ -908,6 +922,99 @@ export class StripeService {
         warnings: warnings.length > 0 ? warnings : undefined,
       };
     }
+  }
+
+  /**
+   * List all Stripe subscriptions on a given price (active and trialing), then schedule each
+   * to switch to the new price at the end of their current billing period.
+   */
+  private async schedulePlanPriceChangeForSubscriptions(
+    oldPriceId: string,
+    newPriceId: string,
+    interval: "month" | "year",
+    warnings: string[]
+  ): Promise<void> {
+    const stripe = getStripeClient();
+    const allSubIds: string[] = [];
+
+    const [activeSubs, trialingSubs] = await Promise.all([
+      stripe.subscriptions.list({ price: oldPriceId, status: "active" }).autoPagingToArray({ limit: 10000 }),
+      stripe.subscriptions.list({ price: oldPriceId, status: "trialing" }).autoPagingToArray({ limit: 10000 }),
+    ]);
+
+    for (const sub of [...activeSubs, ...trialingSubs]) {
+      allSubIds.push(sub.id);
+    }
+
+    for (const subscriptionId of allSubIds) {
+      try {
+        await this.attachScheduleToSwitchPriceAtPeriodEnd(subscriptionId, newPriceId, interval);
+        logger.info(`[StripeService] Scheduled price change at period end for subscription ${subscriptionId}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        warnings.push(`Failed to schedule subscription ${subscriptionId}: ${msg}`);
+        logger.warn("[StripeService] Failed to schedule price change for subscription:", { subscriptionId, error: msg });
+      }
+    }
+  }
+
+  /**
+   * Create or update a subscription schedule so the subscription switches to the new price
+   * at the end of its current billing period (no mid-cycle proration).
+   */
+  private async attachScheduleToSwitchPriceAtPeriodEnd(
+    stripeSubscriptionId: string,
+    newPriceId: string,
+    interval: "month" | "year"
+  ): Promise<void> {
+    const stripe = getStripeClient();
+
+    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+      expand: ["items.data.price", "schedule"],
+    });
+
+    const item = subscription.items.data[0];
+    if (!item?.price?.id) {
+      throw new Error("Subscription has no price");
+    }
+
+    const currentPriceId = typeof item.price === "string" ? item.price : item.price.id;
+    const currentPeriodEnd = subscription.current_period_end;
+    const currentPeriodStart = subscription.current_period_start;
+
+    const phase1 = {
+      start_date: currentPeriodStart,
+      end_date: currentPeriodEnd,
+      items: [{ price: currentPriceId, quantity: 1 }],
+      proration_behavior: "none" as const,
+    };
+
+    const phase2 = {
+      start_date: currentPeriodEnd,
+      items: [{ price: newPriceId, quantity: 1 }],
+      duration: { interval, interval_count: 1 },
+      proration_behavior: "none" as const,
+    };
+
+    const scheduleId =
+      typeof subscription.schedule === "string" ? subscription.schedule : subscription.schedule?.id ?? null;
+
+    if (scheduleId) {
+      await stripe.subscriptionSchedules.update(scheduleId, {
+        end_behavior: "release",
+        phases: [phase1, phase2],
+      });
+      return;
+    }
+
+    const schedule = await stripe.subscriptionSchedules.create({
+      from_subscription: stripeSubscriptionId,
+    });
+
+    await stripe.subscriptionSchedules.update(schedule.id, {
+      end_behavior: "release",
+      phases: [phase1, phase2],
+    });
   }
 
   /**
