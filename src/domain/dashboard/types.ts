@@ -230,6 +230,12 @@ export interface ExpectedIncomeOverview {
   spendingThisMonth: number;
   spendingAsPercentOfExpected: number | null; // when expected > 0
   hasExpectedIncome: boolean;
+  /** Days until next paycheck (optional, for "Next paycheck in X days") */
+  nextPaycheckDays?: number | null;
+  /** Amount of next paycheck (optional) */
+  nextPaycheckAmount?: number | null;
+  /** Status for the income target indicator */
+  status?: "on_track" | "slightly_below_target" | "below_target" | null;
 }
 
 // Combined dashboard data
@@ -254,6 +260,30 @@ export interface DashboardWidgetsData {
     totalSavings: number;
     /** Sum of balances for checking, savings, cash, and other (liquid/available accounts) */
     totalAvailable: number;
+    /** Optional detailed data for the Available card */
+    availableCard?: {
+      /** Change in available balance vs last month (can be negative); omit when not available */
+      vsLastMonthDelta?: number;
+      /** Amount free to spend after commitments */
+      freeToSpend: number;
+      /** Projected balance at end of month (estimate) */
+      projectedEndOfMonth: number;
+      /** Status for the "On track" indicator */
+      status: "on_track" | "at_risk" | "behind";
+    };
+    /** Optional detailed data for the Savings card */
+    savingsCard?: {
+      /** Amount saved this month */
+      savedThisMonth: number;
+      /** Current saving rate as % of income (e.g. 18) */
+      savingPercentOfIncome: number;
+      /** Target saving rate as % (e.g. 25) */
+      savingTargetPercent: number;
+      /** Emergency fund in months of expenses */
+      emergencyFundMonths: number;
+      /** Status for the savings indicator */
+      status: "growing_steadily" | "on_track" | "below_target" | "at_risk";
+    };
   } | null;
   expectedIncomeOverview: ExpectedIncomeOverview | null;
 }

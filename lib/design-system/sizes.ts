@@ -9,14 +9,14 @@ export const componentSizes = {
   // Button sizes
   button: {
     tiny: {
-      height: "h-8",
-      paddingX: "px-2.5",
-      paddingY: "py-1.5",
+      height: "h-6",
+      paddingX: "px-2",
+      paddingY: "py-1",
       text: "text-xs",
       rounded: "rounded-lg",
     },
     small: {
-      height: "h-9",
+      height: "h-8",
       paddingX: "px-3",
       paddingY: "py-2",
       text: "text-sm",
@@ -38,16 +38,16 @@ export const componentSizes = {
     },
     icon: {
       tiny: {
-        height: "h-8",
-        width: "w-8",
+        height: "h-6",
+        width: "w-6",
         paddingX: "",
         paddingY: "",
         text: "text-xs",
         rounded: "rounded-lg",
       },
       small: {
-        height: "h-9",
-        width: "w-9",
+        height: "h-8",
+        width: "w-8",
         paddingX: "",
         paddingY: "",
         text: "text-sm",

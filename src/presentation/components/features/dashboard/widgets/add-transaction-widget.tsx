@@ -37,6 +37,7 @@ interface Category {
   id: string;
   name: string;
   type: "income" | "expense";
+  subcategories?: Array<{ id: string; name: string; logo?: string | null }>;
 }
 
 export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidgetProps) {
@@ -55,6 +56,7 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
   const [accountId, setAccountId] = useState<string>("");
   const [toAccountId, setToAccountId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
+  const [subcategoryId, setSubcategoryId] = useState<string>("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -124,13 +126,14 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
     try {
       setLoading(true);
       
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         type,
         amount: parseFloat(amount),
         description,
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split("T")[0],
         accountId,
-        categoryId: type === "transfer" ? null : (categoryId || null)
+        categoryId: type === "transfer" ? null : (categoryId || null),
+        subcategoryId: type === "transfer" ? null : (subcategoryId || null),
       };
 
       if (type === "transfer") {
@@ -157,6 +160,8 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
       
       setAmount("");
       setDescription("");
+      setCategoryId("");
+      setSubcategoryId("");
       router.refresh();
       onTransactionAdded?.();
     } catch (error) {
@@ -172,13 +177,20 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
   };
 
   // Filter categories based on selected type
-  const filteredCategories = categories.filter(c => c.type === type);
+  const filteredCategories = categories.filter((c) => c.type === type);
+  const selectedCategory = filteredCategories.find((c) => c.id === categoryId);
+  const hasSubcategories = Boolean(selectedCategory?.subcategories?.length);
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryId(value);
+    setSubcategoryId("");
+  };
 
   return (
     <WidgetCard title="Quick Transaction" className="h-full">
       <form onSubmit={handleSubmit} className="space-y-3">
         <Tabs value={type} onValueChange={(v) => setType(v as "expense" | "income" | "transfer")} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-9">
+          <TabsList className="grid w-full grid-cols-3 h-[fit-content]">
             <TabsTrigger value="expense" className="text-xs">Expense</TabsTrigger>
             <TabsTrigger value="income" className="text-xs">Income</TabsTrigger>
             <TabsTrigger value="transfer" className="text-xs">Transfer</TabsTrigger>
@@ -245,18 +257,41 @@ export function AddTransactionWidget({ onTransactionAdded }: AddTransactionWidge
         {type !== "transfer" && (
           <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
             <Label htmlFor="category" className="text-xs text-muted-foreground">Category</Label>
-            <Select value={categoryId} onValueChange={setCategoryId} disabled={filteredCategories.length === 0}>
-              <SelectTrigger id="category" className="h-9 text-sm">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredCategories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Select
+                value={categoryId}
+                onValueChange={handleCategoryChange}
+                disabled={filteredCategories.length === 0}
+              >
+                <SelectTrigger id="category" className="h-9 text-sm flex-1 min-w-0">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {hasSubcategories && (
+                <Select
+                  value={subcategoryId}
+                  onValueChange={setSubcategoryId}
+                >
+                  <SelectTrigger id="subcategory" className="h-9 text-sm flex-1 min-w-0 sm:max-w-[180px]" aria-label="Subcategory">
+                    <SelectValue placeholder="Subcategory (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedCategory?.subcategories?.map((sub) => (
+                      <SelectItem key={sub.id} value={sub.id}>
+                        {sub.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
         )}
 

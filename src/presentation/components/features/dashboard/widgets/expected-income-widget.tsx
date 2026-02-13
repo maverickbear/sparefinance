@@ -37,24 +37,45 @@ export function ExpectedIncomeWidget({
         headerAction={
           <Button
             variant="outline"
-            size="small"
+            size="icon"
             onClick={() => setEditOpen(true)}
-            className="h-8 px-2 text-xs gap-1"
+            className="h-8 w-8 lg:h-10 lg:w-10"
+            aria-label="Adjust income"
           >
-            <Pencil className="h-3.5 w-3.5" />
-            Adjust
+            <Pencil className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
           </Button>
         }
       >
         <div className="flex flex-col gap-2">
           {hasExpectedIncome && data ? (
             <>
-              <span className="text-xs text-muted-foreground">Actual income this month</span>
               <div className="text-2xl font-bold">
                 {formatMoney(data.actualIncomeThisMonth)}
               </div>
-              <p className="text-xs text-muted-foreground pt-0.5">
-                Expected: {formatMoney(data.expectedMonthlyIncome)}/month
+              {data.expectedMonthlyIncome > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {Math.round((data.actualIncomeThisMonth / data.expectedMonthlyIncome) * 100)}% of expected income
+                </p>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Expected: {formatMoney(data.expectedMonthlyIncome)}
+              </p>
+              {data.nextPaycheckDays != null && data.nextPaycheckAmount != null ? (
+                <p className="text-sm text-muted-foreground">
+                  Next paycheck in {data.nextPaycheckDays} days ({formatMoney(data.nextPaycheckAmount)})
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Next paycheck: —
+                </p>
+              )}
+              <p className="text-sm font-medium mt-0.5">
+                {data.status === "below_target" ||
+                (data.actualIncomeThisMonth <= 0 && data.expectedMonthlyIncome > 0)
+                  ? "🔴 Below target"
+                  : data.status === "slightly_below_target"
+                    ? "🟡 Slightly below target"
+                    : "🟢 On track"}
               </p>
             </>
           ) : (

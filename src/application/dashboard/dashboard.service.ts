@@ -263,7 +263,7 @@ export class DashboardService {
     const hasExpectedIncome = incomeRange != null;
     const spendingAsPercentOfExpected =
       expectedMonthlyIncome > 0 ? (spendingThisMonth / expectedMonthlyIncome) * 100 : null;
-    const expectedIncomeOverview: ExpectedIncomeOverview = {
+    const expectedIncomeOverviewBase: ExpectedIncomeOverview = {
       expectedMonthlyIncome,
       actualIncomeThisMonth,
       spendingThisMonth,
@@ -327,6 +327,90 @@ export class DashboardService {
       this.getSubscriptionsWidget(userId)
     ]);
 
+    // Augment expected income overview with next paycheck (from recurring) and status
+    const nextIncome = recurring?.items
+      ?.filter((i) => i.type === "income")
+      .map((i) => ({ nextDate: parseISO(i.nextDate), amount: i.amount }))
+      .filter((i) => isAfter(i.nextDate, date) || isSameDay(i.nextDate, date))
+      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())[0];
+    const expectedIncomeOverview: ExpectedIncomeOverview = {
+      ...expectedIncomeOverviewBase,
+      nextPaycheckDays: nextIncome ? differenceInDays(nextIncome.nextDate, date) : undefined,
+      nextPaycheckAmount: nextIncome?.amount,
+      status:
+        expectedMonthlyIncome <= 0
+          ? undefined
+          : actualIncomeThisMonth <= 0
+            ? "below_target" // $0 income with a target is never "on track"
+            : actualIncomeThisMonth >= expectedMonthlyIncome
+              ? "on_track"
+              : actualIncomeThisMonth >= expectedMonthlyIncome * 0.8
+                ? "slightly_below_target"
+                : "below_target",
+    };
+
+    // Build accountStats with optional availableCard and savingsCard (use post–Promise.all data)
+    const totalChecking = accounts
+      ? accounts.filter((a) => a.type === "checking").reduce((sum, a) => sum + (a.balance || 0), 0)
+      : 0;
+    const totalSavings = accounts
+      ? accounts
+          .filter((a) => a.type === "savings" || a.type === "cash")
+          .reduce((sum, a) => sum + (a.balance || 0), 0)
+      : 0;
+    const assetTypes = ["checking", "savings", "cash", "other", "investment"];
+    const totalAvailable = accounts
+      ? accounts
+          .filter((a) => assetTypes.includes(a.type))
+          .reduce((sum, a) => sum + (a.balance || 0), 0)
+      : 0;
+
+    const upcomingDueNext7 = upcomingPayments?.totalDueNext7Days ?? 0;
+    const freeToSpend = totalAvailable - upcomingDueNext7;
+    const projectedEndOfMonth = totalAvailable + expectedMonthlyIncome - spendingThisMonth;
+    const availableStatus: "on_track" | "at_risk" | "behind" =
+      totalAvailable <= 0
+        ? "at_risk" // $0 available is never "on track"
+        : freeToSpend < 0
+          ? "at_risk"
+          : projectedEndOfMonth < 0
+            ? "behind"
+            : "on_track";
+
+    const savedThisMonth = actualIncomeThisMonth - spendingThisMonth;
+    const savingPercentOfIncome =
+      actualIncomeThisMonth > 0 ? (savedThisMonth / actualIncomeThisMonth) * 100 : 0;
+    const SAVING_TARGET_PERCENT = 25;
+    const emergencyFundMonths = financialHealth?.emergencyFundMonths ?? 0;
+    const savingsStatus: "growing_steadily" | "on_track" | "below_target" | "at_risk" =
+      savedThisMonth < 0
+        ? "at_risk"
+        : savingPercentOfIncome >= SAVING_TARGET_PERCENT
+          ? "growing_steadily"
+          : savingPercentOfIncome >= SAVING_TARGET_PERCENT * 0.8
+            ? "on_track"
+            : "below_target";
+
+    const accountStats = accounts
+      ? {
+          totalChecking,
+          totalSavings,
+          totalAvailable,
+          availableCard: {
+            freeToSpend,
+            projectedEndOfMonth,
+            status: availableStatus,
+          },
+          savingsCard: {
+            savedThisMonth,
+            savingPercentOfIncome: Math.round(savingPercentOfIncome * 10) / 10,
+            savingTargetPercent: SAVING_TARGET_PERCENT,
+            emergencyFundMonths: Math.round(emergencyFundMonths * 10) / 10,
+            status: savingsStatus,
+          },
+        }
+      : null;
+
     return {
       spareScore,
       netWorth,
@@ -343,18 +427,7 @@ export class DashboardService {
       recentTransactions,
       recurring,
       subscriptions,
-      accountStats: accounts ? (() => {
-        const totalChecking = accounts.filter(a => a.type === 'checking').reduce((sum, a) => sum + (a.balance || 0), 0);
-        const totalSavings = accounts
-          .filter(a => a.type === 'savings' || a.type === 'cash')
-          .reduce((sum, a) => sum + (a.balance || 0), 0);
-        // All asset-type accounts (exclude only 'credit' which is a liability)
-        const assetTypes = ['checking', 'savings', 'cash', 'other', 'investment'];
-        const totalAvailable = accounts
-          .filter(a => assetTypes.includes(a.type))
-          .reduce((sum, a) => sum + (a.balance || 0), 0);
-        return { totalChecking, totalSavings, totalAvailable };
-      })() : null,
+      accountStats,
       expectedIncomeOverview,
     };
   }

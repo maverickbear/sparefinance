@@ -12,6 +12,7 @@ import { SubscriptionsWidget } from "./widgets/subscriptions-widget";
 import { AddTransactionWidget } from "./widgets/add-transaction-widget";
 import { ExpectedIncomeWidget } from "./widgets/expected-income-widget";
 import { WidgetCard } from "./widgets/widget-card";
+import { formatMoney } from "@/components/common/money";
 import { SpareScoreDetailsDialog } from "./widgets/spare-score-details-dialog";
 import { SpareScoreFullWidthWidget } from "./widgets/spare-score-full-width-widget";
 import { RefreshCcw } from "lucide-react";
@@ -133,15 +134,39 @@ export function DashboardWidgetsClient({ initialDate }: DashboardWidgetsClientPr
         {/* Stats Section: 4 Columns - Available, Income, Savings, Net Worth */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 lg:mb-6">
            <WidgetCard title="Available" className="min-h-0 h-auto">
-              <div className="flex flex-col gap-1">
-                 <span className="text-xs text-muted-foreground">Total balance across your accounts</span>
-                 <div className="text-2xl font-bold">
-                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-                     data.accountStats?.totalAvailable ??
-                     (data.accountStats ? (data.accountStats.totalChecking ?? 0) + (data.accountStats.totalSavings ?? 0) : 0)
-                   )}
-                 </div>
-              </div>
+              {(() => {
+                const available = data.accountStats?.totalAvailable ??
+                  (data.accountStats ? (data.accountStats.totalChecking ?? 0) + (data.accountStats.totalSavings ?? 0) : 0);
+                const card = data.accountStats?.availableCard;
+                const statusConfig = !card
+                  ? null
+                  : card.status === "at_risk"
+                    ? { label: "At risk", emoji: "🟡" }
+                    : card.status === "behind"
+                      ? { label: "Behind", emoji: "🔴" }
+                      : { label: "On track", emoji: "🟢" };
+                return (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-2xl font-bold">
+                      {formatMoney(available)}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {card?.vsLastMonthDelta != null
+                        ? `${formatMoney(card.vsLastMonthDelta)} vs last month`
+                        : "— vs last month"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Free to spend: {card?.freeToSpend != null ? formatMoney(card.freeToSpend) : "—"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Projected end of month: {card?.projectedEndOfMonth != null ? formatMoney(card.projectedEndOfMonth) : "—"}
+                    </p>
+                    <p className="text-sm font-medium mt-0.5">
+                      {statusConfig ? `${statusConfig.emoji} ${statusConfig.label}` : "—"}
+                    </p>
+                  </div>
+                );
+              })()}
            </WidgetCard>
            <ExpectedIncomeWidget
              data={data.expectedIncomeOverview ?? null}
@@ -149,20 +174,82 @@ export function DashboardWidgetsClient({ initialDate }: DashboardWidgetsClientPr
              className="min-h-0 h-auto"
            />
            <WidgetCard title="Savings" className="min-h-0 h-auto">
-              <div className="flex flex-col gap-1">
-                 <span className="text-xs text-muted-foreground">Current Savings Balance</span>
-                 <div className="text-2xl font-bold">
-                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(data.accountStats?.totalSavings || 0)}
-                 </div>
-              </div>
+              {(() => {
+                const savings = data.accountStats?.totalSavings ?? 0;
+                const card = data.accountStats?.savingsCard;
+                const statusConfig = !card
+                  ? null
+                  : card.status === "at_risk"
+                    ? { label: "At risk", emoji: "🔴" }
+                    : card.status === "below_target"
+                      ? { label: "Below target", emoji: "🟡" }
+                      : card.status === "on_track"
+                        ? { label: "On track", emoji: "🟢" }
+                        : { label: "Growing steadily", emoji: "🟢" };
+                return (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-2xl font-bold">
+                      {formatMoney(savings)}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {card?.savedThisMonth != null
+                        ? `${formatMoney(card.savedThisMonth)} this month`
+                        : "— this month"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {card?.savingPercentOfIncome != null && card?.savingTargetPercent != null
+                        ? `Saving ${card.savingPercentOfIncome}% of income (Target: ${card.savingTargetPercent}%)`
+                        : "Saving: —"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {card?.emergencyFundMonths != null
+                        ? `Emergency fund covers ${card.emergencyFundMonths} months`
+                        : "Emergency fund: —"}
+                    </p>
+                    <p className="text-sm font-medium mt-0.5">
+                      {statusConfig ? `${statusConfig.emoji} ${statusConfig.label}` : "—"}
+                    </p>
+                  </div>
+                );
+              })()}
            </WidgetCard>
            <WidgetCard title="Net Worth" className="min-h-0 h-auto">
-              <div className="flex flex-col gap-1">
-                 <span className="text-xs text-muted-foreground">Current Net Position</span>
-                 <div className="text-2xl font-bold">
-                   {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(data.netWorth?.netWorth || 0)}
-                 </div>
-              </div>
+              {(() => {
+                const nw = data.netWorth;
+                const hasData = nw != null;
+                const netWorth = nw?.netWorth ?? 0;
+                const change = nw?.change ?? 0;
+                const changePct = nw?.changePercentage ?? 0;
+                const assets = nw?.totalAssets ?? 0;
+                const liabilities = nw?.totalLiabilities ?? 0;
+                const statusLabel =
+                  change > 0 ? "Improving" : change < 0 ? "Declining" : "Stable";
+                const statusEmoji = change > 0 ? "🟢" : change < 0 ? "🔴" : "🟡";
+                return (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-2xl font-bold">
+                      {formatMoney(netWorth)}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {hasData ? `${formatMoney(change)} this month` : "— this month"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {hasData
+                        ? `${change >= 0 ? "↑" : "↓"} ${Math.abs(changePct).toFixed(1)}% ${change >= 0 ? "growth" : "decline"}`
+                        : "—"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Assets: {hasData ? formatMoney(assets) : "—"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Liabilities: {hasData ? formatMoney(liabilities) : "—"}
+                    </p>
+                    <p className="text-sm font-medium mt-0.5">
+                      {hasData ? `${statusEmoji} ${statusLabel}` : "—"}
+                    </p>
+                  </div>
+                );
+              })()}
            </WidgetCard>
         </div>
 
