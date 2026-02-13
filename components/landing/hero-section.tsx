@@ -11,17 +11,17 @@ export function HeroSection() {
   const { ref: imageRef, inView: imageInView } = useInView();
 
   return (
-    <section className="relative min-h-[70vh] flex flex-col justify-center pt-24 pb-20 md:pt-40 md:pb-32 overflow-hidden bg-[#f8f4f1]">
+    <section className="relative min-h-[70vh] flex flex-col justify-center pt-12 pb-20 md:pb-32 lg:pt-40 overflow-hidden bg-[#f8f4f1]">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          <div ref={headlineRef} className={cn("transition-all duration-700 ease-out", headlineInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6")}>
+          <div ref={headlineRef} className={cn("order-2 lg:order-1 text-center lg:text-left transition-all duration-700 ease-out", headlineInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6")}>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground">
               Personal finance at peace.
             </h1>
-            <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
+            <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed mx-auto lg:mx-0">
               One calm place for your money. Track spending, budgets, goals, and more—all in one place.
             </p>
-            <div className="mt-10 flex flex-wrap gap-4">
+            <div className="mt-10 flex flex-wrap gap-4 justify-center lg:justify-start">
               <Button
                 asChild
                 size="large"
@@ -35,7 +35,7 @@ export function HeroSection() {
             </div>
           </div>
 
-          <div ref={imageRef} className={cn("relative hidden lg:block aspect-[4/3] max-w-xl mx-auto w-full bg-[#f8f4f1] transition-all duration-700 delay-150 ease-out", imageInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8")}>
+          <div ref={imageRef} className={cn("relative order-1 lg:order-2 aspect-[4/3] max-w-xl mx-auto w-full bg-[#f8f4f1] transition-all duration-700 delay-150 ease-out", imageInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8")}>
             <LandingImage
               src="hero.jpg"
               alt="Spare Finance dashboard: your money in one place with Spare Score and spending overview"
