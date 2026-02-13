@@ -277,8 +277,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check authentication for protected routes
+  // /members/accept is public (invitation accept + create password); only /members (e.g. /members, /members/...) except /members/accept is protected
+  const isMembersAcceptPage = pathname.startsWith("/members/accept");
   const protectedPaths = ["/dashboard", "/settings", "/reports", "/transactions", "/planning", "/members", "/insights"];
-  const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path));
+  const isProtectedPath =
+    !isMembersAcceptPage && protectedPaths.some((path) => pathname.startsWith(path));
 
   if (isProtectedPath) {
     try {
